@@ -170,3 +170,38 @@ test("the same question answers both screens", () => {
   assert.deepEqual(unmetNeeds(card, EX.rec2en, null, []), ["recs"]);
   assert.equal(find(offers(card), "rec2en").ready, canAsk(on, "rec2en", ar));
 });
+
+/* ---- pictures ----
+   Three exercises ask for a picture on the card: hear it and choose its
+   picture, choose the word a picture shows, write it from the picture. */
+
+test("a card with a picture can be asked from it, and one without is told it wants one", () => {
+  const pictured = word({ images: ["a".repeat(64)], recs: [{ id: "r1" }] });
+  const on = { unit: pictured, scene: null, contexts: [], mates: 10, pictured: 10 };
+  assert.equal(canAsk(on, "img2ar", ar), true, "writing it from its picture");
+  assert.equal(canAsk(on, "img2pick", ar), true, "choosing the word its picture shows");
+  assert.equal(canAsk(on, "rec2img", ar), true, "hearing it and choosing its picture");
+
+  /* An empty list is not a picture — the generic rule would have taken it
+     for one. */
+  const bare = word({ images: [] });
+  assert.deepEqual(unmetNeeds(bare, EX.img2ar, null, []), ["images"]);
+  assert.deepEqual(find(offers(bare), "img2ar").missing, ["a picture"]);
+});
+
+test("choosing a picture needs other cards with pictures to choose between", () => {
+  const pictured = word({ images: ["a".repeat(64)], recs: [{ id: "r1" }] });
+  assert.deepEqual(unmetNeeds(pictured, EX.rec2img, null, [], {}, 10, 1), ["pictured"]);
+  assert.deepEqual(unmetNeeds(pictured, EX.rec2img, null, [], {}, 10, 3), []);
+  assert.deepEqual(
+    find(offersFor({ units: [{ unit: pictured, isSub: false, scene: null }], lang: ar, picturedFor: () => 0 }), "rec2img").missing,
+    ["a few more cards with a picture"],
+  );
+  /* And a recording: it is a listening exercise. */
+  assert.ok(unmetNeeds(word({ images: ["a".repeat(64)] }), EX.rec2img, null, [], {}, 10, 10).includes("recs"));
+});
+
+test("a card whose words change is not pictured, as it is not recorded", () => {
+  const frame = word({ ar: "اسمي {{person}}", en: "My name is {{person}}", images: ["a".repeat(64)] });
+  assert.deepEqual(unmetNeeds(frame, EX.img2ar, null, [], { person: [{}] }), ["fixed"]);
+});

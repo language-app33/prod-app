@@ -119,7 +119,7 @@ export interface ExerciseSpec {
    * Absent means a choice between classes of sound, which is graded
    * differently.
    */
-  picks?: "reply" | "word" | "meaning" | "pair";
+  picks?: "reply" | "word" | "meaning" | "pair" | "image";
 }
 
 /* ---- a verb's table ----

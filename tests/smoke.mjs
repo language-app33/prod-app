@@ -432,7 +432,11 @@ const fakeFetch = async (input, opts = {}) => {
       });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
-    if (action === "image") return json({ error: "not-found" }, 404);
+    /* A picture: a one-pixel PNG for any hash, so a picture question has
+       something to draw. */
+    if (action === "image") {
+      return json({ ok: true, hash: url.searchParams.get("hash"), data: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" });
+    }
     if (action === "put-image") return json({ ok: true, deduplicated: false });
     if (action === "report-flag") {
       reported.push(JSON.parse(opts.body || "{}"));
@@ -7707,6 +7711,95 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   root5.unmount();
   host5.remove();
   await sleep(200);
+}
+
+/* ---- practising from pictures ----
+   Five words, each with a recording and a picture. New, they are asked
+   the gentlest picture question — hear the word, choose its picture among
+   four. Known up to the third level, they are asked the other two: choose
+   the word a picture shows, and write it from the picture. On their own
+   document, at the end, like the walks above. */
+{
+  const before = errors.length;
+  const pic = (/** @type {number} */ i) => String(i + 1).repeat(64);
+  const pictured = (/** @type {number} */ i, /** @type {any} */ s = {}) => ({
+    id: `pic${i}`, kind: "word", tags: ["Lesson 1"], created: 1, updated: Date.now(),
+    forms: [{
+      id: `pic${i}`, ar: ["قهوة", "شاي", "خبز", "ماء", "تفاح"][i], en: ["coffee", "tea", "bread", "water", "apples"][i],
+      lat: ["ahwe", "shaay", "khubz", "mayy", "tuffaa7"][i],
+      recs: [{ id: `clip-pic${i}` }], images: [pic(i)], s,
+    }],
+  });
+  const solid = { phase: "review", reps: 4, interval: 9, ease: 2.5, due: Date.now() + 5 * 86400000,
+    right: 4, wrong: 0, hist: [1, 1, 1, 1], updated: Date.now() };
+  /** @param {string[]} keys */
+  const known = (keys) => Object.fromEntries(keys.map((t) => [t, { ...solid }]));
+  const level1 = ["ar2pick", "ar2en", "rec2en", "rec2img"];
+  const upTo2 = known(level1);
+  const upTo4 = known([...level1, "match", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
+  /** @param {any[]} items */
+  const walk = async (items) => {
+    localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+      version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, account, items,
+    }));
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const r = createRoot(host);
+    r.render(React.createElement(App));
+    await sleep(1500);
+    click([...host.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim())));
+    await sleep(600);
+    const met = { chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0 };
+    for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
+      const pics = host.querySelector(".at-picchoices");
+      const promptPic = host.querySelector(".at-picture.prompt");
+      const choices = host.querySelector('[data-el="answer-choices"]');
+      if (pics) {
+        met.chooseImage += 1;
+        met.tiles = Math.max(met.tiles, pics.querySelectorAll("button img").length);
+        /* A different tile each time, so some of them are wrong — the
+           right picture is only shown back after a wrong one. */
+        click(pics.querySelectorAll("button")[n % 4]);
+      } else if (choices) {
+        if (promptPic) met.promptPicked += 1;
+        click(choices.querySelector("button"));
+      } else if (host.querySelector('[data-el="answer-input"]')) {
+        if (promptPic) met.promptWritten += 1;
+        click([...host.querySelectorAll("button")].find((b) => /^I don't know$/.test((b.textContent || "").trim())));
+      } else if (host.querySelector('[data-el="answer-match"]')) {
+        await playGrid();
+      }
+      await sleep(120);
+      if (!host.querySelector('[data-el="verdict"]')) {
+        click(host.querySelector('[data-el="check-button"]'));
+        await sleep(200);
+      }
+      if (pics && host.querySelector(".at-picture.answer")) met.answerPicture += 1;
+      click([...host.querySelectorAll("button")].find((b) => /^Continue$/.test((b.textContent || "").trim())));
+      await sleep(200);
+    }
+    r.unmount();
+    host.remove();
+    await sleep(200);
+    return met;
+  };
+
+  const fresh = await walk([0, 1, 2, 3, 4].map((i) => pictured(i)));
+  check("new words with a picture are asked to hear the word and choose its picture",
+    fresh.chooseImage > 0, JSON.stringify(fresh));
+  check("out of four pictures, each drawn",
+    fresh.tiles === 4, JSON.stringify(fresh));
+  check("and the answer shows the picture that was wanted",
+    fresh.answerPicture > 0, JSON.stringify(fresh));
+
+  const second = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, upTo2)));
+  check("words known by ear are asked to choose the word a picture shows",
+    second.promptPicked > 0, JSON.stringify(second));
+  const fourth = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, upTo4)));
+  check("and, known further, to write it from the picture",
+    fourth.promptWritten > 0, JSON.stringify(fourth));
+  check("and nothing threw while the pictures were practised",
+    errors.length === before, errors.slice(before, before + 3).join(" | "));
 }
 
 report();

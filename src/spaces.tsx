@@ -3578,6 +3578,13 @@ function TryExercises({ card, cards, lang, onTry, back }: {
         material.filter(
           (c) => !isDialog(c) && leadOf(c).ar && leadOf(c).en && !hasSlots(c) && c.drill !== false
         ).length - 1,
+      /* And how many have a picture, which is what "Listen → picture"
+         draws its wrong answers from. */
+      picturedFor: (unit) =>
+        material.filter(
+          (c) => !isDialog(c) && !hasSlots(c) && c.drill !== false &&
+            formsOf(c).some((f: any) => f.ar && Array.isArray(f.images) && f.images.length)
+        ).length - (Array.isArray(unit.images) && unit.images.length ? 1 : 0),
     });
   }, [mine, lang, contexts, scenes, values, material]);
 

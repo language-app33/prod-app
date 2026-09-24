@@ -1571,6 +1571,7 @@ export function installIndexes(items: Item[], settings: Settings): void {
    * last of the setters first means the answers are worked out once.
    */
   setMateCounts(countMates(items, settings));
+  setPicturedCounts(countPictured(items, settings));
   const reach = valueReachOf(items, settings);
   setValueReach(reach.map);
   setValueOwner(reach.owner);
@@ -1605,6 +1606,41 @@ export function setMateCounts(map: Map<LangId, number>) {
 function matesFor(unit: Form, settings?: Settings): number {
   const id = (unit && unit.lang) || (settings && settings.language) || activeLang().id;
   return Math.max(0, (MATE_COUNTS.get(id) || 0) - 1);
+}
+
+/* The same count for pictures: how many words in each language carry one.
+   What "Listen → picture" draws its three wrong pictures from, and so
+   what decides whether it can be asked at all. */
+let PICTURED_COUNTS: Map<LangId, number> = new Map();
+
+export function setPicturedCounts(map: Map<LangId, number>) {
+  PICTURED_COUNTS = map || new Map();
+  forgetTypes();
+}
+
+/* Everything else in this language with a picture — its own taken off
+   where it has one, which it has if it is being asked about. */
+function picturedFor(unit: Form, settings?: Settings): number {
+  const id = (unit && unit.lang) || (settings && settings.language) || activeLang().id;
+  const own = unit && Array.isArray(unit.images) && unit.images.length ? 1 : 0;
+  return Math.max(0, (PICTURED_COUNTS.get(id) || 0) - own);
+}
+
+/* Words with a picture: the tiles "Listen → picture" can put beside the
+   right one. The same cards countMates counts, narrowed to those with a
+   picture on the form. */
+function countPictured(items: Item[], settings: Settings): Map<LangId, number> {
+  const counts: Map<LangId, number> = new Map();
+  for (const card of items) {
+    if (isDialog(card) || card.drill === false) continue;
+    const id = langIdOf(card, settings);
+    for (const { unit } of unitsOf(card)) {
+      if (unit.ar && !hasSlots(unit) && Array.isArray(unit.images) && unit.images.length) {
+        counts.set(id, (counts.get(id) || 0) + 1);
+      }
+    }
+  }
+  return counts;
 }
 
 /* Cards that can be a tile in a grid: a word with a meaning, in one
@@ -2082,9 +2118,38 @@ function blankedPhrase(context: any, lang: Lang, blank: string = "____") {
  * moment there is a connection or the recordings have been downloaded.
  */
 function typeAllowedNow(type: string, unit?: Form) {
+  /* A question that shows a picture has to be able to show it, which
+     offline means the picture is on this device — the same rule the
+     recordings follow below, for the same reason. */
+  if (isPictured(type) && !canSeeHere(unit)) return false;
   if (!isListening(type)) return true;
   if (listenOffUntil > Date.now()) return false;
   return canHearHere(unit);
+}
+
+/* Whether an exercise shows one of the card's pictures — as its prompt, or
+   as the answer among four. */
+function isPictured(type: string) {
+  const spec = specOf(type);
+  return !!spec && spec.needs.includes("images");
+}
+
+/*
+ * Which pictures are on this device, and whether anybody has looked. The
+ * same shape as audibleClips below: null until the first look, and before
+ * that every picture is assumed reachable.
+ */
+let visibleImages: Set<string> | null = null;
+export function setVisibleImages(ids: Set<string> | null) {
+  visibleImages = ids;
+}
+
+/** Whether this form's picture can be shown without a connection. */
+function canSeeHere(unit?: Form) {
+  if (!offlineNow || !visibleImages || !unit) return true;
+  const images = Array.isArray(unit.images) ? unit.images : [];
+  if (!images.length) return true;
+  return images.some((h) => visibleImages !== null && visibleImages.has(h));
 }
 
 /*
@@ -2282,7 +2347,7 @@ function availableTypes(
   const values = fillsFor(it, lang.id);
   const types = TYPES.filter((t) =>
     canAsk(
-      { unit: it, scene: at, contexts: contextsFor(it.id), values, mates: matesFor(it) },
+      { unit: it, scene: at, contexts: contextsFor(it.id), values, mates: matesFor(it), pictured: picturedFor(it) },
       t,
       lang
     )
@@ -4549,6 +4614,12 @@ function sfx(kind: string) {
 
 const DB_NAME = "arabic-trainer";
 const DB_STORE = "clips";
+/* A card's pictures, beside its recordings in the same database but in a
+   store of their own: what "the recordings on this device" counts and
+   downloads is recordings, and a picture among them would be counted as
+   one. Version 2 of the database is the version that has it. */
+const IMAGE_STORE = "images";
+const DB_VERSION = 2;
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 
 /* How long a cold open may take. Safari's first open of a database on a
@@ -4561,7 +4632,7 @@ function openClipDb() {
   dbPromise = new Promise((resolve) => {
     try {
       if (typeof indexedDB === "undefined") return resolve(null);
-      const req = indexedDB.open(DB_NAME, 1);
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
       let settled = false;
       const settle = (db: IDBDatabase | null) => {
         if (settled) return;
@@ -4571,6 +4642,7 @@ function openClipDb() {
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+        if (!db.objectStoreNames.contains(IMAGE_STORE)) db.createObjectStore(IMAGE_STORE);
       };
       req.onsuccess = () => settle(req.result);
       req.onerror = () => settle(null);
@@ -4597,14 +4669,18 @@ function openClipDb() {
  * rather than throwing: a browser with the database walled off (private
  * browsing, a blocked origin) has to leave the app working, not stop it.
  */
-function idbRun(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest | void): Promise<any> {
+function idbRun(
+  mode: IDBTransactionMode,
+  fn: (store: IDBObjectStore) => IDBRequest | void,
+  storeName: string = DB_STORE,
+): Promise<any> {
   return openClipDb().then(
     (db) =>
       new Promise((resolve) => {
         if (!db) return resolve(undefined);
         try {
-          const tx = db.transaction(DB_STORE, mode);
-          const req = fn(tx.objectStore(DB_STORE));
+          const tx = db.transaction(storeName, mode);
+          const req = fn(tx.objectStore(storeName));
           if (req) {
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => resolve(undefined);
@@ -4809,6 +4885,96 @@ async function warmClips(
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length || 1) }, worker));
   return fetched;
+}
+
+/* ---- pictures ----
+
+   A card's pictures, kept on this device the way its recordings are: in
+   IndexedDB by hash, fetched from the server the first time and read from
+   here after that, so a picture seen once can be shown offline. No text-
+   store fallback, unlike recordings — a picture is several times the size
+   of a recording and would fill it — so a browser without IndexedDB
+   fetches each one while it is online, and offline the exercises that
+   need one are not dealt (see canSeeHere). A fetch this session made is
+   remembered in memory either way, so one question does not ask twice. */
+
+const IMAGES_HELD: Map<string, Promise<Blob | null>> = new Map();
+
+async function localImageIds(): Promise<Set<string>> {
+  const ids: Set<string> = new Set();
+  const keys = (await idbRun("readonly", (st) => st.getAllKeys(), IMAGE_STORE)) || [];
+  for (const k of keys) if (typeof k === "string") ids.add(k);
+  return ids;
+}
+
+function imageBlob(hash: string): Promise<Blob | null> {
+  const held = IMAGES_HELD.get(hash);
+  if (held) return held;
+  const got = (async () => {
+    const here = await idbRun("readonly", (st) => st.get(hash), IMAGE_STORE);
+    if (here) return here as Blob;
+    try {
+      const r = await API.getImage(hash);
+      if (r && r.data) {
+        const blob = base64ToBlob(r.data);
+        await idbRun("readwrite", (st) => st.put(blob, hash), IMAGE_STORE);
+        return blob;
+      }
+    } catch (e) {
+      /* Not reachable now; the next question asks again. */
+    }
+    return null;
+  })();
+  /* A miss is not remembered, so a picture that could not be fetched
+     offline is fetched once the connection is back. */
+  got.then((b) => { if (!b) IMAGES_HELD.delete(hash); });
+  IMAGES_HELD.set(hash, got);
+  return got;
+}
+
+/* Fetch whatever pictures are not here yet, a few at a time — before a
+   session starts, so its picture questions do not wait on the network. */
+async function warmImages(hashes: Iterable<string>, concurrency = 3) {
+  const queue = [...new Set(hashes)];
+  const worker = async () => {
+    for (;;) {
+      const h = queue.shift();
+      if (h === undefined) return;
+      await imageBlob(h).catch(() => null);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length || 1) }, worker));
+}
+
+/* One of a card's pictures, drawn once it is here. Its object URL is made
+   for this picture and let go of when it leaves the screen. The alt text
+   is deliberately not the word: it is what is being asked. */
+function CardPicture({ hash, className = "", alt = "A picture of what is being asked about" }: {
+  hash: string;
+  className?: string;
+  alt?: string;
+}) {
+  const [url, setUrl] = useState("");
+  const [lost, setLost] = useState(false);
+  useEffect(() => {
+    let live = true;
+    let made = "";
+    setUrl("");
+    setLost(false);
+    imageBlob(hash).then((b) => {
+      if (!live) return;
+      if (!b) { setLost(true); return; }
+      made = URL.createObjectURL(b);
+      setUrl(made);
+    });
+    return () => {
+      live = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [hash]);
+  if (lost) return <span className={`at-picture lost ${className}`}>The picture isn&rsquo;t on this device yet.</span>;
+  if (!url) return <span className={`at-picture ${className}`} aria-busy="true" />;
+  return <img className={`at-picture ${className}`} src={url} alt={alt} />;
 }
 
 /* Still useful wherever a data URL is what's in hand. */
@@ -6080,6 +6246,41 @@ function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase"
 }
 
 /*
+ * Four pictures, one of them the answer — "Listen → picture". Each tile is
+ * a button holding a card's first picture, and what it answers with is
+ * that picture's hash, which is what checkAnswer looks for on the card.
+ * Named by position for a screen reader, since naming them by what they
+ * show would be reading the answer out.
+ */
+function PictureChoices({ options, value, onChange, disabled }: {
+  options: any[];
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="at-picchoices" data-el="answer-choices">
+      {options.map((option, i) => {
+        const hash = String((option && Array.isArray(option.images) && option.images[0]) || "");
+        return (
+          <button
+            type="button"
+            key={option.id}
+            className={`at-picchoice${value === hash ? " on" : ""}`}
+            aria-pressed={value === hash}
+            aria-label={`Picture ${i + 1}`}
+            disabled={disabled}
+            onClick={() => onChange(hash)}
+          >
+            <CardPicture hash={hash} alt="" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/*
  * Why there are no cards, in one sentence, in the one place all three
  * screens that have to say it read from.
  *
@@ -6431,6 +6632,10 @@ export default function ArabicTrainer() {
      exercise can be asked at all. Null until the first look. */
   const [audible, setAudible] = useState<Set<string> | null>(null);
   setAudibleClips(audible);
+  /* And which pictures are here, for the picture exercises — the same
+     question, asked at the same moments. */
+  const [visible, setVisible] = useState<Set<string> | null>(null);
+  setVisibleImages(visible);
   /* Pushed into its own flag beside the recordings, and for the same
      reason: the memos below run through enabledTypes, which has to know
      both before they do. */
@@ -6450,6 +6655,11 @@ export default function ArabicTrainer() {
         /* Leave the last answer standing; a failed listing is not evidence
            that the recordings have gone. */
       });
+    /* The pictures too: whatever brought recordings down may have brought
+       pictures with it, and the question is the same one. */
+    localImageIds()
+      .then((ids) => setVisible(ids))
+      .catch(() => {});
   }, []);
   /* What this device was last told about the courses, read once at the
      first render. It is what the three pieces of state below open with, so
@@ -7217,6 +7427,8 @@ export default function ArabicTrainer() {
      order for the same reason. */
   const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
   setMateCounts(mateCounts);
+  const picturedCounts = useMemo(() => countPictured(asking, settings), [asking, settings]);
+  setPicturedCounts(picturedCounts);
 
   /*
    * And how far the learner has got with each of them.
@@ -7730,11 +7942,27 @@ export default function ArabicTrainer() {
      course before it does anything else. */
   function warmSession(built: { exercises?: Question[] }) {
     const ids = [];
+    const pictures: string[] = [];
+    let choosesPictures = false;
     for (const ex of built.exercises || []) {
       const r = resolveUnit(items, ex);
       if (r && r.unit) for (const rec of r.unit.recs || []) ids.push(rec.id);
+      if (r && r.unit && Array.isArray(r.unit.images)) pictures.push(...r.unit.images.slice(0, 1));
+      if (specOf(ex.type) && specOf(ex.type).picks === "image") choosesPictures = true;
     }
     if (ids.length) warmClips(ids).catch(() => {});
+    /* The pictures the session shows, and — where it asks a learner to
+       choose between pictures — the ones it may put beside them, which are
+       any of their other cards' first pictures. Then the listing is asked
+       again, so what is now here counts offline. */
+    if (choosesPictures) {
+      for (const it of items) {
+        for (const { unit } of unitsOf(it)) {
+          if (Array.isArray(unit.images) && unit.images.length) pictures.push(unit.images[0]);
+        }
+      }
+    }
+    if (pictures.length) warmImages(pictures.slice(0, 60)).then(refreshAudible).catch(() => {});
   }
 
   /*
@@ -8148,6 +8376,22 @@ export default function ArabicTrainer() {
         textOf: (w) => w.ar,
       });
     }
+    /* Pictures: the learner's other words that have one, a tile each
+       showing its first picture. Two cards with the same picture are one
+       tile, which is what `textOf` reading the hash does. Offline, only
+       the pictures on this device — see canSeeHere. */
+    if (spec.picks === "image") {
+      const reps = (statesOf(item)[(exercise && exercise.type) || ""] || {}).reps || 0;
+      return optionsFor({
+        answer: item,
+        pool: wordPool(asking, settings, qLang.id, item).filter(
+          (u) => Array.isArray(u.images) && u.images.length && canSeeHere(u),
+        ),
+        wanted: PICK_OPTIONS,
+        seed: `${item.id} picture ${reps}`,
+        textOf: (w) => (Array.isArray(w.images) && w.images[0]) || "",
+      });
+    }
     /* The meanings of the learner's other words, one meaning apiece: a
        card that means two things offers the first of them, so no tile is
        two answers with a comma between. The card being asked is narrowed
@@ -8432,7 +8676,7 @@ export default function ArabicTrainer() {
   /* The two facts that change the answer, and nothing else: re-running this
      on every answer would re-plan the session under the learner. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offline, audible]);
+  }, [offline, audible, visible]);
 
   /* "Can't listen right now": stop asking for recordings, here and in
      anything built for the next quarter of an hour. */
@@ -9654,6 +9898,15 @@ export default function ArabicTrainer() {
                         fine={(Number(item.minute) || 0) % 5 !== 0}
                         label={`${Number(item.hour) || 0}:${String(Number(item.minute) || 0).padStart(2, "0")}`}
                       />
+                    ) : spec.promptField === "image" ? (
+                      /* One of the card's pictures, in place of the English:
+                         what the word means, shown. The first one — a card
+                         with several is a teacher's choice of which to lead
+                         with, and it is the one the tiles use too. */
+                      <CardPicture
+                        hash={(Array.isArray(item.images) && item.images[0]) || ""}
+                        className="prompt"
+                      />
                     ) : spec.promptField === "audio" ? (
                       /* A context question plays the whole phrase, not the
                          word: hearing it in running speech is the exercise.
@@ -9776,6 +10029,13 @@ export default function ArabicTrainer() {
                             people tap twice and then give up on. */}
                         {!checked && !typed && <Help>Pair them all, then check.</Help>}
                       </>
+                    ) : spec.picks === "image" ? (
+                      <PictureChoices
+                        options={choices}
+                        value={typed}
+                        disabled={!!checked}
+                        onChange={setTyped}
+                      />
                     ) : spec.picks ? (
                       <TextChoices
                         options={choices}
@@ -9938,6 +10198,14 @@ export default function ArabicTrainer() {
                               lang={qLang}
                               name="answer-value-text"
                               className={`at-arabic ${item.kind || "word"}`}
+                            />
+                          ) : spec.answerField === "images" ? (
+                            /* The picture that was wanted, which is the
+                               answer to a question asked in pictures. */
+                            <CardPicture
+                              hash={(Array.isArray(item.images) && item.images[0]) || ""}
+                              className="answer"
+                              alt="The right picture"
                             />
                           ) : (
                             <Field
@@ -13655,6 +13923,7 @@ const GUIDE = [
     title: "What gets asked",
     body: [
       "What is on a card decides what can be asked of it. Script and meaning give you two directions; a recording lets it be practiced by ear; a second writing, where the language uses one, adds more.",
+      "A card with a picture can be practiced from the picture too: hearing the word and choosing its picture, choosing the word a picture shows, and writing it from the picture alone.",
       "Some languages have properties that can be heard but not seen written — a tone, for instance. Where a language declares one, there is an exercise for it.",
       "A card can also hold a whole conversation. You meet it by reading it through, then a line at a time: what a line means, which reply comes next, and writing your own turn. Later the scene itself — putting its lines back in order, and holding up your whole end of it. None of that needs a recording; where a line has one, you can hear it as well as read it.",
     ],

@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.244 — 24 September 2026
+
+**Practising from pictures.**
+
+A card with a picture is now practised from it, in three new exercises:
+
+- **Listen → picture** (level 1): the word is heard, and its picture is
+  chosen out of four. Nothing to read, so it suits a learner who can't
+  read the script yet. It needs a recording, and three other cards with
+  a picture to put beside it.
+- **Picture → choose** (level 2): the picture is shown, and the word is
+  chosen out of four.
+- **Picture → Arabic** (level 4): the picture is shown, and the word is
+  written — the transliteration hint is there, and costs a near miss as
+  it does on *English → Arabic*.
+
+Cards without a picture are asked exactly what they were before. On the
+teacher's card, the list of exercises says which of these a card is
+waiting for — *a picture*, or *a few more cards with a picture*.
+
+Pictures are kept on the learner's device once seen, like recordings,
+and are fetched before a session starts. Offline, a picture exercise is
+only asked when its picture is already on the device.
+
 ## 0.243 — 24 September 2026
 
 **A card can carry pictures.**

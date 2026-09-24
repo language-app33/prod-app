@@ -31,7 +31,7 @@ import { saidAnswers } from "./answers.ts";
 import { slotsOf } from "./variables.ts";
 import { ownSlot } from "./verbs.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.ts";
-import { MIN_PAIR_MATES } from "./chance.ts";
+import { MIN_PAIR_MATES, PICK_OPTIONS } from "./chance.ts";
 
 /*
  * What this unit has not got, of what an exercise asks for.
@@ -59,6 +59,12 @@ export function unmetNeeds(
    * word keeps: one card alone has nothing to be told apart from.
    */
   mates = 0,
+  /**
+   * How many other cards in this language have a picture. Only the
+   * exercise that offers four pictures to choose from asks: the three
+   * wrong ones have to be somebody's.
+   */
+  pictured = 0,
 ): string[] {
   const holes = slotsOf(unit);
   /* The verb's own place in a verb card's sentence is a hole no card
@@ -102,10 +108,18 @@ export function unmetNeeds(
    * so would be two reasons where there is one thing to do.
    */
   if (unfilled.length) return [`fills:${unfilled.join(",")}`];
-  if (holes.length && (spec.promptField === "audio" || spec.needs.includes("mates"))) return ["fixed"];
+  /* A picture is of one thing, and a card whose words change with what
+     fills it is several — so the picture exercises go the way the
+     listening ones do. */
+  if (holes.length && (spec.promptField === "audio" || spec.needs.includes("mates") || spec.needs.includes("images"))) return ["fixed"];
   return spec.needs.filter((f: string) => {
     if (f === "recs") return !(unit.recs || []).length;
     if (f === "mates") return mates < MIN_PAIR_MATES;
+    /* A picture of its own — an empty list is not one, which the generic
+       rule below would take it for. */
+    if (f === "images") return !(Array.isArray(unit.images) && unit.images.length);
+    /* Three wrong pictures beside the right one: four tiles. */
+    if (f === "pictured") return pictured < PICK_OPTIONS - 1;
     if (f === "contexts") return !contexts.length;
     if (f === "contextAudio") return !contexts.some((c) => (c.recs || []).length > 0);
     if (DIALOG_NEEDS.includes(f)) return !dialogNeedMet(f, scene, unit);
@@ -129,6 +143,7 @@ export function canAsk(
     contexts: { recs?: { id: string }[] }[];
     values?: Record<string, unknown[]>;
     mates?: number;
+    pictured?: number;
   },
   type: string,
   lang: Lang,
@@ -137,7 +152,7 @@ export function canAsk(
   if (!spec || spec.retired) return false;
   if ((spec.dialog || "word") !== roleOf(on.unit, on.scene)) return false;
   if (!drilledBy(spec, lang, on.unit)) return false;
-  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}, on.mates || 0).length === 0;
+  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}, on.mates || 0, on.pictured || 0).length === 0;
 }
 
 /* The two reasons a language rather than a card refuses an exercise. */
@@ -176,6 +191,7 @@ export function offersFor({
   contextsFor = () => [],
   valuesFor = () => ({}),
   matesFor = () => 0,
+  picturedFor = () => 0,
 }: {
   units: { unit: Form; isSub: boolean; scene?: Placed | null }[];
   lang: Lang;
@@ -184,6 +200,8 @@ export function offersFor({
   valuesFor?: (unit: Form) => Record<string, unknown[]>;
   /** How many other cards could stand beside it in the matching grid. */
   matesFor?: (unit: Form) => number;
+  /** How many other cards have a picture to stand beside its own. */
+  picturedFor?: (unit: Form) => number;
 }): Offer[] {
   const known = units.map((u) => ({
     unit: u.unit,
@@ -192,6 +210,7 @@ export function offersFor({
     contexts: contextsFor(u.unit) || [],
     values: valuesFor(u.unit) || {},
     mates: matesFor(u.unit) || 0,
+    pictured: picturedFor(u.unit) || 0,
   }));
 
   const offers: Offer[] = [];
@@ -218,7 +237,7 @@ export function offersFor({
          language gives its script. */
       missing: ready
         ? []
-        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values, on.mates).map((f) =>
+        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values, on.mates, on.pictured).map((f) =>
             needLabel(f, lang)
           ),
     });

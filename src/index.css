@@ -731,6 +731,23 @@ button {
   .at-sheet { border-radius: var(--r-lg); padding-bottom:18px; }
 }
 .at-sheettop { display:flex; align-items:center; gap:8px; }
+/* ---- pictures in practice ----
+   The prompt: large enough to recognise the thing at a glance, its own
+   shape inside a frame the height of a phrase prompt's worth of room. The
+   choices: four square tiles, two to a row, each a button. */
+.at-picture { display:block; max-width:100%; border-radius: var(--r-sm); background: var(--well); }
+.at-picture.prompt { width:min(100%, 320px); aspect-ratio:4/3; object-fit:contain; margin:0 auto; }
+.at-picture.answer { width:min(100%, 200px); aspect-ratio:4/3; object-fit:contain; }
+span.at-picture { display:flex; align-items:center; justify-content:center; color: var(--muted);
+  font-size:14px; text-align:center; padding:12px; }
+.at-picchoices { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.at-picchoice { padding:0; aspect-ratio:1; border:3px solid var(--line); border-radius: var(--r-sm);
+  background: var(--well); overflow:hidden; cursor:pointer; }
+.at-picchoice > .at-picture { width:100%; height:100%; object-fit:contain; border-radius:0; }
+.at-picchoice:hover:not(:disabled), .at-picchoice:focus-visible { border-color: var(--brass); }
+.at-picchoice.on { border-color: var(--accent); box-shadow:0 0 0 3px var(--accent); }
+.at-picchoice:disabled { cursor:default; }
+
 /* ---- a form's pictures ----
    Large enough to judge on the screen they are added on: two to a row on
    a phone, their own shape inside a square frame, with the bin over a
