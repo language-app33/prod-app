@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.221 — 24 September 2026
+
+**A verb card no longer explains what a verb is.**
+
+Creating or editing a verb, the box for its name used to carry a
+paragraph about why a verb needs one, and a saved verb ended its first
+section with a line about its table and how emptying it makes it a word
+again. Both are gone. The padlock on its subtype still says it cannot be
+changed while the card carries its table, and a card whose name is
+missing still says so under the box.
+
+Adjectives and nouns with a table, and sentences, keep their lines.
+
 ## 0.220 — 23 September 2026
 
 **An exercise says which shape of an adjective it wants again.**

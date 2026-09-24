@@ -5561,13 +5561,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       thisCardAsks().indexOf("Name") === thisCardAsks().indexOf("What subtype") + 1 &&
         !heads.includes("What to call it"),
       `${thisCardAsks().join(" | ")} · ${heads.join(" | ")}`);
-    /* And it says what it is for, and that nothing is asked about it. */
-    check("and says it is a label rather than something practised",
+    /* And it says what it is for, and nothing more: a verb's name carries
+       no paragraph about what a verb is. */
+    check("and says only what it is for",
       !!nameBlock && /listed and searched/.test(nameBlock.textContent || "") &&
-        /Nobody is ever asked this/.test(nameBlock.textContent || ""),
-      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no field)");
-    check("naming the box it would otherwise be listed under",
-      !!nameBlock && /past · he/.test(nameBlock.textContent || ""),
+        !/Nobody is ever asked this/.test(nameBlock.textContent || "") &&
+        !/A verb is its table/.test(nameBlock.textContent || ""),
       nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no field)");
 
     check("without the table labelling the cell it went into",
@@ -6118,10 +6117,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /cannot be changed while the card carries its table/.test(
         (thisCardBlock().textContent || "")),
     subtypeRow() && subtypeRow().querySelector(".at-shutlock") ? "locked" : "no padlock");
-  /* And the line that says what would unlock it is still at the foot of
-     the block: empty the table and it is a word again. */
-  check("and the block still says what a verb is and how it stops being one",
-    /Empty the table and it is a word again/.test(thisCardBlock().textContent || ""),
+  /* And no line explaining what a verb is — at the foot of the block or
+     under its name. The padlock says it is settled; that is enough. */
+  check("and neither the block nor the name explains what a verb is",
+    !/Empty the table and it is a word again/.test(document.body.textContent || "") &&
+      !/A verb is its table/.test(document.body.textContent || ""),
     (thisCardBlock().textContent || "").replace(/\s+/g, " ").slice(-120));
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));

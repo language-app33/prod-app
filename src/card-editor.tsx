@@ -4384,8 +4384,8 @@ function WordKind({ word }: { word: WordDraft }) {
    *
    * So it reads the way the kind of card above it reads when it is
    * settled: the answer, with a padlock where the pencil would be. What
-   * would unlock it is emptying the table, which the line at the foot of
-   * this block says — see storedHelp.
+   * would unlock it is emptying the table. A verb no longer spells that
+   * out at the foot of the block (see storedHelp); other tables still do.
    *
    * Nothing at all only where there is nothing to say: a conversation and
    * a sentence are not kinds of word, and a card whose language declares
@@ -4614,7 +4614,7 @@ function KindBlock({ card, lang, scene, shape, word, naming, decks, chosen, onTo
       {/* And where it cannot be asked, because the card already has
           one: the table is the content, so offering the change would
           be offering to throw it away. */}
-      {!scene && storedForms && (
+      {!scene && storedForms && storedHelp(specOf(lang, storedForms)) && (
         <Help className="at-mt3">{storedHelp(specOf(lang, storedForms))}</Help>
       )}
 
@@ -4638,12 +4638,12 @@ function KindBlock({ card, lang, scene, shape, word, naming, decks, chosen, onTo
   );
 }
 
-/* What a saved card's table makes it, in the words the table gives. */
+/* What a saved card's table makes it, in the words the table gives. A
+   verb says nothing: the padlock on its subtype already says why it is
+   settled, and the line spelling out what a verb is only got in the way. */
 const storedHelp = (spec: VerbSpec | null): string => {
   if (!spec) return "";
-  if ((spec.gate || "word") === "rows") {
-    return "A verb: its forms are its table, each practised in its own right. Empty the table and it is a word again.";
-  }
+  if ((spec.gate || "word") === "rows") return "";
   const name = spec.label ? spec.label[0].toUpperCase() + spec.label.slice(1) : "Its table";
   return spec.perForm
     ? `${name}: every form of the word carries a table of them, each one practised in its own right. Empty the tables and it is an ordinary word again.`
@@ -4685,7 +4685,7 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
 
        A verb in a language with no infinitive has no one word of its
        own: it is a table, and every box in it is a form. So a list had
-       to show one of those boxes — {citedLabel} — and a deck of verbs
+       to show one of those boxes — "past · he" — and a deck of verbs
        read as a column of he-pasts, each naming one form rather than
        the verb the card is about. A sentence is listed as itself,
        braces and all: "{{name}} is heavy" names the shape of the card
@@ -4725,23 +4725,14 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
           the card can stand for the whole of it.
         </p>
       )}
-      <Help>
-        {verb ? (
-          <>
-            A verb is its table, so there is no one word of it to head a
-            list: without a name it would be listed as {citedLabel(shownSpec)},
-            which names that form rather than the verb. Nobody is ever
-            asked this: the table is what is practised.
-          </>
-        ) : (
-          <>
-            Without one it is listed as the sentence itself, blanks and all
-            — which names the shape of the card rather than what it is for.
-            Nobody is ever asked this: what is practised is the sentence
-            with its blanks filled in.
-          </>
-        )}
-      </Help>
+      {!verb && (
+        <Help>
+          Without one it is listed as the sentence itself, blanks and all
+          — which names the shape of the card rather than what it is for.
+          Nobody is ever asked this: what is practised is the sentence
+          with its blanks filled in.
+        </Help>
+      )}
     </Field>
   );
 }
@@ -7196,18 +7187,6 @@ const seedCited = (
       /* Named like every other cell — see initialCells. */
       id: formName(cells.concat(taken as any)),
     }]);
-};
-
-/* What to call the cell a dictionary lists the verb under, in the pack's
-   own words for its rows and columns — "past · he". A pack whose columns
-   are unlabelled leaves the row standing on its own, for the same reason
-   the table does not print "any" over a language with one person. */
-const citedLabel = (spec: VerbSpec | null | undefined): string => {
-  const cite = citationOf(spec);
-  if (!cite) return "";
-  const tense = tensesOf(spec).find((t) => t.id === cite.row);
-  const person = personsOf(spec).find((p) => p.id === cite.col);
-  return [tense && tense.label, person && person.label].filter(Boolean).join(" · ");
 };
 
 /*
