@@ -58,6 +58,9 @@ await build({
      * its own at the foot of the file.
      */
     "src/number-system-editor.tsx",
+    /* And the review screens, reached from a card's page and a toolbar
+       button this walk does not press — driven on their own at the foot. */
+    "src/review-sheet.tsx",
   ],
   bundle: true,
   format: "esm",
@@ -284,6 +287,11 @@ const signedUp = [];
    whatever else is in hand — so for that one the course is emptied and the
    only thing left is the skills. */
 let materialQuiet = false;
+/* Saves the stub takes, where a walk turns them on — see save-card below. */
+let takeSaves = false;
+/** @type {any[]} */
+const savedCards = [];
+
 /**
  * The whole server, as far as the app is concerned.
  *
@@ -432,6 +440,21 @@ const fakeFetch = async (input, opts = {}) => {
       });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
+    /* A picture: a one-pixel PNG for any hash, so a picture question has
+       something to draw. */
+    /* A card saved, where a walk has asked for saves to be taken — the
+       Pronouns screen's. Off otherwise, so nothing earlier comes to rely on
+       a save the stub did not used to answer. */
+    if (action === "save-card" && takeSaves) {
+      const body = JSON.parse(opts.body || "{}");
+      const card = { ...(body.card || {}), id: (body.card && body.card.id) || `k-saved-${savedCards.length + 1}` };
+      savedCards.push(card);
+      return json({ ok: true, card: { ...card, decks: body.decks || [] }, decks: [] });
+    }
+    if (action === "image") {
+      return json({ ok: true, hash: url.searchParams.get("hash"), data: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" });
+    }
+    if (action === "put-image") return json({ ok: true, deduplicated: false });
     if (action === "report-flag") {
       reported.push(JSON.parse(opts.body || "{}"));
       return json({ ok: true, id: "flag-1" });
@@ -5359,6 +5382,25 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         check("the recording button sits beside Grammar, under the word",
           !!about && !!about.querySelector('[aria-label^="Recordings"]') && /Grammar/.test(about.textContent || ""),
           about ? (about.textContent || "").trim() : "(no row)");
+        /* And beside it, the way to add a picture of what the word means. */
+        const imgBtn = about ? /** @type {any} */ (about.querySelector('[aria-label^="Images"]')) : null;
+        check("with Add image beside Record",
+          !!imgBtn && /^Add image$/.test((imgBtn.textContent || "").trim()) &&
+            !!(about.querySelector('[aria-label^="Recordings"]').compareDocumentPosition(imgBtn) & 4),
+          imgBtn ? (imgBtn.textContent || "").trim() : "(no button)");
+        click(imgBtn);
+        await sleep(250);
+        const shot = () => /** @type {any} */ ([...document.querySelectorAll(".at-screen")]
+          .find((sc) => /^Images/.test(((sc.querySelector(".at-screenhead h2") || {}).textContent || "").trim())) || null);
+        check("which opens a screen of its own, as recording does",
+          !!shot() && [...(shot() || document).querySelectorAll("label.at-btn")]
+            .some((l) => /Choose an image/.test(l.textContent || "") && !!l.querySelector('input[type="file"][accept="image/*"]')) &&
+            [...(shot() || document).querySelectorAll("label.at-btn")]
+              .some((l) => /Take a photo/.test(l.textContent || "") && !!l.querySelector('input[capture="environment"]')),
+          shot() ? (shot().textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no screen)");
+        click([...(shot() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the card"));
+        await sleep(250);
+        check("and goes back to the card", !shot(), shot() ? "still open" : "closed");
       }
       check("ticking one says this card fills it",
         JSON.stringify(ticked()) === JSON.stringify(["friend"]),
@@ -5970,9 +6012,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !formRows().some((r) => /^Number/.test((r.textContent || "").trim())),
         formRows().map((r) => (r.textContent || "").slice(0, 10)).join(" | ") || "(nothing offered)");
 
-      await pickKind(/^Pronoun/);
-      check("a pronoun has no table and is asked its number and gender",
-        !tables().length && !!grammarBtn(), `${tables().length} table boxes`);
+      check("a pronoun is not a kind of word anybody is offered, because the Pronouns screen writes them",
+        !formRows().some((r) => /^Pronoun/.test((r.textContent || "").trim())),
+        formRows().map((r) => (r.textContent || "").slice(0, 10)).join(" | ") || "(nothing offered)");
 
       await pickKind(/^Something else/);
       check("something else is the word alone: no table, no grammar",
@@ -6269,6 +6311,55 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(300);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
+}
+
+/* ---- a language's pronouns, written once ----
+
+   The Pronouns screen, off the Cards tab beside Numbers: one row per
+   column of the verb table. Filled in and saved, each row goes up as a
+   card of the Pronoun kind that says which column it is. */
+{
+  takeSaves = true;
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const btn = /** @type {any} */ ([...frame.querySelectorAll("button")]
+    .find((b) => b.getAttribute("aria-label") === "Pronouns") || null);
+  check("the Cards tab offers Pronouns beside Numbers", !!btn, btn ? "there" : "(no button)");
+  click(btn);
+  await sleep(400);
+  const screen = () => /** @type {any} */ ([...document.querySelectorAll(".at-screen")]
+    .find((sc) => /^Pronouns · /.test(((sc.querySelector(".at-screenhead h2") || {}).textContent || "").trim())) || null);
+  const rows = () => screen() ? [...screen().querySelectorAll("[data-person]")].map((r) => r.getAttribute("data-person")) : [];
+  check("which lists one row for each person the verb table has",
+    JSON.stringify(rows()) === JSON.stringify(["i", "you-m", "you-f", "he", "she", "we", "you-pl", "they"]),
+    rows().join(" ") || "(no screen)");
+  const setValue = (/** @type {any} */ el, /** @type {string} */ v) => {
+    if (!el) return;
+    const setter = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "the setter").set;
+    must(setter, "the setter").call(el, v);
+    el.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  const iRow = () => screen() && screen().querySelector('[data-person="i"]');
+  setValue(iRow() && iRow().querySelector("input"), "أنا");
+  await sleep(120);
+  const latBox = iRow() && [...iRow().querySelectorAll("input")].find((i) => /Transliteration for I/.test(i.getAttribute("aria-label") || ""));
+  setValue(latBox, "ana");
+  await sleep(120);
+  const saveBtn = () => /** @type {any} */ ([...(screen() || document).querySelectorAll("button")]
+    .find((b) => /^Save 1 pronoun$/.test((b.textContent || "").trim())) || null);
+  check("and saving says how many it will write", !!saveBtn(),
+    [...(screen() || document).querySelectorAll("button")].map((b) => (b.textContent || "").trim()).join(" | "));
+  click(saveBtn());
+  await sleep(400);
+  const sent = savedCards[savedCards.length - 1] || {};
+  check("each row goes up as a Pronoun card that says which person it is",
+    sent.person === "i" && sent.category === "pronoun" && sent.lang === "ar-PS" &&
+      ((sent.forms || [])[0] || {}).ar === "أنا" && ((sent.forms || [])[0] || {}).lat === "ana",
+    JSON.stringify(sent).slice(0, 200));
+  check("and the English is the person's name where none was typed",
+    ((sent.forms || [])[0] || {}).en === "I", JSON.stringify((sent.forms || [])[0]));
+  click([...(screen() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  takeSaves = false;
 }
 
 /* ---- a saved adjective opens on the table it agrees out of ----
@@ -6773,7 +6864,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(200);
   check("and Filter replaces it rather than standing beside it",
     frame.querySelectorAll(".at-listmenu").length === 1 &&
-      sortLabels().join(" | ") === "Recordings | Forms | Decks | Blanks",
+      sortLabels().join(" | ") === "Recordings | Forms | Decks | Blanks | Review",
     `${frame.querySelectorAll(".at-listmenu").length} panels · ${sortLabels().join(" | ")}`);
 
   /* ---- and by a blank, from either side of it ----
@@ -7686,6 +7777,190 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   root5.unmount();
   host5.remove();
   await sleep(200);
+}
+
+/* ---- practising from pictures ----
+   Five words, each with a recording and a picture. New, they are asked
+   the gentlest picture question — hear the word, choose its picture among
+   four. Known up to the third level, they are asked the other two: choose
+   the word a picture shows, and write it from the picture. On their own
+   document, at the end, like the walks above. */
+{
+  const before = errors.length;
+  const pic = (/** @type {number} */ i) => String(i + 1).repeat(64);
+  const pictured = (/** @type {number} */ i, /** @type {any} */ s = {}) => ({
+    id: `pic${i}`, kind: "word", tags: ["Lesson 1"], created: 1, updated: Date.now(),
+    forms: [{
+      id: `pic${i}`, ar: ["قهوة", "شاي", "خبز", "ماء", "تفاح"][i], en: ["coffee", "tea", "bread", "water", "apples"][i],
+      lat: ["ahwe", "shaay", "khubz", "mayy", "tuffaa7"][i],
+      recs: [{ id: `clip-pic${i}` }], images: [pic(i)], s,
+    }],
+  });
+  const solid = { phase: "review", reps: 4, interval: 9, ease: 2.5, due: Date.now() + 5 * 86400000,
+    right: 4, wrong: 0, hist: [1, 1, 1, 1], updated: Date.now() };
+  /** @param {string[]} keys */
+  const known = (keys) => Object.fromEntries(keys.map((t) => [t, { ...solid }]));
+  const level1 = ["ar2pick", "ar2en", "rec2en", "rec2img"];
+  const upTo2 = known(level1);
+  const upTo4 = known([...level1, "match", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
+  /** @param {any[]} items */
+  const walk = async (items) => {
+    localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+      version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, account, items,
+    }));
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const r = createRoot(host);
+    r.render(React.createElement(App));
+    await sleep(1500);
+    click([...host.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim())));
+    await sleep(600);
+    const met = { chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0 };
+    for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
+      const pics = host.querySelector(".at-picchoices");
+      const promptPic = host.querySelector(".at-picture.prompt");
+      const choices = host.querySelector('[data-el="answer-choices"]');
+      if (pics) {
+        met.chooseImage += 1;
+        met.tiles = Math.max(met.tiles, pics.querySelectorAll("button img").length);
+        /* A different tile each time, so some of them are wrong — the
+           right picture is only shown back after a wrong one. */
+        click(pics.querySelectorAll("button")[n % 4]);
+      } else if (choices) {
+        if (promptPic) met.promptPicked += 1;
+        click(choices.querySelector("button"));
+      } else if (host.querySelector('[data-el="answer-input"]')) {
+        if (promptPic) met.promptWritten += 1;
+        click([...host.querySelectorAll("button")].find((b) => /^I don't know$/.test((b.textContent || "").trim())));
+      } else if (host.querySelector('[data-el="answer-match"]')) {
+        await playGrid();
+      }
+      await sleep(120);
+      if (!host.querySelector('[data-el="verdict"]')) {
+        click(host.querySelector('[data-el="check-button"]'));
+        await sleep(200);
+      }
+      /* The answer's picture is read from storage, so give it a moment
+         rather than look once — a busy machine can be slower than 200ms. */
+      if (pics) {
+        for (let t = 0; t < 20 && !host.querySelector(".at-picture.answer"); t++) await sleep(50);
+        if (host.querySelector(".at-picture.answer")) met.answerPicture += 1;
+      }
+      click([...host.querySelectorAll("button")].find((b) => /^Continue$/.test((b.textContent || "").trim())));
+      await sleep(200);
+    }
+    r.unmount();
+    host.remove();
+    await sleep(200);
+    return met;
+  };
+
+  const fresh = await walk([0, 1, 2, 3, 4].map((i) => pictured(i)));
+  check("new words with a picture are asked to hear the word and choose its picture",
+    fresh.chooseImage > 0, JSON.stringify(fresh));
+  check("out of four pictures, each drawn",
+    fresh.tiles === 4, JSON.stringify(fresh));
+  check("and the answer shows the picture that was wanted",
+    fresh.answerPicture > 0, JSON.stringify(fresh));
+
+  const second = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, upTo2)));
+  check("words known by ear are asked to choose the word a picture shows",
+    second.promptPicked > 0, JSON.stringify(second));
+  const fourth = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, upTo4)));
+  check("and, known further, to write it from the picture",
+    fourth.promptWritten > 0, JSON.stringify(fourth));
+  check("and nothing threw while the pictures were practised",
+    errors.length === before, errors.slice(before, before + 3).join(" | "));
+}
+
+/* ---- the review screens ----
+
+   Driven directly, as the number system's screen is: a card's sentences
+   listed as a student sees them, approved and struck and sent; a frame
+   too wide to read narrowed instead; and a report struck from the list. */
+{
+  const { ReviewScreen, ReportsScreen } = await import(path.join(out, "review-sheet.js"));
+  const { LANGUAGES } = await import(path.resolve("src/languages.ts"));
+  const before = errors.length;
+  const lang = LANGUAGES["ar-PS"];
+  const name = (/** @type {number} */ i) => ({
+    id: `n${i}`, lang: "ar-PS", fills: ["name"], drill: false, created: i, decks: [],
+    forms: [{ id: `n${i}`, ar: `اسم${i}`, en: `Name${i}`, lat: `Name${i}` }],
+  });
+  const frame = {
+    id: "f", lang: "ar-PS", sentence: true, created: 0, decks: ["d"], review: { ok: [], no: [] },
+    forms: [{ id: "f", ar: "اسمي {{name}}", en: "my name is {{name}}", lat: "ismi {{name}}" }],
+  };
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const r = createRoot(host);
+  const sent = /** @type {any[]} */ ([]);
+  const narrowedTo = /** @type {any[]} */ ([]);
+  const up = () => {
+    const all = [...document.querySelectorAll(".at-screen")];
+    return all[all.length - 1] || host;
+  };
+  const buttonIn = (/** @type {RegExp} */ re) =>
+    [...up().querySelectorAll("button")].find((b) => re.test((b.textContent || "").trim()));
+  const drawReview = (/** @type {any[]} */ pool, /** @type {any} */ card) =>
+    r.render(React.createElement(ReviewScreen, {
+      card, cards: pool, lang, onClose() {},
+      onReview: async (/** @type {any} */ change) => { sent.push(change); },
+      onNarrow: async (/** @type {any[]} */ changed) => { narrowedTo.push(changed); },
+    }));
+
+  const three = [0, 1, 2].map(name);
+  drawReview([...three, frame], frame);
+  await sleep(200);
+  const rows = up().querySelectorAll(".at-reviewlist .at-askedline");
+  check("the review screen lists every sentence a card makes", rows.length === 3, `${rows.length} rows`);
+  check("each one waiting to start with", up().querySelectorAll(".at-askedline.wait").length === 3);
+  click(rows[0].querySelector(".at-reviewmark.ok"));
+  await sleep(50);
+  click(up().querySelectorAll(".at-reviewlist .at-askedline")[1].querySelector(".at-reviewmark.no"));
+  await sleep(50);
+  click(buttonIn(/^Save review$/));
+  await sleep(100);
+  check("and Save review sends one approved and one struck",
+    sent.length === 1 && sent[0].ok.length === 1 && sent[0].no.length === 1, JSON.stringify(sent));
+
+  const many = Array.from({ length: 320 }, (_, i) => name(i));
+  drawReview([...many, frame], frame);
+  await sleep(300);
+  const saveBtn = /** @type {HTMLButtonElement | undefined} */ (buttonIn(/^Save review$/));
+  check("a frame too wide to read offers no approval, and a blank to narrow",
+    !!saveBtn && saveBtn.disabled && /Narrow a blank/.test(up().textContent || ""),
+    (up().textContent || "").slice(0, 160).replace(/\s+/g, " "));
+  const ticks = up().querySelectorAll(".at-narrowlist input[type=checkbox], .at-narrowlist [role=checkbox], .at-narrowlist button");
+  click(ticks[0]);
+  await sleep(50);
+  const box = must(up().querySelector("#at-narrow-name"), "the group name box");
+  const setValue = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "value").set;
+  must(setValue, "setter").call(box, "friends");
+  box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await sleep(50);
+  click(buttonIn(/^Narrow to/));
+  await sleep(100);
+  const done = narrowedTo[0] || [];
+  check("narrowing renames the blank and tags the word ticked",
+    done.length === 2 && done[0].forms[0].ar === "اسمي {{friends}}" && done[1].fills.includes("friends"),
+    JSON.stringify(done.map((/** @type {any} */ c) => [c.id, c.fills, c.forms[0].ar])));
+
+  const struck = /** @type {any[]} */ ([]);
+  r.render(React.createElement(ReportsScreen, {
+    flags: [{ id: "fl1", kind: "data", note: "", handle: "s", handleName: "Sara", cardId: "f", exercise: "ar2en",
+      subId: null, language: "ar-PS", prompt: "اسمي اسم0", meaning: "my name is Name0", at: Date.now(),
+      sentence: "0123456789abcdef" }],
+    cards: [frame], languages: LANGUAGES, onClose() {},
+    onStrike: (/** @type {any} */ f) => struck.push(f.id), onReview() {}, onDismiss() {},
+  }));
+  await sleep(200);
+  click(buttonIn(/^Strike this sentence$/));
+  await sleep(50);
+  check("a report about a sentence strikes it in one tap", struck.length === 1, JSON.stringify(struck));
+  check("and nothing threw on the review screens", errors.length === before, errors.slice(before, before + 3).join(" | "));
+  r.unmount();
+  host.remove();
 }
 
 report();

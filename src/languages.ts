@@ -94,13 +94,13 @@ export const NUMBER_EQUIVALENT: Record<string, string> = {
 
 export const TYPES = [
   /* 1: what does it mean */
-  "ar2pick", "ar2en", "rec2en",
+  "ar2pick", "ar2en", "rec2en", "rec2img",
   /* 2: which one is it */
-  "match", "en2pick", "ctx2pick",
+  "match", "en2pick", "img2pick", "ctx2pick",
   /* 3: write it from a cue */
   "tr2ar", "rec2ar", "rec2attr",
   /* 4: write it from its meaning */
-  "en2ar", "ctx2ar", "rec2ctx",
+  "en2ar", "img2ar", "ctx2ar", "rec2ctx",
   /* and a conversation, on its own levels: 1, 3, 3 */
   "dlgwhole", "dlgpick", "dlgorder",
   /* and a range of numbers or of times, which is a skill and climbs the
@@ -242,6 +242,26 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "en",
     gentle: true,
   },
+  /* The first of the three that use a card's pictures, and the gentlest:
+     the word is heard and what it means is picked out of four pictures.
+     "Listen → English" asks the same thing with the English to write; this
+     asks it with nothing to read at all, so it is the way in for a learner
+     who cannot yet read the script. Wrong pictures are drawn from the
+     learner's other cards that have one — see `pictured` in offers. */
+  rec2img: {
+    level: 1,
+    instruction: "Listen, then choose the picture",
+    label: "Listen → picture",
+    short: "L→▣",
+    needs: ["recs", "images", "pictured"],
+    question: "Which picture is this?",
+    placeholder: "",
+    promptField: "audio",
+    answerField: "images",
+    answerMode: "choice",
+    picks: "image",
+    gentle: true,
+  },
   rec2ar: {
     level: 3,
     instruction: "Listen, then write it in {script}",
@@ -328,6 +348,41 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "choice",
     picks: "word",
     gentle: true,
+  },
+  /* A picture in place of the English, and the word picked out of four —
+     "English → choose" with the meaning shown rather than translated. */
+  img2pick: {
+    level: 2,
+    instruction: "Choose the word",
+    label: "Picture → choose",
+    short: "▣→?",
+    needs: ["images", "ar", "mates"],
+    question: "Which word is this?",
+    placeholder: "",
+    promptField: "image",
+    answerField: "ar",
+    answerMode: "choice",
+    picks: "word",
+    gentle: true,
+  },
+  /* And writing it from the picture: "English → {script}" with the thing
+     itself as the prompt, which ties the word to what it names rather than
+     to its translation. The same hint, and the same cost for taking it. */
+  img2ar: {
+    level: 4,
+    instruction: "Write in {script}",
+    label: "Picture → {script}",
+    short: "▣→{S}",
+    needs: ["images", "ar"],
+    question: "Write what this is, in {script}",
+    placeholder: "",
+    promptField: "image",
+    answerField: "ar",
+    hintField: "lat",
+    hintLabel: "Show {translit}",
+    hintHideLabel: "Hide {translit}",
+    hintTells: true,
+    answerMode: "ar",
   },
   ctx2ar: {
     level: 4,
@@ -1122,9 +1177,11 @@ export function needLabel(need: string, lang: Partial<Lang>) {
     en: "the meaning",
     lat: `the ${translit}`,
     recs: "a recording",
+    images: "a picture",
+    pictured: "a few more cards with a picture",
     /* Not a field to fill in: a card whose words vary cannot be the one on
        a recording, so hearing it is the one thing a variable costs. */
-    fixed: "words that don't change — neither a recording nor a grid can follow a variable",
+    fixed: "words that don't change — neither a recording, a picture nor a grid can follow a variable",
     contexts: "a phrase that uses it",
     contextAudio: "a recorded phrase that uses it",
     dialog: "a conversation",
@@ -1748,6 +1805,25 @@ const WORD_CATEGORIES: WordCategory[] = [
   },
 ];
 
+/*
+ * The same list for a language whose verbs change with the person — Arabic
+ * and Hebrew — where Pronoun is retired as something a teacher picks.
+ *
+ * A pronoun there is not one more word: it is what chooses the verb's
+ * column, and the eight of them are the columns the verb table already
+ * has. So they are written once per language on the Pronouns screen,
+ * which knows which column each one is — something no subtype could say,
+ * since "I" and "he" are both singular. Kept, not removed, so every card
+ * saved as a Pronoun goes on saying so and filling {{pronoun}}; the
+ * Pronouns screen writes its cards with this kind too.
+ *
+ * Vietnamese keeps it offered: its verbs do not change with who does
+ * them, so there are no columns for a pronoun to choose.
+ */
+const PRONOUNED_CATEGORIES: WordCategory[] = WORD_CATEGORIES.map((c) =>
+  c.id === "pronoun" ? { ...c, retired: true } : c,
+);
+
 /** What a word can be in this language, in the order it is asked. */
 export const categoriesOf = (lang: Lang | null | undefined): WordCategory[] =>
   (lang && lang.categories) || [];
@@ -2294,7 +2370,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     },
     /* And what a teacher says a word is. The shared list: nothing about
        Arabic asks for a category of its own. */
-    categories: WORD_CATEGORIES,
+    categories: PRONOUNED_CATEGORIES,
     /* Unit before ten, and a joining word in front of every chunk. See
        src/numbers/ar-PS.ts, which holds the rule and not one word of it. */
     composer: composerFor("ar-PS"),
@@ -2556,7 +2632,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
       agreement: HE_AGREEMENT,
       number: numberTableOf("he-IL"),
     },
-    categories: WORD_CATEGORIES,
+    categories: PRONOUNED_CATEGORIES,
     /* Ten before unit, one joining word in the whole number, and counted
        in the feminine. See src/numbers/he-IL.ts. */
     composer: composerFor("he-IL"),
@@ -3012,6 +3088,14 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
      a word missing from a phrase. What came back is the text itself, so it
      is compared as text. Whitespace only, because both sides are wording
      the app put on the screen. */
+  /* A picture chosen out of four: what came back is its hash, and it is
+     right if it is one of this card's pictures — any of them, though the
+     tile only ever shows the first. */
+  if (mode === "choice" && spec.picks === "image") {
+    const got = String(typed || "");
+    const mine = Array.isArray(item.images) ? item.images : [];
+    return got && mine.includes(got) ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
+  }
   if (mode === "choice" && spec.picks) {
     const want = String(item[spec.answerField] || "").replace(/\s+/g, " ").trim();
     const got = String(typed || "").replace(/\s+/g, " ").trim();

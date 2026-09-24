@@ -731,6 +731,35 @@ button {
   .at-sheet { border-radius: var(--r-lg); padding-bottom:18px; }
 }
 .at-sheettop { display:flex; align-items:center; gap:8px; }
+/* ---- pictures in practice ----
+   The prompt: large enough to recognise the thing at a glance, its own
+   shape inside a frame the height of a phrase prompt's worth of room. The
+   choices: four square tiles, two to a row, each a button. */
+.at-picture { display:block; max-width:100%; border-radius: var(--r-sm); background: var(--well); }
+.at-picture.prompt { width:min(100%, 320px); aspect-ratio:4/3; object-fit:contain; margin:0 auto; }
+.at-picture.answer { width:min(100%, 200px); aspect-ratio:4/3; object-fit:contain; }
+span.at-picture { display:flex; align-items:center; justify-content:center; color: var(--muted);
+  font-size:14px; text-align:center; padding:12px; }
+.at-picchoices { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.at-picchoice { padding:0; aspect-ratio:1; border:3px solid var(--line); border-radius: var(--r-sm);
+  background: var(--well); overflow:hidden; cursor:pointer; }
+.at-picchoice > .at-picture { width:100%; height:100%; object-fit:contain; border-radius:0; }
+.at-picchoice:hover:not(:disabled), .at-picchoice:focus-visible { border-color: var(--brass); }
+.at-picchoice.on { border-color: var(--accent); box-shadow:0 0 0 3px var(--accent); }
+.at-picchoice:disabled { cursor:default; }
+
+/* ---- a form's pictures ----
+   Large enough to judge on the screen they are added on: two to a row on
+   a phone, their own shape inside a square frame, with the bin over a
+   corner. */
+.at-imggrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+.at-imgtile { position:relative; margin:0; aspect-ratio:1; border-radius: var(--r-sm);
+  overflow:hidden; background: var(--well); border:2px solid var(--line); }
+.at-imgtile > img, .at-imgtile > .at-imgslot { width:100%; height:100%; object-fit:contain; display:block; }
+.at-imgtile > .at-icon { position:absolute; top:6px; inset-inline-end:6px; flex:none;
+  width:40px; min-height:40px; padding:0; }
+.at-imgslot { display:flex; align-items:center; justify-content:center;
+  color: var(--muted); font-size:13px; }
 .at-sheettop .at-modaltitle { flex:1; min-width:0; margin:0; }
 /* The close button is a square at the end of the title's line. An icon
    button grows to share its row by default, which stretched this one
@@ -832,6 +861,10 @@ button {
 .at-celllabel { flex:0 0 5.5em; min-width:0; font-size:12px; font-weight:800;
   color: var(--muted); text-align:end; overflow:hidden; text-overflow:ellipsis;
   white-space:nowrap; }
+/* The pronoun for the column, under its name: the word a learner will
+   see before this form, in the taught script at a label's size. */
+.at-cellpronoun { display:block; margin-top:2px; font-family: var(--sfont); font-size:15px;
+  font-weight:700; letter-spacing:0; text-transform:none; color: var(--ink); }
 /* The script, how it is said and what it means share the line, and stack
    once there is no room — at which point the label sits above them all. */
 .at-cellfields { flex:1; min-width:0; display:flex; gap:8px; }
@@ -3548,3 +3581,45 @@ body.at-screening .at-chromebar { display:none; }
   border:1px solid var(--line); border-radius: var(--r); padding:5px 10px;
   font-size:13px; cursor:pointer; }
 .at-dialhalf:hover { background: var(--raised-hover); }
+
+/* ---- review ----
+   A card's sentences, read by a teacher before a student meets them — see
+   review-sheet.tsx. Approved rows read as the jade the examples list is
+   drawn in; struck ones are crossed through in rose; waiting ones carry a
+   brass rule down their edge, which is the thing to scan the list for. */
+.at-reviewline { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  margin:0 0 16px; padding:10px 12px; border:1px solid var(--line);
+  border-radius: var(--r-sm); background: var(--surface); }
+.at-reviewline.waiting { border-color: var(--tag-line); background: var(--tag-bg); }
+.at-reviewsays { flex:1 1 12em; min-width:0; font-size: var(--fs-sm); font-weight:600; color: var(--text); }
+.at-reviewcounts { display:flex; flex-wrap:wrap; gap:6px 14px; margin:14px 0 4px;
+  font-size: var(--fs-sm); font-weight:700; color: var(--text-soft); }
+.at-reviewcounts .ok { color: var(--jade); }
+.at-reviewcounts .no { color: var(--rose); }
+.at-reviewcounts .wait { color: var(--brass-shade); }
+.at-reviewlist .at-askedline { flex-wrap:wrap; }
+.at-reviewlist .at-askedline.wait { box-shadow: inset 3px 0 0 var(--tag-line); padding-left:8px; }
+.at-reviewlist .at-askedline.no .at-askedsays { text-decoration: line-through;
+  text-decoration-color: var(--rose); opacity:.7; }
+.at-reviewmarks { display:flex; gap:6px; flex:0 0 auto; margin-left:auto; }
+.at-reviewmark { font: inherit; font-size: var(--fs-xs); font-weight:800; min-height:36px;
+  padding:6px 12px; border-radius:999px; border:1px solid var(--line);
+  background: var(--surface); color: var(--text-soft); cursor:pointer; }
+.at-reviewmark.ok.on { background: var(--jade); border-color: var(--jade); color: var(--onjade); }
+.at-reviewmark.no.on { background: var(--rose); border-color: var(--rose); color:#fff; }
+.at-reviewmark:focus-visible { outline:2px solid var(--brass); outline-offset:2px; }
+.at-narrowlist { max-height: 50vh; overflow:auto; margin-top:10px; }
+.at-reviewbanner { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  margin:0 0 12px; padding:10px 12px; border-radius: var(--r-sm);
+  border:1px solid var(--tag-line); background: var(--tag-bg); }
+.at-reviewbanner > span { flex:1 1 12em; min-width:0; font-size: var(--fs-sm); font-weight:600; }
+.at-reportlist { list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:10px; }
+.at-report { padding:12px; border:1px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
+  display:flex; flex-direction:column; gap:4px; min-width:0; }
+.at-report > * { min-width:0; overflow-wrap:anywhere; }
+.at-report .at-row { margin-top:8px; }
+.at-reportkind { font-size: var(--fs-xs); font-weight:800; color: var(--muted); letter-spacing:.04em; }
+.at-reportprompt { font-size:calc(19px * var(--sscale, 1)); font-weight:600; color: var(--text); }
+.at-reportmeans { font-size: var(--fs-sm); color: var(--text); }
+.at-reportnote { font-size: var(--fs-sm); color: var(--text-soft); }
+.at-reportwho { font-size: var(--fs-xs); color: var(--muted); }

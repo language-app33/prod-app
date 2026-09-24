@@ -64,7 +64,11 @@ import { offersFor } from "./offers.ts";
 /* A language's numbers and its clock, written on one screen. Reached
    through the registry, never by naming a language — see src/numbers/. */
 import { NumberSystemEditor } from "./number-system-editor.tsx";
+import { PronounsEditor, hasPronouns } from "./pronouns-editor.tsx";
 import type { NumberSystem, TimeSystem } from "./numbers/types.ts";
+import { needsReview, reviewStates, toReview } from "./review.ts";
+import type { ReviewState } from "./review.ts";
+import { ReportsScreen, ReviewLine, ReviewScreen } from "./review-sheet.tsx";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { emptyNumberSystem, emptyTimeSystem, readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
 import { isOffline, watchNet } from "./net.ts";
@@ -646,10 +650,12 @@ const BACKUP_PARTS: {
   },
   {
     key: "clips",
-    title: "Recordings",
-    what: "The audio itself, which is nearly all of the size of a backup.",
-    kinds: ["clip"],
-    prefixes: ["clip:"],
+    title: "Recordings and images",
+    /* The pictures ride with the recordings: both are a card's media,
+       stored the same way and reachable only from the cards. */
+    what: "The audio and the pictures themselves, which are nearly all of the size of a backup.",
+    kinds: ["clip", "image"],
+    prefixes: ["clip:", "image:"],
     count: "clips",
     unit: "recording",
   },
@@ -3576,6 +3582,13 @@ function TryExercises({ card, cards, lang, onTry, back }: {
         material.filter(
           (c) => !isDialog(c) && leadOf(c).ar && leadOf(c).en && !hasSlots(c) && c.drill !== false
         ).length - 1,
+      /* And how many have a picture, which is what "Listen → picture"
+         draws its wrong answers from. */
+      picturedFor: (unit) =>
+        material.filter(
+          (c) => !isDialog(c) && !hasSlots(c) && c.drill !== false &&
+            formsOf(c).some((f: any) => f.ar && Array.isArray(f.images) && f.images.length)
+        ).length - (Array.isArray(unit.images) && unit.images.length ? 1 : 0),
     });
   }, [mine, lang, contexts, scenes, values, material]);
 
@@ -4059,20 +4072,29 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
  */
 export function filterCards(
   cards: Card[],
-  { audio = "any", forms = "any", deckMode = "any", deckIds = [], blankMode = "any", blankNames = [] }: {
+  { audio = "any", forms = "any", deckMode = "any", deckIds = [], blankMode = "any", blankNames = [], review = "any" }: {
     audio?: string;
     forms?: string;
     deckMode?: string;
     deckIds?: string[];
     blankMode?: string;
     blankNames?: string[];
+    /* Where a card stands with review: "waiting" keeps the sentence cards
+       a teacher has still to read — never reviewed, or with new sentences
+       since — and "sentences" keeps every card that makes any. */
+    review?: string;
   } = {},
+  /* The ids of the cards waiting for review, worked out by the caller —
+     it takes the whole collection to know what a frame makes. */
+  waiting: Set<string> = new Set(),
 ) {
   const byDeck = deckIds.length && (deckMode === "in" || deckMode === "out");
   return cards.filter((c) => {
     if (audio === "with" && !cardHasAudio(c)) return false;
     if (audio === "without" && cardHasAudio(c)) return false;
     if (forms === "one" && cardFormCount(c) !== 1) return false;
+    if (review === "waiting" && !waiting.has(c.id)) return false;
+    if (review === "sentences" && !needsReview(c)) return false;
     if (forms === "several" && cardFormCount(c) < 2) return false;
     if (byDeck) {
       const inOne = (c.decks || []).some((id) => deckIds.includes(id));
@@ -4223,7 +4245,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   /* The teacher's own number systems, one per language they teach. Read
      when the screen that edits them is opened rather than on every visit
      to the card list: it is one request and most visits never want it. */
-  const [systems, setSystems] = useState<{ numbers: NumberSystem[]; times: TimeSystem[] } | null>(null);
+  const [systems, setSystems] = useState<{
+    numbers: NumberSystem[];
+    times: TimeSystem[];
+    /* Which version of each a teacher signed off — see sign-system. */
+    signed?: Record<string, number | null>;
+  } | null>(null);
   /* Whether there is a connection, so the editor can say so before the
      typing rather than after it. */
   const offline = useOffline();
@@ -4247,6 +4274,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
      out of are a fact about the language, not about any one deck, and the
      same eleven words serve every deck written in it. */
   const [numbering, setNumbering] = useState<LangId | null>(null);
+  /* Which language's pronouns are open, and — where the teacher has more
+     than one that has them — which one is being chosen. The Numbers two-
+     step, for the same reason. */
+  const [pronouning, setPronouning] = useState<LangId | null>(null);
+  const [pronounLang, setPronounLang] = useState<LangId | null>(null);
   /* And which language, where the teacher has more than one to choose
      from. The same two-step the New card button takes, for the same
      reason and through the same control. */
@@ -4261,6 +4293,25 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
      is not the same as no form at all. */
   const [newDeckName, setNewDeckName] = useState<string | null>(null);
   const [pickedCourses, setPickedCourses] = useState<string[]>([]);
+  /* The card whose sentences are being reviewed, and whether the reports
+     from students are open — both take over the screen, like the editor. */
+  const [reviewing, setReviewing] = useState<Card | null>(null);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  /* What students have reported about this teacher's cards, with the cards
+     themselves — a co-teacher's card may not be in the list above. */
+  const [reports, setReports] = useState<{ flags: Flag[]; cards: Card[] }>({ flags: [], cards: [] });
+  const loadReports = useCallback(async () => {
+    try {
+      const r = await API.myReports();
+      setReports({ flags: r.flags || [], cards: r.cards || [] });
+    } catch (e) {
+      /* Reports are a side panel: a failure to read them leaves the rest
+         of the space exactly as it was, and the next look tries again. */
+    }
+  }, []);
+  useEffect(() => {
+    void loadReports();
+  }, [loadReports]);
 
   /* As in AdminSpace: whether it worked, for the poll's own backoff. A
      partial answer counts as a failure for that purpose — something is
@@ -4359,6 +4410,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     () => Object.keys(taught).filter((id) => !!composerFor(id)),
     [taught]
   );
+  /* And those whose verbs change with the person, which are the ones with
+     pronouns to write — see hasPronouns. */
+  const pronounLangs = useMemo(
+    () => Object.keys(taught).filter((id) => hasPronouns(taught[id])),
+    [taught]
+  );
 
   const snack = useSnackbar();
   /* How the card list is ordered and what it leaves out. Newest first by
@@ -4377,12 +4434,29 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
        teacher has named any. */
     blankMode: "any",
     blankNames: [] as string[],
+    /* And where a card stands with review — see filterCards. */
+    review: "any",
   });
+  /*
+   * Where every sentence card stands with review, and which are waiting.
+   *
+   * Worked out over the whole collection, because what a frame makes is
+   * a fact about every word that fills it; rebuilt only when the cards
+   * change. See review.ts.
+   */
+  const reviewMap: Map<string, ReviewState> = useMemo(
+    () => reviewStates(cards, (c) => languages[String(c.lang || "")] || languages[soleLang]),
+    [cards, languages, soleLang],
+  );
+  const waitingIds = useMemo(
+    () => new Set([...reviewMap].filter(([, st]) => toReview(st)).map(([id]) => id)),
+    [reviewMap],
+  );
   /* Narrowed then ordered. ItemList's own search runs after this, over what
      is left, so a search inside a filter behaves the way it reads. */
   const shownCards = useMemo(
-    () => sortCards(filterCards(cards, cardFilter), sortKey, newestFirst),
-    [cards, cardFilter, sortKey, newestFirst]
+    () => sortCards(filterCards(cards, cardFilter, waitingIds), sortKey, newestFirst),
+    [cards, cardFilter, sortKey, newestFirst, waitingIds]
   );
 
   /* Every blank the teacher's cards have written, for the filter to offer.
@@ -4572,6 +4646,21 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         </div>
       ),
     },
+    /* And where a card stands with review — the sentence cards a teacher
+       has still to read. Last, because it is the newest question here and
+       the others are where a teacher's hand already goes. */
+    {
+      key: "review",
+      label: "Review",
+      value: cardFilter.review,
+      onChange: (v) => setCardFilter((f) => ({ ...f, review: v })),
+      quiet: "any",
+      options: [
+        { value: "any", label: "Any" },
+        { value: "waiting", label: "Waiting" },
+        { value: "sentences", label: "All sentences" },
+      ],
+    },
   ];
   /* What ItemList draws in its second row, beside Select. */
   const cardMenus = [
@@ -4628,7 +4717,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       const read = readNumberSystem(one);
       if (read) numbers.push(read);
     }
-    setSystems({ numbers, times });
+    setSystems({ numbers, times, signed: r.signed || {} });
   }, []);
 
   /**
@@ -4647,7 +4736,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       const r = await API.saveSystem(kind, system);
       const saved = kind === "times" ? readTimeSystem(r.system) : readNumberSystem(r.system);
       setSystems((held) => {
-        const now = held || { numbers: [], times: [] };
+        const was = held || { numbers: [], times: [] };
+        /* A first save since sign-off existed starts the system's sign-off,
+           and the answer says where it stands. */
+        const now = saved && "signed" in r
+          ? { ...was, signed: { ...(was.signed || {}), [saved.id]: (r as any).signed ?? null } }
+          : was;
         if (kind === "times") {
           const one = saved as TimeSystem | null;
           if (!one) return now;
@@ -4769,6 +4863,14 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     return languages[soleLang] || languages[Object.keys(languages)[0]];
   };
 
+  /* How many of a deck's cards are waiting for review, said on the deck —
+     a teacher looks after a deck, and what in it is not yet reaching
+     students is the thing worth seeing without opening it. */
+  const deckWaiting = (deck: Deck): string => {
+    const n = (deck.cardIds || []).filter((id) => waitingIds.has(id)).length;
+    return n ? ` · ${n} to review` : "";
+  };
+
   const langOfCard: (card: Card) => Lang | undefined = (card) =>
     (card && card.lang && languages[card.lang]) ||
     langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || ({} as any));
@@ -4815,6 +4917,101 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       (made) => `${(made && made.title) || title} created`
     );
   };
+
+  /* ---- reviewing a card's sentences takes over the screen ----
+     Its sentences are worked out against every card this teacher holds,
+     since what fills a blank is the whole collection. */
+  if (reviewing) {
+    const fresh = cards.find((c) => c.id === reviewing.id) ||
+      reports.cards.find((c) => c.id === reviewing.id) || reviewing;
+    const pool = cards.some((c) => c.id === fresh.id) ? cards : cards.concat([fresh]);
+    const lang = langOfCard(fresh) || languages[soleLang];
+    const took = (card: Card) => {
+      setViewing((v) => (v && v.id === card.id ? { ...v, ...card } : v));
+      setReports((r) => ({ ...r, cards: r.cards.map((c) => (c.id === card.id ? { ...c, ...card } : c)) }));
+    };
+    return (
+      <ReviewScreen
+        key={`${fresh.id}:${fresh.rev || 0}`}
+        card={fresh}
+        cards={pool}
+        lang={lang}
+        busy={busy}
+        onClose={() => setReviewing(null)}
+        onReview={async (change) => {
+          setBusy(true);
+          try {
+            const r = await API.reviewCard(fresh.id, change);
+            absorbSaved(r);
+            took(r.card);
+            setReviewing(null);
+            snack("Review saved", "good");
+          } finally {
+            setBusy(false);
+          }
+        }}
+        onNarrow={async (changed) => {
+          setBusy(true);
+          try {
+            let frame: Card | null = null;
+            for (const one of changed) {
+              const r: any = await sendOrKeep({ ...one, id: one.id, lang: one.lang || "" }, one.decks || []);
+              absorbSaved(r);
+              if (r && r.card && r.card.id === fresh.id) frame = r.card;
+            }
+            if (frame) {
+              took(frame);
+              setReviewing(frame);
+            }
+            snack(`Narrowed — ${plural(Math.max(0, changed.length - 1), "word")} tagged`, "good");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+    );
+  }
+
+  if (reportsOpen) {
+    return (
+      <ReportsScreen
+        flags={reports.flags}
+        cards={reports.cards}
+        languages={languages}
+        busy={busy}
+        onClose={() => setReportsOpen(false)}
+        onReview={(card) => setReviewing(card)}
+        onStrike={async (flag, card) => {
+          if (!flag.sentence) return;
+          setBusy(true);
+          try {
+            const r = await API.reviewCard(card.id, { no: [flag.sentence] });
+            absorbSaved(r);
+            setReports((was) => ({
+              ...was,
+              cards: was.cards.map((c) => (c.id === r.card.id ? { ...c, ...r.card } : c)),
+            }));
+            snack("Sentence struck — no student sees it again", "good");
+          } catch (e) {
+            setError(API.explain(e));
+          } finally {
+            setBusy(false);
+          }
+        }}
+        onDismiss={async (flag) => {
+          setBusy(true);
+          try {
+            await API.dismissReports([flag.id]);
+            setReports((was) => ({ ...was, flags: was.flags.filter((f) => f.id !== flag.id) }));
+          } catch (e) {
+            setError(API.explain(e));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+    );
+  }
 
   /* ---- naming a deck takes over the screen, like a card ---- */
   if (naming) {
@@ -4972,6 +5169,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            card's blank may ask for by name. */
                         ref,
                         drill,
+                        /* Which verb column it is, where it is a pronoun the
+                           Pronouns screen wrote: kept through an edit here,
+                           since this screen does not ask it and a save
+                           without it would take it away. */
+                        ...(editing.card && editing.card.person ? { person: editing.card.person } : {}),
                       }),
                 },
                 inDecks
@@ -5122,6 +5324,28 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   /* ---- filling in the numbers a deck builds from ----
          Sits before the deck screen so that closing it lands back on the
          deck, the way the deck picker sits before the course. ---- */
+  /* ---- a language's pronouns ---- */
+  if (pronouning) {
+    const pLang = languages[pronouning];
+    if (!pLang || !hasPronouns(pLang)) {
+      setPronouning(null);
+      return null;
+    }
+    return (
+      <PronounsEditor
+        lang={pLang}
+        cards={cards}
+        busy={busy}
+        onClose={() => setPronouning(null)}
+        onSave={async (card, inDecks) => {
+          const r = await sendOrKeep(card, inDecks);
+          absorbSaved(r);
+          return r;
+        }}
+      />
+    );
+  }
+
   if (numbering) {
     const numLang = languages[numbering];
     if (!numLang || !composerFor(numbering)) {
@@ -5163,6 +5387,15 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         busy={busy}
         onClose={() => setNumbering(null)}
         onSave={saveSystem}
+        signed={systems.signed || {}}
+        onSignOff={(kind, system) =>
+          run(async () => {
+            const r: any = await API.signSystem(kind, system.languageId, system.rev);
+            setSystems((held) =>
+              held ? { ...held, signed: { ...(held.signed || {}), [r.id]: r.signed } } : held,
+            );
+          }, "Signed off — students get this version")
+        }
       />
     );
   }
@@ -5179,7 +5412,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     /* The deck's cards, through the same sort and the same filter the Cards
        tab uses — this screen showed them in whatever order they arrived and
        offered no way to narrow them at all. */
-    const mine = sortCards(filterCards(held, cardFilter), sortKey, newestFirst);
+    const mine = sortCards(filterCards(held, cardFilter, waitingIds), sortKey, newestFirst);
     return (
       <Screen title={d.title} onBack={() => setOpenDeck(null)}>
             <Notice kind="error">{error}</Notice>
@@ -5305,6 +5538,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               </Button>
             }
           >
+            <ReviewLine state={reviewMap.get(viewing.id)} onOpen={() => setReviewing(viewing)} />
             <CardReadout
               card={viewing}
               lang={langOfCard(viewing)}
@@ -5435,7 +5669,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   <Tile
                     key={d.id}
                     title={d.title}
-                    meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}`}
+                    meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
                     onOpen={() => setOpenDeck(d.id)}
                     actions={
                       <IconButton icon="edit" label="Deck settings" onClick={(e: React.MouseEvent) => {
@@ -5626,6 +5860,31 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   button takes, through the same control: the words are a
                   fact about one language and nothing on the screen could
                   work out which. */}
+              {pronounLang !== null && (
+                <Screen title="Pronouns" onBack={() => setPronounLang(null)}>
+                  <LanguageRadio
+                    languages={Object.fromEntries(pronounLangs.map((id) => [id, taught[id]]))}
+                    value={pronounLang}
+                    onChange={setPronounLang}
+                    label="Which language's pronouns?"
+                  />
+                  <div className="at-row at-mt5">
+                    <Button variant="ghost" onClick={() => setPronounLang(null)}>
+                      Cancel
+                    </Button>
+                    <Button variant="primary"
+                      disabled={!pronounLang}
+                      onClick={() => {
+                        setPronouning(pronounLang);
+                        setPronounLang(null);
+                      }}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </Screen>
+              )}
+
               {numberLang !== null && (
                 <Screen title="Numbers" onBack={() => setNumberLang(null)}>
                   <LanguageRadio
@@ -5827,6 +6086,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         </Button>
                   }
                 >
+                  <ReviewLine state={reviewMap.get(viewing.id)} onOpen={() => setReviewing(viewing)} />
                   <CardReadout
                     card={viewing}
                     lang={langOfCard(viewing)}
@@ -5841,6 +6101,30 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     onTry={onTry}
                   />
                 </Screen>
+              )}
+
+              {/* What is waiting on the teacher: sentences nobody has read
+                  yet, and what students have reported. Said above the list
+                  rather than left to a filter, because both are work that
+                  keeps a student from a sentence or shows them a wrong
+                  one. */}
+              {waitingIds.size > 0 && cardFilter.review !== "waiting" && (
+                <div className="at-reviewbanner">
+                  <span>
+                    {`${plural(waitingIds.size, "sentence card")} ${waitingIds.size === 1 ? "is" : "are"} waiting for review.`}
+                  </span>
+                  <Button size="sm" variant="primary" onClick={() => setCardFilter((f) => ({ ...f, review: "waiting" }))}>
+                    Show {waitingIds.size === 1 ? "it" : "them"}
+                  </Button>
+                </div>
+              )}
+              {reports.flags.length > 0 && (
+                <div className="at-reviewbanner">
+                  <span>{`${plural(reports.flags.length, "report")} from students.`}</span>
+                  <Button size="sm" onClick={() => { setReportsOpen(true); void loadReports(); }}>
+                    Read {reports.flags.length === 1 ? "it" : "them"}
+                  </Button>
+                </div>
               )}
 
               <Help>
@@ -5862,17 +6146,45 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                    in it. Icon alone: the row is narrow on a phone and the
                    word is on the screen it opens. */
                 tools={
-                  numberLangs.length ? (
+                  <>
                     <IconButton
-                      icon="hash"
-                      label="Numbers"
-                      onClick={() =>
-                        numberLangs.length === 1
-                          ? setNumbering(numberLangs[0])
-                          : setNumberLang(numberLangs[0])
-                      }
+                      icon="flag"
+                      label="Reports from students"
+                      onClick={() => {
+                        setReportsOpen(true);
+                        void loadReports();
+                      }}
                     />
-                  ) : null
+                  {numberLangs.length || pronounLangs.length ? (
+                    <>
+                      {numberLangs.length ? (
+                        <IconButton
+                          icon="hash"
+                          label="Numbers"
+                          onClick={() =>
+                            numberLangs.length === 1
+                              ? setNumbering(numberLangs[0])
+                              : setNumberLang(numberLangs[0])
+                          }
+                        />
+                      ) : null}
+                      {/* Pronouns, beside Numbers and for the same reason:
+                          a fixed set written once per language, rather
+                          than a card at a time. */}
+                      {pronounLangs.length ? (
+                        <IconButton
+                          icon="person"
+                          label="Pronouns"
+                          onClick={() =>
+                            pronounLangs.length === 1
+                              ? setPronouning(pronounLangs[0])
+                              : setPronounLang(pronounLangs[0])
+                          }
+                        />
+                      ) : null}
+                    </>
+                  ) : null}
+                  </>
                 }
                 menus={cardMenus}
                 resizable
@@ -6120,7 +6432,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   return (
                     <Tile
                       title={d.title}
-                      meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}`}
+                      meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
                       onOpen={() => setOpenDeck(d.id)}
                       actions={
                         <>

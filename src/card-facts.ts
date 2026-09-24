@@ -51,7 +51,7 @@
 
 import type { Form, GrammarDim, Lang, VerbSpec } from "./types.ts";
 import { answersOf, splitAlternatives } from "./answers.ts";
-import { answerFields, blankAdmits, categoryLabel, GRAMMAR, kindOf, lendsForm, tablesOf, tensedOf } from "./languages.ts";
+import { answerFields, blankAdmits, categoryLabel, GRAMMAR, kindOf, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
@@ -601,6 +601,19 @@ export const CARD_FACTS: FieldRule[] = [
     },
   },
   {
+    key: "person",
+    on: "card",
+    label: "Pronoun for",
+    what: "Which person of the verb table a pronoun is — I, you, he. Written on the Pronouns screen, and what makes a sentence's verb take that person's form when the pronoun fills its blank.",
+    reader: "both",
+    shown: (value, ctx) => {
+      const said = str(value);
+      if (!said) return [];
+      const p = personsOf(verbOf(ctx.lang)).find((x) => x.id === said);
+      return [p ? p.label : said];
+    },
+  },
+  {
     key: "sentence",
     on: "card",
     label: "",
@@ -792,6 +805,17 @@ export const CARD_FACTS: FieldRule[] = [
     shown: (value) => (Array.isArray(value) && value.length ? [clipLabel("slowClips", value.length)] : []),
   },
   {
+    key: "images",
+    on: "form",
+    label: "Images",
+    what: "Pictures of what this form means, shown with it. Up to four.",
+    reader: "both",
+    /* A hash is not information, as with a recording: what is owed is that
+       the pictures are there, and how many. */
+    shown: (value) =>
+      Array.isArray(value) && value.length ? [`${value.length} image${value.length === 1 ? "" : "s"}`] : [],
+  },
+  {
     key: "ask",
     on: "form",
     label: "",
@@ -975,6 +999,7 @@ export const NOT_SHOWN: [string, string][] = [
   ["card.locked", "Whether the teacher's wording is the student's to change, which every course card's is not."],
   ["card.tags", "The learner's own tags on their copy, which they gave it and can see where they gave it."],
   ["card.flags", "Problems reported about the card. They have a screen of their own in Teaching."],
+  ["card.review", "Which of the sentences the card makes a teacher has approved or struck. A line of its own above the read-out says where it stands, and the review screen lists them."],
   ["card.priority", "The learner's mark asking for the card, which has its own block on their card screen."],
   ["card.priorityAt", "When they made or cleared that mark, which is there so two devices can agree about it."],
   ["card.reset", "When the card's progress was last set aside. A fact about a schedule."],

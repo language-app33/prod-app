@@ -3333,3 +3333,57 @@ loses audio the day something writes a card without deriving it.
 **Revisit if** a third thing turns out to belong to an answer and not to
 the form. The pattern is now established twice, and the third time it is
 worth asking whether the form should hold anything about the words at all.
+
+## A sentence is shown once a teacher has read it
+
+**24 September 2026** · `src/review.ts`, `src/review-sheet.tsx`,
+`server/api/courses.js` (`review-card`, `my-reports`, `dismiss-reports`,
+`sign-system`), `fillFor` in `src/ArabicTrainer.tsx`
+
+Sentence cards are filled by rule from the rest of the collection, and a
+rule that is right in general is wrong in a language's exceptions. The
+owner asked for every card a student practises to be read by a teacher
+first, whatever combination of frame, filler and form made it.
+
+**Approval is kept as fingerprints of the words shown, not as a flag or a
+list of combinations.** A flag on the card would have to be cleared by
+every edit to the card *and* every edit to any word that fills it, which
+is edits to other cards, and missing one shows a student a sentence nobody
+read. A list of which cards filled which blank survives a filler being
+retyped, which is the edit most likely to introduce the error. A
+fingerprint of the script, pronunciation and meaning a student sees has
+neither problem: what changed is different text, so it is simply not on
+the list. It also fails shut — a sentence made from a word the teacher's
+screen did not know about is not approved — and it means the device needs
+no rule of its own beyond "is this on the list".
+
+**The teacher's list is built by the device's own walk.** The editor's
+preview filled blanks without the agreement step, so it showed the word as
+lent where a student saw the agreeing form. `agreeTook` moved out of the
+trainer into `review.ts` so both sides take it, and `reviewPool` builds the
+fillers with their grammar and oldest first, the way `valueIndexOf` does.
+One test approves a sentence from the teacher's list, carries the card
+through `cardToItem`, and checks the device asks exactly that sentence.
+Tense narrowing on a blank never reached devices before this (`cardToItem`
+dropped `tenses`); it does now, because the two lists have to agree.
+
+**A turn is where the walk starts.** A reviewed frame walks forward from
+its turn to the next approved sentence, so the same count is still the
+same question and a few waiting sentences do not stop a frame being asked.
+
+**What was live stays live.** Every card written before this carries no
+review and is asked as before; it is on the teacher's list, and the first
+edit to its words, or the first saved review, turns the gate on. Shipping
+the gate shut on every existing card would have emptied every course the
+day it deployed.
+
+**A ceiling, and narrowing instead of approving.** Approval means *I read
+these*. Above `REVIEW_CEILING` (300) the screen offers no approval and
+offers to narrow a blank to a group of words the teacher ticks.
+
+**Numbers are signed off, not reviewed sentence by sentence.** A number
+system renders up to 9,999,999 in several forms each. The numbers screen
+already shows one number of every shape a language gets wrong; a teacher
+signs that off, and students get the signed version whole until the next
+sign-off. The first edit of a system since this shipped records the
+version before it as signed, so nobody loses the numbers they had.

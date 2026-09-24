@@ -384,6 +384,16 @@ export function personFor(
   grammar: Record<string, unknown> | null | undefined,
 ): VerbPerson | null {
   const had = grammar || {};
+  /* A pronoun says which column it is, by name: أنا is *I*, and nothing
+     about its number or gender could say so — "I" and "he" are both
+     singular. So a subject that names a column the table has takes it,
+     before any agreeing is tried. See the Pronouns screen, which is what
+     writes the name onto a pronoun's card. */
+  const named = str(had.person);
+  if (named) {
+    const own = personsOf(spec).find((p) => p.id === named);
+    if (own) return own;
+  }
   let best: VerbPerson | null = null;
   let bestAt = -1;
   for (const person of personsOf(spec)) {

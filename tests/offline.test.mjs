@@ -50,6 +50,9 @@ const {
   requeueUnaskable,
   setAudibleClips,
   setOfflineNow,
+  setVisibleImages,
+  setPicturedCounts,
+  setMateCounts,
 } = await import(path.join(out, "trainer.js"));
 const { docSize, MAX_LOCAL_UNITS } = await import(path.join(root, "src", "sync.ts"));
 const { DEFAULT_LANGUAGE } = await import(path.join(root, "src", "languages.ts"));
@@ -386,4 +389,35 @@ test("the listing landing late is the same fact arriving a moment later", () => 
     !requeueUnaskable(queue, 0, items, settings).some((/** @type {any} */ q) => q.type === "rec2en"),
     "and once the device has answered, the question goes",
   );
+});
+
+
+/* ------------------------------------------------------------------
+   Nor shown a picture it cannot show
+   ------------------------------------------------------------------ */
+
+const pictured = (/** @type {string[]} */ types) =>
+  types.filter((t) => ["rec2img", "img2pick", "img2ar"].includes(t.split("@")[0]));
+
+test("a card with a picture is asked from it online, and offline only once the picture is here", () => {
+  const card = { ...form(""), images: ["p".repeat(64)] };
+  setMateCounts(new Map([[DEFAULT_LANGUAGE, 10]]));
+  setPicturedCounts(new Map([[DEFAULT_LANGUAGE, 10]]));
+  try {
+    state({ offline: false, here: [] });
+    setVisibleImages(new Set());
+    assert.ok(pictured(enabledTypes(card, settings)).includes("img2ar"), "online, it is a fetch away");
+
+    state({ offline: true, here: [] });
+    setVisibleImages(new Set(["someone-else"]));
+    assert.deepEqual(pictured(enabledTypes({ ...card }, settings)), [], "offline and elsewhere: not asked");
+
+    setVisibleImages(new Set(["p".repeat(64)]));
+    assert.ok(pictured(enabledTypes({ ...card }, settings)).includes("img2ar"), "offline and here: asked");
+  } finally {
+    setVisibleImages(null);
+    setPicturedCounts(new Map());
+    setMateCounts(new Map());
+    state({ offline: false, here: null });
+  }
 });

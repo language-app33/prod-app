@@ -809,8 +809,12 @@ export function lentBy(
   formsOf(card).forEach((form, at) => {
     if (!isLent(form as WithSlots)) return;
     if (!lends(form as WithSlots)) return;
-    const value = valueOf(form as WithSlots, fields);
-    if (!value.ar) return;
+    const lent = valueOf(form as WithSlots, fields);
+    if (!lent.ar) return;
+    /* The card's own word carries the card's person, where it has one —
+       the form handed in above cannot know it. */
+    const person = at === 0 ? text(card, "person").trim() : "";
+    const value = person ? { ...lent, grammar: { ...(lent.grammar || {}), person } } : lent;
     /* The card's own word answers to the card where the form carries no
        name of its own. */
     const named = value.id || at > 0 ? value : { ...value, id: own };
@@ -857,6 +861,12 @@ export function valueOf(card: WithSlots | null | undefined, fields: string[] = [
     const value = text(word, field).trim();
     if (value) grammar[field] = value;
   }
+  /* And which person it is, where it is a pronoun the Pronouns screen
+     wrote: the verb beside it takes that column by name — see personFor.
+     Kept on the card rather than on a form, because a pronoun is one word
+     and the column is a fact about the card. */
+  const person = text(card, "person").trim();
+  if (person) grammar.person = person;
   return {
     id: String((card && card.id) || ""),
     ar: first("ar"),

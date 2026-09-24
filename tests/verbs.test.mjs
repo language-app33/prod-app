@@ -821,3 +821,33 @@ test("none of it knows what a tense is: Huế narrows by its own rows", () => {
   assert.equal(standsInRows(viet, plain, ["past"]), false);
   assert.equal(standsInRows(viet, plain, ["plain", "future"]), true);
 });
+
+/*
+ * A pronoun names its column.
+ *
+ * "I" and "he" are both singular, so nothing about a pronoun's grammar
+ * could pick between them: the Pronouns screen writes which column each
+ * pronoun is onto its card, and the verb beside it takes that column by
+ * name, before any agreeing is tried.
+ */
+test("a subject that names a column takes it, whatever else it says", () => {
+  const arabic = must(verbOf(LANGUAGES["ar-PS"]), "the Arabic verb table");
+  for (const id of ["i", "you-m", "you-f", "we", "you-pl"]) {
+    assert.equal(must(personFor(arabic, { person: id }), id).id, id, `${id} by name`);
+  }
+  /* Named beats agreeing: a "he" pronoun card is also singular and
+     masculine, and says "he" outright. */
+  assert.equal(must(personFor(arabic, { person: "i", number: "singular", gender: "masculine" }), "I").id, "i");
+  /* A name the table has not got is no name; agreeing takes over. */
+  assert.equal(must(personFor(arabic, { person: "nobody", number: "plural" }), "they").id, "they");
+});
+
+test("a sentence whose subject is a pronoun puts the verb in that pronoun's form", () => {
+  const arabic = must(verbOf(LANGUAGES["ar-PS"]), "the Arabic verb table");
+  /* "{{pronoun}} {{verb}}" filled with أنا: the I cell, which no grammar
+     could have picked — and with هي, the she cell. */
+  assert.equal(must(agreedCell(toEat, arabic, "present", { person: "i" }), "I eat").ar, "باكل");
+  assert.equal(must(agreedCell(toEat, arabic, "present", { person: "she" }), "she eats").ar, "بتاكل");
+  /* A column the teacher left blank is no sentence, as it always was. */
+  assert.equal(agreedCell(toEat, arabic, "present", { person: "we" }), null);
+});

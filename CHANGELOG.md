@@ -8,6 +8,103 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.246 — 24 September 2026
+
+**Sentences reach students once a teacher has read them.**
+
+A sentence card is filled from your other cards, so one card can make
+hundreds of sentences — and some of them can be wrong even when every rule
+behind them is right. Now nothing a sentence card makes reaches a student
+until a teacher has approved it.
+
+- **Review sentences**, on a sentence card's own page, lists every sentence
+  the card makes today, exactly as a student will see it — with the
+  feminine beside a feminine noun, and the verb in the right person. Tap
+  **Approve** or **Strike** on each, or approve every waiting one at once,
+  then **Save review**. Struck sentences are never shown.
+- A new sentence card starts with nothing approved. When you change its
+  words, or add a word that fills one of its blanks, only the new sentences
+  wait for you; everything already approved stays shown.
+- A card that makes more than 300 sentences can't be approved as it is. The
+  review screen offers **Narrow a blank** instead: tick the words that
+  belong, give them a group name, and the blank takes only those.
+- Sentence cards written before this release are still shown as they were.
+  The Cards tab says how many are **waiting for review**, the new
+  **Review** filter lists them, and each deck says how many of its cards
+  are waiting. Once you save a review of one, students see only what you
+  approved.
+- **Reports from students** now reach the teachers of the course, not only
+  the administrator — from the flag button on the Cards tab. A report about
+  one sentence can strike that sentence in one tap, and a report can be
+  dismissed once it is dealt with.
+- **Numbers and times are signed off.** They run to millions, so on the
+  Numbers screen you check the sample list and press **Sign off**; students
+  get the version you last signed off. A change waits for the next sign-off
+  rather than reaching students unread. Numbers already in use stay as they
+  are until you next change them.
+- Two fixes found on the way: a sentence that limits which tenses its verbs
+  take now keeps to those tenses on students' devices too, and the Numbers
+  screen no longer refuses a second save in one sitting.
+
+## 0.245 — 24 September 2026
+
+**Pronouns, written once for the language.**
+
+Beside *Numbers* on the Cards tab there is now *Pronouns*: one screen per
+language listing the people a verb changes for — I, you (m), you (f), he,
+she, we, you (pl), they. Each pronoun is typed and recorded there once.
+
+- Every pronoun written there becomes a card of its own, so it is still
+  practised and can be put in decks like any other word.
+- A sentence with a pronoun blank now puts its verb in the right form for
+  the pronoun that fills it: filled with *I*, the verb takes its *I* form.
+  Before, *I* and *he* could not be told apart, since both are singular.
+- A verb's table now shows each column's pronoun under its heading.
+- *Pronoun* is no longer offered as a subtype for new Arabic or Hebrew
+  cards. Pronoun cards already written are kept exactly as they were.
+
+## 0.244 — 24 September 2026
+
+**Practising from pictures.**
+
+A card with a picture is now practised from it, in three new exercises:
+
+- **Listen → picture** (level 1): the word is heard, and its picture is
+  chosen out of four. Nothing to read, so it suits a learner who can't
+  read the script yet. It needs a recording, and three other cards with
+  a picture to put beside it.
+- **Picture → choose** (level 2): the picture is shown, and the word is
+  chosen out of four.
+- **Picture → Arabic** (level 4): the picture is shown, and the word is
+  written — the transliteration hint is there, and costs a near miss as
+  it does on *English → Arabic*.
+
+Cards without a picture are asked exactly what they were before. On the
+teacher's card, the list of exercises says which of these a card is
+waiting for — *a picture*, or *a few more cards with a picture*.
+
+Pictures are kept on the learner's device once seen, like recordings,
+and are fetched before a session starts. Offline, a picture exercise is
+only asked when its picture is already on the device.
+
+## 0.243 — 24 September 2026
+
+**A card can carry pictures.**
+
+Beside **Record**, under each form's word, there is now **Add image**.
+It opens a screen of its own, the way recording does, where you can
+**choose an image** from the device or **take a photo** with the camera,
+see the pictures the form has, and remove one. A form can have up to
+four.
+
+Pictures are made smaller on your device before they are stored — a
+long side of 1024 pixels, as a JPEG — so a phone photo of several
+megabytes arrives as a few hundred kilobytes, and students download no
+more than they need. They are kept in backups alongside recordings.
+
+Students don't see the pictures yet: they are stored with the card and
+reach students' devices, ready for exercises that use them.
+
 ## 0.242 — 24 September 2026
 
 **Name is now Person or Place.**

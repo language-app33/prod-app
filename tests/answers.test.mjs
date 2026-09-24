@@ -487,7 +487,7 @@ test("every question shows one accepted answer, and the typed ones still take an
      writing the other one, on a guess, is worse than accepting both. */
   const keepsAll = TYPES.filter((t) => !showsOneAnswer(t));
   assert.deepEqual(keepsAll, [
-    "rec2ar", "en2ar", "ctx2ar", "rec2ctx",
+    "rec2ar", "en2ar", "img2ar", "ctx2ar", "rec2ctx",
     /* And the four that ask for a number or a time to be written out. A
        skill has exactly one way of saying what it drew, so narrowing it
        would be narrowing a list of one — the rule holds trivially here
@@ -620,4 +620,13 @@ test("the ladder reads a key the way it read a type", () => {
 
   states["ar2en@1"] = done;
   assert.deepEqual(openTypes(keys, (k) => states[k]), ["ar2en", "ar2en@1", "en2ar"]);
+});
+
+test("a picture chosen is right when it is one of the card's pictures", () => {
+  const item = { ar: "فنجان", en: "cup", lat: "finjaan", images: ["a".repeat(64), "b".repeat(64)] };
+  const s = { language: "ar-PS" };
+  assert.equal(checkAnswer("a".repeat(64), item, "rec2img", s).ok, true);
+  assert.equal(checkAnswer("b".repeat(64), item, "rec2img", s).ok, true, "any of its pictures");
+  assert.equal(checkAnswer("c".repeat(64), item, "rec2img", s).ok, false, "another card's");
+  assert.equal(checkAnswer("", item, "rec2img", s).ok, false, "nothing chosen");
 });

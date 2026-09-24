@@ -149,6 +149,7 @@ export type FlagReport = Pick<
   | "answer"
   | "verdict"
   | "release"
+  | "sentence"
 > & {
   language: LangId;
 };
@@ -183,6 +184,17 @@ export const myCards = () => call("my-cards");
 /* The server calls this field "decks"; sending anything else means the
    card saves but never lands in a deck. */
 export const saveCard = (card: Partial<Card>, decks: string[]) => call("save-card", { body: { card, decks } });
+/* A teacher's say on the sentences a card makes: fingerprints approved,
+   struck, or forgotten — see review.ts and review-card on the server. */
+export const reviewCard = (
+  cardId: string,
+  change: { ok?: string[]; no?: string[]; clear?: string[] },
+): Promise<{ ok: true; card: Card }> => call("review-card", { body: { cardId, ...change } });
+/* The reports learners sent about cards this teacher can change, with the
+   cards; and a report dealt with. */
+export const myReports = (): Promise<{ ok: true; flags: Flag[]; cards: Card[] }> => call("my-reports");
+export const dismissReports = (flagIds: string[]): Promise<{ ok: true; deleted: number }> =>
+  call("dismiss-reports", { body: { flagIds } });
 export const deleteCard = (cardId: string) => call("delete-card", { body: { cardId } });
 export const deleteCards = (cardIds: string[]) => call("delete-cards", { body: { cardIds } });
 export const deckCards = (deckId: string) => call("deck-cards", { params: { deck: deckId } });
@@ -200,7 +212,12 @@ export const detachDeck = (deckId: string, courseId: string) =>
    field would make a lexicon neither of them wrote. A save that would go
    backwards is refused rather than silently winning, and the answer
    carries the document that is there — see `stale-system` in explain. */
-export const mySystems = (): Promise<{ ok: true; systems: any[] }> => call("my-systems");
+export const mySystems = (): Promise<{ ok: true; systems: any[]; signed?: Record<string, number | null> }> =>
+  call("my-systems");
+/* A teacher's sign-off on the version of a system on disk — what students
+   are sent until the next one. */
+export const signSystem = (kind: "numbers" | "times", languageId: LangId, rev: number) =>
+  call("sign-system", { body: { kind, languageId, rev } });
 export const saveSystem = (
   kind: "numbers" | "times",
   system: unknown,
@@ -211,6 +228,11 @@ export const deleteSystem = (kind: "numbers" | "times", languageId: LangId) =>
 export const putClip = (hash: string, data: string) => call("put-clip", { body: { hash, data } });
 export const getClip = (hash: string): Promise<{ ok: true; hash: string; data: string }> =>
   call("clip", { params: { hash } });
+
+/* A card's pictures, stored and fetched the way its recordings are. */
+export const putImage = (hash: string, data: string) => call("put-image", { body: { hash, data } });
+export const getImage = (hash: string): Promise<{ ok: true; hash: string; data: string }> =>
+  call("image", { params: { hash } });
 
 export const deleteAccount = () => call("delete-account", { body: {} });
 
@@ -301,6 +323,7 @@ export function explain(err: unknown): string {
       "name-required": "A name is needed.",
       "title-required": "A title is needed.",
       "too-large": "That is too big to store.",
+      "bad-image": "That picture couldn't be stored. Use a PNG, JPEG, WebP or GIF.",
       "not-in-course": "You aren't in that course.",
       "no-access": "You don't have access to that.",
       "not-yourself": "Use the danger zone in Account settings to close your own account.",

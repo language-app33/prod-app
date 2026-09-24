@@ -1329,3 +1329,29 @@ test("a card that is both new and asked for is still asked about only as much as
   const keys = got.exercises.map((/** @type {any} */ e) => `${e.id}|${e.subId || ""}|${e.type}`);
   assert.equal(new Set(keys).size, keys.length, "the same question was dealt twice");
 });
+
+/* ------------------------------------------------------------------
+   Pictures
+   ------------------------------------------------------------------ */
+
+test("a deck with pictures deals the picture exercises, from the first level up", () => {
+  /* Five words, each with a recording and a picture: every one of them can
+     be heard and its picture chosen among the others' — the gentlest
+     question a pictured card has, on the level a new card starts on. */
+  const items = deckOf(5).map((it, i) => ({
+    ...it,
+    forms: [{ ...it.forms[0], recs: [{ id: `rec${i}` }], images: [String(i).repeat(64)] }],
+  }));
+  const got = deal(items);
+  const types = got.exercises.map((/** @type {any} */ x) => String(x.type).split("@")[0]);
+  assert.ok(types.includes("rec2img"), `dealt: ${types.join(" ")}`);
+  /* Not the harder two yet: nothing below them is known. */
+  assert.ok(!types.includes("img2ar"), "writing from a picture waits for its level");
+});
+
+test("a card without a picture is never dealt one of the picture exercises", () => {
+  const items = deckOf(8).map((it, i) => ({ ...it, forms: [{ ...it.forms[0], recs: [{ id: `rec${i}` }] }] }));
+  const got = deal(items);
+  const types = got.exercises.map((/** @type {any} */ x) => String(x.type).split("@")[0]);
+  assert.ok(!types.some((/** @type {string} */ t) => ["rec2img", "img2pick", "img2ar"].includes(t)), types.join(" "));
+});

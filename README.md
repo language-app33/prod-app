@@ -623,6 +623,42 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   word with nothing on the screen to go on. A card that is not practised in
   its own right — a name — is left to the frame's own `met` record, and a
   verb's own place in its own sentence to its table's gate.
+- **A sentence is shown once a teacher has read it.** A frame is filled by
+  rules — the kind of word that fits, the form that agrees, the cell of a
+  verb's table — and a language is full of the places a rule is right in
+  general and wrong in the case: *I drank a bread* is grammatical and
+  nobody says it. So every sentence a card makes waits for a teacher before
+  a student meets it. `src/review.ts` is the whole of the rule:
+  - **A sentence is named by what a student sees** — `sentenceKey`, a
+    fingerprint of the filled script, pronunciation and meaning. A card's
+    `review` holds the fingerprints approved (`ok`) and struck (`no`), so
+    an edit needs no bookkeeping: change the frame or a word that fills
+    it and the sentences it makes are new words, not on the list, and wait.
+  - **The teacher's list is the student's list.** `sentencesOf` walks the
+    combinations in the order a device does and takes the agreement step
+    too (`agreeTook`, `finishTook`, shared with the trainer), so the
+    feminine a student is shown is the feminine the teacher approved.
+  - **A device shows a reviewed card only in approved sentences.**
+    `fillFor` in the trainer walks forward from the turn to the next
+    approved one; none approved is no question. A card with no `review`
+    — every card written before 0.246 — is asked as it always was, and
+    sits on the teacher's list until it is reviewed. The server starts an
+    empty review on a card that makes sentences when it is made, or when
+    the words it is filled into change (`save-card`), and only
+    `review-card` fills it — a merge of approvals, strikes and clears.
+  - **Past `REVIEW_CEILING` sentences a frame cannot be approved**, because
+    nobody reads three hundred sentences; the review screen offers to
+    narrow a blank instead (`narrowed`: the blank renamed to a group of the
+    teacher's own, and the words they tick tagged with it).
+  - **A report names the sentence.** The trainer puts `reviewKey` on the
+    filled question and a report carries it as `sentence`; `my-reports`
+    hands a teacher the reports on cards they can change, where one tap
+    strikes it. `src/review-sheet.tsx` is the three screens.
+  - **Numbers and times are signed off, not read.** They run to millions,
+    so a teacher signs off the sample on the numbers screen, and students
+    are sent the version last signed (`sign-system`, kept under
+    `syssigned:`); an edit waits for the next sign-off. A system edited
+    for the first time since this existed keeps what students had.
 - **A number is built, not memorised, and so is a time.** A learner who
   knows *forty* and *seven* knows *forty-seven*, so numbers are not cards
   one at a time. A language's numbers are **one document** — the words it

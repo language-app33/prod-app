@@ -119,7 +119,7 @@ export interface ExerciseSpec {
    * Absent means a choice between classes of sound, which is graded
    * differently.
    */
-  picks?: "reply" | "word" | "meaning" | "pair";
+  picks?: "reply" | "word" | "meaning" | "pair" | "image";
 }
 
 /* ---- a verb's table ----
@@ -594,6 +594,9 @@ export interface CardForm {
    * speeds.
    */
   slowClips?: string[];
+  /** Picture hashes — what this form means, shown. At most four; see
+      ImageScreen. */
+  images?: string[];
   /**
    * Where this form sits in its card's verb table: which tense, which
    * person. Both or neither — one without the other places nothing.
@@ -782,6 +785,25 @@ export type Card = {
    * teaches.
    */
   name?: string;
+  /**
+   * Which column of the verb table this card is, where it is a pronoun the
+   * Pronouns screen wrote — "i", "you-m", "she". What lets a sentence's
+   * verb take that column by name; see personFor. Absent on every other
+   * card.
+   */
+  person?: string;
+  /**
+   * Which of the sentences this card makes a teacher has read — the
+   * fingerprints of the ones approved and the ones struck, and who last
+   * changed it. See review.ts.
+   *
+   * Absent on every card written before review existed, which is asked
+   * exactly as it always was and sits on the teacher's list to go back to.
+   * Present — even empty — on a card that has been reviewed, or that was
+   * made or had its words changed since: that card is asked only in the
+   * sentences on `ok`. The server writes it; a save never does.
+   */
+  review?: import("./review.ts").Review;
   /**
    * Whether the card is practised in its own right. Absent means yes, which
    * is what every card written before variables existed meant. A value —
@@ -989,6 +1011,8 @@ export type Form = Record<string, any> & {
      a form on a device and a form on the server carry the same ones. */
   clips?: string[];
   slowClips?: string[];
+  /* Its pictures, by hash, as CardForm holds them. */
+  images?: string[];
   s?: Record<string, ExerciseState>;
   /* Whether this form is asked about at all. Absent means yes — see
      CardForm, where the teacher sets it. A form switched off keeps its
@@ -1069,10 +1093,15 @@ export type Item = {
   ref?: string;
   /** What to call it in a list, where its own words do not name it. See Card. */
   name?: string;
+  /** Which verb column it is, where it is a pronoun. See Card. */
+  person?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */
   category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
+  /** What a teacher approved of the sentences it makes, where they have
+      reviewed it. Absent means asked as it always was. See Card. */
+  review?: import("./review.ts").Review;
   /**
    * When the learner last said whether they want this card next, so that
    * the answer survives a merge.
@@ -1338,6 +1367,15 @@ export interface Flag {
    */
   answer?: string;
   verdict?: FlagVerdict;
+  /**
+   * The fingerprint of the sentence as it was asked, where the card was a
+   * sentence filled from other cards — see sentenceKey in review.ts.
+   *
+   * What lets a teacher reading the report strike that one sentence and
+   * leave every other the frame makes: the prompt says which words, and
+   * this says which sentence, in the terms the card's review is kept in.
+   */
+  sentence?: string;
   /** Which build of the app they were on: release, then commit. */
   release?: string;
   /** Added when the report is read, never stored. */

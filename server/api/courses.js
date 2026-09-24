@@ -16,6 +16,7 @@ import { formsOf } from "../../src/cards.ts";
 /* And which tenses a sentence's blanks ask their verbs for, read the one
    way the app reads it. */
 import { slotRows } from "../../src/verbs.ts";
+import { holedParts, isSentenceKey, reviewOf } from "../../src/review.ts";
 /* A number system and a time system are read at this boundary the way an
    answer is: hand-written, total, and silent about why. See
    src/numbers/schema.ts, and DECISIONS.md on why not a schema library. */
@@ -44,6 +45,15 @@ import { liftSubtypeTagsIn } from "../../src/subtype-tags.ts";
 
 const STORE = "arabic-courses";
 const MAX_CLIP_BYTES = 1024 * 1024;
+/* An image, as the data URL the editor sends. The editor shrinks a photo
+   to a long side of 1024 pixels before it leaves the device, which puts an
+   ordinary one at a few hundred kilobytes; this leaves room for a detailed
+   one and refuses a camera original sent whole. */
+const MAX_IMAGE_BYTES = 1536 * 1024;
+/* The only kinds of picture kept: what every browser draws. Checked on the
+   data URL's own header, so an image key cannot be used to park anything
+   else on the server. */
+const IMAGE_DATA = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 
 const WORDS = [
   "amber", "cedar", "harbour", "lantern", "meadow", "quartz", "raven", "saffron",
@@ -174,6 +184,23 @@ const clipList = (list) =>
     .filter((/** @type {unknown} */ h) => typeof h === "string" && /^[a-f0-9]{64}$/.test(h))
     .slice(0, 12);
 
+/* The images on one form, narrowed the way its recordings are — names an
+   image can have, and a handful of them: a picture is there to say what
+   the word means, and four is already a gallery. */
+const MAX_IMAGES = 4;
+/** @param {unknown} list */
+const imageList = (list) => [
+  ...new Set(
+    (Array.isArray(list) ? list : [])
+      .filter((/** @type {unknown} */ h) => typeof h === "string" && /^[a-f0-9]{64}$/.test(h)),
+  ),
+].slice(0, MAX_IMAGES);
+
+/** Every image a card points at — what backup, restore and clearing read. */
+/** @param {Record<string, any>} card */
+const imagesOfCard = (card) =>
+  formsOf(card).flatMap((/** @type {Record<string, any>} */ f) => (Array.isArray(f.images) ? f.images : []));
+
 const RETIRED_CARD_FIELDS = Object.fromEntries(
   [
     "ar", "en", "lat", "clips", "slowClips", "answers", "subs", "ask", "lend",
@@ -238,6 +265,14 @@ const K = {
   /** @param {string} id */
   timeSys: (id) => `timesys:${id}`,
   /**
+   * The version of a number or time system its teacher last signed off,
+   * kept whole: what students are sent while later edits wait. Absent on a
+   * system nobody has edited since sign-off existed, which is sent as it
+   * stands. See sign-system.
+   * @param {string} id
+   */
+  sysSigned: (id) => `syssigned:${id}`,
+  /**
    * Which system is which, for one teacher: kind, then language, then id.
    * A map rather than a list because every lookup here is by the pair.
    * @param {string} owner
@@ -245,6 +280,8 @@ const K = {
   mySystems: (owner) => `mysystems:${owner}`,
   /** @param {string} h */
   clip: (h) => `clip:${h}`,
+  /** @param {string} h */
+  image: (h) => `image:${h}`,
   /** @param {string} id */
   flag: (id) => `flag:${id}`,
   /** @param {string} what */
@@ -283,6 +320,11 @@ const FLAG_VERDICTS = ["right", "near", "wrong", "shown", "skipped", "unanswered
    oldest go first, which is also the order they stop being worth reading
    in. */
 const MAX_FLAGS = 500;
+
+/* The most fingerprints a card keeps on either list. Past the most any
+   frame may be approved at, with room for the ones it has stopped making;
+   see review-card. */
+const MAX_REVIEWED = 3000;
 
 /*
  * The card a report is about, named the way this server names cards.
@@ -770,6 +812,10 @@ export default async (req) => {
         answer: String(body.answer || "").slice(0, 200),
         verdict: FLAG_VERDICTS.includes(String(body.verdict)) ? String(body.verdict) : "",
         release: String(body.release || "").slice(0, 40),
+        /* Which filled sentence it was, where the card is a frame — the
+           fingerprint its review is kept in, so a teacher reading this can
+           strike that one sentence and nothing else. See review.ts. */
+        ...(isSentenceKey(body.sentence) ? { sentence: body.sentence } : {}),
         at: Date.now(),
       };
       await writeJson(store, K.flag(flag.id), flag);
@@ -1198,6 +1244,11 @@ export default async (req) => {
            another. Stored as "" where nobody has said, which is what
            every card written before the question existed carries. */
         category: idish(card.category),
+        /* Which column of the verb table a pronoun is — see the Pronouns
+           screen. An id like the category, and absent rather than empty
+           on every other card; undefined rather than left out, because
+           this object is spread over the card as it stood. */
+        person: idish(card.person) || undefined,
         /* No `value` here, and none taken from a save.
            It was what made a card one of the parts a number was built out
            of, and there are no parts any more: a language's numbers are
@@ -1328,6 +1379,10 @@ export default async (req) => {
             answers: storedAnswers(f),
             clips: clipList(f.clips),
             slowClips: clipList(f.slowClips),
+            /* The pictures on this form — see imageList. Absent rather than
+               empty on a form with none, which is every form written before
+               a card could carry one. */
+            ...(imageList(f.images).length ? { images: imageList(f.images) } : {}),
           })),
         /* Which word cards this one teaches by containing them. A phrase
            the teacher recorded is a context for the words inside it, and
@@ -1444,6 +1499,15 @@ export default async (req) => {
           clipsIn(fields.forms),
           "recording",
           "recordings",
+        );
+        /** @param {Record<string, any>[]} list */
+        const imagesIn = (list) =>
+          list.reduce((n, f) => n + (Array.isArray(f.images) ? f.images.length : 0), 0);
+        note(
+          imagesIn(sentForms.slice(0, fields.forms.length)),
+          imagesIn(fields.forms),
+          "image",
+          "images",
         );
         /* And a word cut off at the end of a field, which is the one that
            does not read as a count. */
@@ -1738,6 +1802,29 @@ export default async (req) => {
         });
         if (record) deckRecords.push(record);
       }
+      /*
+       * A sentence nobody has read is not shown.
+       *
+       * A card that makes sentences — a frame with blanks, a verb's own
+       * sentence, a conversation with a blank in a turn — starts with an
+       * empty review when it is made, and a card from before review existed
+       * gets one the first time the words it is filled into change: the
+       * sentences it makes then are new sentences, and wait for a teacher
+       * exactly as a new card's do. See review.ts.
+       *
+       * Only ever started here, never cleared or filled: what a teacher
+       * approved is theirs to change, through review-card. Approval is kept
+       * as fingerprints of the words shown, so an edit needs nothing done
+       * to a review that exists — the changed sentences are simply not on
+       * it. A card that makes no sentences is left without one.
+       */
+      if (!reviewOf(saved) && holedParts(saved).length) {
+        const framed = (/** @type {any} */ c) =>
+          JSON.stringify(holedParts(c).map((f) => [f.ar, f.lat, f.en, f.tenses || null, f.row || ""]));
+        if (!existing || framed(existing) !== framed(saved)) {
+          saved.review = { ok: [], no: [], at: Date.now(), by: mine };
+        }
+      }
       saved.inDecks = final;
       await writeJson(store, K.card(saved.id), saved);
       /* Through the same answer the bundling uses, so a card that fills a
@@ -1752,6 +1839,158 @@ export default async (req) => {
         decks: deckRecords,
         ...(trimmed.length ? { trimmed } : {}),
       });
+    }
+
+    /*
+     * Whether this person may change a card: its owner, an administrator,
+     * or a teacher of a course one of its decks is in. The same rule a
+     * save is held to, for the actions that change a card without saving
+     * its words.
+     */
+    /** @param {Card} card */
+    async function mayEditCard(card) {
+      if (!card) return false;
+      if (card.owner === mine || iAmAdmin) return true;
+      for (const did of await decksHolding(card)) {
+        if (await canEditDeck(store, await readDeck(store, did), mine, iAmAdmin)) return true;
+      }
+      return false;
+    }
+
+    /*
+     * A teacher's say on the sentences a card makes.
+     *
+     * `ok` are fingerprints approved, `no` are fingerprints struck, and
+     * `clear` are ones to forget either way — see review.ts. Merged into
+     * what the card already carries rather than replacing it, so two
+     * teachers working through one card at once each keep what they did,
+     * and a report struck from the reports list does not undo a review
+     * somebody else has open.
+     *
+     * A card's words are not touched and its revision does not move — a
+     * review is not an edit, and a report filed against the card still
+     * reads as being about the card as it stands. The decks holding it do
+     * move, because that is what tells a student's device to fetch.
+     */
+    if (action === "review-card") {
+      const id = String(body.cardId || "").replace(/[^A-Za-z0-9_-]/g, "");
+      const card = id ? await loadCard(id) : null;
+      if (!card) return json({ error: "no-card" }, 404);
+      if (!(await mayEditCard(card))) return json({ error: "not-yours" }, 403);
+      /** @param {unknown} list */
+      const keysIn = (list) => (Array.isArray(list) ? list : []).filter(isSentenceKey).slice(0, MAX_REVIEWED);
+      const ok = keysIn(body.ok);
+      const no = keysIn(body.no);
+      const clear = keysIn(body.clear);
+      const next = await updateJson(store, K.card(id), (/** @type {any} */ c) => {
+        if (!c) return null;
+        const was = reviewOf(c) || {};
+        const okSet = new Set(Array.isArray(was.ok) ? was.ok : []);
+        const noSet = new Set(Array.isArray(was.no) ? was.no : []);
+        for (const k of clear) {
+          okSet.delete(k);
+          noSet.delete(k);
+        }
+        for (const k of ok) {
+          noSet.delete(k);
+          okSet.delete(k);
+          okSet.add(k);
+        }
+        for (const k of no) {
+          okSet.delete(k);
+          noSet.delete(k);
+          noSet.add(k);
+        }
+        /* Newest kept where a list outgrows the cap: fingerprints of
+           sentences a frame no longer makes are what falls off first, and
+           losing one of those costs nothing. */
+        return {
+          ...c,
+          review: {
+            ok: [...okSet].slice(-MAX_REVIEWED),
+            no: [...noSet].slice(-MAX_REVIEWED),
+            at: Date.now(),
+            by: mine,
+          },
+        };
+      });
+      const holding = await decksHolding(next || card);
+      for (const did of holding) {
+        await updateJson(store, K.deck(did), (/** @type {any} */ d) =>
+          d ? { ...d, version: (d.version || 1) + 1, updated: Date.now() } : null,
+        );
+      }
+      await taught();
+      return json({ ok: true, card: { ...(next || card), decks: holding } });
+    }
+
+    /*
+     * The reports learners have sent about cards this person can change.
+     *
+     * Reports went to the administrator alone, who can read them and can
+     * change nothing about a course they do not teach. The teacher who can
+     * fix the card is who should hear, so every report about a card this
+     * person may edit is theirs to read too — with the card, so the screen
+     * can open its review without a second request, and with what has
+     * become of it since, the way the administrator's list says.
+     */
+    if (action === "my-reports") {
+      const flagIds = await readIndex(store, "flags");
+      const rows = (await readManyJson(store, flagIds.map((x) => K.flag(x)))).filter(Boolean);
+      /** @type {Map<string, any>} */
+      const cardsById = new Map();
+      /** @type {Map<string, boolean>} */
+      const allowed = new Map();
+      const out = [];
+      for (const f of rows) {
+        const cid = cardIdOf(f.cardId);
+        if (!cid) continue;
+        if (!cardsById.has(cid)) cardsById.set(cid, await loadCard(cid));
+        const card = cardsById.get(cid);
+        if (!allowed.has(cid)) {
+          let may = card ? await mayEditCard(card) : false;
+          if (!may && !card && f.deckId) {
+            may = await canEditDeck(store, await readDeck(store, String(f.deckId)), mine, me.admin);
+          }
+          allowed.set(cid, may);
+        }
+        if (!allowed.get(cid)) continue;
+        const cardState = !card ? "gone" : (card.rev || 1) > (f.cardRev || 0) && f.cardRev ? "edited" : "here";
+        out.push({ ...f, cardId: cid, cardState });
+      }
+      const cards = [...cardsById.entries()]
+        .filter(([cid, c]) => c && allowed.get(cid))
+        .map(([, c]) => c);
+      return json({ ok: true, flags: out.reverse(), cards });
+    }
+
+    /* A report read and dealt with, by a teacher who may change its card.
+       The administrator's own list loses it too: there is one report, and
+       it has been answered. */
+    if (action === "dismiss-reports") {
+      const wanted = new Set((Array.isArray(body.flagIds) ? body.flagIds : []).map(String).slice(0, 100));
+      if (!wanted.size) return json({ ok: true, deleted: 0 });
+      const ids = await readIndex(store, "flags");
+      /** @type {string[]} */
+      const gone = [];
+      for (const fid of ids) {
+        if (!wanted.has(fid)) continue;
+        const f = await readJson(store, K.flag(fid));
+        if (!f) continue;
+        const card = await loadCard(cardIdOf(f.cardId));
+        const may = card
+          ? await mayEditCard(card)
+          : !!f.deckId && (await canEditDeck(store, await readDeck(store, String(f.deckId)), mine, me.admin));
+        if (!may) continue;
+        await store.delete(K.flag(fid)).catch(() => {});
+        gone.push(fid);
+      }
+      if (gone.length) {
+        await updateJson(store, K.index("flags"), (/** @type {any} */ list) =>
+          (list || []).filter((/** @type {string} */ x) => !gone.includes(x)),
+        );
+      }
+      return json({ ok: true, deleted: gone.length });
     }
 
     if (action === "delete-cards") {
@@ -2007,7 +2246,16 @@ export default async (req) => {
         ...Object.values(index.times).map((id) => K.timeSys(String(id))),
       ];
       const rows = keys.length ? (await readManyJson(store, keys)).filter(Boolean) : [];
-      return json({ ok: true, systems: rows });
+      /* And which version of each is signed off: a revision, null where
+         nothing is yet, and absent where the system has not been edited
+         since sign-off existed and is sent as it stands. */
+      const signs = await readManyJson(store, rows.map((r) => K.sysSigned(String(r.id))));
+      /** @type {Record<string, number | null>} */
+      const signed = {};
+      rows.forEach((r, i) => {
+        if (signs[i]) signed[r.id] = signs[i].rev === null ? null : Number(signs[i].rev);
+      });
+      return json({ ok: true, systems: rows, signed });
     }
 
     if (action === "save-system") {
@@ -2066,8 +2314,46 @@ export default async (req) => {
         created: Number(existing && existing.created) || Date.now(),
         updated: Date.now(),
       };
+      /*
+       * A system's first save since sign-off existed starts its sign-off.
+       *
+       * What students had until now is what they keep: the version before
+       * this edit is recorded as signed, so nobody loses a number they were
+       * practising, and this edit waits for the teacher to check the sample
+       * and sign it off. A system made from nothing has nothing signed, and
+       * reaches students at its first sign-off.
+       */
+      if (!(await readJson(store, K.sysSigned(id)))) {
+        await writeJson(store, K.sysSigned(id), existing
+          ? { rev: Number(existing.rev) || 0, at: Date.now(), by: mine, system: existing }
+          : { rev: null, at: Date.now(), by: mine, system: null });
+      }
       await writeJson(store, keyOf(id), saved);
-      return json({ ok: true, system: saved });
+      return json({ ok: true, system: saved, signed: (await readJson(store, K.sysSigned(id))).rev });
+    }
+
+    /*
+     * A teacher's sign-off on the version of a system they have checked.
+     *
+     * A language's numbers can run to millions, so nobody reads them all:
+     * the numbers screen shows one of every shape a language can get
+     * wrong, and signing off says the teacher has read those. The version
+     * signed is kept whole and is what students are sent until the next
+     * sign-off. Refused unless it is the version on disk, so what is
+     * signed is what the teacher was looking at.
+     */
+    if (action === "sign-system") {
+      const kind = body.kind === "times" ? "times" : "numbers";
+      const languageId = String(body.languageId || "");
+      const index = await systemIndex(mine);
+      const id = String((kind === "times" ? index.times : index.numbers)[languageId] || "");
+      if (!id) return json({ error: "no-system" }, 404);
+      const current = await readJson(store, (kind === "times" ? K.timeSys : K.numSys)(id));
+      if (!current) return json({ error: "no-system" }, 404);
+      if (Number(current.rev) !== Number(body.rev)) return json({ error: "stale-system", system: current }, 409);
+      await writeJson(store, K.sysSigned(id), { rev: Number(current.rev), at: Date.now(), by: mine, system: current });
+      await taught();
+      return json({ ok: true, id, signed: Number(current.rev) });
     }
 
     if (action === "delete-system") {
@@ -2079,6 +2365,7 @@ export default async (req) => {
       const id = String(held[languageId] || "");
       if (!id) return json({ error: "no-system" }, 404);
       await store.delete((kind === "times" ? K.timeSys : K.numSys)(id)).catch(() => {});
+      await store.delete(K.sysSigned(id)).catch(() => {});
       await updateJson(store, K.mySystems(mine), (current) => {
         const now = current && typeof current === "object" ? current : {};
         const slot = { ...(now[kind] && typeof now[kind] === "object" ? now[kind] : {}) };
@@ -2159,9 +2446,25 @@ export default async (req) => {
          already tidied. The version was taken a step earlier; where this
          moved anything it moves again, and the device fetches once more. */
       await Promise.all(teacherHandles.map((h) => liftTags(h)));
-      const systems = (
+      const current = (
         await Promise.all(teacherHandles.map((h) => systemsOf(h, langs)))
       ).flat();
+      /* Each as its teacher last signed it off — see sign-system. The one
+         on disk where it has not been edited since sign-off existed, and
+         none at all where nothing has been signed yet. */
+      const signs = await readManyJson(
+        store,
+        current.map((/** @type {any} */ sys) => K.sysSigned(String(sys.id))),
+        EVENTUAL,
+      );
+      const systems = current
+        .map((/** @type {any} */ sys, /** @type {number} */ i) => {
+          const sign = signs[i];
+          if (!sign) return sys;
+          if (Number(sign.rev) === Number(sys.rev)) return sys;
+          return sign.system || null;
+        })
+        .filter(Boolean);
       /** @type {[string, number][]} */
       const systemsAt = systems.map((/** @type {any} */ sys) => [sys.id, Number(sys.rev) || 0]);
       const version = materialVersion(courseRows, deckRows, fillsAt, systemsAt);
@@ -2365,6 +2668,32 @@ export default async (req) => {
       return json({ ok: true, hash, data });
     }
 
+    /* ================= images =================
+       A card's pictures, stored the way its recordings are: under the hash
+       of their own bytes, as the data URL the editor sent, fetched by that
+       hash and never changed once written. */
+
+    if (action === "put-image") {
+      const hash = String(body.hash || "");
+      const data = String(body.data || "");
+      if (!/^[a-f0-9]{64}$/.test(hash)) return json({ error: "bad-hash" }, 400);
+      if (!data || data.length > MAX_IMAGE_BYTES || !IMAGE_DATA.test(data)) {
+        return json({ error: "bad-image" }, 400);
+      }
+      const existing = await store.get(K.image(hash), { type: "text" });
+      if (existing) return json({ ok: true, deduplicated: true });
+      await store.set(K.image(hash), data);
+      return json({ ok: true, deduplicated: false });
+    }
+
+    if (action === "image") {
+      const hash = url.searchParams.get("hash") || "";
+      if (!/^[a-f0-9]{64}$/.test(hash)) return json({ error: "bad-hash" }, 400);
+      const data = await store.get(K.image(hash), { type: "text", consistency: "eventual" });
+      if (!data) return json({ error: "not-found" }, 404);
+      return json({ ok: true, hash, data });
+    }
+
     /* ================= admin ================= */
 
     if (action.startsWith("admin-")) {
@@ -2531,6 +2860,8 @@ export default async (req) => {
               .concat(systems.filter(Boolean).flatMap(clipsOfSystem))
           ),
         ];
+        /* And the pictures, reachable the same way: only from the cards. */
+        const imageHashes = [...new Set(cards.filter(Boolean).flatMap(imagesOfCard))];
 
         /* Key hashes, so that restoring a backup leaves everyone's existing
            sign-in key working. The keys themselves are not stored anywhere
@@ -2559,6 +2890,7 @@ export default async (req) => {
         batch("mysystems", handles.map(K.mySystems), 60);
         batch("flag", flagIds.map(K.flag), 60);
         batch("clip", clipHashes.map(K.clip), 3);
+        batch("image", imageHashes.map(K.image), 2);
 
         return json({
           ok: true,
@@ -2573,6 +2905,7 @@ export default async (req) => {
               systems: systemKeys.length,
               flags: flagIds.length,
               clips: clipHashes.length,
+              images: imageHashes.length,
               keys: keyHashes.length,
             },
             indexes: { users: handles, courses: courseIds, decks: deckIds, flags: flagIds },
@@ -2591,7 +2924,7 @@ export default async (req) => {
            silently dropped every recording from every backup. */
         const values = await Promise.all(
           keys.map((/** @type {string} */ k) =>
-            k.startsWith("clip:")
+            k.startsWith("clip:") || k.startsWith("image:")
               ? store.get(k, { type: "text" }).catch(() => null)
               : readJson(store, k)
           )
@@ -2623,7 +2956,7 @@ export default async (req) => {
            restore says it worked. So a new kind of record is added to
            this line in the same release that starts writing one. */
         const allowed =
-          /^(user|key|course|deck|owncards|mycards|card|numsys|timesys|mysystems|flag|clip|code|index):/;
+          /^(user|key|course|deck|owncards|mycards|card|numsys|timesys|mysystems|flag|clip|image|code|index):/;
         let written = 0;
         for (const k of keys) {
           if (!allowed.test(k) || k.length > 200) continue;
@@ -2635,7 +2968,7 @@ export default async (req) => {
             const have = (await readJson(store, k)) || [];
             v = [...new Set(have.concat(v))];
           }
-          const payload = k.startsWith("clip:") ? String(v || "") : JSON.stringify(v);
+          const payload = k.startsWith("clip:") || k.startsWith("image:") ? String(v || "") : JSON.stringify(v);
           if (!payload || payload.length > 4 * 1024 * 1024) continue;
           await store.set(k, payload);
           written += 1;
@@ -2714,6 +3047,11 @@ export default async (req) => {
           for (const h of hashes) {
             await store.delete(K.clip(h));
             removed.clips += 1;
+          }
+          /* The pictures go with the recordings: both are a card's media,
+             reachable only from the cards, and cleared before them. */
+          for (const h of [...new Set(cards.filter(Boolean).flatMap(imagesOfCard))]) {
+            await store.delete(K.image(h));
           }
         }
 

@@ -68,7 +68,7 @@ const ICON_NAMES = [
   "back", "save", "folder", "cards", "person", "group", "key", "download",
   "verify", "play", "pause", "view", "select", "school", "copy", "refresh",
   "mic", "remove", "chevronDown", "chevronUp", "menu", "help", "theme",
-  "language", "lock",
+  "language", "lock", "image", "camera",
 ];
 
 /* One list of forms, the card's own word first — a card as the app has
@@ -197,8 +197,17 @@ const PLACES: Record<string, [string, string]> = {
   ScriptInput: [TEACH, "Editing a card · writing in the language"],
   Recordings: [TEACH, "Editing a card · its recordings"],
   RecordingScreen: [TEACH, "Editing a card · making a recording"],
+  ImageScreen: [TEACH, "Editing a card · adding a picture"],
+  StoredImage: [TEACH, "Editing a card · a picture on a form"],
   ContextReport: [TEACH, "A deck · how much of it appears in phrases"],
+  PronounsEditor: [TEACH, "A language's pronouns, written once"],
   NumberSystemEditor: [TEACH, "A language's number system"],
+  SignOff: [TEACH, "A language's number system · signing a version off for students"],
+  ReviewLine: [TEACH, "A card · where its sentences stand with review"],
+  ReviewScreen: [TEACH, "Reviewing a card's sentences"],
+  OverCeiling: [TEACH, "Reviewing a card's sentences · too many to read"],
+  NarrowBlank: [TEACH, "Reviewing a card's sentences · narrowing a blank"],
+  ReportsScreen: [TEACH, "Reports from students"],
   NumbersTab: [TEACH, "A language's number system · the words numbers are built out of"],
   NounsSection: [TEACH, "A language's number system · the things a counting question counts"],
   TimesTab: [TEACH, "A language's number system · telling the time"],

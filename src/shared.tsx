@@ -13,6 +13,7 @@ import * as API from "./courses-api.ts";
 import { answerFields, categoryLabel, dimValues, kindLabel, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { cardRef, fillNames, fillsOf, isSentence, mergeMet, slotsOf, splitSlots } from "./variables.ts";
+import { reviewOf } from "./review.ts";
 import type { Reader, TableGroup } from "./card-facts.ts";
 import { askLine, A_SENTENCE, blanksOn, cellTitle, CLIP_KINDS, combosOf, dimsSaid, dimText, EXAMPLES_CEILING,
   examplesOf, fillersOn, IN_NO_DECK, isTableCell, lexicalKeys, lexicalLabel, NO_PART, NOT_DRILLED,
@@ -142,6 +143,9 @@ const ICONS: Record<string, string> = {
   mic:
     "M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z",
   remove: "M19 13H5v-2h14v2z",
+  image: "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z",
+  camera:
+    "M9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8.2a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4z",
   /* A learner saying "this one, please" — see `priority` on a card. A star
      rather than the flag beside it, which is already how a learner says
      something is wrong with a question. */
@@ -3703,6 +3707,12 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        only where the teacher has answered it, because absent means
        whatever `ask` says — see isLent in variables.ts. */
     ...(typeof f.lend === "boolean" ? { lend: f.lend } : null),
+    /* Which tenses a sentence's blanks ask their verbs in, where the
+       teacher narrowed any. Never carried until 0.246, so a student's
+       device filled "Yesterday {{name}} {{verb}}" with every tense the
+       teacher had unticked. The teacher's review list is built from what
+       the teacher narrowed, so the two have to agree. */
+    ...(f.tenses && typeof f.tenses === "object" ? { tenses: f.tenses } : null),
     /* What each accepted answer is, grammatically. Read rather than copied,
        so a card the server has not been asked to save since the change —
        one set of values flat on the form — arrives with each of its answers
@@ -3716,6 +3726,9 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        two is right half the time. */
     lang: card.lang,
     recs: recsOf(f),
+    /* Its pictures, by hash — carried so that an exercise can show them.
+       Absent on a form with none. */
+    ...(Array.isArray(f.images) && f.images.length ? { images: f.images.slice() } : null),
     created: Date.now(),
     updated: Date.now(),
     s: freshStates(),
@@ -3800,6 +3813,19 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        where the teacher has not said, which reads as it always did. */
     ...(typeof card.sentence === "boolean" ? { sentence: card.sentence } : null),
     ...(card.drill === false ? { drill: false } : null),
+    /* And which of the sentences it makes a teacher has read and approved,
+       where it has been reviewed: a card that carries this is asked only
+       in those — see review.ts. The fingerprints, and nothing about who or
+       when, which is the teacher's business. Left off a card never
+       reviewed, which is asked as it always was. */
+    ...(reviewOf(card)
+      ? {
+          review: {
+            ok: (reviewOf(card)!.ok || []).slice(),
+            ...(reviewOf(card)!.no && reviewOf(card)!.no!.length ? { no: reviewOf(card)!.no!.slice() } : null),
+          },
+        }
+      : null),
     /* And what the teacher calls it, where its own words do not name it —
        a verb saved as the form a dictionary lists. Carried for the same
        reason those two are: it is the teacher's words and nothing here
@@ -3810,6 +3836,9 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        for the same reason the name is: it is the teacher's answer and
        nothing here could work it out. Left off where nobody has said. */
     ...(card.category ? { category: String(card.category) } : null),
+    /* And which verb column it is, where it is a pronoun: what a sentence's
+       verb reads to take that column. */
+    ...(card.person ? { person: String(card.person) } : null),
     /* And what number it is worth, where it is a number. Carried for the
        same reason the three above are — it is the teacher's answer and
        nothing here could read it off the word — and it is what everything
