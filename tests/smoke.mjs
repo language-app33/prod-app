@@ -6094,6 +6094,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
   await sleep(450);
 
+  /* Its word is a box of its table, so nothing is left for a Forms
+     section to hold — and a heading over nothing is not drawn. */
+  check("a verb whose table stands in for its word has no empty Forms section",
+    ![...document.querySelectorAll(".at-formnum")].some((n) => (n.textContent || "").trim() === "Forms"),
+    [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim()).join(" | "));
   check("a saved verb is still asked nothing about its subtype",
     !wordKindBtn() && !formRows().length,
     wordKindBtn() ? "a list is offered" : "nothing is offered");

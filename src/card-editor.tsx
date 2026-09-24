@@ -6866,23 +6866,29 @@ function VerbEditor({ word, lang, allCards, selfId }: {
   allCards: Card[];
   selfId: string;
 }) {
+  /* Where the table stands in for the verb's own word, that word has no
+     block here — and on the usual verb, with nothing outside its table,
+     that left a "Forms" heading over nothing. So the section is drawn only
+     when some form is left to show in it. */
+  const shown = word.forms.map((f, i) => ({ f, i })).filter(({ i }) => !(i === 0 && word.standsIn));
   return (
     <>
       <TableBlock word={word} lang={lang} />
-      <FormsSection>
-        {word.forms.map((f, i) => (
-          i === 0 && word.standsIn ? null :
-          <FormBlock
-            key={i}
-            word={word}
-            lang={lang}
-            index={i}
-            form={f}
-            title={i === 0 ? "The verb" : `Form ${i + 1}`}
-            role={i === 0 ? "This is the verb itself." : formRole(i)}
-          />
-        ))}
-      </FormsSection>
+      {shown.length > 0 && (
+        <FormsSection>
+          {shown.map(({ f, i }) => (
+            <FormBlock
+              key={i}
+              word={word}
+              lang={lang}
+              index={i}
+              form={f}
+              title={i === 0 ? "The verb" : `Form ${i + 1}`}
+              role={i === 0 ? "This is the verb itself." : formRole(i)}
+            />
+          ))}
+        </FormsSection>
+      )}
       <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed

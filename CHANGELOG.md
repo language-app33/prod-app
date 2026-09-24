@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.222 — 24 September 2026
+
+**No empty Forms section on a verb.**
+
+A verb whose dictionary form is one of the boxes of its table showed a
+**Forms** heading under the table with nothing beneath it: its word is
+written in the table, so there was nothing left for the section to hold.
+The heading is gone on those verbs. A verb that still carries a form of
+its own from before its table shows it there, as before.
+
 ## 0.221 — 24 September 2026
 
 **A verb card no longer explains what a verb is.**
