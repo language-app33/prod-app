@@ -1018,3 +1018,13 @@ test("a field is dropped into by the word, not by the character", () => {
     assert.deepEqual(slotsIn(withSlotAt(written, "age", at)).sort(), ["age", "name"]);
   }
 });
+
+test("a pronoun's card lends which person it is, so the verb beside it can take that column", () => {
+  const ana = { id: "p-i", person: "i", category: "pronoun", forms: [{ ar: "أنا", en: "I", lat: "ana" }] };
+  assert.equal((valueOf(ana).grammar || {}).person, "i", "handed the card");
+  const lent = lentBy(ana);
+  assert.equal(lent.length, 1);
+  assert.equal((lent[0].value.grammar || {}).person, "i", "and lent from it");
+  /* An ordinary card lends no person at all. */
+  assert.equal((valueOf({ id: "w", forms: [{ ar: "كتاب", en: "book", lat: "" }] }).grammar || {}).person, undefined);
+});

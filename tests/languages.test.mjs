@@ -952,3 +952,11 @@ test("an agreeing card lends its own word only, and every other card lends every
   assert.equal(lendsForm(LANGUAGES["vi-Hue"], { category: "adjective" })({ row: "agreement" }), true, "nothing agrees in Huế");
   assert.equal(lendsForm(null, { category: "adjective" })({}), true);
 });
+
+test("Pronoun is retired where verbs change with the person, and offered where they do not", () => {
+  const pronounIn = (/** @type {string} */ id) =>
+    (/** @type {any} */ (LANGUAGES)[id].categories || []).find((/** @type {any} */ c) => c.id === "pronoun");
+  assert.equal(!!(pronounIn("ar-PS") || {}).retired, true, "Arabic writes them on the Pronouns screen");
+  assert.equal(!!(pronounIn("he-IL") || {}).retired, true, "and so does Hebrew");
+  assert.equal(!!(pronounIn("vi-Hue") || {}).retired, false, "Huế's verbs have no columns to pick");
+});

@@ -200,6 +200,7 @@ const PLACES: Record<string, [string, string]> = {
   ImageScreen: [TEACH, "Editing a card · adding a picture"],
   StoredImage: [TEACH, "Editing a card · a picture on a form"],
   ContextReport: [TEACH, "A deck · how much of it appears in phrases"],
+  PronounsEditor: [TEACH, "A language's pronouns, written once"],
   NumberSystemEditor: [TEACH, "A language's number system"],
   NumbersTab: [TEACH, "A language's number system · the words numbers are built out of"],
   NounsSection: [TEACH, "A language's number system · the things a counting question counts"],

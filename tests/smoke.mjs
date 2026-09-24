@@ -284,6 +284,11 @@ const signedUp = [];
    whatever else is in hand — so for that one the course is emptied and the
    only thing left is the skills. */
 let materialQuiet = false;
+/* Saves the stub takes, where a walk turns them on — see save-card below. */
+let takeSaves = false;
+/** @type {any[]} */
+const savedCards = [];
+
 /**
  * The whole server, as far as the app is concerned.
  *
@@ -434,6 +439,15 @@ const fakeFetch = async (input, opts = {}) => {
     if (action === "clip") return json({ error: "not-found" }, 404);
     /* A picture: a one-pixel PNG for any hash, so a picture question has
        something to draw. */
+    /* A card saved, where a walk has asked for saves to be taken — the
+       Pronouns screen's. Off otherwise, so nothing earlier comes to rely on
+       a save the stub did not used to answer. */
+    if (action === "save-card" && takeSaves) {
+      const body = JSON.parse(opts.body || "{}");
+      const card = { ...(body.card || {}), id: (body.card && body.card.id) || `k-saved-${savedCards.length + 1}` };
+      savedCards.push(card);
+      return json({ ok: true, card: { ...card, decks: body.decks || [] }, decks: [] });
+    }
     if (action === "image") {
       return json({ ok: true, hash: url.searchParams.get("hash"), data: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" });
     }
@@ -5995,9 +6009,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !formRows().some((r) => /^Number/.test((r.textContent || "").trim())),
         formRows().map((r) => (r.textContent || "").slice(0, 10)).join(" | ") || "(nothing offered)");
 
-      await pickKind(/^Pronoun/);
-      check("a pronoun has no table and is asked its number and gender",
-        !tables().length && !!grammarBtn(), `${tables().length} table boxes`);
+      check("a pronoun is not a kind of word anybody is offered, because the Pronouns screen writes them",
+        !formRows().some((r) => /^Pronoun/.test((r.textContent || "").trim())),
+        formRows().map((r) => (r.textContent || "").slice(0, 10)).join(" | ") || "(nothing offered)");
 
       await pickKind(/^Something else/);
       check("something else is the word alone: no table, no grammar",
@@ -6294,6 +6308,55 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(300);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
+}
+
+/* ---- a language's pronouns, written once ----
+
+   The Pronouns screen, off the Cards tab beside Numbers: one row per
+   column of the verb table. Filled in and saved, each row goes up as a
+   card of the Pronoun kind that says which column it is. */
+{
+  takeSaves = true;
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const btn = /** @type {any} */ ([...frame.querySelectorAll("button")]
+    .find((b) => b.getAttribute("aria-label") === "Pronouns") || null);
+  check("the Cards tab offers Pronouns beside Numbers", !!btn, btn ? "there" : "(no button)");
+  click(btn);
+  await sleep(400);
+  const screen = () => /** @type {any} */ ([...document.querySelectorAll(".at-screen")]
+    .find((sc) => /^Pronouns · /.test(((sc.querySelector(".at-screenhead h2") || {}).textContent || "").trim())) || null);
+  const rows = () => screen() ? [...screen().querySelectorAll("[data-person]")].map((r) => r.getAttribute("data-person")) : [];
+  check("which lists one row for each person the verb table has",
+    JSON.stringify(rows()) === JSON.stringify(["i", "you-m", "you-f", "he", "she", "we", "you-pl", "they"]),
+    rows().join(" ") || "(no screen)");
+  const setValue = (/** @type {any} */ el, /** @type {string} */ v) => {
+    if (!el) return;
+    const setter = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "the setter").set;
+    must(setter, "the setter").call(el, v);
+    el.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  const iRow = () => screen() && screen().querySelector('[data-person="i"]');
+  setValue(iRow() && iRow().querySelector("input"), "أنا");
+  await sleep(120);
+  const latBox = iRow() && [...iRow().querySelectorAll("input")].find((i) => /Transliteration for I/.test(i.getAttribute("aria-label") || ""));
+  setValue(latBox, "ana");
+  await sleep(120);
+  const saveBtn = () => /** @type {any} */ ([...(screen() || document).querySelectorAll("button")]
+    .find((b) => /^Save 1 pronoun$/.test((b.textContent || "").trim())) || null);
+  check("and saving says how many it will write", !!saveBtn(),
+    [...(screen() || document).querySelectorAll("button")].map((b) => (b.textContent || "").trim()).join(" | "));
+  click(saveBtn());
+  await sleep(400);
+  const sent = savedCards[savedCards.length - 1] || {};
+  check("each row goes up as a Pronoun card that says which person it is",
+    sent.person === "i" && sent.category === "pronoun" && sent.lang === "ar-PS" &&
+      ((sent.forms || [])[0] || {}).ar === "أنا" && ((sent.forms || [])[0] || {}).lat === "ana",
+    JSON.stringify(sent).slice(0, 200));
+  check("and the English is the person's name where none was typed",
+    ((sent.forms || [])[0] || {}).en === "I", JSON.stringify((sent.forms || [])[0]));
+  click([...(screen() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  takeSaves = false;
 }
 
 /* ---- a saved adjective opens on the table it agrees out of ----
@@ -7774,7 +7837,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         click(host.querySelector('[data-el="check-button"]'));
         await sleep(200);
       }
-      if (pics && host.querySelector(".at-picture.answer")) met.answerPicture += 1;
+      /* The answer's picture is read from storage, so give it a moment
+         rather than look once — a busy machine can be slower than 200ms. */
+      if (pics) {
+        for (let t = 0; t < 20 && !host.querySelector(".at-picture.answer"); t++) await sleep(50);
+        if (host.querySelector(".at-picture.answer")) met.answerPicture += 1;
+      }
       click([...host.querySelectorAll("button")].find((b) => /^Continue$/.test((b.textContent || "").trim())));
       await sleep(200);
     }

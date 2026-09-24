@@ -64,6 +64,7 @@ import { offersFor } from "./offers.ts";
 /* A language's numbers and its clock, written on one screen. Reached
    through the registry, never by naming a language — see src/numbers/. */
 import { NumberSystemEditor } from "./number-system-editor.tsx";
+import { PronounsEditor, hasPronouns } from "./pronouns-editor.tsx";
 import type { NumberSystem, TimeSystem } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { emptyNumberSystem, emptyTimeSystem, readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
@@ -4256,6 +4257,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
      out of are a fact about the language, not about any one deck, and the
      same eleven words serve every deck written in it. */
   const [numbering, setNumbering] = useState<LangId | null>(null);
+  /* Which language's pronouns are open, and — where the teacher has more
+     than one that has them — which one is being chosen. The Numbers two-
+     step, for the same reason. */
+  const [pronouning, setPronouning] = useState<LangId | null>(null);
+  const [pronounLang, setPronounLang] = useState<LangId | null>(null);
   /* And which language, where the teacher has more than one to choose
      from. The same two-step the New card button takes, for the same
      reason and through the same control. */
@@ -4366,6 +4372,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
    */
   const numberLangs = useMemo(
     () => Object.keys(taught).filter((id) => !!composerFor(id)),
+    [taught]
+  );
+  /* And those whose verbs change with the person, which are the ones with
+     pronouns to write — see hasPronouns. */
+  const pronounLangs = useMemo(
+    () => Object.keys(taught).filter((id) => hasPronouns(taught[id])),
     [taught]
   );
 
@@ -4981,6 +4993,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            card's blank may ask for by name. */
                         ref,
                         drill,
+                        /* Which verb column it is, where it is a pronoun the
+                           Pronouns screen wrote: kept through an edit here,
+                           since this screen does not ask it and a save
+                           without it would take it away. */
+                        ...(editing.card && editing.card.person ? { person: editing.card.person } : {}),
                       }),
                 },
                 inDecks
@@ -5131,6 +5148,28 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   /* ---- filling in the numbers a deck builds from ----
          Sits before the deck screen so that closing it lands back on the
          deck, the way the deck picker sits before the course. ---- */
+  /* ---- a language's pronouns ---- */
+  if (pronouning) {
+    const pLang = languages[pronouning];
+    if (!pLang || !hasPronouns(pLang)) {
+      setPronouning(null);
+      return null;
+    }
+    return (
+      <PronounsEditor
+        lang={pLang}
+        cards={cards}
+        busy={busy}
+        onClose={() => setPronouning(null)}
+        onSave={async (card, inDecks) => {
+          const r = await sendOrKeep(card, inDecks);
+          absorbSaved(r);
+          return r;
+        }}
+      />
+    );
+  }
+
   if (numbering) {
     const numLang = languages[numbering];
     if (!numLang || !composerFor(numbering)) {
@@ -5635,6 +5674,31 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   button takes, through the same control: the words are a
                   fact about one language and nothing on the screen could
                   work out which. */}
+              {pronounLang !== null && (
+                <Screen title="Pronouns" onBack={() => setPronounLang(null)}>
+                  <LanguageRadio
+                    languages={Object.fromEntries(pronounLangs.map((id) => [id, taught[id]]))}
+                    value={pronounLang}
+                    onChange={setPronounLang}
+                    label="Which language's pronouns?"
+                  />
+                  <div className="at-row at-mt5">
+                    <Button variant="ghost" onClick={() => setPronounLang(null)}>
+                      Cancel
+                    </Button>
+                    <Button variant="primary"
+                      disabled={!pronounLang}
+                      onClick={() => {
+                        setPronouning(pronounLang);
+                        setPronounLang(null);
+                      }}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </Screen>
+              )}
+
               {numberLang !== null && (
                 <Screen title="Numbers" onBack={() => setNumberLang(null)}>
                   <LanguageRadio
@@ -5871,16 +5935,34 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                    in it. Icon alone: the row is narrow on a phone and the
                    word is on the screen it opens. */
                 tools={
-                  numberLangs.length ? (
-                    <IconButton
-                      icon="hash"
-                      label="Numbers"
-                      onClick={() =>
-                        numberLangs.length === 1
-                          ? setNumbering(numberLangs[0])
-                          : setNumberLang(numberLangs[0])
-                      }
-                    />
+                  numberLangs.length || pronounLangs.length ? (
+                    <>
+                      {numberLangs.length ? (
+                        <IconButton
+                          icon="hash"
+                          label="Numbers"
+                          onClick={() =>
+                            numberLangs.length === 1
+                              ? setNumbering(numberLangs[0])
+                              : setNumberLang(numberLangs[0])
+                          }
+                        />
+                      ) : null}
+                      {/* Pronouns, beside Numbers and for the same reason:
+                          a fixed set written once per language, rather
+                          than a card at a time. */}
+                      {pronounLangs.length ? (
+                        <IconButton
+                          icon="person"
+                          label="Pronouns"
+                          onClick={() =>
+                            pronounLangs.length === 1
+                              ? setPronouning(pronounLangs[0])
+                              : setPronounLang(pronounLangs[0])
+                          }
+                        />
+                      ) : null}
+                    </>
                   ) : null
                 }
                 menus={cardMenus}

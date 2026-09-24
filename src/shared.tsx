@@ -3816,6 +3816,9 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        for the same reason the name is: it is the teacher's answer and
        nothing here could work it out. Left off where nobody has said. */
     ...(card.category ? { category: String(card.category) } : null),
+    /* And which verb column it is, where it is a pronoun: what a sentence's
+       verb reads to take that column. */
+    ...(card.person ? { person: String(card.person) } : null),
     /* And what number it is worth, where it is a number. Carried for the
        same reason the three above are — it is the teacher's answer and
        nothing here could read it off the word — and it is what everything

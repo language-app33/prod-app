@@ -3578,3 +3578,25 @@ test("a card keeps up to four images on each form, and says when it cut some", a
   for (const n of [1, 2, 3, 4]) assert.ok(planned.includes(`image:${img(n)}`), `image ${n} is backed up`);
   assert.equal(manifest.json.manifest.counts.images, planned.length);
 });
+
+/* A pronoun the Pronouns screen wrote says which verb column it is, and
+   the server keeps that — it is what a sentence's verb reads. */
+test("a pronoun card keeps which person it is", async () => {
+  const teacher = await anAdmin("Hind");
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key: teacher.key,
+    body: {
+      card: { id: "", lang: "ar-PS", category: "pronoun", person: "you-f", forms: [{ ar: "إنتِ", en: "you (f)", lat: "inti" }] },
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.card.person, "you-f");
+  assert.equal(saved.json.card.category, "pronoun");
+  /* An ordinary card carries none. */
+  const plain = await api("/api/courses?action=save-card", {
+    method: "POST", key: teacher.key,
+    body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "باب", en: "door", lat: "baab" }] }, decks: [] },
+  });
+  assert.equal(plain.json.card.person, undefined);
+});

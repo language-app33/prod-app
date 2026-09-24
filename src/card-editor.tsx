@@ -14,7 +14,7 @@ import React, { useState, useEffect, useId, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Deck, GrammarDim, Lang, VerbSpec, VerbTense } from "./types.ts";
 import { cellsIn, citationOf, citedWord, framesOf, isCell, isFrame, personsOf, rowIdsOf, slotRows, tensesOf } from "./verbs.ts";
-import { leadOf, subFormsOf } from "./cards.ts";
+import { formsOf, leadOf, subFormsOf } from "./cards.ts";
 import type { Node } from "./shared.tsx";
 import {
   categoriesOf,
@@ -34,6 +34,7 @@ import {
   labelFor,
   supportsContext,
   scriptVars,
+  verbOf,
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
@@ -1746,9 +1747,13 @@ export function writeCell(
   return had ? cells.map((c) => (c === had ? next : c)) : cells.concat([next]);
 }
 
-function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, mint, onChange, onRecord }: {
+function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, mint, onChange, onRecord, pronouns }: {
   lang: Lang;
   spec: VerbSpec;
+  /** The pronoun written for each column, where the language has them —
+      shown beside the column's name. Only a verb's table: its columns are
+      who does it, which is what a pronoun is. */
+  pronouns?: Record<string, string>;
   /* Whose table this is: "" for the card's own word, a form's name for
      that form's. A verb passes nothing — a verb's table is the card's, and
      there is one of it. A word that takes pronouns on its end has one per
@@ -1814,7 +1819,16 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
                moment it matters, and not before. */
             return (
               <div className="at-cellrow" key={person.id}>
-                {named && <span className="at-celllabel">{person.label}</span>}
+                {named && (
+                  <span className="at-celllabel">
+                    {person.label}
+                    {pronouns && pronouns[person.id] ? (
+                      <span className="at-cellpronoun" lang={lang.id} dir={lang.direction}>
+                        {pronouns[person.id]}
+                      </span>
+                    ) : null}
+                  </span>
+                )}
                 <CellFields
                   lang={lang}
                   cell={cell}
@@ -4356,6 +4370,24 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     storedForms,
     categoryOffer,
     categorySaid,
+    /* This language's pronouns, by the verb column each is — so a verb's
+       table can put the word for "I" under its I column rather than leave
+       the teacher to remember which goes with which. From the Pronouns
+       screen's cards. */
+    pronounWords: Object.fromEntries(
+      (allCards || [])
+        .filter((c) => c && c.lang === lang.id && (c as any).person)
+        .map((c) => [String((c as any).person), String((formsOf(c)[0] || {}).ar || "")])
+        .filter(([, w]) => w),
+    ) as Record<string, string>,
+    /* Which verb column the card is, by the column's own name, where it is
+       a pronoun the Pronouns screen wrote — "I", "she". Empty otherwise. */
+    pronounOf: (() => {
+      const id = String((card && (card as any).person) || "");
+      if (!id) return "";
+      const found = personsOf(verbOf(lang)).find((p) => p.id === id);
+      return found ? found.label : id;
+    })(),
     aside,
     chooseCategory,
     standsIn,
@@ -4560,7 +4592,7 @@ export type SceneDraft = ReturnType<typeof useSceneDraft>;
 const SUBTYPE_LEDE = "Each subtype has specific fields, forms, structures, etc.";
 
 function WordKind({ word }: { word: WordDraft }) {
-  const { category, chooseCategory, categoryOffer, categorySaid } = word;
+  const { category, chooseCategory, categoryOffer, categorySaid, pronounOf } = word;
   const [open, setOpen] = useState(false);
   /* The list, in a sheet of its own — see PickSheet. Choosing shuts it,
      because choosing is the whole of what it was open for, and what
@@ -4623,6 +4655,27 @@ function WordKind({ word }: { word: WordDraft }) {
       </div>
     );
   }
+  /* A pronoun the Pronouns screen wrote: which person it is was settled
+     there, and changing its kind here would leave a card that says it is
+     "I" and is a noun. So it is shown and not asked, the way a table
+     locks its subtype. */
+  if (pronounOf) {
+    return (
+      <div className="at-field at-mt3">
+        <label className="at-label">What subtype</label>
+        <p className="at-fieldlede">
+          Written on the Pronouns screen, as the word for &ldquo;{pronounOf}&rdquo;.
+        </p>
+        <div className="at-shutrow">
+          <Icon name="tune" />
+          <span className="at-shutname">Pronoun · {pronounOf}</span>
+          <span className="at-shutlock" aria-hidden="true">
+            <Icon name="lock" />
+          </span>
+        </div>
+      </div>
+    );
+  }
   /* Shut is the state an answered question sits in, and the pencil is the
      way back into it — so the list is on screen only while it is being
      read, and the answer is on screen the rest of the time. */
@@ -4646,7 +4699,9 @@ function WordKind({ word }: { word: WordDraft }) {
           <Help>
             {category === "name"
               ? "Name is no longer offered for new cards. When you can, choose Person or Place instead."
-              : `${said.label} is no longer offered for new cards. When you can, choose another subtype.`}
+              : category === "pronoun"
+                ? "Pronoun is no longer offered for new cards. Pronouns are now written once for the language, on the Pronouns screen beside Numbers in Cards."
+                : `${said.label} is no longer offered for new cards. When you can, choose another subtype.`}
           </Help>
         )}
         {sheet}
@@ -5072,6 +5127,7 @@ function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           mint={mintCell}
           onChange={setCells}
           onRecord={(row, col) => setRecordingCell({ of: "", ofLabel: "", row, col })}
+          pronouns={shownSpec === verbOf(lang) ? word.pronounWords : undefined}
         />
         {/* Only when it is in the way, and never about one box. It
             used to read "Fill in past · he, plus its English" — the

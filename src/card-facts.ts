@@ -51,7 +51,7 @@
 
 import type { Form, GrammarDim, Lang, VerbSpec } from "./types.ts";
 import { answersOf, splitAlternatives } from "./answers.ts";
-import { answerFields, blankAdmits, categoryLabel, GRAMMAR, kindOf, lendsForm, tablesOf, tensedOf } from "./languages.ts";
+import { answerFields, blankAdmits, categoryLabel, GRAMMAR, kindOf, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
@@ -598,6 +598,19 @@ export const CARD_FACTS: FieldRule[] = [
       const said = str(value);
       if (!said) return [];
       return [categoryLabel(ctx.lang, said) || said];
+    },
+  },
+  {
+    key: "person",
+    on: "card",
+    label: "Pronoun for",
+    what: "Which person of the verb table a pronoun is — I, you, he. Written on the Pronouns screen, and what makes a sentence's verb take that person's form when the pronoun fills its blank.",
+    reader: "both",
+    shown: (value, ctx) => {
+      const said = str(value);
+      if (!said) return [];
+      const p = personsOf(verbOf(ctx.lang)).find((x) => x.id === said);
+      return [p ? p.label : said];
     },
   },
   {

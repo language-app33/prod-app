@@ -1805,6 +1805,25 @@ const WORD_CATEGORIES: WordCategory[] = [
   },
 ];
 
+/*
+ * The same list for a language whose verbs change with the person — Arabic
+ * and Hebrew — where Pronoun is retired as something a teacher picks.
+ *
+ * A pronoun there is not one more word: it is what chooses the verb's
+ * column, and the eight of them are the columns the verb table already
+ * has. So they are written once per language on the Pronouns screen,
+ * which knows which column each one is — something no subtype could say,
+ * since "I" and "he" are both singular. Kept, not removed, so every card
+ * saved as a Pronoun goes on saying so and filling {{pronoun}}; the
+ * Pronouns screen writes its cards with this kind too.
+ *
+ * Vietnamese keeps it offered: its verbs do not change with who does
+ * them, so there are no columns for a pronoun to choose.
+ */
+const PRONOUNED_CATEGORIES: WordCategory[] = WORD_CATEGORIES.map((c) =>
+  c.id === "pronoun" ? { ...c, retired: true } : c,
+);
+
 /** What a word can be in this language, in the order it is asked. */
 export const categoriesOf = (lang: Lang | null | undefined): WordCategory[] =>
   (lang && lang.categories) || [];
@@ -2351,7 +2370,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     },
     /* And what a teacher says a word is. The shared list: nothing about
        Arabic asks for a category of its own. */
-    categories: WORD_CATEGORIES,
+    categories: PRONOUNED_CATEGORIES,
     /* Unit before ten, and a joining word in front of every chunk. See
        src/numbers/ar-PS.ts, which holds the rule and not one word of it. */
     composer: composerFor("ar-PS"),
@@ -2613,7 +2632,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
       agreement: HE_AGREEMENT,
       number: numberTableOf("he-IL"),
     },
-    categories: WORD_CATEGORIES,
+    categories: PRONOUNED_CATEGORIES,
     /* Ten before unit, one joining word in the whole number, and counted
        in the feminine. See src/numbers/he-IL.ts. */
     composer: composerFor("he-IL"),

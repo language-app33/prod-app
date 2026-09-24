@@ -1226,6 +1226,11 @@ export default async (req) => {
            another. Stored as "" where nobody has said, which is what
            every card written before the question existed carries. */
         category: idish(card.category),
+        /* Which column of the verb table a pronoun is — see the Pronouns
+           screen. An id like the category, and absent rather than empty
+           on every other card; undefined rather than left out, because
+           this object is spread over the card as it stood. */
+        person: idish(card.person) || undefined,
         /* No `value` here, and none taken from a save.
            It was what made a card one of the parts a number was built out
            of, and there are no parts any more: a language's numbers are

@@ -861,6 +861,10 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-celllabel { flex:0 0 5.5em; min-width:0; font-size:12px; font-weight:800;
   color: var(--muted); text-align:end; overflow:hidden; text-overflow:ellipsis;
   white-space:nowrap; }
+/* The pronoun for the column, under its name: the word a learner will
+   see before this form, in the taught script at a label's size. */
+.at-cellpronoun { display:block; margin-top:2px; font-family: var(--sfont); font-size:15px;
+  font-weight:700; letter-spacing:0; text-transform:none; color: var(--ink); }
 /* The script, how it is said and what it means share the line, and stack
    once there is no room — at which point the label sits above them all. */
 .at-cellfields { flex:1; min-width:0; display:flex; gap:8px; }

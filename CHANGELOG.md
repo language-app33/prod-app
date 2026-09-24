@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.245 — 24 September 2026
+
+**Pronouns, written once for the language.**
+
+Beside *Numbers* on the Cards tab there is now *Pronouns*: one screen per
+language listing the people a verb changes for — I, you (m), you (f), he,
+she, we, you (pl), they. Each pronoun is typed and recorded there once.
+
+- Every pronoun written there becomes a card of its own, so it is still
+  practised and can be put in decks like any other word.
+- A sentence with a pronoun blank now puts its verb in the right form for
+  the pronoun that fills it: filled with *I*, the verb takes its *I* form.
+  Before, *I* and *he* could not be told apart, since both are singular.
+- A verb's table now shows each column's pronoun under its heading.
+- *Pronoun* is no longer offered as a subtype for new Arabic or Hebrew
+  cards. Pronoun cards already written are kept exactly as they were.
+
 ## 0.244 — 24 September 2026
 
 **Practising from pictures.**

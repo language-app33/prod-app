@@ -786,6 +786,13 @@ export type Card = {
    */
   name?: string;
   /**
+   * Which column of the verb table this card is, where it is a pronoun the
+   * Pronouns screen wrote — "i", "you-m", "she". What lets a sentence's
+   * verb take that column by name; see personFor. Absent on every other
+   * card.
+   */
+  person?: string;
+  /**
    * Whether the card is practised in its own right. Absent means yes, which
    * is what every card written before variables existed meant. A value —
    * "Raphael" — is turned off: it is there to fill a hole in somebody
@@ -1074,6 +1081,8 @@ export type Item = {
   ref?: string;
   /** What to call it in a list, where its own words do not name it. See Card. */
   name?: string;
+  /** Which verb column it is, where it is a pronoun. See Card. */
+  person?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */
   category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
