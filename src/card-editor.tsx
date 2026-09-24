@@ -6147,7 +6147,7 @@ function StripAsk({ word }: { word: WordDraft }) {
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
     holes, starved, combos, fillers, fills, fillsOffer, addFill,
-    main, trouble, category, sentence, strayHoles, tensed, blankRows, setBlankRow,
+    main, trouble, sentence, strayHoles, tensed, blankRows, setBlankRow,
   } = word;
   /*
    * Whether the filled examples are open. Folded away to start with, and
@@ -6585,18 +6585,6 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               </>
             ) : null}
 
-            {/* Where the built-in blanks went. A card fills them by being
-                what it already said it was, so there was never anything to
-                tick — and a tick that does nothing is worse than no tick at
-                all. Said once, on the cards it is true of. */}
-            {category ? (
-              <Help>
-                It also fills <code>{`{{${category}}}`}</code>, because that is
-                what you said this word is — and <code>{`{{${WORD_SLOT}}}`}</code>,
-                which every word fills. Neither is ticked here: they follow from
-                the card rather than from this list.
-              </Help>
-            ) : null}
           </>
         )}
         </div>

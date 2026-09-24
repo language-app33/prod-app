@@ -6196,6 +6196,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
   const fem = box("Arabic for feminine");
+  /* Its default tags are shown as pills; nothing at the foot of the
+     tags says the same thing again in a sentence. */
+  check("a card with a subtype is not told again what its default tags are",
+    !/It also fills|Neither is ticked here/.test(document.body.textContent || ""),
+    "said");
   check("a saved adjective opens on the forms it takes beside a noun",
     !!fem && fem.value === "كبيرة", fem ? `"${fem.value}"` : "no such box");
   check("and on no other table",

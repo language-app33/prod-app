@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.237 — 24 September 2026
+
+**One note fewer under a card's tags.**
+
+On a card whose subtype is set, the foot of **The card’s tags** no
+longer says *It also fills {{verb}}, because that is what you said this
+word is — and {{word}}, which every word fills…* The **Default tags**
+above it already show both.
+
 ## 0.236 — 24 September 2026
 
 **A shorter line over the practice ticks.**
