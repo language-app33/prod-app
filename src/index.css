@@ -803,12 +803,26 @@ button {
    rows under Custom tags. Dressed as the pill a blank is in a sentence
    field (.at-blankpill), because a tag is the name that pill carries —
    without its cross or its grab, since this one goes nowhere. */
-.at-tagchips { display:flex; flex-wrap:wrap; gap:6px; }
-.at-tagchip { display:inline-flex; align-items:center; padding:2px 10px; border-radius:999px;
+.at-tagchips { display:flex; flex-wrap:wrap; gap:8px; }
+.at-tagchip { display:inline-flex; align-items:center; padding:6px 14px; border-radius:999px;
   background: var(--tag-bg); border:2px solid var(--tag-line); color: var(--brass);
   font-family: var(--mono); font-weight:700; font-size:14px; white-space:nowrap; }
 .at-ticklist > .at-eyebrow { margin:2px 0 0; }
 .at-ticklist > .at-hint { margin:0; }
+/* ---- the card's tags: one rhythm for the whole run ----
+   Two runs, Default and Custom, each a heading, the line saying what the
+   run is, and then the run. The line is tied to its heading (4px), the run
+   sits a step under the line (8px, the list's gap), and each heading
+   stands clear of whatever came before it (20px) — the section's own
+   opening line, or the run above. Written out here because the list's
+   ordinary rules gave the second heading 2px, overriding the room it
+   asked for, and the box that creates a tag 16px where the pills got 6. */
+.at-cardtags { gap:8px; margin-top:20px; }
+.at-cardtags > .at-eyebrow { margin:0; }
+.at-cardtags > .at-eyebrow ~ .at-eyebrow { margin-top:20px; }
+.at-cardtags > .at-eyebrow + .at-hint { margin-top:-4px; }
+.at-cardtags > .at-blanknew { margin-top:0; }
+.at-cardtags + .at-hint { margin-top:20px; }
 /* One group tag: the tick that joins it, and the pencil that renames it.
    Two questions about one row, so they are two controls — a row that
    renamed the group when you meant to join it would be unusable. */

@@ -5970,14 +5970,14 @@ function TagList({ word, rows, maker }: {
       ) : (
         <p className="at-hint">None.</p>
       )}
-      <p className="at-eyebrow at-mt3">Custom tags</p>
+      <p className="at-eyebrow">Custom tags</p>
       <Help>Apply a custom tag that already exists, or create a new one.</Help>
       {maker}
     </>
   );
   if (!rows.length) {
     return (
-      <div className="at-ticklist">
+      <div className="at-ticklist at-cardtags">
         {fixed}
         <p className="at-hint">
           No custom tag exists yet — the first one has to be created by
@@ -5987,7 +5987,7 @@ function TagList({ word, rows, maker }: {
     );
   }
   return (
-    <div className="at-ticklist">
+    <div className="at-ticklist at-cardtags">
       {fixed}
       {rows.map((b) => {
         const on = fills.includes(b.name);

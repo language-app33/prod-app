@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.228 — 24 September 2026
+
+**The card's tags, evenly spaced.**
+
+In **The card's tags**, **Default tags** now stands clear of the line
+above it, **Custom tags** stands clear of the pills above it instead of
+touching them, and each heading's explanation sits close under the
+heading with the same step before whatever follows — the pills, or the
+box that creates a tag. The default-tag pills are roomier.
+
 ## 0.227 — 24 September 2026
 
 **Default tags look like blanks.**
