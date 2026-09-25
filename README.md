@@ -721,6 +721,14 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   leaves: the card list, Progress, what is ready, and what a session is
   dealt from. It appears only where there is a choice to make, and the last
   language on cannot be switched off.
+  Teaching carries the same switch over what a teacher writes: every
+  language their courses, decks and cards are in, held off in
+  `settings.teachLangsOff` — apart from Learning's, since narrowing what
+  you teach is not narrowing what you learn. What it leaves off goes from
+  Teaching's lists and nowhere else: students are sent everything, and an
+  open course or deck shows all it holds. The space reports its languages
+  up to the bar the switch sits in; `src/lang-choice.ts` holds the rules
+  both switches read.
 - **What varies between askings turns on a right answer.** Which values
   fill a card's holes, which phrase it is shown in, which of its accepted
   spellings is put up and which of its meanings is asked about are all

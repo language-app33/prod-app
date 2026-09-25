@@ -265,6 +265,14 @@ const toEat = {
     { ar: "بياكل", en: "he eats", lat: "byaakul", row: "present", col: "he", clips: [] },
   ],
 };
+/* A card in a second language, which the teacher holds only while the walk
+   over Teaching's language switch runs — see teachesTwo. Served then and
+   not before, so every other walk counts the cards it always counted. */
+const viTeach = {
+  id: "k8a8a8a8a8a8a", owner: "t-1", ar: "nhà", en: "house", lat: "nha", note: "", lang: "vi-Hue",
+  forms: [], updated: 1,
+};
+let teachesTwo = false;
 const rafa = nameCard("k555555555555", "رافائيل", "Raphael", "rafaa'iil");
 const viktor = nameCard("k666666666666", "فيكتور", "Victor", "fiktoor");
 let materialHits = 0;
@@ -407,6 +415,7 @@ const fakeFetch = async (input, opts = {}) => {
           { ...bigWithForms, decks: [] },
           { ...toEat, decks: [] },
           { ...oldName, decks: [] },
+          ...(teachesTwo ? [{ ...viTeach, decks: [] }] : []),
         ],
       });
     }
@@ -7961,6 +7970,78 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("and nothing threw on the review screens", errors.length === before, errors.slice(before, before + 3).join(" | "));
   r.unmount();
   host.remove();
+}
+
+/* ---- the language switch, in Teaching ----
+   The switch Learning has, over what a teacher writes: a teacher with cards
+   in two languages gets it above Teaching, and what it leaves off goes from
+   Teaching's lists. Stored apart from Learning's, so the learner's own
+   choice is left as it was.
+
+   Last, and on an app of its own: the second language is served only while
+   this runs, and nothing above has to be re-counted — or dealt another
+   hand by the seeded chance — to make room for it. */
+{
+  const before = errors.length;
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, account, items: [],
+  }));
+  teachesTwo = true;
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const r = createRoot(host);
+  r.render(React.createElement(App));
+  await sleep(1500);
+
+  const spaceBtn = (/** @type {RegExp} */ re) =>
+    [...host.querySelectorAll(".at-spacebtn")].find((b) => re.test(b.getAttribute("aria-label") || ""));
+  /* A teacher opens into Teaching; asked for it all the same, in case this
+     device has not yet heard that they teach. */
+  if (!host.querySelector(".at-screen.bare")) {
+    click(spaceBtn(/Teaching/i));
+    await sleep(900);
+  }
+  const frame = () => host.querySelector(".at-screen.bare");
+  const swBtn = () => host.querySelector(".at-langbtn");
+  const rows = () => [...host.querySelectorAll(".at-langmenu .at-ck")];
+  const listed = () => [...((frame() || host).querySelectorAll(".at-minicard"))]
+    .map((t) => (t.textContent || "").replace(/\s+/g, " "));
+  const hasHouse = () => listed().some((t) => /house/.test(t));
+  const learnOff = () => JSON.stringify((JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "{}").settings || {}).langsOff);
+  const cardsTab = [...((frame() || host).querySelectorAll("button"))].filter((b) => /^Cards$/.test(b.textContent || "")).pop();
+  click(cardsTab);
+  await sleep(500);
+
+  check("a teacher of two languages gets the language switch above Teaching",
+    !!swBtn() && ((swBtn() || {}).textContent || "").trim() === "All",
+    swBtn() ? String(swBtn()?.getAttribute("aria-label")) + " · " + (swBtn()?.textContent || "") : "no switch in the bar");
+  check("and it lists the cards in both", hasHouse(), listed().length + " cards");
+  click(swBtn());
+  await sleep(200);
+  check("it offers the languages taught, each with its cards",
+    rows().length === 2 && rows().some((r) => /Vietnamese/.test(r.textContent || "")),
+    rows().map((r) => (r.textContent || "").replace(/\s+/g, " ")).join(" · ") || "nothing opened");
+  check("and says what switching one off does here",
+    /out of Teaching/.test((host.querySelector(".at-langmenu") || {}).textContent || ""),
+    ((host.querySelector(".at-langmenu") || {}).textContent || "").slice(0, 80));
+  const shown = listed().length;
+  const learnWas = learnOff();
+  click(rows().find((r) => /Vietnamese/.test(r.textContent || "")));
+  await sleep(300);
+  check("switching Vietnamese off takes its card out of Teaching's list",
+    !hasHouse() && listed().length === shown - 1, `${shown} before, ${listed().length} after`);
+  check("and the button says Arabic is what is left",
+    ((swBtn() || {}).textContent || "").trim() === "AR", ((swBtn() || {}).textContent || "").trim());
+  check("and Learning's own choice is not touched by it", learnOff() === learnWas, `${learnWas} before, ${learnOff()} after`);
+  click(rows().find((r) => /Vietnamese/.test(r.textContent || "")));
+  await sleep(300);
+  check("switching it back on brings the card back", hasHouse(), listed().length + " cards");
+  click(host.querySelector(".at-brand"));
+  await sleep(200);
+  check("and nothing threw on the way", errors.length === before, errors.slice(before, before + 3).join(" | "));
+  r.unmount();
+  host.remove();
+  teachesTwo = false;
 }
 
 report();

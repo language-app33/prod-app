@@ -172,6 +172,8 @@ import {
   subjectSlot,
 } from "./verbs.ts";
 import { formsOf, leadOf, subFormsOf, withLead } from "./cards.ts";
+import { langsOffAmong } from "./lang-choice.ts";
+import type { LangChoice } from "./lang-choice.ts";
 /* A language's numbers and its clock, reached the way everything else
    language-shaped is: through a registry keyed by language, never by
    naming one. See src/numbers/. */
@@ -7618,24 +7620,32 @@ export default function ArabicTrainer() {
       );
   }, [drillableAll, settings, countReady]);
 
+  /* Which languages are switched off, as the rest of the app should read
+     it rather than as it happens to be stored — see langsOffAmong. */
+  const langsOff: LangId[] = useMemo(
+    () => langsOffAmong(settings.langsOff, langChoices),
+    [settings.langsOff, langChoices]
+  );
+
   /*
-   * Which languages are switched off, as the rest of the app should read
-   * it rather than as it happens to be stored.
-   *
-   * Two things are cleaned up here so that nothing downstream has to think
-   * about them. A language switched off and since gone — the last card in
-   * it deleted, a course left — is dropped, so it cannot come back from
-   * the dead and hide a language that reuses its id. And switching off
-   * every language at once is not a state the app has: it would be a
-   * learner staring at an empty app with no clue why, so it reads as none
-   * of them switched off. The switch will not let you do it either; this
-   * is the belt to that pair of braces.
+   * The same switch over the teaching space, which reports the languages
+   * it holds while it is open — its courses, decks and cards are its own
+   * to fetch, and nothing out here has them. Stored apart from Learning's:
+   * narrowing what you teach is not narrowing what you learn.
    */
-  const langsOff: LangId[] = useMemo(() => {
-    const has = new Set(langChoices.map((c) => c.id));
-    const off = ((settings.langsOff as LangId[]) || []).filter((id) => has.has(id));
-    return off.length >= langChoices.length ? [] : off;
-  }, [settings.langsOff, langChoices]);
+  const [teachChoices, setTeachChoices] = useState<LangChoice[]>([]);
+  /* Only a change the switch would show is a change: the space reports
+     afresh on every refresh, and the same languages and counts again
+     should not re-render the whole app behind it. */
+  const reportTeachChoices = useCallback(
+    (next: LangChoice[]) =>
+      setTeachChoices((was) => (JSON.stringify(was) === JSON.stringify(next) ? was : next)),
+    []
+  );
+  const teachLangsOff: LangId[] = useMemo(
+    () => langsOffAmong(settings.teachLangsOff, teachChoices),
+    [settings.teachLangsOff, teachChoices]
+  );
 
   /* And the cards that leaves. Everything a learner is shown reads this
      rather than the whole document: the card list, progress, what is ready
@@ -10600,6 +10610,8 @@ export default function ArabicTrainer() {
               account={account}
               languages={LANGUAGES}
               settings={settings}
+              langsOff={teachLangsOff}
+              onLangChoices={reportTeachChoices}
               onTry={tryExercise}
               /* Read once, as this mounts. Cleared on the way out so that
                  opening Teaching again tomorrow is opening Teaching, not
@@ -10734,6 +10746,15 @@ export default function ArabicTrainer() {
                 choices={langChoices}
                 off={langsOff}
                 onChange={(next) => setSetting("langsOff", next)}
+                note="What you switch off here is out of the whole of Learning — your cards, your progress and anything you practise — until you switch it back on."
+              />
+            )}
+            {space === "teach" && (
+              <LanguageSwitch
+                choices={teachChoices}
+                off={teachLangsOff}
+                onChange={(next) => setSetting("teachLangsOff", next)}
+                note="What you switch off here is out of Teaching — your courses, decks and cards in it — until you switch it back on. Your students see everything as before."
               />
             )}
             <SpaceSwitch
@@ -14247,10 +14268,12 @@ const langTag = (id: LangId) => String(id || "").split("-")[0].toUpperCase();
  * blank screen with no way of telling why, and the row says so rather than
  * just refusing.
  */
-function LanguageSwitch({ choices, off, onChange }: {
-  choices: { id: LangId; name: string; ready: number; total: number }[];
+function LanguageSwitch({ choices, off, onChange, note }: {
+  choices: LangChoice[];
   off: LangId[];
   onChange: (off: LangId[]) => void;
+  /* What switching one off does, in the space it is switched in. */
+  note: string;
 }) {
   const [open, setOpen] = useState(false);
   const mine: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
@@ -14341,10 +14364,7 @@ function LanguageSwitch({ choices, off, onChange }: {
               );
             })}
           </div>
-          <Help>
-            What you switch off here is out of the whole of Learning — your cards, your progress
-            and anything you practise — until you switch it back on.
-          </Help>
+          <Help>{note}</Help>
         </div>
       )}
     </div>
