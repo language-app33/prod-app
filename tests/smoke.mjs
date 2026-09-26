@@ -5060,6 +5060,38 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("and the reading chosen is the blank put in",
         readField(enNow()) === "My name is {{pronoun-is}}" && !sheet(),
         `${readField(enNow())} · ${sheet() ? "still open" : "closed"}`);
+
+      /* ---- a word with a pronoun on the end, or without ----
+
+         The pen in this collection has "my pen" written out, and it is a
+         word, so a {{word}} blank asks whether the sentence wants the word
+         itself or its forms with a pronoun on the end. No noun here has
+         any, so {{noun}} is put straight in. */
+      click(addIn(/into English$/));
+      await sleep(300);
+      click(rowFor(/^noun$/));
+      await sleep(300);
+      check("a blank whose words have no pronoun endings is put straight in",
+        readField(enNow()) === "My name is {{pronoun-is}} {{noun}}" && !sheet(),
+        `${readField(enNow())} · ${title() || "closed"}`);
+      click(addIn(/into English$/));
+      await sleep(300);
+      click(rowFor(/^word$/));
+      await sleep(300);
+      const options = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+        .map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
+      check("one whose words have them asks whether to use the word or those forms",
+        title() === "How the word reads" && options().length === 2 &&
+          /^Main form.*8 words behind it/.test(options()[0]) &&
+          /^With a pronoun on the end.*my pen.*1 word behind it/.test(options()[1]),
+        `${title()} · ${options().join(" / ")}`);
+      click(/** @type {any} */ ((sheet() || document).querySelector('[data-rows="attached"]')));
+      await sleep(300);
+      const endsPicked = () => /** @type {any} */ (document.querySelector('input[name="ends-word"]:checked'));
+      check("and the choice is put in with the blank, and shown under Blanks to be changed",
+        readField(enNow()) === "My name is {{pronoun-is}} {{noun}} {{word}}" && !sheet() &&
+          !!endsPicked() && /With a pronoun on the end/.test((endsPicked().closest("label") || {}).textContent || ""),
+        `${readField(enNow())} · ${endsPicked() ? (endsPicked().closest("label") || {}).textContent : "(nothing chosen)"}`);
     }
 
     /* And written back into the words, it is read off them again. Into

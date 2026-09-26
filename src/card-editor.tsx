@@ -35,6 +35,8 @@ import {
   supportsContext,
   scriptVars,
   verbOf,
+  BARE_ROW,
+  endRowsOf,
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
@@ -2125,7 +2127,27 @@ interface BlankOffer {
    * and what is put in the field is the name of the one chosen. Absent on
    * every other blank, which is put in as it is.
    */
-  readings?: { name: string; label: string; note: string }[];
+  readings?: Reading[];
+  /** What the second step says above the ways it can be read. */
+  readingsHint?: string;
+}
+
+/**
+ * One way a blank can be read, offered once the blank is chosen.
+ *
+ * `name` is the blank put in the field — a pronoun's three readings are
+ * three blanks. `rows`, where given, is what the sentence then narrows
+ * that blank to, the way it narrows a verb blank to tenses: a noun read
+ * with or without a pronoun on its end is one blank, narrowed.
+ */
+interface Reading {
+  name: string;
+  label: string;
+  note: string;
+  rows?: string[];
+  /** How many words stand in the blank read this way, where that is fewer
+      than stand in the blank. */
+  words?: number;
 }
 
 /** What a field needs in order to have blanks put into it. */
@@ -2392,7 +2414,7 @@ function BlankBar({ wiring, value, onChange, label, lang, script = false, box }:
  * no word for "am" and asks a question without moving anything. See
  * READING_SLOTS in variables.ts.
  */
-const PRONOUN_READINGS: { name: string; label: string; note: string }[] = [
+const PRONOUN_READINGS: Reading[] = [
   { name: PRONOUN_SLOT, label: "Pronoun", note: "I, he, they \u2014 I like coffee" },
   {
     name: PRONOUN_IS_SLOT,
@@ -2437,7 +2459,9 @@ const PRONOUN_READINGS: { name: string; label: string; note: string }[] = [
 function BlankScreen({ lang, offers, onPick, onClose }: {
   lang: Lang;
   offers: BlankOffer[];
-  onPick: (name: string) => void;
+  /** The blank to put in, and what to narrow it to where the way it is
+      read says — see Reading. */
+  onPick: (name: string, rows?: string[]) => void;
   onClose: () => void;
 }) {
   const [typed, setTyped] = useState("");
@@ -2451,8 +2475,8 @@ function BlankScreen({ lang, offers, onPick, onClose }: {
   /* A name the list already answers to — its own, or one of the ways a
      row can be read — is not offered again as a new tag. */
   const exact = offers.some((o) => o.name === name || readingsOf(o).some((r) => r.name === name));
-  const put = (chosen: string) => {
-    onPick(chosen);
+  const put = (chosen: string, rows?: string[]) => {
+    onPick(chosen, rows);
     onClose();
   };
   const choose = (offer: BlankOffer) => (readingsOf(offer).length ? setAsking(offer) : put(offer.name));
@@ -2478,18 +2502,22 @@ function BlankScreen({ lang, offers, onPick, onClose }: {
         className="blanks"
       >
         <p className="at-hint">
-          Choose what it reads as in English. The {lang.scriptLabel} is the same {asking.name} in
-          all three, since &ldquo;am&rdquo; and &ldquo;is&rdquo; are often left unsaid and a
-          question keeps the same word order.
+          {asking.readingsHint || (
+            <>
+              Choose what it reads as in English. The {lang.scriptLabel} is the same {asking.name} in
+              all three, since &ldquo;am&rdquo; and &ldquo;is&rdquo; are often left unsaid and a
+              question keeps the same word order.
+            </>
+          )}
         </p>
         <ul className="at-blanklist">
           {readingsOf(asking).map((r) => (
-            <li key={r.name}>
-              <button onClick={() => put(r.name)} data-blank={r.name}>
+            <li key={`${r.name}:${(r.rows || []).join(",")}`}>
+              <button onClick={() => put(r.name, r.rows)} data-blank={r.name} data-rows={(r.rows || []).join(",")}>
                 <b>{r.label}</b>
                 <span className="at-sheetnote">{r.name}</span>
                 <span>{r.note}</span>
-                {behind(asking.words)}
+                {behind(r.words ?? asking.words)}
               </button>
             </li>
           ))}
@@ -3785,6 +3813,16 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
      "any tense" again, and there is no third state to explain. */
   const setBlankRow = (slot: string, rows: string[]) =>
     setBlankRows((was) => ({ ...was, [slot]: rows }));
+  /* Whether a blank's words carry a pronoun on the end, which the sentence
+     narrows in the same list as its tenses — see BARE_ROW. Put in place of
+     any answer the blank had to this question, beside whatever tenses it
+     asks for; an empty list takes the answer off, which is every form. */
+  const isEndRow = (row: string) => row === BARE_ROW || endRowsOf(lang).has(row);
+  const setBlankEnds = (slot: string, rows: string[]) =>
+    setBlankRows((was) => ({
+      ...was,
+      [slot]: (was[slot] || []).filter((r) => !isEndRow(r)).concat(rows.filter(isEndRow)),
+    }));
 
   /*
    * The card's own word — off the cited cell where the table stands in for
@@ -3924,6 +3962,48 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     for (const c of allCards || []) {
       if (lang && c.lang && c.lang !== lang.id) continue;
       for (const name of fillsOf(c, kindOf(c, lang))) out.set(name, (out.get(name) || 0) + 1);
+    }
+    return out;
+  }, [allCards, lang]);
+
+  /*
+   * The blanks with a word behind them that takes the pronouns on its end,
+   * and what those look like on one of them.
+   *
+   * What decides whether choosing a blank asks a second question — the
+   * word itself, or its forms with a pronoun on the end — which is only
+   * worth asking where some word in the hole has those forms written:
+   * "name", and "my name, your name, his name". Keyed by every name that
+   * reaches such a card, through fillsOf, for the reason `behind` is.
+   */
+  const endsBehind = useMemo(() => {
+    const out = new Map<string, { word: string; ends: string[]; cards: number }>();
+    const spec = specOf(lang, "attached");
+    if (!spec || !endRowsOf(lang).size) return out;
+    const order = personsOf(spec).map((p) => p.id);
+    const at = (cell: Record<string, any>) => {
+      const i = order.indexOf(String(cell.col || ""));
+      return i < 0 ? order.length : i;
+    };
+    for (const c of allCards || []) {
+      if (lang && c.lang && c.lang !== lang.id) continue;
+      if (isSentence(c)) continue;
+      const cells = (cellsIn(c, spec) as Record<string, any>[]).filter((cell) => String(cell.ar || "").trim());
+      if (!cells.length) continue;
+      /* The word's own endings where it has them, before a plural's. */
+      const own = cells.filter((cell) => !String(cell.of || "").trim());
+      const ends = (own.length ? own : cells)
+        .slice()
+        .sort((a, b) => at(a) - at(b))
+        .map((cell) => String(cell.en || cell.ar || "").trim())
+        .filter(Boolean)
+        .slice(0, 3);
+      const lead = leadOf(c);
+      const word = String(lead.en || lead.ar || "").trim();
+      for (const name of fillsOf(c, kindOf(c, lang))) {
+        const had = out.get(name);
+        out.set(name, had ? { ...had, cards: had.cards + 1 } : { word, ends, cards: 1 });
+      }
     }
     return out;
   }, [allCards, lang]);
@@ -4162,8 +4242,33 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         note: [word.ar, word.en].filter(Boolean).join(" · ") || "This card alone",
       });
     }
+    /* And a blank some word in which takes the pronouns on its end asks,
+       once chosen, whether the sentence wants the word or those forms —
+       see endsBehind. The pronoun's own question is its own. */
+    const endRow = [...endRowsOf(lang)][0];
+    for (const row of rows) {
+      const seen = endRow ? endsBehind.get(row.name) : undefined;
+      if (!seen || row.readings) continue;
+      row.readings = [
+        {
+          name: row.name,
+          label: "Main form",
+          note: `${seen.word || "the word"} \u2014 the word itself, and its other forms such as the plural`,
+          rows: [BARE_ROW],
+        },
+        {
+          name: row.name,
+          label: "With a pronoun on the end",
+          note: seen.ends.length ? `${seen.ends.join(", ")}\u2026` : "my \u2026, your \u2026, his \u2026",
+          rows: [endRow],
+          words: seen.cards,
+        },
+      ];
+      row.readingsHint =
+        "Some words in this blank have a pronoun on the end written out. Choose whether the sentence uses the word itself or those forms.";
+    }
     return rows.sort((a, b) => a.name.localeCompare(b.name));
-  }, [blanksAround, behind, allCards, lang, card]);
+  }, [blanksAround, behind, allCards, lang, card, endsBehind]);
 
   /*
    * The words each of this card's blanks can be filled with, today.
@@ -4545,6 +4650,10 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     blankRows,
     setBlankRow,
     tensed,
+    /* And whether a blank's words carry a pronoun on the end, where some
+       word in it has those forms — see endsBehind and setBlankEnds. */
+    endsBehind,
+    setBlankEnds,
     canSave,
     setForm,
     parts,
@@ -6603,7 +6712,12 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
     holes, starved, combos, fillers, fills, fillsOffer, addFill,
     main, trouble, sentence, strayHoles, tensed, blankRows, setBlankRow,
+    endsBehind, setBlankEnds,
   } = word;
+  /* The tenses a blank asks for, as against whether its words carry a
+     pronoun on the end — two answers kept in one list. See BARE_ROW. */
+  const endRows = endRowsOf(lang);
+  const isEnd = (row: string) => row === BARE_ROW || endRows.has(row);
   /*
    * Whether the filled examples are open. Folded away to start with, and
    * on every card: the list is now as long as the vocabulary behind the
@@ -6791,7 +6905,9 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         {sentence && holes.map((slot) => {
           const spec = tensed.get(slot);
           if (!spec) return null;
-          const picked = blankRows[slot] || [];
+          const all = blankRows[slot] || [];
+          const picked = all.filter((r) => !isEnd(r));
+          const kept = all.filter(isEnd);
           const rows = tensesOf(spec);
           return (
             <Field
@@ -6809,9 +6925,50 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                 onToggle={(id, wasOn) =>
                   setBlankRow(
                     slot,
-                    wasOn ? picked.filter((r) => r !== id) : rows.map((t) => t.id).filter((r) => r === id || picked.includes(r)),
+                    kept.concat(
+                      wasOn ? picked.filter((r) => r !== id) : rows.map((t) => t.id).filter((r) => r === id || picked.includes(r)),
+                    ),
                   )
                 }
+              />
+            </Field>
+          );
+        })}
+
+        {/* ---- whether a blank's words carry a pronoun on the end ----
+
+            Where some word behind the blank has its attached pronouns
+            written out — "name", and "my name, your name" — the sentence
+            says which it wants, as it says which tenses. Asked when the
+            blank is put in, and here so it can be changed. A blank that
+            has not said, which is every sentence written before this,
+            takes both. */}
+        {sentence && holes.map((slot) => {
+          const seen = endsBehind.get(slot);
+          const endRow = [...endRows][0];
+          if (!seen || !endRow) return null;
+          const said = (blankRows[slot] || []).filter(isEnd);
+          const value = said.includes(BARE_ROW) ? "bare" : said.length ? "ends" : null;
+          return (
+            <Field
+              key={`ends-${slot}`}
+              label={<>What <BlankNames names={[slot]} /> uses</>}
+              hint={value ? undefined : "Both, until you choose: the word itself and its forms with a pronoun on the end."}
+            >
+              <RadioGroup
+                quiet
+                label={`What ${slot} uses`}
+                name={`ends-${slot}`}
+                options={[
+                  { value: "bare", label: "Main form", note: seen.word || undefined },
+                  {
+                    value: "ends",
+                    label: "With a pronoun on the end",
+                    note: seen.ends.length ? `${seen.ends.join(", ")}\u2026` : undefined,
+                  },
+                ]}
+                value={value}
+                onChange={(v) => setBlankEnds(slot, v === "bare" ? [BARE_ROW] : [endRow])}
               />
             </Field>
           );
@@ -7477,7 +7634,13 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
         <BlankScreen
           lang={lang}
           offers={word.blankOffer}
-          onPick={(name) => putting.put(name)}
+          onPick={(name, rows) => {
+            putting.put(name);
+            /* And where the way it is read narrows the blank — a noun with
+               or without a pronoun on its end — the narrowing, in place of
+               any the blank had on that question and beside its tenses. */
+            if (rows) word.setBlankEnds(name, rows);
+          }}
           onClose={() => setPutting(null)}
         />
       )}
