@@ -412,3 +412,62 @@ test("no dialog exercise needs a recording", () => {
     assert.notEqual(EX[t].promptField, "audio", `${t} is a listening exercise`);
   }
 });
+
+/* ---- a text, and lines picked from sentence cards ---- */
+
+import { TEXT, isText, pickedLine, proseOf, sceneKindOf, withPickedLines } from "../src/dialogs.ts";
+
+test("a scene is a conversation unless it says it is a text", () => {
+  const talk = { lines: [{ id: "a", who: 0, ar: "مرحبا" }, { id: "b", who: 1, ar: "أهلين" }, { id: "c", who: 0, ar: "كيفك" }] };
+  const text = { ...talk, sceneKind: TEXT };
+  assert.equal(sceneKindOf(talk), "conversation", "every scene written before texts is one");
+  assert.equal(isText(text), true);
+  assert.equal(isDialog(text), true, "a text is still a scene");
+  assert.deepEqual(sidesOf(text), [], "nobody speaks a text, so it has no sides");
+  assert.deepEqual(partsToPlay(text), []);
+  const index = buildDialogIndex(/** @type {any} */ ([{ id: "t", forms: [{ id: "t" }], ...text }]));
+  const lead = index.get("t") || null;
+  const second = index.get("b") || null;
+  assert.equal(dialogNeedMet("dialog", lead, {}), true, "read as a whole");
+  assert.equal(dialogNeedMet("order", lead, {}), false, "never put back in order");
+  assert.equal(dialogNeedMet("line", second, {}), false, "and no line of it asked on its own");
+  assert.equal(dialogNeedMet("reply", second, {}), false);
+  assert.equal(dialogNeedMet("order", buildDialogIndex(/** @type {any} */ ([{ id: "c", forms: [{ id: "c" }], ...talk }])).get("c") || null, {}), true,
+    "which a conversation of three lines still is");
+});
+
+test("a picked line reads its sentence card, and keeps what belongs to the scene", () => {
+  const sentence = {
+    id: "s1",
+    uses: ["w1"],
+    forms: [{ id: "s1", ar: "{{person}} هون", en: "{{person}} is here", lat: "{{person}} hoon", clips: ["c"], tenses: { person: ["bare"] } }],
+  };
+  const line = { id: "l1", who: 1, from: "s1", ar: "old", en: "old", lat: "", roles: { person: "person~2" }, tenses: { x: ["y"] } };
+  const read = /** @type {any} */ (pickedLine(line, sentence));
+  assert.equal(read.ar, "{{person}} هون");
+  assert.equal(read.lat, "{{person}} hoon");
+  assert.deepEqual(read.clips, ["c"]);
+  assert.deepEqual(read.tenses, { person: ["bare"] }, "the sentence's narrowing, not the copy's");
+  assert.deepEqual(read.uses, ["w1"]);
+  assert.deepEqual([read.id, read.who, read.from, read.roles], ["l1", 1, "s1", { person: "person~2" }]);
+  const widened = pickedLine(read, { id: "s1", forms: [{ id: "s1", ar: "x", en: "y", lat: "" }] });
+  assert.equal(widened.tenses, undefined, "a narrowing taken off the sentence comes off the line");
+  assert.equal(pickedLine(line, null), line, "no sentence to read, and the copy stands");
+  const scene = { id: "sc", lines: [line, { id: "l2", ar: "typed" }] };
+  const out = withPickedLines(scene, (id) => (id === "s1" ? sentence : null));
+  assert.equal(out.lines[0].ar, "{{person}} هون");
+  assert.equal(out.lines[1].ar, "typed");
+  const plain = { id: "p", lines: [{ id: "x", ar: "typed" }] };
+  assert.equal(withPickedLines(plain, () => null), plain, "nothing picked, nothing done");
+});
+
+test("a text reads as one paragraph, each sentence ended where it was not", () => {
+  const lines = [
+    { ar: "سامي ساكن هون", en: "Sami lives here" },
+    { ar: "وين بيتك؟", en: "Where is your house?" },
+    { ar: "", en: "" },
+    { ar: "بحب الشارع.", en: "I love the street." },
+  ];
+  assert.equal(proseOf(lines, "en"), "Sami lives here. Where is your house? I love the street.");
+  assert.equal(proseOf(lines, "ar"), "سامي ساكن هون. وين بيتك؟ بحب الشارع.", "the Arabic question mark closes a sentence too");
+});

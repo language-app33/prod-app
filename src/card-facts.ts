@@ -758,6 +758,14 @@ export const CARD_FACTS: FieldRule[] = [
     shown: (value) => (Array.isArray(value) ? value.map(str).filter(Boolean) : []),
   },
   {
+    key: "sceneKind",
+    on: "card",
+    label: "Kind of scene",
+    what: "Whether the scene is a text — prose nobody speaks, asked as a whole — or, saying nothing, a conversation.",
+    reader: "both",
+    shown: (value) => [value === "text" ? "A text" : "A conversation"],
+  },
+  {
     key: "you",
     on: "card",
     label: "The student's part",
@@ -924,6 +932,29 @@ export const CARD_FACTS: FieldRule[] = [
     what: "The word cards this one turn is a good example of, ticked the way a phrase's are.",
     reader: "both",
     shown: usedWords,
+  },
+  {
+    key: "from",
+    on: "line",
+    label: "Picked from",
+    what: "The sentence card this turn was picked from. Its words are that sentence's, kept up to date with it, and it is reviewed on that card.",
+    reader: "teacher",
+    shown: (value, ctx) => {
+      const source = (ctx.cards || []).find((c) => str(c.id) === str(value));
+      const words = source ? str(source.name) || str((formsOf(source)[0] || {}).en) || str((formsOf(source)[0] || {}).ar) : "";
+      return [words || "a sentence card that is no longer there"];
+    },
+  },
+  {
+    key: "roles",
+    on: "line",
+    label: "Who each blank is",
+    what: "Which member of the scene's cast a blank in this turn plays, where it is not the one named after the blank. Every blank playing one member is filled with the same word.",
+    reader: "teacher",
+    shown: (value) =>
+      value && typeof value === "object"
+        ? Object.entries(value as Record<string, unknown>).map(([slot, m]) => `${slot} → ${String(m).replace("~", " ")}`)
+        : [],
   },
 
   /* ---- one accepted answer ---- */

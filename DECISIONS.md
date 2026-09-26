@@ -3479,3 +3479,65 @@ pointless for it. The owner decided to show the phrase's meaning. The
 heard version keeps the word's meaning, because it has no gap on the
 screen.
 
+
+---
+
+## A scene is one kind with two subtypes, and its blanks are cast
+
+**26 September 2026** · `src/cast.ts`; `sceneKindOf`, `pickedLine` in
+`src/dialogs.ts`; `lineGate` in `src/review.ts`; `sceneFill` in
+`src/ArabicTrainer.tsx`
+
+A teacher wanted a *text*: several sentences read together, built out of
+sentence cards so each keeps the variety its blanks give it. Three choices
+made it one feature rather than three.
+
+**A text is a scene, not a fourth kind of card.** A conversation was
+already lines in order, read through and drilled a line at a time; a text
+is that with nobody speaking. The two things a text needed — lines picked
+from sentence cards, and blanks that agree across lines — a conversation
+needed just as much, so building them for a separate kind would have been
+building them twice or leaving conversations behind. So `sceneKind: "text"`
+is a subtype, asked the way a word's is and changeable the way a word's is:
+it moves which questions the scene is asked (a text is read as a whole and
+nothing else, `dialogNeedMet`) and leaves every line's progress where it
+was. Absent means conversation, so every scene written before is unchanged.
+
+**A picked line keeps a copy, refreshed wherever the sentence can be
+read.** Pointing at the sentence alone would leave a scene with holes in it
+for any reader that cannot see the sentence card — a student whose decks do
+not hold it. Copying alone would leave the scene stale the moment the
+sentence was edited. So the line carries `from` and the sentence's words,
+and three places read the sentence afresh through `pickedLine`: the editor
+on opening, the server on every save of the scene, and the server on every
+material download. A sentence saved or reviewed moves its teacher's
+revision (`bumpFills`), because the scenes it is in are in other decks. A
+sentence that has gone leaves the line as typed words, reviewed with the
+scene.
+
+**Blanks are cast, not matched by name.** Filling each line alone made a
+conversation greet one person and answer another. Matching by blank name
+alone fails the other way: a reusable sentence cannot know whether its
+`{{person}}` is this story's first character or its second. So each blank
+of each line *plays a member* (`roles` on the line), defaulting to the
+member named after the blank — which is what most scenes want and costs
+nothing — and a member draws one **card**, from which each line takes the
+form its own blank admits (`blankAdmits`, as within one sentence). Two
+members never draw the same card. The walk is an odometer over members,
+like `valuesForTurn` over blanks, forward from the turn to the first
+casting every line's review allows.
+
+**Review is reused, not repeated.** A member draws only what each of its
+blanks would have taken alone, so every filled line is a sentence its own
+review already covers. A typed line answers to the scene's review; a picked
+line to its sentence card's (`lineGate`), which the server hands the device
+on the line. `holedParts` therefore leaves picked lines off the scene's own
+list.
+
+**What it costs.** A scene's blanks are filled at the bottom level whatever
+is asked (`SCENE_KEY`): every scene question is reading, and holding a
+choice question to words the learner can write left names, which have no
+ladder, out of every turn. And the casting is fixed by the scene's own
+read-through count rather than the question's, so it changes only when the
+scene is read through again — the price of never introducing Sami and then
+answering Rami in one session.

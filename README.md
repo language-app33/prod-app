@@ -676,6 +676,30 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   word with nothing on the screen to go on. A card that is not practised in
   its own right — a name — is left to the frame's own `met` record, and a
   verb's own place in its own sentence to its table's gate.
+- **A scene is lines in order, and its blanks are one cast.** A scene is a
+  **conversation** — speakers, a part for the learner, the reply to choose
+  and the order to restore — or a **text**, prose nobody speaks, read as
+  one paragraph and asked only as a whole. One kind with a subtype, the way
+  a word is one kind whether it is a noun or a verb: `sceneKind: "text"`,
+  absent on a conversation, read through `sceneKindOf` in `src/dialogs.ts`,
+  and changeable, because a line's progress means the same in either.
+
+  **A line may be picked from a sentence card** rather than typed: `from`
+  on the line names the card, and the line carries the sentence's words as
+  a copy that `pickedLine` refreshes wherever the sentence can be read —
+  the editor on opening, the server on saving the scene and again on every
+  download to a student. A picked line is reviewed on its sentence card,
+  not on the scene (`lineGate` in `src/review.ts`).
+
+  **Every blank of a scene plays a member of its cast** (`src/cast.ts`),
+  by default the member named after the blank, or another one named in
+  the line's `roles`. A member draws one card for the whole scene and each
+  line takes the form of it that its own blank admits, so "{{name}} lives
+  here" and "{{name}} likes it" are one person, and *the house* and *my
+  house* one house. Two members never draw the same card. `sceneFill` in
+  the trainer fills the whole scene once, for every question about it, and
+  the editor's *Who is who* counts the words behind each member from the
+  same function.
 - **A sentence is shown once a teacher has read it.** A frame is filled by
   rules — the kind of word that fits, the form that agrees, the cell of a
   verb's table — and a language is full of the places a rule is right in

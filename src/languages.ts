@@ -846,7 +846,9 @@ export const CARD_KINDS = [
   { key: "word", label: "Word", one: "a word" },
   { key: "phrase", label: "Phrase", one: "a phrase" },
   { key: "sentence", label: "Sentence", one: "a sentence" },
-  { key: DIALOG_KIND, label: "Conversation", one: "a conversation" },
+  /* A conversation or a text — see sceneKindOf. One kind with a subtype,
+     the way a word is one kind whether it is a noun or a verb. */
+  { key: DIALOG_KIND, label: "Scene", one: "a scene" },
 ];
 
 export const kindLabel = (kind?: string): string =>

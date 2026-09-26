@@ -38,7 +38,10 @@ import {
   BARE_ROW,
   endRowsOf,
 } from "./languages.ts";
-import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
+import { CONVERSATION, MAX_SPEAKERS, TEXT, isDialog, isText, namedPart, pickedFrom, pickedLine, proseOf, sceneKindOf, sideOf } from "./dialogs.ts";
+import type { SceneKind } from "./dialogs.ts";
+import { castFill, castOf, castReport, filledScene, memberBase, memberLabel, newMember, recast, roleIn } from "./cast.ts";
+import { reviewPool, sentencesOf } from "./review.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
 import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, IS_PRONOUN_SLOT, MAX_FILLS, movedSlot, PRONOUN_IS_SLOT, PRONOUN_SLOT, READING_SLOTS, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
 import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
@@ -2752,7 +2755,7 @@ export const shapeChoices = (): { value: CardShape; label: string; note: string 
   [
     { value: "word", label: "Word or phrase", note: shapeHelp("word") },
     { value: "sentence", label: "Sentence", note: shapeHelp("sentence") },
-    { value: "scene", label: "Conversation", note: shapeHelp("scene") },
+    { value: "scene", label: "Scene", note: shapeHelp("scene") },
   ];
 
 /** What one of them is called, for the screen that is making one. */
@@ -2764,7 +2767,7 @@ export const shapeLabel = (shape: CardShape): string =>
    is the same sentence and so is written once. */
 export const shapeHelp = (shape: CardShape): string =>
   shape === "scene"
-    ? "Turns, in order, with somebody saying each one. Every turn is practised in its own right, and the whole scene as well."
+    ? "Lines in order: a conversation, with somebody saying each one, or a text read as prose. Lines are typed in or picked from your sentence cards, and a blank names the same person all the way through."
     : shape === "sentence"
       ? "A sentence with a blank in it, filled by another card — a noun, a verb, or a blank you name — and by a different one each time it is asked."
       : "One thing to learn, with its meaning. Whether it counts as a word or a phrase is read off what you write.";
@@ -4676,8 +4679,14 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
   };
 }
 
-/** The conversation: who is in it, what is said, and whose part it is. */
-export function useSceneDraft({ card }: { card: Card | null }) {
+/** The scene: what kind it is, who is in it, what is said, and whose
+    part it is — and, where a line was picked from a sentence card, that
+    sentence as it is now. */
+export function useSceneDraft({ card, allCards = [] }: { card: Card | null; allCards?: Card[] }) {
+  /* A conversation or a text. Asked of a new scene, because the app has no
+     opinion about which; a scene that exists answers for itself, and every
+     scene written before texts is a conversation. */
+  const [sceneKind, setSceneKind] = useState<SceneKind | null>(card ? sceneKindOf(card) : null);
   /* ---- a conversation, where the card is one ----
      Two people and two empty turns to begin with: an empty scene with an
      "add a line" button is a form that has to be assembled before it can
@@ -4698,8 +4707,23 @@ export function useSceneDraft({ card }: { card: Card | null }) {
        student has done: an unrecognised name folds back to its position.
        See foldForms in shared.tsx. */
     const out: Record<string, any>[] = [];
+    /* A line picked from a sentence card is read from that card as it is
+       now, so the teacher sees what a student will — and one whose sentence
+       has gone is kept as its last words, typed into the scene, and says
+       so. The server makes the same two decisions on the next save. */
+    const sources = new Map(allCards.map((c) => [String(c.id), c]));
     for (const l of card ? card.lines || [] : []) {
-      out.push({ ...blankLine(out), ...l, id: String(l.id || "") || formName(out) });
+      let line: Record<string, any> = { ...blankLine(out), ...l, id: String(l.id || "") || formName(out) };
+      const from = pickedFrom(line);
+      if (from) {
+        const source = sources.get(from);
+        if (source && !isDialog(source) && isSentence(source)) line = pickedLine(line, source);
+        else if (allCards.length) {
+          const { from: _gone, ...typed } = line;
+          line = { ...typed, lost: true };
+        }
+      }
+      out.push(line);
     }
     if (out.length) return out;
     const first = blankLine();
@@ -4723,24 +4747,59 @@ export function useSceneDraft({ card }: { card: Card | null }) {
     return side === null ? "" : ` side${side}`;
   };
 
-  const canSave = canSaveScene(title, written);
+  const canSave = !!sceneKind && canSaveScene(title, written);
+  const text = sceneKind === TEXT;
 
-  /* Another turn, said by whoever did not speak last — which is what a
-     conversation does on its own. */
-  const addLine = () =>
-    setLines((x) =>
-      x.concat([
-        {
-          ...blankLine(x),
-          who: x.length && speakers.length > 1
-            ? ((Number(x[x.length - 1].who) || 0) + 1) % speakers.length
-            : 0,
-        },
-      ]),
-    );
+  /* Whoever did not speak last — which is what a conversation does on its
+     own. Nobody, in a text. */
+  const nextWho = (x: Record<string, any>[]) =>
+    !text && x.length && speakers.length > 1 ? ((Number(x[x.length - 1].who) || 0) + 1) % speakers.length : 0;
+
+  /* Another turn, said by whoever did not speak last. */
+  const addLine = () => setLines((x) => x.concat([{ ...blankLine(x), who: nextWho(x) }]));
   const removeLine = (i: number) => setLines((x) => x.filter((_, j) => j !== i));
 
+  /*
+   * A sentence card, as the next line.
+   *
+   * Into the first line nobody has written anything in, where there is one
+   * — a new scene opens with two, and picking a sentence should not leave
+   * them standing empty above it — and on the end otherwise. It keeps that
+   * line's name and speaker, which are the scene's.
+   */
+  const pickSentence = (source: Card) =>
+    setLines((x) => {
+      const empty = x.findIndex(
+        (l) => !pickedFrom(l) && !String(l.ar || "").trim() && !String(l.en || "").trim() && !String(l.lat || "").trim(),
+      );
+      const base = empty >= 0 ? x[empty] : { ...blankLine(x), who: nextWho(x) };
+      const { lost: _lost, ...kept } = base;
+      const line = pickedLine({ ...kept, from: String(source.id) }, source);
+      return empty >= 0 ? x.map((l, j) => (j === empty ? line : l)) : x.concat([line]);
+    });
+
+  /* A picked line turned into a typed one, with the sentence's words as
+     they stand, for a scene that wants to say it differently. */
+  const unpick = (i: number) =>
+    setLines((x) =>
+      x.map((l, j) => {
+        if (j !== i) return l;
+        const { from: _from, ...typed } = l;
+        return typed;
+      }),
+    );
+
+  /* Which member of the cast a blank of a line plays. */
+  const castBlank = (i: number, slot: string, member: string) =>
+    setLines((x) => x.map((l, j) => (j === i ? recast(l, slot, member) : l)));
+
   return {
+    sceneKind,
+    setSceneKind,
+    text,
+    pickSentence,
+    unpick,
+    castBlank,
     addLine,
     removeLine,
     speakers,
@@ -4990,12 +5049,102 @@ function WordGrammar({ lang, word }: { lang: Lang; word: WordDraft }) {
   );
 }
 
-function KindBlock({ card, lang, scene, shape, word, naming, decks, chosen, onToggleDeck }: {
+/*
+ * What kind of scene this is: a conversation, or a text.
+ *
+ * Asked the way a word's subtype is — a list with a line under each answer,
+ * shut to the answer once it is given, with the pencil that opens it again
+ * — because it is the same sort of question: one fact about the whole
+ * card, which decides what else the card is asked.
+ *
+ * Unlike the kind of card above it, it can be changed. A scene is lines in
+ * order either way and every line keeps what the student has learnt; what
+ * changes is which questions it is asked. Turning a conversation into a
+ * text drops its speakers and the student's part, and says so.
+ */
+const SCENE_KINDS: { value: SceneKind; label: string; note: string }[] = [
+  {
+    value: CONVERSATION,
+    label: "Conversation",
+    note: "People taking turns. Each line has a speaker, and the student is asked to choose the reply and to put the scene back in order as well as to read it.",
+  },
+  {
+    value: TEXT,
+    label: "Text",
+    note: "Prose nobody speaks: a short story, a description, a message. It is read as one paragraph and asked as a whole.",
+  },
+];
+
+function SceneKindField({ talk, card }: { talk: SceneDraft; card: Card | null }) {
+  const [open, setOpen] = useState(false);
+  const said = SCENE_KINDS.find((k) => k.value === talk.sceneKind) || null;
+  const lede = "A conversation has speakers and more to ask; a text is read as a whole.";
+  const sheet = open ? (
+    <PickSheet title="What subtype" lede={lede} className="at-kindsheet" onClose={() => setOpen(false)}>
+      <RadioGroup
+        quiet
+        label="What subtype"
+        name="scene-kind"
+        options={SCENE_KINDS}
+        value={talk.sceneKind}
+        onChange={(v) => {
+          talk.setSceneKind(v);
+          setOpen(false);
+        }}
+      />
+    </PickSheet>
+  ) : null;
+  /* What turning a saved conversation into a text costs, said while it can
+     still be undone by choosing again. */
+  const dropping = !!card && isDialog(card) && !isText(card) && talk.sceneKind === TEXT;
+  if (said) {
+    return (
+      <div className="at-field at-mt3">
+        <label className="at-label">What subtype</label>
+        <p className="at-fieldlede">{lede}</p>
+        <div className="at-shutrow">
+          <Icon name="tune" />
+          <span className="at-shutname">{said.label}</span>
+          <IconButton icon="edit" label="Change what subtype this scene is" onClick={() => setOpen(true)} />
+        </div>
+        {dropping && (
+          <Help>
+            Saved as a text, it loses its speakers and whose part the student plays. Every line
+            keeps what students have learnt.
+          </Help>
+        )}
+        {sheet}
+      </div>
+    );
+  }
+  return (
+    <div className="at-field at-mt3">
+      <label className="at-label">What subtype</label>
+      <p className="at-fieldlede">{lede}</p>
+      <div className="at-chooser">
+        <button
+          className="at-choosebtn"
+          aria-expanded={open}
+          aria-label="What subtype. Not set. Choose one."
+          onClick={() => setOpen(true)}
+        >
+          <Icon name="tune" size={16} />
+          <span className="at-choosemark">Not set</span>
+          <Icon name="chevronDown" size={16} />
+        </button>
+      </div>
+      {sheet}
+    </div>
+  );
+}
+
+function KindBlock({ card, lang, scene, shape, word, talk, naming, decks, chosen, onToggleDeck }: {
   card: Card | null;
   lang: Lang;
   scene: boolean;
   shape: CardShape;
   word: WordDraft;
+  talk: SceneDraft;
   /** Whether this card is one whose own words do not name it, and which of
       the two it is — the wording is all that turns on the answer. Decided
       by the editor, which is where the kinds of card are told apart; null
@@ -5056,7 +5205,7 @@ function KindBlock({ card, lang, scene, shape, word, naming, decks, chosen, onTo
 
           Asked only of a word: a conversation has turns where a word
           has forms, and there is nothing for a table to lay out. */}
-      <WordKind word={word} />
+      {scene ? <SceneKindField talk={talk} card={card} /> : <WordKind word={word} />}
       {/* ---- and what it is called ----
 
           Directly under the subtype, because it is the same sort of thing:
@@ -5381,35 +5530,40 @@ function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
 /* The scene: what it is called, where it happens, who is in it, and
    whose part the student takes. */
 function SceneBlock({ talk }: { talk: SceneDraft }) {
-  const { canSave, title, setTitle, setting, setSetting, speakers, setSpeakers, you, setYou } = talk;
+  const { canSave, title, setTitle, setting, setSetting, speakers, setSpeakers, you, setYou, text, sceneKind } = talk;
   return (
     <>
     <div className="at-formblock main">
       <div className="at-formhead">
-        <span className="at-formnum">The scene</span>
-        <span className="at-formrole">What it is and who is in it.</span>
+        <span className="at-formnum">{text ? "The text" : "The scene"}</span>
+        <span className="at-formrole">{text ? "What it is and what it is about." : "What it is and who is in it."}</span>
       </div>
       <p className={`at-formneed${canSave ? "" : " unmet"}`}>
-        A name, and two turns or more.
+        {sceneKind ? "A name, and two lines or more." : "A subtype, a name, and two lines or more."}
       </p>
 
       <Field label="What it is called">
         <input
           className="at-input"
           value={title}
-          placeholder="At the door"
+          placeholder={text ? "Our street" : "At the door"}
           onChange={(e) => setTitle(e.target.value)}
         />
       </Field>
 
-      <Field label="Where it happens">
+      <Field label={text ? "What it is about" : "Where it happens"}>
         <input
           className="at-input"
           value={setting}
-          placeholder="Two neighbours meet in the morning"
+          placeholder={text ? "Sami describes where he lives" : "Two neighbours meet in the morning"}
           onChange={(e) => setSetting(e.target.value)}
         />
       </Field>
+
+      {/* Nobody speaks a text, so there is nobody to name and no part to
+          play. */}
+      {!text && (
+      <>
 
       <Field label="Who is in it">
         <div className="at-row">
@@ -5455,8 +5609,69 @@ function SceneBlock({ talk }: { talk: SceneDraft }) {
             : "Whose turns the student produces when the whole scene is asked. Everything else is said to them."}
         </Help>
       </Field>
+      </>
+      )}
     </div>
     </>
+  );
+}
+
+/* A line's words with its blanks drawn as the pills they are everywhere
+   else, for a line the editor shows rather than edits. */
+function WithHoles({ text }: { text?: string }) {
+  return (
+    <>
+      {splitSlots(text).map((run, i) =>
+        run.slot ? (
+          <span className="at-slot" key={i}>
+            {run.slot}
+          </span>
+        ) : (
+          <React.Fragment key={i}>{run.text}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
+/*
+ * Who each blank of a line is.
+ *
+ * One row per blank, already answered: a blank plays the member named
+ * after it unless somebody says otherwise, which is what almost every
+ * blank in almost every scene wants, so the row is there to be read and
+ * changed rather than filled in. Offered the members named after the same
+ * blank, any member it already plays, and somebody new of its kind.
+ */
+function CastChoice({ talk, index: i, line: l }: { talk: SceneDraft; index: number; line: Record<string, any> }) {
+  const holes = slotsOf(l);
+  if (!holes.length) return null;
+  const all = castOf({ lines: talk.lines }).map((m) => m.member);
+  return (
+    <Field
+      label="Who each blank is"
+      lede="Every blank playing the same one is filled with the same word, all through the scene."
+    >
+      {holes.map((slot) => {
+        const now = roleIn(l, slot);
+        const same = all.filter((m) => memberBase(m) === memberBase(slot) || m === now);
+        const fresh = newMember({ lines: talk.lines }, slot);
+        const options = [...new Set([...same, now])].map((m) => ({ value: m, label: cap(memberLabel(m, all)) }));
+        return (
+          <div className="at-castpick" key={slot}>
+            <span className="at-castslot">
+              <span className="at-slot">{slot}</span>
+            </span>
+            <Segmented
+              label={`Who ${slot} is in line ${i + 1}`}
+              options={[...options, { value: fresh, label: "Someone new" }]}
+              value={now}
+              onChange={(v) => talk.castBlank(i, slot, String(v))}
+            />
+          </div>
+        );
+      })}
+    </Field>
   );
 }
 
@@ -5477,20 +5692,24 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
   index: number;
   line: Record<string, any>;
 }) {
-  const { lines, speakers, you, setLine, removeLine, setRecordingLine, turnSide } = talk;
+  const { lines, speakers, you, setLine, removeLine, setRecordingLine, turnSide, text } = talk;
+  const picked = !!pickedFrom(l);
+  const source = picked ? allCards.find((c) => String(c.id) === pickedFrom(l)) || null : null;
   return (
     <>
-    <div className={`at-formblock${turnSide(l.who)}`}>
+    <div className={`at-formblock${text ? "" : turnSide(l.who)}`}>
       <div className="at-formhead">
-        <span className="at-formnum">Line {i + 1}</span>
-        <span className={`at-speaker s${(l.who || 0) % 4}`}>
-          {speakers[l.who || 0] || `Speaker ${(l.who || 0) + 1}`}
-        </span>
+        <span className="at-formnum">{text ? `Sentence ${i + 1}` : `Line ${i + 1}`}</span>
+        {!text && (
+          <span className={`at-speaker s${(l.who || 0) % 4}`}>
+            {speakers[l.who || 0] || `Speaker ${(l.who || 0) + 1}`}
+          </span>
+        )}
         {/* Silent where no part is named: with either side up
             for grabs, no turn is "theirs" until the question
             picks, and labelling one would be a guess. */}
         <span className="at-formrole">
-          {you === null ? "" : (l.who || 0) === you ? "The student's turn." : "Said to them."}
+          {text || you === null ? "" : (l.who || 0) === you ? "The student's turn." : "Said to them."}
         </span>
         <span className="at-formacts">
           {lines.length > 2 && (
@@ -5505,15 +5724,50 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
         </span>
       </div>
 
-      <Field label="Who says it">
-        <Segmented
-          label={`Who says line ${i + 1}`}
-          options={speakers.map((n, j) => ({ value: j, label: n || `Speaker ${j + 1}` }))}
-          value={l.who || 0}
-          onChange={(v) => setLine(i, { ...l, who: Number(v) })}
-        />
-      </Field>
+      {!text && (
+        <Field label="Who says it">
+          <Segmented
+            label={`Who says line ${i + 1}`}
+            options={speakers.map((n, j) => ({ value: j, label: n || `Speaker ${j + 1}` }))}
+            value={l.who || 0}
+            onChange={(v) => setLine(i, { ...l, who: Number(v) })}
+          />
+        </Field>
+      )}
 
+      {l.lost && (
+        <p className="at-formneed unmet">
+          The sentence card this line was picked from is gone. The line is kept with its last
+          words, typed into the scene, and is reviewed with the scene now.
+        </p>
+      )}
+
+      {picked ? (
+        /* A picked line is the sentence card's words: shown here, edited
+           there, so one sentence says the same thing in every scene it is
+           in. The recordings, the words it teaches and its review come with
+           it; what is the scene's own is who says it and who its blanks
+           are. */
+        <div className="at-field">
+          <label className="at-label">
+            Picked from {source ? `“${String(source.name || leadOf(source).en || "a sentence card")}”` : "a sentence card"}
+          </label>
+          <p className="at-fieldlede">
+            Its words, recordings and review belong to the sentence card, and change here when they
+            change there.
+          </p>
+          <p className="at-arabic phrase" lang={lang.id} dir={lang.direction}
+            style={{ fontFamily: lang.fontStack, direction: lang.direction }}>
+            <WithHoles text={l.ar} />
+          </p>
+          {l.lat ? <p className="at-scenemeaning"><WithHoles text={l.lat} /></p> : null}
+          {l.en ? <p className="at-scenemeaning"><WithHoles text={l.en} /></p> : null}
+          <Button variant="ghost" size="sm" className="at-mt2" onClick={() => talk.unpick(i)}>
+            Type it here instead
+          </Button>
+        </div>
+      ) : (
+      <>
       <Field label={lang.scriptLabel}>
         <ScriptInput lang={lang} value={l.ar} onChange={(v) => setLine(i, { ...l, ar: v })} />
       </Field>
@@ -5552,6 +5806,10 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
         chosen={l.uses || []}
         onChange={(next) => setLine(i, { ...l, uses: next })}
       />
+      </>
+      )}
+
+      <CastChoice talk={talk} index={i} line={l} />
     </div>
     </>
   );
@@ -7384,8 +7642,19 @@ export function writtenCard({ word, talk, shape, chosen }: {
      * way — see asValue.
      */
     drill: written.some(partAsked),
+    /* A text has nobody in it and nobody's part to play, and every line
+       of it is the first speaker's, which is what a scene with no speakers
+       reads. What only the screen needed — that a line's sentence has
+       gone — stays on the screen. */
     scene: scene
-      ? { title: talk.title.trim(), setting: talk.setting.trim(), speakers: talk.speakers, you: talk.you, lines: talk.written }
+      ? {
+          title: talk.title.trim(),
+          setting: talk.setting.trim(),
+          sceneKind: talk.sceneKind || CONVERSATION,
+          speakers: talk.text ? [] : talk.speakers,
+          you: talk.text ? null : talk.you,
+          lines: talk.written.map(({ lost: _lost, ...l }) => (talk.text ? { ...l, who: 0 } : l)),
+        }
       : null,
   };
 }
@@ -7720,13 +7989,14 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
   );
 }
 
-/** A conversation: the scene, then its turns in order. */
+/** A scene: what it is, then its lines in order, then who is who. */
 function SceneEditor({ talk, lang, allCards, selfId }: {
   talk: SceneDraft;
   lang: Lang;
   allCards: Card[];
   selfId: string;
 }) {
+  const [picking, setPicking] = useState(false);
   return (
     <>
       <SceneBlock talk={talk} />
@@ -7741,21 +8011,228 @@ function SceneEditor({ talk, lang, allCards, selfId }: {
           line={l}
         />
       ))}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={talk.addLine}
-        icon="add"
-      >
-        Add a line
-      </Button>
+      <div className="at-row">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={talk.addLine}
+          icon="add"
+        >
+          {talk.text ? "Add a sentence" : "Add a line"}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setPicking(true)} icon="add">
+          Pick a sentence card
+        </Button>
+      </div>
+
+      <CastBlock talk={talk} lang={lang} allCards={allCards} />
 
       <Help className="at-mt3">
         No recordings needed. A scene with none is still drilled every
         way there is; where a line has one, it can be heard as well as
         read.
       </Help>
+
+      {picking && (
+        <SentencePicker
+          lang={lang}
+          allCards={allCards}
+          selfId={selfId}
+          onPick={(c) => talk.pickSentence(c)}
+          onClose={() => setPicking(false)}
+        />
+      )}
     </>
+  );
+}
+
+/*
+ * The cast: every member, the lines it is in, and how many words could
+ * play it — and the scene read through once, filled the way a student
+ * will first meet it.
+ *
+ * Counted from the teacher's own collection the way the review list
+ * counts, so a member with no word behind it is found here and not by a
+ * student who is never shown the scene. Two ways that happens are said
+ * outright: nothing fits every blank a member plays, and fewer different
+ * words than there are members of one kind — two people who would have to
+ * be the same person.
+ */
+function CastBlock({ talk, lang, allCards }: { talk: SceneDraft; lang: Lang; allCards: Card[] }) {
+  /* Worked out again only when something a filling reads has changed, not
+     on every keystroke in a field it does not: a scene's cast walks the
+     whole collection. */
+  const shape = JSON.stringify(
+    talk.written.map((l) => [l.id, l.ar, l.en, l.lat, l.roles || null, l.tenses || null]),
+  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const scene = useMemo(() => ({ lines: talk.written }), [shape]);
+  const wiring = useMemo(() => {
+    const owners = new Map<string, { card: Record<string, any>; form: Record<string, any> }>();
+    return {
+      card: scene,
+      poolOf: (line: Record<string, any>) => {
+        const { values, owner } = reviewPool(line, allCards, lang);
+        for (const [k, v] of owner) owners.set(k, v);
+        return values;
+      },
+      ownerOf: (v: Value) => owners.get(String(v.id || v.ar)) || null,
+      langFor: () => lang,
+    };
+  }, [scene, allCards, lang]);
+  const report = useMemo(() => castReport(wiring), [wiring]);
+  const example = useMemo(() => {
+    if (!report.members.length) return null;
+    const took = castFill({ ...wiring, turn: 0 });
+    return took ? filledScene(scene, took) : null;
+  }, [wiring, report, scene]);
+  if (!report.members.length) return null;
+  return (
+    <div className="at-formblock">
+      <div className="at-formhead">
+        <span className="at-formnum">Who is who</span>
+        <span className="at-formrole">The scene&rsquo;s blanks, filled once for the whole scene.</span>
+      </div>
+      <ul className="at-blanklist">
+        {report.members.map((m) => (
+          <li key={m.member}>
+            <div className="at-castrow">
+              <b>{cap(m.label)}</b>
+              <span className="at-sheetnote">
+                {m.parts.length === 1 ? "line" : "lines"}{" "}
+                {[...new Set(m.parts.map((p) => p.line + 1))].join(", ")}
+              </span>
+              <em className={m.words ? "" : "unmet"}>
+                {m.words ? `${plural(m.words, "word")} could be ${m.label}` : "No word fits every blank this plays"}
+              </em>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {report.short.map((base) => (
+        <p className="at-formneed unmet" key={base}>
+          There are not enough different words for every {base} here to be somebody else.
+        </p>
+      ))}
+      {example ? (
+        <Field label="How it reads" lede="The first way a student meets it. Each time round it is filled differently.">
+          {talk.text ? (
+            /* A text reads as the paragraph a student is shown. */
+            <div className="at-scene prose">
+              <p className="at-arabic phrase" lang={lang.id} dir={lang.direction}
+                style={{ fontFamily: lang.fontStack, direction: lang.direction }}>
+                {proseOf(example.lines, "ar")}
+              </p>
+              <p className="at-scenemeaning">
+                {proseOf(example.lines, "en")}
+              </p>
+            </div>
+          ) : (
+          <div className="at-scene">
+            {example.lines.map((line: Record<string, any>, i: number) => (
+              <div className="at-sceneline" key={line.id || i}>
+                <div className="at-scenesaid">
+                  <p className="at-arabic phrase" lang={lang.id} dir={lang.direction}
+                    style={{ fontFamily: lang.fontStack, direction: lang.direction }}>
+                    {line.ar}
+                  </p>
+                  {line.en ? <p className="at-scenemeaning">{line.en}</p> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+          )}
+        </Field>
+      ) : (
+        <p className="at-formneed unmet">
+          As it stands this scene cannot be filled, so students are not shown it. Each line on its
+          own may still be fine: look at the counts above.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/*
+ * A sentence card, chosen to be the next line.
+ *
+ * Every sentence in the scene's language, with its blanks as pills and one
+ * way it is filled underneath, so a teacher can see what the line will say
+ * before choosing it. Searched by its name and its words.
+ */
+function SentencePicker({ lang, allCards, selfId, onPick, onClose }: {
+  lang: Lang;
+  allCards: Card[];
+  selfId: string;
+  onPick: (card: Card) => void;
+  onClose: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const sentences = useMemo(
+    () =>
+      allCards.filter(
+        (c) => String(c.id) !== selfId && !isDialog(c) && isSentence(c) && (!c.lang || c.lang === lang.id),
+      ),
+    [allCards, selfId, lang.id],
+  );
+  const q = typed.trim().toLowerCase();
+  const shown = q
+    ? sentences.filter((c) =>
+        [c.name, leadOf(c).ar, leadOf(c).en, leadOf(c).lat].some((x) => String(x || "").toLowerCase().includes(q)),
+      )
+    : sentences;
+  const exampleOf = (c: Card) => {
+    const part = leadOf(c) as Record<string, any>;
+    if (!slotsOf(part).length) return null;
+    return sentencesOf(c, part, allCards, lang, 1).list[0] || null;
+  };
+  return (
+    <Screen title="Pick a sentence card" onBack={onClose} backLabel="Back to the scene" rise className="blanks">
+      <p className="at-hint">
+        The sentence becomes the next line. Its words stay the sentence card&rsquo;s, so editing the
+        card changes every scene it is in.
+      </p>
+      <input
+        className="at-input"
+        value={typed}
+        autoFocus
+        placeholder="Find a sentence"
+        aria-label="Find a sentence"
+        onChange={(e) => setTyped(e.target.value)}
+      />
+      <ul className="at-blanklist">
+        {shown.map((c) => {
+          const ex = exampleOf(c);
+          return (
+            <li key={c.id}>
+              <button
+                data-sentence={c.id}
+                onClick={() => {
+                  onPick(c);
+                  onClose();
+                }}
+              >
+                <b className="at-picksentence" lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack }}>
+                  <WithHoles text={leadOf(c).ar} />
+                </b>
+                {c.name ? <span className="at-sheetnote">{c.name}</span> : null}
+                <span>
+                  <WithHoles text={leadOf(c).en} />
+                </span>
+                {ex ? <em>For example: {ex.en || ex.ar}</em> : null}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {!shown.length && (
+        <Help>
+          {sentences.length
+            ? "No sentence card matches that."
+            : `There are no sentence cards in ${lang.name} yet. Make one from New card, then pick it here.`}
+        </Help>
+      )}
+    </Screen>
   );
 }
 
@@ -7858,7 +8335,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], stripped: string[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], stripped: string[], drill: boolean, scene: { title: string, setting: string, sceneKind: SceneKind, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;
@@ -7884,7 +8361,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   const shape = card ? shapeOf(card) : making;
   const scene = shape === "scene";
   const word = useWordDraft({ card, lang, allCards, draft, shape });
-  const talk = useSceneDraft({ card });
+  const talk = useSceneDraft({ card, allCards });
   const [chosen, setChosen] = useState(inDecks || []);
   const canSave = scene ? talk.canSave : word.canSave;
   /* Which of the six editors this card gets: a conversation, a sentence,
@@ -7953,6 +8430,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             scene={scene}
             shape={shape}
             word={word}
+            talk={talk}
             /* Whether the card's own words name it, decided here with the
                rest of what tells the kinds apart: a sentence never names
                itself, and a verb does not where the table stands in for

@@ -528,7 +528,7 @@ test("the three kinds a card can be, each with a line saying what it is", () => 
      screen of rows rather than a track of segments. */
   assert.ok(shapeChoices().every((/** @type {any} */ c) => c.label && c.note));
   assert.equal(shapeLabel("word"), "Word or phrase");
-  assert.equal(shapeLabel("scene"), "Conversation");
+  assert.equal(shapeLabel("scene"), "Scene");
 });
 
 test("and a word is asked what kind of word it is, in the language's own list", () => {

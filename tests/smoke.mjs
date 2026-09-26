@@ -4240,7 +4240,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     kindRows().length === 3 &&
       /^Word or phrase/.test((kindRows()[0].textContent || "").trim()) &&
       /^Sentence/.test((kindRows()[1].textContent || "").trim()) &&
-      /^Conversation/.test((kindRows()[2].textContent || "").trim()),
+      /^Scene/.test((kindRows()[2].textContent || "").trim()),
     kindRows().map((r) => (r.textContent || "").slice(0, 18)).join(" | ") || "(no kind picker)");
   check("each of the three saying what it is",
     kindRows().length === 3 && kindRows().every((r) => !!r.querySelector("i")),
@@ -4276,15 +4276,45 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   /* A conversation is made the same way as everything else: by answering
      this question. It had a button of its own once, and then a segment
      inside the editor that turned a half-written word into one. */
-  await pickCardKind(/^Conversation/);
+  await pickCardKind(/^Scene/);
   const talkEditor = [...document.querySelectorAll(".at-screen.over")].pop();
   const talkText = talkEditor ? (talkEditor.textContent || "").replace(/\s+/g, " ") : "";
-  check("picking Conversation opens the editor for one",
+  check("picking Scene opens the editor for one",
     /The scene/.test(talkText) && /Who is in it/.test(talkText) &&
       [...document.querySelectorAll('[role="group"][aria-label="Who says line 1"]')].length === 1,
     talkText.slice(0, 100) || "(no editor open)");
   check("and the screen is named for what is being made",
-    screenTitle() === "New conversation", screenTitle() || "(no title)");
+    screenTitle() === "New scene", screenTitle() || "(no title)");
+
+  /* A scene is a conversation or a text, asked the way a word's subtype
+     is, and nothing is chosen for the teacher. */
+  check("a new scene is asked whether it is a conversation or a text",
+    !!wordKindBtn() && /Not set/.test(wordKindBtn().textContent || ""),
+    wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(nothing asked)");
+  await openWordKind();
+  check("and the two answers each say what they are",
+    formRows().length === 2 &&
+      /^Conversation/.test((formRows()[0].textContent || "").trim()) &&
+      /^Text/.test((formRows()[1].textContent || "").trim()) &&
+      formRows().every((r) => !!r.querySelector("i")),
+    formRows().map((r) => (r.textContent || "").slice(0, 16)).join(" | ") || "(no sheet)");
+  await pickKind(/^Text/);
+  const textEditor = [...document.querySelectorAll(".at-screen.over")].pop();
+  const textText = textEditor ? (textEditor.textContent || "").replace(/\s+/g, " ") : "";
+  check("a text has nobody in it: no speakers, and sentences where turns were",
+    /The text/.test(textText) && !/Who is in it/.test(textText) && /Sentence 1/.test(textText) &&
+      ![...document.querySelectorAll('[role="group"][aria-label="Who says line 1"]')].length,
+    textText.slice(0, 120) || "(no editor open)");
+  /* And a line can be picked from a sentence card rather than typed. */
+  click(buttonNamed(/^Pick a sentence card$/));
+  await sleep(400);
+  const topTitle = () =>
+    (([...document.querySelectorAll(".at-screen.over .at-screenhead h2")].pop() || {}).textContent || "").trim();
+  check("a sentence card can be picked as a line, from a screen of its own",
+    topTitle() === "Pick a sentence card" && !!document.querySelector('[aria-label="Find a sentence"]'),
+    topTitle() || "(no picker)");
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the scene"));
+  await sleep(350);
 
   await leaveScreen();
   await newCard();

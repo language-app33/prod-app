@@ -5241,6 +5241,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                         speakers: written.speakers,
                         you: written.you,
                         lines: written.lines,
+                        /* A text or a conversation, said either way: the
+                           server reads saying nothing as "unchanged", which
+                           is what a build from before texts means by it. */
+                        sceneKind: written.sceneKind,
                       }
                     : {
                         /* The card's own word first, then every other form

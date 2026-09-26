@@ -763,6 +763,20 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-blanklist em { font-style:normal; font-size:12px; font-weight:700; color: var(--muted); }
 .at-blanklist em.unmet { color: var(--rose); }
 
+/* A scene's cast, in the editor: the same rows as the blank list, read
+   rather than tapped. */
+.at-castrow { display:flex; flex-direction:column; gap:2px; padding:10px 12px; margin-top:8px;
+  background: var(--well); border:1px solid var(--line); border-radius:12px; }
+.at-castrow b { font-size:14px; font-weight:700; color: var(--text); }
+.at-castrow span { font-size:13px; font-weight:500; color: var(--text-soft); }
+/* Who one blank of a line is: the blank's own pill, then the choice under
+   it, full width, the way every segmented question in the editor sits. */
+.at-castpick { display:flex; flex-direction:column; align-items:stretch; gap:6px; margin-top:10px; }
+.at-castslot { display:flex; justify-content:flex-start; }
+/* A sentence offered to a scene is words in the language, not a name:
+   it takes the language's own face and size rather than the list's. */
+.at-blanklist b.at-picksentence { font-family: inherit; font-size:17px; color: var(--text); }
+
 /* Naming a blank by hand: the box takes the room, the button takes what it
    needs. One in each half of the Blanks section — both name blanks, and
    neither list can offer a name nobody has written yet. */

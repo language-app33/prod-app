@@ -26,7 +26,7 @@
 
 import type { ExerciseSpec, Form, Lang } from "./types.ts";
 import type { Placed } from "./dialogs.ts";
-import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
+import { DIALOG_NEEDS, dialogNeedMet, isText, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";
 import { slotsOf } from "./variables.ts";
 import { ownSlot } from "./verbs.ts";
@@ -180,6 +180,9 @@ export interface Offer {
   missing: string[];
 }
 
+/* What a scene has to have that a text never does. */
+const NEVER_OF_TEXT = ["line", "reply", "choices", "order", "part"];
+
 /*
  * The list, in the order the exercise table is written in — which runs
  * from recognition to production, so reading it top to bottom is reading
@@ -219,6 +222,12 @@ export function offersFor({
     const role = spec.dialog || "word";
     const fits = known.filter((u) => roleOf(u.unit, u.scene) === role);
     if (!fits.length) continue;
+    /* A text is asked as a whole and nothing else, whatever it holds — so
+       the questions it never asks are not offered as waiting for something
+       it could add. See dialogNeedMet. */
+    if (fits.some((u) => isText(u.scene ? u.scene.card : u.unit)) && spec.needs.some((n) => NEVER_OF_TEXT.includes(n))) {
+      continue;
+    }
     if (!drilledBy(spec, lang)) continue;
 
     /* The unit that can actually be asked, where there is one — a scene

@@ -8,6 +8,36 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.257 — 26 September 2026
+
+**Scenes: a conversation or a text, built from your sentence cards, with
+the same person all the way through.**
+
+- *Conversation* is now *Scene* at New card. A scene is either a
+  **conversation**, as before, or a **text**: sentences read together as
+  one paragraph, with nobody speaking. You choose which inside the editor,
+  and can change it later. Every line keeps what students have learnt.
+- A text is practised by reading it through, with the pronunciation and
+  meaning a tap away. It has no speakers, no replies to choose and no order
+  to restore.
+- A line can be **picked from a sentence card** instead of typed. It shows
+  that sentence's words, recordings and blanks, and changes when the
+  sentence card changes. It is reviewed on the sentence card, so approving
+  a sentence once approves it in every scene. *Type it here instead* turns
+  it back into an ordinary line.
+- **A blank means the same person all through a scene.** "{{name}} lives
+  here" and "{{name}} likes it" now name the same person. Before, each line
+  drew its own word. Under each line with a blank you can say who it is,
+  including *someone new*, for a story with two people or two places.
+- Each person takes the form their line asks for. One line can use *the
+  house* and the next *my house*, and both are the same house.
+- The new **Who is who** section lists everyone in the scene, how many
+  words could be each one, and one way the scene will read. It warns when
+  nothing fits, or when two people would have to be the same word.
+- Fixes for blanks in conversations: the other lines no longer show their
+  braces to students, and the words that fill a line's blanks now reach
+  students' devices.
+
 ## 0.256 — 26 September 2026
 
 **Fixes from learners' reports.**
