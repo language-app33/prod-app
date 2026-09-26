@@ -3440,3 +3440,42 @@ rule all three fill a blank through, so nothing new travels. The cost is a
 list named `tenses` holding two things that are not tenses, which
 `blankAdmits` and the editor keep apart by asking which rows are the
 attached table's.
+
+---
+
+## What a question cannot tell apart, it does not ask a learner to
+
+**26 September 2026** · `twinsOf` in `src/ArabicTrainer.tsx`; `familyOf`
+on `matchGroups` and `matchSet` in `src/chance.ts`
+
+A card's forms are asked on their own, and two of them can answer one
+question: a phrase and its feminine both mean *Not good*. 0.171 and 0.220
+answered that by naming the form, as a tag. That works where the card says
+what each form is, through an adjective's table or the grammar written on
+an answer. A phrase says neither, so there was no tag to show and the
+masculine was marked wrong for knowing it.
+
+**Accept, rather than invent a label.** Inferring *masculine* from a
+phrase's letters would be guessing about a dialect. What the screen
+actually shows is known exactly: the prompt reads the same for both forms,
+and no tag is up. In that case, and only then, every such form is a right
+answer, and none is offered as a wrong one. Where a tag is up, the form
+named stays the only answer, because that is what the tag promises.
+
+**In a grid, keep them apart rather than tag them.** A tag on only the two
+tiles that needed one showed the learner which two went together. So
+`matchGroups` never deals two forms of one card into a grid, and `matchSet`
+draws no spare meaning from one. `kinTags` stays as a backstop for a grid
+that reaches the screen some other way. The cost is that a card's two forms
+are never asked against each other in a grid. The typed and *choose*
+questions ask that wherever a tag can say which is wanted.
+
+**The gap shows the phrase's meaning.** Showing the missing word's own
+meaning was chosen because *close the ___ please* read with the phrase's
+English has more than one defensible answer. In practice the Arabic around
+the gap settles which word it is. The word's own meaning repeated what
+that word's own questions already ask, and a learner found the exercise
+pointless for it. The owner decided to show the phrase's meaning. The
+heard version keeps the word's meaning, because it has no gap on the
+screen.
+

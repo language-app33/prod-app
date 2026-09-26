@@ -3365,6 +3365,7 @@ function withGrids(
       textOf: (u) => u.ar,
       meaningOf: (u) => u.en,
       likeness: (a, b) => wordLikeness(a.ar, b.ar, lg),
+      familyOf: (u) => placeOf.get(u.id)?.id || u.id,
     });
     for (const grid of grids) {
       leadOf.set(grid[0].id, grid.slice(1));
@@ -8332,6 +8333,11 @@ export default function ArabicTrainer() {
     const sameTile = (a: Form, b: Form) =>
       String(a.ar || "").trim() === String(b.ar || "").trim() ||
       String(a.en || "").trim().toLowerCase() === String(b.en || "").trim().toLowerCase();
+    const ownerOf = new Map<string, string>();
+    for (const card of asking) {
+      for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card.id);
+    }
+    const familyOf = (u: Form) => ownerOf.get(u.id) || u.id;
     const answers: Form[] = [item];
     for (const mate of exercise.mates || []) {
       const r = resolveUnit(asking, { ...mate, type: exercise.type });
@@ -8358,7 +8364,7 @@ export default function ArabicTrainer() {
            tiles a learner cannot tell apart make the pairing a guess —
            matchSet refuses them below, and a trial that handed it four
            collisions would be a grid of one word and a lot of spares. */
-        if (answers.some((a) => sameTile(a, u))) continue;
+        if (answers.some((a) => sameTile(a, u) || familyOf(a) === familyOf(u))) continue;
         answers.push(u);
       }
     }
@@ -8368,6 +8374,7 @@ export default function ArabicTrainer() {
       seed: `${item.id} ${reps}`,
       textOf: (u) => u.ar,
       meaningOf: (u) => u.en,
+      familyOf,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item && item.id, exercise && exercise.type, exercise && exercise.mates, asking, qLang.id]);
@@ -8377,7 +8384,9 @@ export default function ArabicTrainer() {
    *
    * Nothing, nearly always — see kinTags, which is where the rule is. The
    * one case it speaks in is two forms of the same card standing in the
-   * one grid, which a learner cannot pair by reading alone.
+   * one grid, which a learner cannot pair by reading alone — and since
+   * 0.256 the grid is never dealt that way (see matchGroups), so this is
+   * kept only as the backstop for a grid that somehow is.
    *
    * Which card a form came from is not on the form: a grid's words are
    * drawn from the whole of what this learner has, and arrive narrowed to
@@ -8423,6 +8432,21 @@ export default function ArabicTrainer() {
      cannot give is a question about the screen. */
   const dialMarks = (parentItem && parentItem.range && parentItem.range.marks) || undefined;
   const dialClock = ((systemFor(parentItem, systems) || {}).times || { clock: "12h" }).clock;
+
+  /* The card's other forms that this question cannot tell from the one it
+     asks — see twinsOf. Right answers too, and so never offered as wrong
+     ones. Not on a card with blanks: its forms are filled one way for the
+     question and would be compared unfilled. */
+  const twins = useMemo(() => {
+    if (!item || !parentItem || !spec || hasSlots(parentItem)) return [] as Form[];
+    return twinsOf({
+      unit: item,
+      kin: unitsOf(parentItem).map((u) => u.unit),
+      promptField: spec.promptField || "",
+      told: !!formLabel(item, parentItem, qLang),
+    }) as Form[];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, parentItem, spec, qLang.id]);
 
   const choices = useMemo(() => {
     if (!spec || !spec.picks) return [];
@@ -8475,7 +8499,7 @@ export default function ArabicTrainer() {
       return optionsFor({
         answer: item,
         pool: wordPool(asking, settings, qLang.id, item)
-          .filter((u) => u.en)
+          .filter((u) => u.en && !twins.some((t) => t.id === u.id))
           .map((u) => oneOf(u, exercise ? exercise.type : "")),
         wanted: PICK_OPTIONS,
         seed: `${item.id} meaning ${reps}`,
@@ -8487,9 +8511,9 @@ export default function ArabicTrainer() {
       /* One spelling a tile, like the answer's own: a card accepting two
          would otherwise put both on one tile, and the long one among three
          short ones is the answer given away by its shape. */
-      pool: wordPool(asking, settings, qLang.id, item).map((u) =>
-        oneOf(u, exercise ? exercise.type : ""),
-      ),
+      pool: wordPool(asking, settings, qLang.id, item)
+        .filter((u) => !twins.some((t) => t.id === u.id))
+        .map((u) => oneOf(u, exercise ? exercise.type : "")),
       wanted: PICK_OPTIONS,
       /* A question with no phrase behind it — "which of these means this"
          — has the number of askings for a seed instead, so the three wrong
@@ -8666,7 +8690,8 @@ export default function ArabicTrainer() {
     if (!spec || spec.answerMode !== "ar" || spec.answerField !== "ar") return false;
     const fold = qLang.letter;
     if (!fold) return false;
-    const accepted = answersOf(item, answerFields())
+    const accepted = [item, ...twins]
+      .flatMap((u) => answersOf(u, answerFields()))
       .map((a) => a.text)
       .filter(Boolean);
     return typoed(typed, accepted, (ch) => fold(ch, qSettings));
@@ -8674,12 +8699,23 @@ export default function ArabicTrainer() {
 
   function submit() {
     if (!item || checked) return;
-    const result =
+    let result =
       spec && spec.picks === "pair"
         ? gridMarks().every((m) => m.right)
           ? { ok: true, reason: "exact" }
           : { ok: false, reason: "wrong" }
         : checkAnswer(typed, item, exercise.type, qSettings);
+    /* Another form the question could not tell from this one, written
+       instead: right, because nothing on the screen said which. */
+    if (!result.ok && !(spec && spec.picks === "pair")) {
+      for (const twin of twins) {
+        const also = checkAnswer(typed, twin, exercise.type, qSettings);
+        if (also.ok) {
+          result = also;
+          break;
+        }
+      }
+    }
     /*
      * One letter out: the question is asked again and nothing is marked.
      *
@@ -9901,21 +9937,6 @@ export default function ArabicTrainer() {
                 <div className="at-exercise" data-el="card">
                   <p className="at-instruction" data-el="question-instruction">
                     {spec.instruction}
-                    {/* Which form of the card is being asked, where that is
-                        not already settled — see formIsAmbiguous. A sub-form
-                        says so whatever else is up, because "the plural of"
-                        is worth knowing on its own; the rest is said only
-                        where two forms could answer the one question.
-
-                        And nothing at all where the language declares no
-                        grammar to say it with: Huế has none, and the tag was
-                        a bare separator there with nothing after it. */}
-                    {(isSub || tellForm) && formLabel(item, parentItem, qLang) && (
-                      <span className="at-formtag" data-el="question-form-tag">
-                        {" "}
-                        · {formLabel(item, parentItem, qLang)}
-                      </span>
-                    )}
                   </p>
                   <div className="at-ask" data-el="question-prompt">
                     {spec.promptField === "pairs" ? null : spec.promptField === "scene" ? (
@@ -10021,15 +10042,43 @@ export default function ArabicTrainer() {
                         name="question-prompt-text"
                       />
                     )}
-                    {/* Which word is wanted. Always the word's own meaning,
-                        never the phrase's: "close the door please" with a
-                        gap in it has three defensible answers, and marking
-                        two of them wrong would be the app's fault rather
-                        than the learner's. What the phrase means is shown
-                        once the answer is in. */}
+                    {/* Which form of the card is being asked, where that is
+                        not already settled — see formIsAmbiguous. A sub-form
+                        says so whatever else is up, because "the plural of"
+                        is worth knowing on its own; the rest is said only
+                        where two forms could answer the one question.
+
+                        Under the word it is about, not after the
+                        instruction: "feminine" is a fact about *big*, and a
+                        learner reported looking for it there. Not on a
+                        grid, where every word is asked and a tag on one of
+                        them would say which English is its.
+
+                        And nothing at all where the language declares no
+                        grammar to say it with: Huế has none. */}
+                    {(isSub || tellForm) && spec.promptField !== "pairs" && spec.promptField !== "scene" &&
+                      formLabel(item, parentItem, qLang) && (
+                      <p className="at-asktag" data-el="question-form-tag">
+                        {formLabel(item, parentItem, qLang)}
+                      </p>
+                    )}
+                    {/* What the phrase means, where the phrase is on the
+                        screen with its gap: the learner works out which
+                        word is missing from the sentence around it. It was
+                        the missing word's own meaning, which is the one
+                        thing the card's own questions already ask — a
+                        learner reported it made the exercise pointless.
+                        The Arabic around the gap is what settles which word
+                        it is, so a phrase meaning "close the door please"
+                        does not leave three answers open.
+
+                        Heard rather than read, the phrase has no gap to
+                        point at, so there it is still the word's meaning
+                        that says which word to write. And a phrase written
+                        without its English falls back to the word's. */}
                     {context && (
                       <p className="at-ctxmeaning" data-el="question-context-meaning">
-                        {item.en}
+                        {(spec.promptField === "context" && context.en) || item.en}
                       </p>
                     )}
                   </div>
@@ -10322,10 +10371,11 @@ export default function ArabicTrainer() {
                           smaller, and they are kept together in one box
                           rather than trailing down the page. */}
                       <AlsoBox open={alsoOpen} onToggle={() => setAlsoOpen((v) => !v)}>
-                        {/* What the phrase it appeared in means. Held back
-                            until now: before the answer it would have given
-                            the game away, and after it is the reason the
-                            question was worth asking. */}
+                        {/* The phrase it appeared in, whole, and what it
+                            means. A gap question showed that meaning with
+                            the gap; every other question held it back
+                            until now, where it would have given the game
+                            away before. */}
                         {(context || alsoContext) && (
                           <div className="at-answeralso" data-el="also-context">
                             <p className="at-alsolabel" data-el="also-context-label">
@@ -13351,6 +13401,39 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
 }
 
 /**
+ * The other forms of a card that answer this question just as well.
+ *
+ * A phrase card whose second form is its feminine — the two both "Not
+ * good" — has nothing to say which of the two it wants: the
+ * grammar tag comes from the language's tables and from the grammar written
+ * on an answer, and a phrase has neither. Asked "Not good" in the script, a
+ * learner writing the masculine was marked wrong for knowing it, and said
+ * so three times in one morning.
+ *
+ * So where the question cannot say which form it means, the forms it
+ * cannot tell apart all count: those reading the same in the field the
+ * prompt is read from. Where it can say — `told`, a tag is on the screen —
+ * the form named is the only right answer, which is what the tag is for.
+ * The two a pick question offers are kept apart the same way: a twin is
+ * never one of the wrong answers beside the right one.
+ */
+export function twinsOf({ unit, kin, promptField, told }: {
+  unit: Record<string, any> | null | undefined;
+  /** The card's other forms. */
+  kin: Record<string, any>[];
+  promptField: string;
+  /** Whether the question names the form it wants. */
+  told: boolean;
+}): Record<string, any>[] {
+  if (!unit || told || !PROMPT_FIELDS.includes(promptField)) return [];
+  const said = (x: Record<string, any> | null | undefined) =>
+    String((x && x[promptField]) || "").trim().toLowerCase();
+  const asked = said(unit);
+  if (!asked) return [];
+  return kin.filter((k) => k && k.id !== unit.id && said(k) === asked);
+}
+
+/**
  * Which tiles of a grid have to say what form they are.
  *
  * The instruction above says which form is being *asked*, and in a grid
@@ -13372,6 +13455,11 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
  * alike are not told apart by them; a language that declares no grammar —
  * Huế — has nothing to say at all; and a form standing on its own is not
  * ambiguous with anybody.
+ *
+ * A backstop now rather than the rule. Tagging only those tiles told a
+ * learner which two went together, and a learner reported that too, so
+ * matchGroups and matchSet keep a card's forms apart and this speaks only
+ * if a grid reaches the screen with two of them in it anyway.
  *
  * Keyed by form id, so the caller looks a tile up by which form is on it
  * rather than by what it reads.

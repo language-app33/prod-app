@@ -86,7 +86,7 @@ await build({
   },
 });
 const { leadSpeed, deckPercent, levelPercent, nextReviewAt, reviewLine, nextPassAt, passLine,
-  formIsAmbiguous, kinTags,
+  formIsAmbiguous, kinTags, twinsOf,
   onePerLevel, quietUnits, easedUnits,
   drillableUnits, askedUnits, agreeTook, laddered, liftStates, merge,
   setValueIndex, valueKey, setMateCounts } =
@@ -808,6 +808,27 @@ test("a prompt two forms of one card answer has to say which", () => {
     formIsAmbiguous({ unit: masc, kin: [fem], shown: [], promptField: "ar" }),
     false
   );
+});
+
+test("where the question cannot say which form, the forms it cannot tell apart all count", () => {
+  /* مِش منيح and مِش منيحة: a phrase and its feminine, both "Not good",
+     with no grammar written on either — so there is no tag to put up, and
+     the learner writing the masculine was marked wrong for knowing it. */
+  const masc = form({ id: "n", ar: "مِش منيح", en: "Not good" });
+  const fem = form({ id: "n-f0", ar: "مِش منيحة", en: "Not good" });
+  const other = form({ id: "n-f1", ar: "مِش كتير منيح", en: "Not very good" });
+  assert.deepEqual(
+    twinsOf({ unit: fem, kin: [masc, other], promptField: "en", told: false }).map((/** @type {any} */ f) => f.id),
+    ["n"],
+    "the masculine answers \"Not good\" as well; \"Not very good\" does not",
+  );
+  /* Where the question names the form, the one named is the answer — that
+     is what the tag is for. */
+  assert.deepEqual(twinsOf({ unit: fem, kin: [masc], promptField: "en", told: true }), []);
+  /* Read from the script, the two are told apart by what is shown. */
+  assert.deepEqual(twinsOf({ unit: fem, kin: [masc], promptField: "ar", told: false }), []);
+  /* And a gap in a phrase is not a prompt two forms can read alike. */
+  assert.deepEqual(twinsOf({ unit: fem, kin: [masc], promptField: "context", told: false }), []);
 });
 
 test("and so does one with another form of the same card among the tiles", () => {

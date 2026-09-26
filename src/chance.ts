@@ -127,6 +127,13 @@ export const MIN_PAIR_WORDS = 3;
  * A second word reading the same as one already in a grid, or a second
  * meaning, goes in a different grid or none. Either would make a pairing
  * that is right and marked wrong.
+ *
+ * **And so does a second form of the same card**, when `familyOf` says
+ * which card a form is. The masculine and the feminine of one phrase mean
+ * the same thing, so side by side they were a coin toss; tagging the two
+ * with their grammar settled the toss and gave the game away, since only
+ * those two tiles carried a tag. A learner reported both. Kept apart, a
+ * grid never holds two words that differ only in their grammar.
  */
 export function matchGroups<T extends { id: string }>({
   wanting,
@@ -136,6 +143,7 @@ export function matchGroups<T extends { id: string }>({
   textOf,
   meaningOf,
   likeness = () => 0,
+  familyOf = (x) => x.id,
 }: {
   wanting: T[];
   spares: T[];
@@ -144,6 +152,7 @@ export function matchGroups<T extends { id: string }>({
   textOf: (x: T) => string;
   meaningOf: (x: T) => string;
   likeness?: (a: T, b: T) => number;
+  familyOf?: (x: T) => string;
 }): { grids: T[][]; dropped: T[] } {
   const asked = wanting.filter((w) => w && plain(textOf(w)) && plain(meaningOf(w)));
   const dropped: T[] = wanting.filter((w) => !asked.includes(w));
@@ -153,16 +162,19 @@ export function matchGroups<T extends { id: string }>({
   const grids: T[][] = Array.from({ length: count }, () => []);
   const texts = grids.map(() => new Set<string>());
   const meanings = grids.map(() => new Set<string>());
+  const families = grids.map(() => new Set<string>());
   const used = new Set<string>();
 
   const fits = (g: number, w: T) =>
     grids[g].length < size &&
     !texts[g].has(plain(textOf(w))) &&
-    !meanings[g].has(plain(meaningOf(w)).toLowerCase());
+    !meanings[g].has(plain(meaningOf(w)).toLowerCase()) &&
+    !families[g].has(familyOf(w));
   const put = (g: number, w: T) => {
     grids[g].push(w);
     texts[g].add(plain(textOf(w)));
     meanings[g].add(plain(meaningOf(w)).toLowerCase());
+    families[g].add(familyOf(w));
     used.add(w.id);
   };
 
@@ -242,6 +254,7 @@ export function matchSet<T extends { id: string }>({
   seed,
   textOf,
   meaningOf,
+  familyOf = (x) => x.id,
 }: {
   answers: T[];
   pool: T[];
@@ -249,10 +262,14 @@ export function matchSet<T extends { id: string }>({
   seed: string;
   textOf: (x: T) => string;
   meaningOf: (x: T) => string;
+  familyOf?: (x: T) => string;
 }): { words: T[]; meanings: string[]; said: T[] } {
   const saidText = new Set<string>();
   const saidMeaning = new Set<string>();
   const asked = new Set(answers.map((a) => a.id));
+  /* A spare meaning from another form of a word already up is the same
+     meaning in other clothes — see matchGroups — so none is drawn. */
+  const kin = new Set(answers.map(familyOf));
   /* The first of a colliding pair stands, so the word the question is
      actually about — which the caller puts first — is never the one put
      aside for the sake of its company. */
@@ -273,7 +290,7 @@ export function matchSet<T extends { id: string }>({
   const spare: T[] = [];
   for (const cand of pool) {
     if (spare.length >= want) break;
-    if (!cand || asked.has(cand.id)) continue;
+    if (!cand || asked.has(cand.id) || kin.has(familyOf(cand))) continue;
     const text = plain(textOf(cand));
     const meaning = plain(meaningOf(cand));
     if (!text || !meaning) continue;

@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.256 — 26 September 2026
+
+**Fixes from learners' reports.**
+
+- **A phrase with a masculine and a feminine version takes either, when
+  the question can't say which.** *Not good*, *please* and *where are you
+  from?* each have two versions that mean the same in English, and nothing
+  on the card says which is masculine. Asked for *Not good*, writing the
+  other version was marked wrong. Now either is right. Where the question
+  does name the form, such as *feminine* on an adjective, only that one
+  counts, as before. On a *choose* question the other version is never
+  one of the wrong answers.
+- **The masculine or feminine label is under the word being asked.** It
+  used to be at the end of the instruction line, where it was easy to
+  miss.
+- **Match the pairs never puts two versions of the same card in one
+  grid.** Side by side they could not be told apart, so pairing them was a
+  guess. Labelling just those two tiles showed which two went together.
+  Now each version gets a grid of its own, and no tile needs a label.
+- **The gap question gives the whole phrase in English.** *In a phrase →
+  Arabic* and *In a phrase → choose* showed only the missing word's own
+  meaning, which the word's own questions already ask. They now show what
+  the whole phrase means, and the missing word is worked out from it. The
+  question that plays the phrase aloud still names the word, because there
+  is no gap on the screen to point at.
+- **A long answer stays readable once it is marked.** After a misspelt
+  answer, what you wrote was squeezed into a one-line box and cut off at
+  the top and bottom. The box now grows to fit it.
+
 ## 0.255 — 26 September 2026
 
 **A word's forms and a sentence's blanks say how they fit together.**

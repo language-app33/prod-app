@@ -2339,6 +2339,9 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 .at-progress i { display:block; height:100%; background: var(--brass); border-radius:999px;
   transition:width 320ms cubic-bezier(.2,.9,.25,1); }
 .at-formtag { color: var(--jade); margin-inline-end:8px; }
+/* Which form of a card is asked, under the word it is about. */
+.at-asktag { font-family: var(--ui); font-size: var(--fs-sm); font-weight:700; color: var(--jade);
+  margin:4px 0 0; text-align:center; }
 .at-list { border:2px solid var(--line); border-radius: var(--r-lg); overflow:hidden; box-shadow: var(--shadow); }
 .at-item { display:flex; align-items:center; gap:10px; padding:8px 10px;
   border-bottom:2px solid var(--line); background: var(--surface); }
@@ -2682,6 +2685,16 @@ button.at-stat { transition: border-color 140ms ease; }
 .at.kb-open .at-input { padding: 11px 14px; font-size: 17px; }
 .at.kb-open .at-input.ar { font-size:calc(32px * var(--sscale, 1)); }
 .at.kb-open .at-answerbox .at-input { height:52px; }
+/* What the learner wrote, once marked, is as tall as it needs to be. The
+   box it replaces is one line high, and an answer longer than one line —
+   a sentence written in 40px script — was clipped top and bottom into
+   something nobody could read; a learner reported exactly that. It is
+   the fixed height that goes, not the look: one line still sits where the
+   input stood, and a second line pushes the verdict down rather than being
+   cut off. Specific enough to outrank the keyboard's height above. */
+.at .at-answerbox .at-input.ar.at-spelt { display:block; height:auto; min-height:64px;
+  padding-top:2px; padding-bottom:2px; line-height:calc(1.5 * var(--sleading, 1));
+  overflow:visible; overflow-wrap:anywhere; }
 .at.kb-open .at-btn { min-height: 46px; padding: 11px 16px; font-size: 15px; }
 .at.kb-open .at-progress { height: 10px; }
 .at.kb-open { --verdict: 20px; --verdict-alone: 28px; }

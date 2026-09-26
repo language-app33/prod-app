@@ -215,6 +215,16 @@ const twoGenders = {
     number: "singular", gender: "feminine", classifier: "", clips: [],
   }],
 };
+/* A phrase and its feminine, both "Not good", with no grammar written on
+   either — the shape a learner reported three times in one morning. There
+   is no tag to put up, so the question cannot say which it wants, and
+   either is right. In no deck. */
+const notGood = {
+  id: "k6a6a6a6a6a6a", owner: "t-1", ar: "مِش منيح", en: "Not good", lat: "miš mnīḥ",
+  note: "", lang: "ar-PS", number: "", gender: "", classifier: "",
+  clips: [], uses: [], rev: 1, updated: 1, created: 7,
+  subs: [{ ar: "مِش منيحة", en: "Not good", lat: "miš mnīḥa", number: "", gender: "", classifier: "", clips: [] }],
+};
 /* A word with pronouns on its end, as a teacher saved it: one cell, in the
    attached table's row. It is here to be *reopened* — the editor used to
    read any cell as a verb's, seed the dictionary form, and open the card on
@@ -411,6 +421,7 @@ const fakeFetch = async (input, opts = {}) => {
           { ...rafa, decks: [] },
           { ...viktor, decks: [] },
           { ...twoGenders, decks: [] },
+          { ...notGood, decks: [] },
           { ...penWithPronouns, decks: [] },
           { ...bigWithForms, decks: [] },
           { ...toEat, decks: [] },
@@ -6761,6 +6772,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      feminine was left bare. */
   check("and names it by the grammar the language declares", /m\./.test(tag()),
     tag() || "(nothing said)");
+  /* Beside the word it is about, where a learner looks for it, rather than
+     after an instruction that reads the same on every question of a kind. */
+  check("and says it under the word being asked, not in the instruction",
+    !!document.querySelector('[data-el="question-prompt"] [data-el="question-form-tag"]') &&
+      !document.querySelector('[data-el="question-instruction"] [data-el="question-form-tag"]'),
+    said() || "(no question up)");
 
   /* Answered and continued rather than left, the way the other trial is:
      the teaching space is unmounted while a question is up, and Continue is
@@ -6781,22 +6798,103 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(300);
 }
 
-/* ---- and two forms of one card in a grid say which each is ----
+/* ---- and one it cannot say which of takes either ----
 
-   The instruction can only speak for the word the question is *about*, and
-   in a matching grid every word is asked: what a learner has to do is put
+   مِش منيح and مِش منيحة are both "Not good", and nothing on either says
+   which is masculine: the question has no tag to put up, so writing the
+   other form is right. Tried on the teacher's own trial, for the reason the
+   block above is. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("Not good"));
+  check("the phrase whose two forms mean one thing is listed", !!tile, "no tile");
+  click(tile);
+  await sleep(450);
+  const tryIt = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try English → Arabic$/.test(b.getAttribute("aria-label") || ""));
+  check("it can be tried written from its meaning", !!tryIt,
+    [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
+  click(tryIt);
+  await sleep(600);
+  check("it has no form to name", !document.querySelector('[data-el="question-form-tag"]'),
+    ((document.querySelector('[data-el="question-form-tag"]') || {}).textContent || "").trim());
+  const box = /** @type {any} */ (document.querySelector('[data-el="answer-input"]'));
+  const setter = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "the value descriptor").set;
+  must(setter, "the value setter").call(box, "مش منيحة");
+  box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await sleep(150);
+  click(document.querySelector('[data-el="check-button"]'));
+  await sleep(300);
+  const verdict = ((document.querySelector('[data-el="verdict"]') || {}).textContent || "").replace(/\s+/g, " ").trim();
+  check("and the feminine, written where the masculine was asked, is right",
+    !!box && /^(Correct|Right|Yes|Nice|Great|Well done)/i.test(verdict) ||
+      !!document.querySelector(".at-shout.ok"),
+    verdict || "(no verdict)");
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- a gap in a phrase comes with what the phrase means ----
+
+   The missing word's own meaning is what the word's own questions already
+   ask, and a learner said so: the gap question should give the whole
+   phrase in English and leave the missing word to be worked out. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === "كتاب");
+  click(tile);
+  await sleep(450);
+  const tryIt = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try In a phrase → Arabic$/.test(b.getAttribute("aria-label") || ""));
+  check("the word can be tried in the phrase that uses it", !!tryIt,
+    [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
+  click(tryIt);
+  await sleep(600);
+  const means = ((document.querySelector('[data-el="question-context-meaning"]') || {}).textContent || "").trim();
+  check("and the question gives the phrase's English, not the word's", means === "the book is big",
+    means || "(nothing said)");
+  click(buttonNamed(/^I don't know$/));
+  await sleep(200);
+  if (!document.querySelector('[data-el="verdict"]')) {
+    click(document.querySelector('[data-el="check-button"]'));
+    await sleep(250);
+  }
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- and two forms of one card never share a grid ----
+
+   In a matching grid every word is asked: what a learner has to do is put
    the right English against each of five words. Two forms of one card
    standing in the same grid is the pairing they cannot reason out — كبير
-   and كبيرة are both "big", however differently the two meanings are
-   written — so those tiles, and only those, carry their own grammar, on
-   the meanings as well as on the words.
+   and كبيرة are both "big". Tagging the two with their grammar settled it
+   and gave it away, since only those two tiles carried a tag; a learner
+   reported both. So the two are never dealt together, and no tile needs a
+   tag.
 
    Driven through the teacher's trial for the reason the block above is: it
    asks one named exercise on one named card, and the adjective's feminine
    is the word in this material most like it, so it is the company the grid
-   is filled with. Which tiles get a tag is checked over every combination
-   in tests/cards.test.mjs; what is checked here is that the grid on screen
-   carries them. */
+   would be filled with if anything let it in. The dealing is checked over
+   every combination in tests/chance.test.mjs; what is checked here is the
+   grid on screen. */
 {
   const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
   const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
@@ -6828,28 +6926,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const meaningTile = (re) =>
     tiles('[data-el="match-meaning"]').find((el) => re.test((el.textContent || "").trim()));
 
-  const both = !!wordTile("كبير") && !!wordTile("كبيرة");
-  check("the grid stands a card's two forms beside each other", both,
+  check("the grid does not stand a card's two forms beside each other",
+    !!wordTile("كبير") && !wordTile("كبيرة"),
     tiles('[data-el="match-word"]').map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).join(" · "));
-  check("and each of the two says which form it is",
-    both && /m\./.test(tagOn(must(wordTile("كبير"), "the masculine tile"))) &&
-      /f\./.test(tagOn(must(wordTile("كبيرة"), "the feminine tile"))),
-    both
-      ? `كبير: "${tagOn(must(wordTile("كبير"), "the masculine tile"))}" · ` +
-        `كبيرة: "${tagOn(must(wordTile("كبيرة"), "the feminine tile"))}"`
-      : "the two forms were not both dealt");
-  /* The half that matters most: a tag on the words alone names the form
-     without saying which English belongs to it, which is the whole of what
-     was being asked for. */
-  check("and so does the meaning each of them belongs to",
-    !!meaningTile(/^big\b/) && !!meaningTile(/^big \(f\)/) &&
-      !!tagOn(must(meaningTile(/^big\b/), "the meaning tile for big")) &&
-      !!tagOn(must(meaningTile(/^big \(f\)/), "the meaning tile for big (f)")),
+  check("nor put the other form's meaning up as a spare",
+    !meaningTile(/^big \(f\)/),
     tiles('[data-el="match-meaning"]').map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).join(" · "));
-  /* And nobody else: a grid of five labelled words is a reading exercise
-     about labels. */
-  check("while a word with nothing to be confused with stays bare",
-    tiles('[data-el="match-word"]').some((el) => !tagOn(el)),
+  /* And so nothing on it is labelled: a grid in which some tiles carry
+     their grammar tells a learner which tiles go together. */
+  check("and no tile carries a grammar tag",
+    tiles('[data-el="match-word"], [data-el="match-meaning"]').every((el) => !tagOn(el)),
     tiles('[data-el="match-word"]').map((el) => `${(el.textContent || "").replace(/\s+/g, " ").trim()}`).join(" · "));
 
   click(document.querySelector('[data-el="leave-session"]'));
