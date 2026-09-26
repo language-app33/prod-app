@@ -701,11 +701,29 @@ function report(why) {
   console.log(results.join("\n"));
   if (errors.length) console.log("\nthe app said:\n  " + errors.join("\n  "));
 }
+/*
+ * Leave once everything printed has reached whoever is reading it.
+ *
+ * The report is one write of about a hundred kilobytes at the very end, and
+ * into a pipe that is written as fast as the reader takes it. CI's log is
+ * a slow reader, so process.exit landed with the report still queued: the
+ * log stopped at 64 KB, the size of a pipe's buffer, and every FAIL line
+ * after that point went with it. A run that failed said it had failed and
+ * not what. So the exit waits for the last write to be taken — and not for
+ * ever, in case the reader has gone.
+ */
+/** @param {number} code */
+function exitWhenWritten(code) {
+  process.exitCode = code;
+  setTimeout(() => process.exit(code), 30000);
+  process.stdout.write("", () => process.stderr.write("", () => process.exit(code)));
+}
+
 /** @param {unknown} err */
 const died = (err) => {
   report("DIED partway through. Everything up to that point:");
   origError("\n", err);
-  process.exit(1);
+  exitWhenWritten(1);
 };
 process.on("uncaughtException", died);
 process.on("unhandledRejection", died);
@@ -1194,7 +1212,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the flag button opens the menu, and says that it has",
       !!menu && !!flag && flag.getAttribute("aria-expanded") === "true",
       menu && flag ? String(flag.getAttribute("aria-expanded")) : "no menu");
-    check("it offers the four things a learner can say, too easy third", opts.length === 4 &&
+    /* A screen of its own, not a panel over the foot: the whole window,
+       with the way back where every other screen keeps it. */
+    const flagScreen = menu && menu.closest(".at-screen");
+    check("and it is a full screen, not a sheet over the bar",
+      !!flagScreen && !(menu && menu.closest(".at-foot")),
+      menu && menu.parentElement ? menu.parentElement.className : "no menu");
+    check("it offers the four things a learner can say, too easy third, something else fourth", opts.length === 4 &&
       /too easy/.test(opts[2].textContent || "") && /Something else/.test(opts[3].textContent || ""),
       opts.map((o) => (o.querySelector(".at-flagopt-title") || {}).textContent).join(" | "));
     check("and says what too easy does",
@@ -1205,29 +1229,33 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       opts.length > 0 && opts.every((o) =>
         o.querySelector(".at-flagopt-title") && o.querySelector(".at-flagopt-what")),
       opts.map((o) => o.innerHTML.slice(0, 40)).join(" | "));
-    /* The menu stands on top of the flag button, so it has to say what it
-       is itself — otherwise the screen holds three options and nothing
-       naming what they are options about. */
-    check("and the menu says what it is",
+    check("and the screen says what it is",
       /Flag a problem/.test(
-        (document.querySelector('[data-el="flag-menu-label"]') || {}).textContent || ""),
-      (menu && menu.textContent || "").slice(0, 40));
+        ((flagScreen && flagScreen.querySelector(".at-screenhead h2")) || {}).textContent || ""),
+      (flagScreen && flagScreen.textContent || "").slice(0, 40));
 
-    /* Everything is there from the start: the box for the option that has
-       to be said in words, and the two buttons that act on the choice. The
-       box used to take the place of the list one press in, and the buttons
-       came with it — so until you had picked, there was nothing on screen
-       to press but the options themselves, and picking sent. */
+    /* One box for all four, there from the start and belonging to none of
+       them: whichever is picked, there may be more to say. */
     const noteBox = document.querySelector('[data-el="flag-note"]');
     const noteInput = document.querySelector('[data-el="flag-note-input"]');
-    check("Something else brings its box with it, before anything is picked",
-      !!noteBox && !!noteInput && !!menu && menu.contains(noteBox),
-      noteBox ? "" : "no note box");
-    check("and Back and Send are on screen from the start",
-      !!buttonNamed(/^Back$/) && !!buttonNamed(/^Send$/),
-      [...document.querySelectorAll(".at-flagmenu button")].map((b) => b.textContent).join(" | "));
+    const noteNeed = () => ((document.querySelector('[data-el="flag-note-need"]') || {}).textContent || "");
+    check("Tell us what happened is its own box, under all four options",
+      !!noteBox && !!noteInput && !!menu && menu.contains(noteBox) &&
+        !opts.some((o) => o.contains(noteBox)) &&
+        /Tell us what happened/.test(noteBox.textContent || ""),
+      noteBox ? (noteBox.textContent || "").slice(0, 60) : "no note box");
+    check("and Send is on screen from the start",
+      !!buttonNamed(/^Send$/),
+      [...(flagScreen ? flagScreen.querySelectorAll("button") : [])].map((b) => b.textContent).join(" | "));
     check("Send waits for one of them to be picked",
       buttonState(/^Send$/).disabled, String(buttonState(/^Send$/).disabled));
+
+    /* On every option but the last the box is optional. */
+    click(opts[1]);
+    await sleep(60);
+    check("on any other option the box is optional, and Send is ready without it",
+      /Optional/.test(noteNeed()) && !buttonState(/^Send$/).disabled,
+      `${noteNeed()} disabled=${buttonState(/^Send$/).disabled}`);
 
     /* Picking is now picking: nothing leaves the device until Send. */
     const somethingElse = opts.find((o) => /Something else/.test(o.textContent));
@@ -1237,8 +1265,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!somethingElse && somethingElse.getAttribute("aria-pressed") === "true" &&
         !calls.some((c) => c.includes("report-flag")),
       somethingElse ? String(somethingElse.getAttribute("aria-pressed")) : "no option");
-    check("and it still waits, because it is the one that has to be said in words",
-      buttonState(/^Send$/).disabled, String(buttonState(/^Send$/).disabled));
+    check("and it waits, because it is the one that has to be said in words",
+      buttonState(/^Send$/).disabled && /Required/.test(noteNeed()),
+      `${noteNeed()} disabled=${buttonState(/^Send$/).disabled}`);
 
     /* jsdom's value setter is the React-controlled one, so the change has
        to be made the way a keystroke makes it. */
@@ -4901,7 +4930,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       const chip = (/** @type {RegExp} */ re) => /** @type {any} */ (
         [...document.querySelectorAll(".at-blankput")]
           .find((b) => re.test(b.getAttribute("aria-label") || "")) || null);
-      const sheet = () => document.querySelector(".at-sheet");
+      /* A screen rather than a sheet since 0.251 — see BlankScreen. */
+      const sheet = () => document.querySelector(".at-screen.blanks");
       const rows = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
         .map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
       const rowFor = (/** @type {RegExp} */ re) => /** @type {any} */ (
@@ -4915,7 +4945,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
       click(addIn(/into English$/));
       await sleep(300);
-      check("the button opens a sheet of the blanks this language has",
+      check("the button opens a screen of the blanks this language has",
         !!sheet() && rows().length > 0, rows().slice(0, 3).join(" / ") || "(nothing offered)");
       /* The one thing a teacher cannot tell from a name: whether the hole
          they are about to write has anything to fill it. */
@@ -4945,7 +4975,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("choosing one puts it into the field it was asked from",
         readField(enNow()) === "My name is {{friend}}",
         readField(enNow()) || "(no field)");
-      check("and the sheet closes behind it", !sheet(), sheet() ? "still open" : "closed");
+      check("and the screen closes behind it", !sheet(), sheet() ? "still open" : "closed");
 
       /* ---- and it is in the words, not beside them ----
 
@@ -4994,6 +5024,74 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !!saveBtn() && !saveBtn().disabled && !pillsIn(enNow()).length && !pillsIn(arNow()).length,
         `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}, ` +
           `${pillsIn(enNow()).length + pillsIn(arNow()).length} pills left`);
+
+      /* ---- one pronoun, then how it reads ----
+
+         A pronoun reads as "I", "I am" or "am I" in English and is the
+         same word in Arabic, so the list has one pronoun and choosing it
+         asks which of the three. */
+      click(addIn(/into English$/));
+      await sleep(300);
+      const names = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+        .map((b) => b.getAttribute("data-blank") || "");
+      check("the pronoun is one blank on the list, not three",
+        names().includes("pronoun") && !names().includes("pronoun-is") && !names().includes("is-pronoun"),
+        names().join(" ") || "(nothing offered)");
+      click(rowFor(/^pronoun$/));
+      await sleep(300);
+      const title = () => {
+        const open = sheet();
+        const head = open ? open.querySelector("h2") : null;
+        return ((head && head.textContent) || "").trim();
+      };
+      check("and choosing it asks how it reads, rather than putting it in",
+        title() === "How the pronoun reads" &&
+          JSON.stringify(names()) === JSON.stringify(["pronoun", "pronoun-is", "is-pronoun"]) &&
+          readField(enNow()) === "My name is",
+        `${title()} · ${names().join(" ")} · ${readField(enNow())}`);
+      click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the blanks"));
+      await sleep(300);
+      check("Back from there is the list of blanks again, not the card",
+        title() === "Put in a blank" && names().includes("friend"), title() || "(closed)");
+      click(rowFor(/^pronoun$/));
+      await sleep(300);
+      click(/** @type {any} */ ((sheet() || document).querySelector('[data-blank="pronoun-is"]')));
+      await sleep(300);
+      check("and the reading chosen is the blank put in",
+        readField(enNow()) === "My name is {{pronoun-is}}" && !sheet(),
+        `${readField(enNow())} · ${sheet() ? "still open" : "closed"}`);
+
+      /* ---- a word with a pronoun on the end, or without ----
+
+         The pen in this collection has "my pen" written out, and it is a
+         word, so a {{word}} blank asks whether the sentence wants the word
+         itself or its forms with a pronoun on the end. No noun here has
+         any, so {{noun}} is put straight in. */
+      click(addIn(/into English$/));
+      await sleep(300);
+      click(rowFor(/^noun$/));
+      await sleep(300);
+      check("a blank whose words have no pronoun endings is put straight in",
+        readField(enNow()) === "My name is {{pronoun-is}} {{noun}}" && !sheet(),
+        `${readField(enNow())} · ${title() || "closed"}`);
+      click(addIn(/into English$/));
+      await sleep(300);
+      click(rowFor(/^word$/));
+      await sleep(300);
+      const options = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+        .map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
+      check("one whose words have them asks whether to use the word or those forms",
+        title() === "How the word reads" && options().length === 2 &&
+          /^Main form.*8 words behind it/.test(options()[0]) &&
+          /^With a pronoun on the end.*my pen.*1 word behind it/.test(options()[1]),
+        `${title()} · ${options().join(" / ")}`);
+      click(/** @type {any} */ ((sheet() || document).querySelector('[data-rows="attached"]')));
+      await sleep(300);
+      const endsPicked = () => /** @type {any} */ (document.querySelector('input[name="ends-word"]:checked'));
+      check("and the choice is put in with the blank, and shown under Blanks to be changed",
+        readField(enNow()) === "My name is {{pronoun-is}} {{noun}} {{word}}" && !sheet() &&
+          !!endsPicked() && /With a pronoun on the end/.test((endsPicked().closest("label") || {}).textContent || ""),
+        `${readField(enNow())} · ${endsPicked() ? (endsPicked().closest("label") || {}).textContent : "(nothing chosen)"}`);
     }
 
     /* And written back into the words, it is read off them again. Into
@@ -6366,6 +6464,33 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     JSON.stringify(sent).slice(0, 200));
   check("and the English is the person's name where none was typed",
     ((sent.forms || [])[0] || {}).en === "I", JSON.stringify((sent.forms || [])[0]));
+  const reading = (/** @type {string} */ what) => {
+    const box = iRow() && [...iRow().querySelectorAll("input")].find((i) => (i.getAttribute("aria-label") || "") === `${what}, for I`);
+    return box ? /** @type {any} */ (box).value : "(no box)";
+  };
+  check("each row reads its pronoun with to be and as a question, filled in already",
+    reading("With to be") === "I am" && reading("As a question") === "am I",
+    `${reading("With to be")} | ${reading("As a question")}`);
+  check("and a reading left as it came is not stored, so it goes on following the English",
+    !sent.enIs && !sent.enAsk, JSON.stringify({ enIs: sent.enIs, enAsk: sent.enAsk }));
+  click([...(screen() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+
+  /* And on the Cards tab they are one entry, not a tile each: the set is
+     written on one screen, and the entry opens it. */
+  /* Asked of the frame as it stands now: an open screen replaces the
+     teaching space's frame, so the one found above is gone. */
+  const tiles = () => [...(document.querySelector(".at-screen.bare") || document).querySelectorAll(".at-minicard")];
+  const faceOf = (/** @type {Element} */ t) => ((t.querySelector(".ar") || {}).textContent || "").trim();
+  const nameOf = (/** @type {Element} */ t) => ((t.querySelector(".at-mininame") || {}).textContent || "").trim();
+  const entry = () => /** @type {any} */ (tiles().find((t) => nameOf(t) === "Pronouns") || null);
+  check("the pronouns are listed as one Pronouns entry, not a tile each",
+    !!entry() && !tiles().some((t) => nameOf(t) !== "Pronouns" && faceOf(t) === "أنا") &&
+      /1 pronoun/.test((entry() || {}).textContent || ""),
+    tiles().map((t) => nameOf(t) || faceOf(t)).join(" | "));
+  click(entry());
+  await sleep(400);
+  check("and tapping it opens the Pronouns screen", !!screen(), screen() ? "open" : "(not open)");
   click([...(screen() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
   takeSaves = false;
@@ -7821,9 +7946,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     document.body.appendChild(host);
     const r = createRoot(host);
     r.render(React.createElement(App));
-    await sleep(1500);
-    click([...host.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim())));
-    await sleep(600);
+    /* Waited for rather than slept on. The first of these walks is the
+       first time the app is started cold on its own document, and on a
+       busy machine it was not up after a fixed second and a half: the
+       button was not there to press, no session ran, and all three
+       checks on it failed with nothing counted — one CI run in three. */
+    const startBtn = () => [...host.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim()));
+    for (let t = 0; t < 100 && !startBtn(); t++) await sleep(100);
+    click(startBtn());
+    for (let t = 0; t < 50 && !host.querySelector(".at-instruction"); t++) await sleep(100);
     const met = { chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0 };
     for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
       const pics = host.querySelector(".at-picchoices");
@@ -8046,4 +8177,4 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
 report();
 console.log("\nrequests:", calls.join("\n          "));
-process.exit(results.some((r) => r.startsWith("FAIL")) ? 1 : 0);
+exitWhenWritten(results.some((r) => r.startsWith("FAIL")) ? 1 : 0);

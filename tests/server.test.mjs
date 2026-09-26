@@ -1766,6 +1766,17 @@ test("a flag nobody could act on is refused, and only an administrator reads the
   });
   assert.equal(said.status, 200, said.text);
 
+  /* Every other kind takes words too, and goes without them. "Too easy"
+     arrives only when the learner wrote something with it. */
+  const easy = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "easy", note: "I know this one cold", cardId: "c1" },
+  });
+  assert.equal(easy.status, 200, easy.text);
+  const bare = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "data", cardId: "c1" },
+  });
+  assert.equal(bare.status, 200, bare.text);
+
   /* Reading them is the administrator's, and so is clearing them. */
   const nosy = await api("/api/courses?action=admin-overview", { key });
   assert.equal(nosy.status, 403);
@@ -3625,6 +3636,36 @@ test("a pronoun card keeps which person it is", async () => {
     body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "باب", en: "door", lat: "baab" }] }, decks: [] },
   });
   assert.equal(plain.json.card.person, undefined);
+});
+
+/* And what it reads as with "to be", where the teacher wrote their own —
+   the {{pronoun-is}} and {{is-pronoun}} blanks put it in a sentence's
+   English. Stored where written, and taken off again when sent empty,
+   which is how the Pronouns screen hands a reading back to the automatic
+   one. */
+test("a pronoun card keeps the English it reads as with to be", async () => {
+  const teacher = await anAdmin("Rana");
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key: teacher.key,
+    body: {
+      card: {
+        id: "", lang: "ar-PS", category: "pronoun", person: "i", enIs: "I'm", enAsk: "am I",
+        forms: [{ ar: "أنا", en: "I", lat: "ana" }],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.card.enIs, "I'm");
+  assert.equal(saved.json.card.enAsk, "am I");
+  const cleared = await api("/api/courses?action=save-card", {
+    method: "POST", key: teacher.key,
+    body: { card: { ...saved.json.card, enIs: "", enAsk: "" }, decks: [] },
+  });
+  assert.equal(cleared.status, 200, cleared.text);
+  assert.equal(cleared.json.card.enIs, undefined);
+  assert.equal(cleared.json.card.enAsk, undefined);
+  assert.equal(cleared.json.card.person, "i");
 });
 
 /*

@@ -297,11 +297,12 @@ const K = {
  * flag is its own small record here: what was wrong, on which question, by
  * whom, and when.
  *
- * The kinds are the three the app offers, listed here as well because a
+ * The kinds are the four the app offers — "easy" only arrives when the
+ * learner wrote something with it — listed here as well because a
  * kind the app never sends is a kind nothing can read, and an open field
  * would fill the admin screen with whatever anyone posted.
  */
-const FLAG_KINDS = ["strict", "data", "other"];
+const FLAG_KINDS = ["strict", "data", "easy", "other"];
 const FLAG_NOTE_MAX = 500;
 
 /*
@@ -1249,6 +1250,12 @@ export default async (req) => {
            on every other card; undefined rather than left out, because
            this object is spread over the card as it stood. */
         person: idish(card.person) || undefined,
+        /* And what a pronoun reads as in English with *to be* — "I am" —
+           and as a question — "am I". The teacher's words, capped like
+           every other line of text; absent where none was written, which
+           reads as the reading the app makes of the pronoun's English. */
+        enIs: String(card.enIs || "").trim().slice(0, 120) || undefined,
+        enAsk: String(card.enAsk || "").trim().slice(0, 120) || undefined,
         /* No `value` here, and none taken from a save.
            It was what made a card one of the parts a number was built out
            of, and there are no parts any more: a language's numbers are

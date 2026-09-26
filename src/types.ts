@@ -793,6 +793,15 @@ export type Card = {
    */
   person?: string;
   /**
+   * What a pronoun reads as in English with *to be* — "I am" — and as a
+   * question — "am I" — in the `{{pronoun-is}}` and `{{is-pronoun}}`
+   * blanks, where the teacher has written one on the Pronouns screen.
+   * Absent means the reading beReadings makes of the pronoun's English,
+   * which is what every pronoun written before this reads as.
+   */
+  enIs?: string;
+  enAsk?: string;
+  /**
    * Which of the sentences this card makes a teacher has read — the
    * fingerprints of the ones approved and the ones struck, and who last
    * changed it. See review.ts.
@@ -1095,6 +1104,9 @@ export type Item = {
   name?: string;
   /** Which verb column it is, where it is a pronoun. See Card. */
   person?: string;
+  /** What a pronoun reads as with "to be", and as a question. See Card. */
+  enIs?: string;
+  enAsk?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */
   category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */

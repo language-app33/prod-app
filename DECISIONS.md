@@ -3387,3 +3387,56 @@ already shows one number of every shape a language gets wrong; a teacher
 signs that off, and students get the signed version whole until the next
 sign-off. The first edit of a system since this shipped records the
 version before it as signed, so nobody loses the numbers they had.
+
+---
+
+## A pronoun reads three ways, chosen after the pronoun
+
+**26 September 2026** · `READING_SLOTS`, `beReadings` and `readingsOf` in
+`src/variables.ts`; `BlankScreen` and `PRONOUN_READINGS` in
+`src/card-editor.tsx`; `src/pronouns-editor.tsx`
+
+Arabic and Hebrew drop *to be* in the present and ask a question without
+moving anything, so one pronoun answers to *I*, *I am* and *am I*. 0.250
+made those three blanks — `{{pronoun}}`, `{{pronoun-is}}`,
+`{{is-pronoun}}` — filled by the same cards and differing in the English
+alone.
+
+**Names in braces, not a setting on the blank.** A blank can already be
+narrowed to some tenses by a setting stored beside it, and the reading
+could have been one more. It was not, because the frame would then not say
+what it reads as: two frames with the same words would read differently
+and look the same in every list. A name is how every other distinction a
+blank makes is written, and the pill in the field says which reading it is.
+
+**Worked out, and stored only where changed.** Which verb *to be* takes
+after *I*, *he* or *you* is a fact about English, the language every card
+is explained in, so the readings are worked out from the pronoun's own
+English. A teacher's own wording goes on the card as `enIs` and `enAsk`,
+beside `person`, only where it differs; a pronoun written before 0.250
+therefore reads correctly without anyone opening it.
+
+**One pronoun on the list, then how it reads (0.251).** 0.250 listed the
+three as three rows among the kinds of word, where a teacher had to tell
+them apart before knowing why there were three. The list has one pronoun
+again, and choosing it turns to the three readings; typing a reading's name
+in the box puts it straight in. That second step is what moved the picker
+from a bottom sheet to a screen rising over the card: a sheet would have
+needed a back button of its own, the list had grown past what a sheet
+shows on a phone, and a screen brings Back, Escape and the full height
+with it.
+
+**A noun's pronoun endings, narrowed like a tense (0.253).** The same
+second step asks, of a blank some word in which has its attached pronouns
+written out, whether the sentence uses the word or those forms. Unlike a
+pronoun's reading this is *not* a name in braces: the words differ, not
+only their English, and a blank can be any name — `{{noun}}`, a group
+tag, one card's ID — so a second name per reading would have doubled
+every name there is. It is stored as the narrowing a verb blank already
+had, in the same list as its tenses: the attached table's row for "with",
+and `BARE_ROW` for "without". That list already reaches the server, the
+student's device and the review list, and `blankAdmits` is already the one
+rule all three fill a blank through, so nothing new travels. The cost is a
+list named `tenses` holding two things that are not tenses, which
+`blankAdmits` and the editor keep apart by asking which rows are the
+attached table's.

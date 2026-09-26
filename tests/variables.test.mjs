@@ -10,6 +10,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { must } from "./helpers.mjs";
 
 import {
   fillForm,
@@ -27,6 +28,10 @@ import {
   valuesForTurn,
   fillsOf,
   fillNames,
+  beReadings,
+  readingsOf,
+  PRONOUN_IS_SLOT,
+  IS_PRONOUN_SLOT,
   cardRef,
   refClash,
   renameSlot,
@@ -1027,4 +1032,83 @@ test("a pronoun's card lends which person it is, so the verb beside it can take 
   assert.equal((lent[0].value.grammar || {}).person, "i", "and lent from it");
   /* An ordinary card lends no person at all. */
   assert.equal((valueOf({ id: "w", forms: [{ ar: "كتاب", en: "book", lat: "" }] }).grammar || {}).person, undefined);
+});
+
+/* ---- a pronoun read with "to be", and as a question ----
+
+   Palestinian Arabic says "I am tired" as أنا تعبان, with no word for
+   "am", and asks "are you tired?" as إنت تعبان؟ without moving anything.
+   So one pronoun card fills three blanks that differ in the English
+   alone. */
+
+test("the English readings of a pronoun are worked out from its English", () => {
+  assert.deepEqual(beReadings("I"), { is: "I am", ask: "am I" });
+  assert.deepEqual(beReadings("he"), { is: "he is", ask: "is he" });
+  assert.deepEqual(beReadings("she"), { is: "she is", ask: "is she" });
+  assert.deepEqual(beReadings("we"), { is: "we are", ask: "are we" });
+  assert.deepEqual(beReadings("they"), { is: "they are", ask: "are they" });
+  /* A note in brackets stays on the end, where it still reads as one. */
+  assert.deepEqual(beReadings("you (m)"), { is: "you are (m)", ask: "are you (m)" });
+  assert.deepEqual(beReadings("you (pl)"), { is: "you are (pl)", ask: "are you (pl)" });
+  assert.deepEqual(beReadings(""), { is: "", ask: "" });
+});
+
+test("every pronoun fills the two reading blanks, and nothing else does", () => {
+  const ana = { id: "p-i", person: "i", category: "pronoun", forms: [{ ar: "أنا", en: "I", lat: "ana" }] };
+  const fills = fillsOf(ana);
+  assert.ok(fills.includes("pronoun"));
+  assert.ok(fills.includes(PRONOUN_IS_SLOT));
+  assert.ok(fills.includes(IS_PRONOUN_SLOT));
+  const book = { id: "w", category: "noun", forms: [{ ar: "كتاب", en: "book", lat: "kitāb" }] };
+  assert.ok(!fillsOf(book).includes(PRONOUN_IS_SLOT));
+  assert.deepEqual(readingsOf(book, book.forms[0]), {});
+  /* And the names are spoken for, as {{word}} is. */
+  assert.equal((refClash("pronoun-is", []) || {}).kind, "category");
+  assert.equal((refClash("is-pronoun", []) || {}).kind, "category");
+});
+
+test("a frame reads its pronoun as I, I am or am I by the blank it leaves; the Arabic is the same", () => {
+  const ana = { id: "p-i", person: "i", category: "pronoun", forms: [{ ar: "أنا", en: "I", lat: "ana" }] };
+  const hiya = { id: "p-she", person: "she", category: "pronoun", forms: [{ ar: "هي", en: "she", lat: "hiye" }] };
+  const inta = { id: "p-you", person: "you-m", category: "pronoun", forms: [{ ar: "إنتَ", en: "you (m)", lat: "inta" }] };
+  const pool = [ana, hiya, inta];
+  const said = (/** @type {Record<string, string>} */ frame, /** @type {{ id: string }} */ card) => {
+    const slot = slotsOf(frame)[0];
+    const value = must(valuesFor(frame, pool)[slot].find((v) => v.id === card.id), "the value");
+    return fillForm(frame, { [slot]: value });
+  };
+  const plain = { ar: "{{pronoun}} من فلسطين", en: "{{pronoun}} from Palestine", lat: "{{pronoun}} min falasṭīn" };
+  const is = { ar: "{{pronoun-is}} من فلسطين", en: "{{pronoun-is}} from Palestine", lat: "{{pronoun-is}} min falasṭīn" };
+  const ask = { ar: "{{is-pronoun}} من فلسطين؟", en: "{{is-pronoun}} from Palestine?", lat: "{{is-pronoun}} min falasṭīn?" };
+
+  assert.equal(said(plain, ana).en, "I from Palestine", "the plain blank is unchanged");
+  assert.equal(said(is, ana).en, "I am from Palestine");
+  assert.equal(said(is, hiya).en, "she is from Palestine");
+  assert.equal(said(is, inta).en, "you are (m) from Palestine");
+  assert.equal(said(ask, ana).en, "am I from Palestine?");
+  assert.equal(said(ask, hiya).en, "is she from Palestine?");
+
+  /* The script and the transliteration are the word as it is. */
+  assert.equal(said(is, hiya).ar, "هي من فلسطين");
+  assert.equal(said(ask, hiya).ar, "هي من فلسطين؟");
+  assert.equal(said(ask, hiya).lat, "hiye min falasṭīn?");
+});
+
+test("a teacher's own reading wins over the worked-out one, and the person still rides along", () => {
+  const ana = {
+    id: "p-i", person: "i", category: "pronoun", enIs: "I'm", enAsk: "am I",
+    forms: [{ ar: "أنا", en: "I", lat: "ana" }],
+  };
+  const lent = lentBy(ana);
+  assert.equal(lent.length, 1);
+  assert.equal(must(lent[0].value.readings, "readings")[PRONOUN_IS_SLOT], "I'm");
+  assert.equal((lent[0].value.grammar || {}).person, "i", "so a verb beside it still takes the I form");
+  assert.equal(
+    fillText("{{pronoun-is}} tired", { [PRONOUN_IS_SLOT]: lent[0].value }, "en"),
+    "I'm tired",
+  );
+  /* The plain blank goes on reading the plain English. */
+  assert.equal(fillText("{{pronoun}} like it", { pronoun: lent[0].value }, "en"), "I like it");
+  /* And valueOf, handed the card, says the same. */
+  assert.equal(must(valueOf(ana).readings, "readings")[IS_PRONOUN_SLOT], "am I");
 });

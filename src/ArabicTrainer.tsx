@@ -6370,10 +6370,8 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
   onContinue: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  /* Which of the four is being reported, and the words for the one that
-     asks for them. Picking no longer sends: the two buttons that act on
-     this are on screen from the moment the menu opens, so what a press on
-     an option does is choose, and Send is what sends. */
+  /* Which of the four is being reported, and what the learner said about
+     it. Picking does not send: Send does. */
   const [picked, setPicked] = useState<FlagKind | null>(null);
   const [note, setNote] = useState("");
 
@@ -6384,14 +6382,16 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
   }
 
   const chosen = FLAG_KINDS.find((k) => k.key === picked);
-  /* "Something else" covers whatever the other two don't, so on its own it
-     says nothing an administrator could act on: it needs the words. */
-  const ready = !!chosen && (!chosen.asks || !!note.trim());
+  /* The words are welcome on every option and owed on one: "Something
+     else" covers whatever the other three don't, so on its own it says
+     nothing anybody could act on. */
+  const needsNote = !!chosen && !!chosen.asks;
+  const ready = !!chosen && (!needsNote || !!note.trim());
 
   function send() {
     if (!chosen || !ready) return;
     if (chosen.fixes && !ok && !overridden) onOverride();
-    onFlag(chosen.key, chosen.asks ? note.trim() : "");
+    onFlag(chosen.key, note.trim());
     close();
   }
 
@@ -6420,73 +6420,6 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
               <Icon name="flag" size={16} />
               {flagged ? "Flagged" : "Flag a problem"}
             </button>
-
-            {/* Everything at once: what this is, the four things it can
-                be, the box for the last, and the way out and the way to
-                send. It covers the foot rather than floating above it —
-                nothing is behind it to press by accident, and the heading
-                says what the button it is standing on top of said. */}
-            {open && (
-              <div className="at-flagmenu" data-el="flag-menu">
-                <p className="at-flagmenu-label" data-el="flag-menu-label">
-                  Flag a problem
-                </p>
-                {/* Why it is worth the half minute. Reporting a bad question
-                    is a favour done for the next person to meet it, and
-                    nothing on the screen said so. */}
-                <p className="at-flagmenu-lede" data-el="flag-menu-lede">
-                  Any issue or feedback you report helps us improve the app.
-                </p>
-                {FLAG_KINDS.map((k) => (
-                  <React.Fragment key={k.key}>
-                    <button
-                      className={`at-flagopt${k.asks ? " asks" : ""}${picked === k.key ? " on" : ""}`}
-                      aria-pressed={picked === k.key}
-                      onClick={() => setPicked(k.key)}
-                    >
-                      <span className="at-flagopt-title">{k.title}</span>
-                      <span className="at-flagopt-what">{k.what}</span>
-                      {/* Said only where it is true: on a right answer, or
-                          one already overturned, there is nothing to count. */}
-                      {k.fixes && !ok && !overridden && (
-                        <span className="at-flagopt-does">Counts it correct</span>
-                      )}
-                    </button>
-                    {/* Not a box under the option but the rest of it: joined
-                        to the card above with no seam, and lit with it when
-                        it is the one chosen. Typing in it is a way of
-                        picking that option, because that is plainly what it
-                        means. */}
-                    {k.asks && (
-                      <div className="at-flagnote" data-el="flag-note">
-                        <textarea
-                          id="flag-note-input"
-                          data-el="flag-note-input"
-                          className="at-input at-flagtext"
-                          rows={2}
-                          maxLength={FLAG_NOTE_MAX}
-                          placeholder="The recording plays the wrong word…"
-                          value={note}
-                          onFocus={() => setPicked(k.key)}
-                          onChange={(e) => {
-                            setNote(e.target.value);
-                            setPicked(k.key);
-                          }}
-                        />
-                      </div>
-                    )}
-                  </React.Fragment>
-                ))}
-                <div className="at-row at-flagnoterow">
-                  <Button size="sm" onClick={close}>
-                    Back
-                  </Button>
-                  <Button size="sm" variant="primary" disabled={!ready} onClick={send}>
-                    Send
-                  </Button>
-                </div>
-              </div>
-            )}
           </div>
         }
       >
@@ -6494,6 +6427,75 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
           Continue
         </Button>
       </StickyFoot>
+
+      {/* A screen of its own rather than a panel over the foot. The panel
+          had four cards, a box and two buttons to fit into whatever the
+          keyboard left of a phone, and scrolled inside itself to do it;
+          a screen has the whole window, the way out where every other
+          screen keeps it, and Send at its foot. */}
+      {open && (
+        <Screen
+          title="Flag a problem"
+          onBack={close}
+          rise
+          backLabel="Back to the question"
+          footer={
+            <Button variant="primary" disabled={!ready} onClick={send}>
+              Send
+            </Button>
+          }
+        >
+          <div className="at-flagmenu" data-el="flag-menu">
+            {/* Why it is worth the half minute. Reporting a bad question
+                is a favour done for the next person to meet it, and
+                nothing on the screen said so. */}
+            <p className="at-flagmenu-lede" data-el="flag-menu-lede">
+              Any issue or feedback you report helps us improve the app.
+            </p>
+            <div className="at-flagopts">
+              {FLAG_KINDS.map((k) => (
+                <button
+                  key={k.key}
+                  className={`at-flagopt${picked === k.key ? " on" : ""}`}
+                  aria-pressed={picked === k.key}
+                  onClick={() => setPicked(k.key)}
+                >
+                  <span className="at-flagopt-title">{k.title}</span>
+                  <span className="at-flagopt-what">{k.what}</span>
+                  {/* Said only where it is true: on a right answer, or
+                      one already overturned, there is nothing to count. */}
+                  {k.fixes && !ok && !overridden && (
+                    <span className="at-flagopt-does">Counts it correct</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {/* One box for all four, under them: whichever is picked, there
+                may be more to say, and a box that belonged to one option
+                said there was only room for words on that one. It asks
+                for them outright only where they are owed. */}
+            <div className="at-flagnote" data-el="flag-note">
+              <label className="at-flagnote-label" htmlFor="flag-note-input">
+                Tell us what happened
+                <span className="at-flagnote-need" data-el="flag-note-need">
+                  {needsNote ? "Required" : "Optional"}
+                </span>
+              </label>
+              <textarea
+                id="flag-note-input"
+                data-el="flag-note-input"
+                className="at-input at-flagtext"
+                rows={4}
+                maxLength={FLAG_NOTE_MAX}
+                placeholder="The recording plays the wrong word…"
+                value={note}
+                aria-required={needsNote}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </div>
+          </div>
+        </Screen>
+      )}
     </div>
   );
 }
@@ -6799,6 +6801,12 @@ export default function ArabicTrainer() {
      down. Nothing reads the number itself. */
   const [, setNow_] = useState(0);
   const [qi, setQi] = useState(0);
+  /* Each question starts at the top. A long one — a scene, a word with its
+     relatives laid out under the answer — is read scrolled down, and the
+     next question used to arrive at that same depth, its prompt somewhere
+     above the fold. Keyed on the question's place only while a session is
+     running, so nothing outside one moves. */
+  useScrollTop(session ? `q:${qi}` : null);
   const [typed, setTyped] = useState("");
   const [checked, setChecked] = useState<any | null>(null);
   const [pairs, setPairs] = useState<any[]>([]); // minimal pairs for the answered card
@@ -8840,10 +8848,12 @@ export default function ArabicTrainer() {
     sfx("tick");
     /* "This was too easy" is not a report: it is the learner's own
        shortcut up the ladder, done here and now on the form that was
-       asked, and never sent to anybody. */
+       asked, and on its own it is sent to nobody. */
     if ((FLAG_KINDS.find((k) => k.key === kind) || {}).lifts) {
       liftCurrent();
-      return;
+      /* Unless they said something about it: words typed are words meant
+         for somebody, so those go as a report like any other. */
+      if (!said.trim()) return;
     }
     persist((cur) => {
       const next = { ...cur, items: cur.items.slice() };

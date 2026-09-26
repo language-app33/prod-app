@@ -303,58 +303,37 @@ button {
   font-size:13px; font-weight:700; color: var(--faint); padding:6px 10px; }
 .at-flagbtn:hover, .at-quietbtn:hover { color: var(--muted); }
 .at-flagbtn.on { color: var(--brass); }
-.at-flagmenu { display:flex; flex-direction:column; gap:6px; margin-top:8px;
-  border:2px solid var(--line); border-radius: var(--r); background: var(--surface); padding:8px; }
-/* What the menu is, said where the button that opened it used to be — the
-   menu stands on top of it now, so without this line the screen has three
-   options on it and nothing saying what they are options about. Centred,
-   over a panel whose own contents are all left-aligned: it is the head of
-   the thing, not the first item in it. */
-.at-flagmenu-label { margin:4px 2px 0; text-align:center;
-  font-size:15px; font-weight:800; color: var(--text); }
-/* And why it is worth doing, under it. Two lines at 320px, so the panel
-   pays a line for it and not more. */
-.at-flagmenu-lede { margin:3px 8px 6px; text-align:center;
-  font-size:12px; font-weight:500; line-height:1.4; color: var(--muted); }
+/* The flag screen's body: why it is worth doing, the four things it can
+   be, and the box for saying more. */
+.at-flagmenu { display:flex; flex-direction:column; gap:14px; }
+.at-flagmenu-lede { margin:0; font-size:14px; font-weight:500; line-height:1.45; color: var(--muted); }
+.at-flagopts { display:flex; flex-direction:column; gap:8px; }
 /* Each option is a card rather than a line: a title says what is wrong and
    the line under it says when to pick that one, which is the part a bare
-   label left the reader to guess at. Outlined, so three of them read as
-   three things to choose between rather than as a paragraph. */
+   label left the reader to guess at. Outlined, so four of them read as
+   four things to choose between rather than as a paragraph. */
 .at-flagopt { display:flex; flex-direction:column; gap:2px; width:100%;
   text-align:left; background: var(--raised); border:2px solid var(--line);
-  cursor:pointer; border-radius: var(--r-sm); padding:11px 12px;
+  cursor:pointer; border-radius: var(--r-sm); padding:12px 14px;
   color: var(--text); font-family: var(--ui); }
 .at-flagopt:hover { background: var(--raised-hover); border-color: var(--accent); }
-.at-flagopt-title { font-size:14px; font-weight:700; }
-.at-flagopt-what { font-size:12px; font-weight:500; color: var(--muted); line-height:1.4; }
+.at-flagopt-title { font-size:15px; font-weight:700; }
+.at-flagopt-what { font-size:13px; font-weight:500; color: var(--muted); line-height:1.4; }
 /* What picking it does, as opposed to what it says — the one option that
    also changes the answer you just gave. */
 .at-flagopt-does { font-size:11px; font-weight:700; letter-spacing:.05em;
   text-transform:uppercase; color: var(--jade); margin-top:3px; }
-/* Saying it in your own words. It sits under the option it belongs to,
-   from the moment the menu opens: a box that appears where the options
-   were, one press in, hid the list you were choosing from.
-
-   And it is drawn as the lower half of that option rather than as a thing
-   beside it — the card's own outline carried on down around it, the menu's
-   gap taken back, no rule between them. Two separate outlines read as two
-   things, and the box read as a fourth choice sitting under three. */
-.at-flagopt.asks { border-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;
-  padding-bottom:9px; }
-.at-flagnote { display:flex; flex-direction:column; gap:8px;
-  margin-top:-6px; padding:0 12px 11px;
-  background: var(--raised); border:2px solid var(--line); border-top:0;
-  border-radius:0 0 var(--r-sm) var(--r-sm); }
-/* Inside that shape the box is a well rather than a second card: it is
-   where the words go, not another thing to choose. */
-.at-flagnote .at-flagtext { border-radius: var(--r-sm); padding:9px 11px; min-height:62px; }
 /* The one option that is chosen, told apart the way a chosen thing is told
-   apart everywhere else here — and its box lights with it, because they
-   are one option. */
+   apart everywhere else here. */
 .at-flagopt.on { border-color: var(--accent); background: var(--raised-hover); }
-.at-flagopt.asks.on + .at-flagnote { border-color: var(--accent); background: var(--raised-hover); }
-.at-flagtext { font-size:15px; font-weight:500; resize:vertical; min-height:76px; }
-.at-flagnoterow { margin-top:0; }
+/* Saying it in your own words, for whichever option is picked: its own
+   heading, and beside it whether it is wanted or needed. */
+.at-flagnote { display:flex; flex-direction:column; gap:6px; }
+.at-flagnote-label { display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+  font-size:14px; font-weight:700; color: var(--text); }
+.at-flagnote-need { font-size:11px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; color: var(--faint); }
+.at-flagtext { font-size:15px; font-weight:500; resize:vertical; min-height:96px; }
 .at-flag.flagged { color: var(--rose); border-color: var(--rose-soft); }
 /* One size, whatever the exercise put on the screen — it is the same
    sentence every time and it should land in the same place at the same
@@ -777,6 +756,10 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-blankmake span, .at-blanklist span { font-size:13px; font-weight:500; color: var(--text-soft);
   line-height:1.5; overflow-wrap:anywhere; }
 .at-blanklist { list-style:none; margin:10px 0 0; padding:0; }
+/* The same list on the screen it is chosen from, which is a screen and not
+   a sheet since 0.251: the hint and the box sit as they did in the sheet. */
+.at-screen.blanks .at-screeninner > .at-hint { margin:4px 0 12px; }
+.at-screen.blanks .at-screeninner > .at-input { width:100%; }
 .at-blanklist em { font-style:normal; font-size:12px; font-weight:700; color: var(--muted); }
 .at-blanklist em.unmet { color: var(--rose); }
 
@@ -2024,36 +2007,7 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
   background: var(--nav-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-top:1px solid var(--line); }
 .at-footextra + .at-answerbar.at-row { border-top: 0; }
-/* The menu takes the foot over rather than hovering above it. It used to
-   open upward from the flag button, which left the answer bar showing
-   underneath it — Continue an inch below Send, live, while you were part
-   way through saying what was wrong with the question. Anchored to the
-   foot's own bottom edge it covers the bar and the flag line both, and
-   the way out of it is the Back button inside it.
-
-   Absolute against .at-foot, which is the fixed element: the wrap around
-   the button gives up being the frame of reference, and so does the strip
-   — a backdrop-filter makes an element the frame for anything positioned
-   inside it, which pinned the menu to the strip's own bottom edge, which
-   is the top of the bar. Blurring what is behind a strip nothing can see
-   buys nothing, so while the menu is up it does not. The layer is what
-   puts it over the bar — the bar's blur makes a stacking context of its
-   own, and a later sibling with one wins on source order alone. */
-.at-footextra .at-flagwrap { margin-top:0; position:static; }
-.at-footextra:has(.at-flagmenu) { -webkit-backdrop-filter:none; backdrop-filter:none; }
-/* And the bar is not merely painted over: hidden, it leaves the tab order
-   too, so the way on cannot be reached by keyboard from behind the menu
-   that is standing on it. */
-.at-footextra:has(.at-flagmenu) + .at-answerbar { visibility:hidden; }
-.at-footextra .at-flagmenu { position:absolute; left:0; right:0; bottom:0;
-  z-index: var(--z-raised);
-  /* Held to the same column as the buttons it stands on. The bar behind it
-     is the window's whole width; this is a bordered panel, and one of those
-     stretched across a desktop is a different thing altogether. */
-  margin: 0 var(--foot-pad); box-shadow: var(--shadow);
-  /* With the keyboard up on a short screen there may be less room than
-     there is menu, and the buttons are the part that must stay reachable. */
-  max-height: calc(100dvh - 24px); overflow-y:auto; }
+.at-footextra .at-flagwrap { margin-top:0; }
 /* The bar owns its whole width and has nothing beside it, so it can afford
    a tighter gap and narrower margins than a row sitting inside the page.
    Those pixels are not saved: the step-down formula sizes the type from

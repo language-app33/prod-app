@@ -375,6 +375,49 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   trainer): the cell a column picks, the word where none does, and nothing
   where the cell is blank.
 
+  **A pronoun reads three ways in English, and the blank says which.**
+  Arabic and Hebrew drop *to be* in the present — أنا تعبان is *I am
+  tired* — and ask a question without moving anything, where English turns
+  *I am* into *am I*. So one pronoun card fills three blanks that differ in
+  the English alone: `{{pronoun}}` reads *I*, `{{pronoun-is}}` reads *I am*
+  and `{{is-pronoun}}` reads *am I*, while the script and transliteration
+  are the pronoun as it is and a verb beside it agrees the same way
+  through any of them. The readings are worked out from the pronoun's
+  English (`beReadings` in `src/variables.ts`, which is about English and
+  nothing else), shown filled in on the Pronouns screen, and stored on the
+  card as `enIs` and `enAsk` only where a teacher wrote something else —
+  so a pronoun written before this reads correctly without being opened.
+  A value carries them as `readings`, by blank name, and `fillText` puts
+  the reading in the English where the blank asks for one. Both names are
+  reserved the way `{{word}}` is. The screen a blank is chosen on
+  (`BlankScreen` in `src/card-editor.tsx`) lists the pronoun once, and
+  choosing it turns to the three readings, which is what put that picker
+  on a screen rather than a sheet.
+
+  **And a list of cards shows a language's pronouns as one entry.** The
+  Pronouns screen writes a card per person, because each is practised,
+  recorded and lent on its own — but a teacher wrote them as one set, on
+  one screen, and a list showing eight tiles for it was showing storage.
+  `groupPronouns` in `src/card-facts.ts` folds them into a *Pronouns*
+  entry where the first of them stood, which opens that screen; only the
+  list draws it, and every other reader still sees eight cards. Anything
+  done to a selection goes through `pickedCardIds`, which opens an entry
+  back out into its cards. A pronoun saved before the screen existed
+  carries no person and stays a tile of its own.
+
+  **A blank says whether its words carry a pronoun on the end.** A noun
+  with its attached pronouns written out lends every one of them, so
+  "how was {{day}}?" used to be met as *day*, *my day* and *his day* in
+  turn. A sentence now narrows such a blank the way it narrows a verb
+  blank to tenses, in the same `tenses` list: the attached table's own row
+  admits only the forms with a pronoun on the end, and `BARE_ROW` only
+  the forms without — see `blankAdmits` in `src/languages.ts`, which every
+  filler of a blank goes through. The blank screen asks it as a second
+  step, as it asks a pronoun's reading, only where some word behind the
+  blank has those forms (`endsBehind` in `src/card-editor.tsx`), and the
+  Blanks section shows the answer to be changed. A blank that has not
+  said admits both, which is every sentence written before this.
+
   **Only a sentence may have a blank in it, and a sentence is one because
   the teacher said so.** The editor asks which kind of card it is — a word,
   a sentence, or a conversation — and that answer is now kept, in

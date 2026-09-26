@@ -57,7 +57,8 @@ import {
   scriptVars } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
 import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
-import { fillersFor } from "./card-facts.ts";
+import { fillersFor, groupPronouns, isPronounGroup, pickedCardIds } from "./card-facts.ts";
+import type { PronounGroup } from "./card-facts.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -4543,6 +4544,47 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     () => sortCards(filterCards(onCards, cardFilter, waitingIds), sortKey, newestFirst),
     [onCards, cardFilter, sortKey, newestFirst, waitingIds]
   );
+  /* And as the list draws them: each language's pronouns folded into one
+     entry that opens the Pronouns screen — see groupPronouns. */
+  const listedCards = useMemo(() => groupPronouns(shownCards), [shownCards]);
+  /* The open deck's cards, the same way: through the Cards tab's sort and
+     filter, then with the pronouns folded. Worked out up here rather than
+     where the deck is drawn, so a selection made in it can be opened out
+     by the same hand as one made on the Cards tab. */
+  const deckView = useMemo(() => {
+    if (!openDeck) return null;
+    const held = cards.filter((c) => (c.decks || []).includes(openDeck));
+    const mine = sortCards(filterCards(held, cardFilter, waitingIds), sortKey, newestFirst);
+    return { held, mine, listed: groupPronouns(mine, openDeck) };
+  }, [openDeck, cards, cardFilter, waitingIds, sortKey, newestFirst]);
+  /* The cards a selection stands for. Everything that acts on one goes
+     through this, because a pronoun entry is eight cards and no action
+     knows what an entry is. */
+  const pickedIds = (ids: Iterable<string>) =>
+    pickedCardIds(ids, deckView ? deckView.listed : listedCards);
+  /* The entry itself: named Pronouns, the words on its face in the order
+     the verb table lists them, and a tap opens the screen they are written
+     on — the one place they are edited. No Delete on it: eight cards gone
+     from one bin on a tile would be the easiest mistake on the screen, and
+     Select still reaches them for a teacher who means it. */
+  const pronounTile = (group: PronounGroup) => (
+    <CardTile
+      card={group}
+      lang={languages[group.lang as LangId]}
+      meta={plural(group.members.length, "pronoun")}
+      onClick={() => setPronouning(group.lang as LangId)}
+      actions={
+        <IconButton
+          icon="edit"
+          label="Edit pronouns"
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            setPronouning(group.lang as LangId);
+          }}
+        />
+      }
+    />
+  );
   /* The ones waiting that the switch leaves on screen, which is what the
      banner over the list can promise to show. */
   const waitingOn = useMemo(
@@ -4965,7 +5007,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
    */
   const newDeckLang = useMemo(() => {
     const langs = new Set(
-      [...selCards]
+      pickedIds(selCards)
         .map((id) => cards.find((c) => c.id === id))
         .map((c) => c && langOfCard(c as Card))
         .filter(Boolean)
@@ -4973,7 +5015,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     );
     return langs.size === 1 ? [...langs][0] : soleLang;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selCards, cards, decks, languages, soleLang]);
+  }, [selCards, cards, decks, languages, soleLang, listedCards, deckView]);
 
   /* Made, then ticked: the deck a teacher just named is the one they were
      about to choose, so choosing it again by hand is a step that says
@@ -5252,6 +5294,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                            since this screen does not ask it and a save
                            without it would take it away. */
                         ...(editing.card && editing.card.person ? { person: editing.card.person } : {}),
+                        /* And what it reads as with "to be", for the same
+                           reason: written on the Pronouns screen only. */
+                        ...(editing.card && editing.card.enIs ? { enIs: editing.card.enIs } : {}),
+                        ...(editing.card && editing.card.enAsk ? { enAsk: editing.card.enAsk } : {}),
                       }),
                 },
                 inDecks
@@ -5478,6 +5524,140 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     );
   }
 
+  /* ---- adding the selected cards to decks, or taking them out ----
+     One screen for both places cards are selected: the Cards tab, and
+     inside a deck — where the deck already open is left off the list,
+     there being nothing to add a card to that it is already in. ---- */
+  const cardActionScreen = (inDeck?: string) => (
+    <Screen
+      title={
+        cardAction === "add"
+          ? "Add the selected cards to…"
+          : "Take the selected cards out of…"
+      }
+      onBack={() => {
+        setCardAction(null);
+        setNewDeckName(null);
+      }}
+    >
+      {/* Somewhere to put them that does not exist yet.
+          Before this, a teacher who had selected thirty cards
+          and then found no deck for them had to leave, make
+          the deck, and select the thirty again — so the way
+          out of the screen was to lose the work that got you
+          there. Only when adding: there is nothing to take a
+          card out of that was made a moment ago. */}
+      {cardAction === "add" &&
+        (newDeckName === null ? (
+          <div className="at-row at-mb3">
+            <Button variant="ghost" size="sm" icon="add" onClick={() => setNewDeckName("")}>
+              New deck
+            </Button>
+          </div>
+        ) : (
+          <div className="at-formblock at-mb3">
+            <Field
+              label="New deck"
+              hint={
+                /* The cards decide, so say which language it
+                   will be — silently making a deck in the
+                   wrong one is a thing nothing here shows
+                   until a student opens it. */
+                newDeckLang
+                  ? `It will be a ${languageName(languages, newDeckLang)} deck.`
+                  : ""
+              }
+            >
+              <input
+                className="at-input"
+                placeholder="e.g. Week 3 · Verbs"
+                value={newDeckName}
+                autoFocus
+                onChange={(e) => setNewDeckName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && createDeckHere()}
+              />
+            </Field>
+            <div className="at-row at-mt3">
+              <Button variant="ghost" size="sm" icon="close" onClick={() => setNewDeckName(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon="check"
+                disabled={!newDeckName.trim() || busy}
+                onClick={createDeckHere}
+              >
+                Create
+              </Button>
+            </div>
+          </div>
+        ))}
+
+      <CheckList
+        options={decks.filter((d) => d.id !== inDeck).map((d) => ({
+          id: d.id,
+          title: d.title,
+          note: `${plural(d.cardCount || 0, "card")}`,
+        }))}
+        chosen={pickedDecks}
+        onToggle={(id, on) =>
+          setPickedDecks((x) => (on ? x.filter((y) => y !== id) : x.concat([id])))
+        }
+        empty="You have no decks yet."
+      />
+      <div className="at-row at-mt5">
+        <Button variant="ghost"
+          onClick={() => {
+            setCardAction(null);
+            setPickedDecks([]);
+            setNewDeckName(null);
+          }}
+          icon="close"
+        >
+          Cancel
+        </Button>
+        <Button variant="primary"
+          disabled={!pickedDecks.length || busy}
+          onClick={() =>
+            run(
+              async () => {
+                /* Counted rather than assumed: a card already in
+                   the deck is skipped, so the number selected is
+                   not the number changed. */
+                let changed = 0;
+                for (const id of pickedIds(selCards)) {
+                  const card = cards.find((c) => c.id === id);
+                  if (!card) continue;
+                  const inNow = card.decks || [];
+                  const next =
+                    cardAction === "add"
+                      ? [...new Set(inNow.concat(pickedDecks))]
+                      : inNow.filter((x) => !pickedDecks.includes(x));
+                  if (next.length === inNow.length) continue;
+                  absorbSaved(await API.saveCard(card, next));
+                  changed += 1;
+                }
+                setCardAction(null);
+                setPickedDecks([]);
+                setNewDeckName(null);
+                setSelCards(new Set());
+                return changed;
+              },
+              (changed) =>
+                changed
+                  ? `${plural(changed, "card")} ${cardAction === "add" ? "added" : "removed"}`
+                  : "Nothing to change — they were already like that"
+            )
+          }
+          icon="check"
+        >
+          {cardAction === "add" ? "Add" : "Remove"}
+        </Button>
+      </div>
+    </Screen>
+  );
+
   /* ---- an open deck takes over the screen, showing its cards the same
          way the Cards tab does ---- */
   if (openDeck) {
@@ -5486,20 +5666,21 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       setOpenDeck(null);
       return null;
     }
-    const held = cards.filter((c) => (c.decks || []).includes(d.id));
     /* The deck's cards, through the same sort and the same filter the Cards
        tab uses — this screen showed them in whatever order they arrived and
-       offered no way to narrow them at all. */
-    const mine = sortCards(filterCards(held, cardFilter, waitingIds), sortKey, newestFirst);
+       offered no way to narrow them at all. See deckView. */
+    const held = deckView ? deckView.held : [];
+    const mine = deckView ? deckView.mine : [];
+    const listed = deckView ? deckView.listed : [];
     return (
-      <Screen title={d.title} onBack={() => setOpenDeck(null)}>
+      <Screen title={d.title} onBack={() => { setOpenDeck(null); setCardAction(null); }}>
             <Notice kind="error">{error}</Notice>
             <Help>
               {(langOfDeck(d) || {}).name} · {plural(held.length, "card")}
             </Help>
 
             <Help>
-              Tap a card to see it. Tap Select to move or delete several at once.
+              Tap a card to see it. Tap Select to add several to another deck, take them out, or delete them.
             </Help>
 
             {/* The whole deck, whatever the list below is showing: what a
@@ -5511,7 +5692,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
 
             <ItemList
               noun="card"
-              items={mine}
+              items={listed}
               count={mine.length === held.length ? null : `${mine.length} of ${plural(held.length, "card")}`}
               menus={cardMenus}
               resizable
@@ -5546,10 +5727,16 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               selected={selCards}
               onSelectedChange={setSelCards}
               bulkActions={[
+                /* Onwards to another deck, as well as out of this one: a
+                   teacher sorting a deck finds cards that belong in a
+                   second, and had to go to the Cards tab and find them
+                   again to put them there. */
+                { label: "Add to another deck", onClick: () => setCardAction("add") },
                 {
                   label: "Remove from this deck",
-                  onClick: (ids) =>
-                    run(
+                  onClick: (picked) => {
+                    const ids = pickedIds(picked);
+                    return run(
                       async () => {
                         for (const id of ids) {
                           const card = cards.find((c) => c.id === id);
@@ -5561,15 +5748,16 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                         setSelCards(new Set());
                       },
                       `${plural(ids.length, "card")} removed from ${d.title}`
-                    ),
+                    );
+                  },
                 },
                 {
                   label: "Delete",
                   danger: true,
-                  onClick: (ids) => setConfirm({ kind: "cards", ids, action: () => {} }),
+                  onClick: (ids) => setConfirm({ kind: "cards", ids: pickedIds(ids), action: () => {} }),
                 },
               ]}
-              renderItem={(c) => (
+              renderItem={(c) => isPronounGroup(c) ? pronounTile(c) : (
                 <CardTile
                   card={c}
                   lang={langOfCard(c)}
@@ -5638,6 +5826,8 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
             />
           </Screen>
         )}
+
+        {cardAction === "add" && cardActionScreen(d.id)}
 
         {confirm && confirm.kind === "cards" && (
           <ConfirmModal
@@ -6022,135 +6212,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 />
               )}
 
-              {cardAction && (
-                <Screen
-                  title={
-                    cardAction === "add"
-                      ? "Add the selected cards to…"
-                      : "Take the selected cards out of…"
-                  }
-                  onBack={() => {
-                    setCardAction(null);
-                    setNewDeckName(null);
-                  }}
-                >
-                  {/* Somewhere to put them that does not exist yet.
-                      Before this, a teacher who had selected thirty cards
-                      and then found no deck for them had to leave, make
-                      the deck, and select the thirty again — so the way
-                      out of the screen was to lose the work that got you
-                      there. Only when adding: there is nothing to take a
-                      card out of that was made a moment ago. */}
-                  {cardAction === "add" &&
-                    (newDeckName === null ? (
-                      <div className="at-row at-mb3">
-                        <Button variant="ghost" size="sm" icon="add" onClick={() => setNewDeckName("")}>
-                          New deck
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="at-formblock at-mb3">
-                        <Field
-                          label="New deck"
-                          hint={
-                            /* The cards decide, so say which language it
-                               will be — silently making a deck in the
-                               wrong one is a thing nothing here shows
-                               until a student opens it. */
-                            newDeckLang
-                              ? `It will be a ${languageName(languages, newDeckLang)} deck.`
-                              : ""
-                          }
-                        >
-                          <input
-                            className="at-input"
-                            placeholder="e.g. Week 3 · Verbs"
-                            value={newDeckName}
-                            autoFocus
-                            onChange={(e) => setNewDeckName(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && createDeckHere()}
-                          />
-                        </Field>
-                        <div className="at-row at-mt3">
-                          <Button variant="ghost" size="sm" icon="close" onClick={() => setNewDeckName(null)}>
-                            Cancel
-                          </Button>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            icon="check"
-                            disabled={!newDeckName.trim() || busy}
-                            onClick={createDeckHere}
-                          >
-                            Create
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-
-                  <CheckList
-                    options={decks.map((d) => ({
-                      id: d.id,
-                      title: d.title,
-                      note: `${plural(d.cardCount || 0, "card")}`,
-                    }))}
-                    chosen={pickedDecks}
-                    onToggle={(id, on) =>
-                      setPickedDecks((x) => (on ? x.filter((y) => y !== id) : x.concat([id])))
-                    }
-                    empty="You have no decks yet."
-                  />
-                  <div className="at-row at-mt5">
-                    <Button variant="ghost"
-                      onClick={() => {
-                        setCardAction(null);
-                        setPickedDecks([]);
-                        setNewDeckName(null);
-                      }}
-          icon="close"
-        >
-          Cancel
-        </Button>
-                    <Button variant="primary"
-                      disabled={!pickedDecks.length || busy}
-                      onClick={() =>
-                        run(
-                          async () => {
-                            /* Counted rather than assumed: a card already in
-                               the deck is skipped, so the number selected is
-                               not the number changed. */
-                            let changed = 0;
-                            for (const id of selCards) {
-                              const card = cards.find((c) => c.id === id);
-                              if (!card) continue;
-                              const inNow = card.decks || [];
-                              const next =
-                                cardAction === "add"
-                                  ? [...new Set(inNow.concat(pickedDecks))]
-                                  : inNow.filter((x) => !pickedDecks.includes(x));
-                              if (next.length === inNow.length) continue;
-                              absorbSaved(await API.saveCard(card, next));
-                              changed += 1;
-                            }
-                            setCardAction(null);
-                            setPickedDecks([]);
-                            setNewDeckName(null);
-                            setSelCards(new Set());
-                            return changed;
-                          },
-                          (changed) =>
-                            changed
-                              ? `${plural(changed, "card")} ${cardAction === "add" ? "added" : "removed"}`
-                              : "Nothing to change — they were already like that"
-                        )
-                      }
-          icon="check"
-        >
-          {cardAction === "add" ? "Add" : "Remove"}
-        </Button>
-                  </div>
-                </Screen>
-              )}
+              {cardAction && cardActionScreen()}
 
               {viewing && (
                 <Screen
@@ -6215,7 +6277,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
 
               <ItemList
                 noun="card"
-                items={shownCards}
+                items={listedCards}
                 count={
                   shownCards.length === onCards.length
                     ? null
@@ -6306,10 +6368,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   {
                     label: "Delete",
                     danger: true,
-                    onClick: (ids) => setConfirm({ kind: "cards", ids, action: () => {} }),
+                    onClick: (ids) => setConfirm({ kind: "cards", ids: pickedIds(ids), action: () => {} }),
                   },
                 ]}
-                renderItem={(c) => (
+                renderItem={(c) => isPronounGroup(c) ? pronounTile(c) : (
                   <CardTile
                     card={c}
                     lang={langOfCard(c)}
