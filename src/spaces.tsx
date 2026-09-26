@@ -4436,6 +4436,16 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || ({} as any)),
   [languages, decks, langOfDeck]);
 
+  /* The decks a card can go into: those in its language, since a deck holds
+     cards in one — offering the rest only lists decks the switch at the top
+     has put away, and a card put in one of them lands in the wrong script.
+     Any it is in already stay, so they can still be seen and taken off. */
+  const decksIn = useCallback(
+    (langs: Set<LangId>, keep: string[] = []) =>
+      decks.filter((d) => keep.includes(d.id) || langs.has((langOfDeck(d) || ({} as Lang)).id)),
+    [decks, langOfDeck]
+  );
+
   /*
    * The language switch, as it reaches this space.
    *
@@ -5003,6 +5013,19 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     return n ? ` · ${n} to review` : "";
   };
 
+  /* The languages of the ticked cards: the decks they can be added to. */
+  const pickedLangs = useMemo(
+    () =>
+      new Set(
+        pickedIds(selCards)
+          .map((id) => cards.find((c) => c.id === id))
+          .map((c) => c && langOfCard(c as Card))
+          .filter(Boolean)
+          .map((l) => (l as Lang).id)
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selCards, cards, decks, languages, listedCards, deckView]
+  );
   /*
    * The language a deck made from the add-to-a-deck screen takes.
    *
@@ -5013,17 +5036,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
    * falls back to the one this teacher mostly teaches and says on screen
    * which it chose.
    */
-  const newDeckLang = useMemo(() => {
-    const langs = new Set(
-      pickedIds(selCards)
-        .map((id) => cards.find((c) => c.id === id))
-        .map((c) => c && langOfCard(c as Card))
-        .filter(Boolean)
-        .map((l) => (l as Lang).id)
-    );
-    return langs.size === 1 ? [...langs][0] : soleLangOn;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selCards, cards, decks, languages, soleLangOn, listedCards, deckView]);
+  const newDeckLang = useMemo(
+    () => (pickedLangs.size === 1 ? [...pickedLangs][0] : soleLangOn),
+    [pickedLangs, soleLangOn]
+  );
 
   /* Made, then ticked: the deck a teacher just named is the one they were
      about to choose, so choosing it again by hand is a step that says
@@ -5209,7 +5225,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       <CardEditor
         card={editing.card}
         lang={editLang || LANGUAGES[DEFAULT_LANGUAGE]}
-        decks={decks}
+        decks={decksIn(new Set([(editLang || LANGUAGES[DEFAULT_LANGUAGE]).id]), editing.decks)}
         inDecks={editing.decks}
         busy={busy}
         onClose={() => setEditing(null)}
@@ -5607,7 +5623,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         ))}
 
       <CheckList
-        options={decks.filter((d) => d.id !== inDeck).map((d) => ({
+        options={(cardAction === "add" ? decksIn(new Set([...pickedLangs, newDeckLang])) : decks).filter((d) => d.id !== inDeck).map((d) => ({
           id: d.id,
           title: d.title,
           note: `${plural(d.cardCount || 0, "card")}`,

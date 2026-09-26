@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.259 — 26 September 2026
+
+**Teaching: a card is only offered decks in its own language.**
+
+- The deck list inside a card, under *Add this card to a deck*, shows only
+  decks in the card's language. Before, it listed every deck, including
+  ones the switch at the top had hidden and ones in another script. Decks
+  the card is already in stay listed, so a mistake can still be undone.
+- The same for *Add the selected cards to…*: it lists the decks in the
+  ticked cards' languages.
+
 ## 0.258 — 26 September 2026
 
 **Teaching: the language switch at the top answers "which language?"**
