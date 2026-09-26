@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.260 — 26 September 2026
+
+**A word dropped into a blank takes the right capital.**
+
+- In a language written in Latin letters, such as Vietnamese, a word that
+  fills a blank now starts with a capital at the beginning of a sentence
+  and a small letter anywhere else. People and places keep their capital
+  wherever they fall, and so do abbreviations like *TV*.
+- The English under a sentence gets its capital at the start too. Elsewhere
+  it keeps the capitals the teacher wrote, because English capitalises more
+  than names: *I*, *Monday*.
+- Arabic and the transliteration are unchanged.
+- Sentences you have already approved stay approved. A capital does not
+  make it a new sentence.
+
 ## 0.259 — 26 September 2026
 
 **Teaching: a card is only offered decks in its own language.**

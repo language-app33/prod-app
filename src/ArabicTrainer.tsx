@@ -1915,7 +1915,7 @@ function gatedFill(
     if (!turned) return null;
     const took = finishTook(unit, gate.card, turned, drawn, ownerOf, langFor);
     if (!took) continue;
-    if (passes(gate.review, sentenceKey(fillForm(unit, took)))) return took;
+    if (passes(gate.review, sentenceKey(fillForm(unit, took, false)))) return took;
   }
   return null;
 }
@@ -2008,8 +2008,9 @@ function castFill(
   const filled = fillForm(resolved.unit, took) as any;
   /* The sentence's fingerprint, as it was filled and before anything
      narrows it to one answer — what a report about it names, so the
-     teacher can strike this sentence and no other. See review.ts. */
-  const unit = { ...filled, reviewKey: sentenceKey(filled) };
+     teacher can strike this sentence and no other. See review.ts. Taken
+     from the words as written, before a capital is fitted to them. */
+  const unit = { ...filled, reviewKey: sentenceKey(fillForm(resolved.unit, took, false)) };
   return {
     ...resolved,
     unit,

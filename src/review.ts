@@ -106,6 +106,12 @@ function fnv(text: string, seed: number): string {
  * All three, because all three are shown — the script, the pronunciation
  * underneath it and the meaning — and a sentence whose Arabic is right and
  * whose English says something else is not one a teacher approved.
+ *
+ * Taken from the words as written — fillForm with `cased` off — and not
+ * from the sentence as shown, where the first letter of a blank is fitted
+ * to its place. A capital is typography, not a different sentence, and
+ * keying on it would have taken every approval already given away when
+ * capitals started being fitted.
  */
 export function sentenceKey(filled: { ar?: unknown; lat?: unknown; en?: unknown } | null | undefined): string {
   const f = filled || {};
@@ -363,7 +369,7 @@ export function sentencesOf(
     const took = finishTook(part, card, turned, drawn, ownerOf, langFor);
     if (!took) continue;
     const filled = fillForm(part, took) as Held;
-    const key = sentenceKey(filled);
+    const key = sentenceKey(fillForm(part, took, false));
     if (had.has(key)) continue;
     had.add(key);
     const who: Record<string, { card: string; word: string }> = {};
