@@ -23,7 +23,7 @@
  * calls for, and which rows are open yet.
  *
  * Which rows and columns exist is the language's answer, never this
- * module's. Arabic declares eight persons and three tenses; Huế declares
+ * module's. Arabic declares nine persons and three tenses; Huế declares
  * one person and four; a language that declares none has no verb tables
  * and every function here comes back empty. Nothing below knows what a
  * tense is — only that a table has two axes, that the rows are in the

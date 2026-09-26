@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.261 — 26 September 2026
+
+**Palestinian Arabic verbs have a feminine "I".**
+
+- A verb's table now has **I (m)** and **I (f)**, the way it already has
+  *you (m)* and *you (f)*. Much of what Palestinian Arabic says in the
+  present is said with a word that changes with the speaker — رايح and
+  رايحة, عارف and عارفة — and until now there was one box for "I", so a
+  woman could only learn the man's word for herself.
+- **Nothing you have written moves.** Every "I" form you typed is now the
+  *I (m)* one; *I (f)* is a new, empty box beside it. Where the two are the
+  same word, type it in both, as you already do when two persons share a
+  form. A box left empty is never asked.
+- The Pronouns screen lists *I (f)* too. Filling it in with أنا lets a
+  sentence built from a pronoun and a verb say *I (f) am going* with the
+  feminine form; leaving it empty makes no card.
+- Hebrew is unchanged for now: its present tense changes with gender in
+  every person, not only "I", which wants a decision of its own.
+
 ## 0.260 — 26 September 2026
 
 **A word dropped into a blank takes the right capital.**

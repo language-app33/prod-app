@@ -3443,6 +3443,45 @@ attached table's.
 
 ---
 
+## Arabic's *I* is two columns, and the old one keeps its name
+
+**26 September 2026** · `AR_SUBJECT_PERSONS` in `src/languages.ts`
+
+The verb table had one column for *I*, shared with Hebrew through
+`SUBJECT_PERSONS`. Palestinian Arabic's finite verb does not mark the
+speaker's gender, but the participles it uses for much of its present do
+— رايح and رايحة, عارف and عارفة — and to a learner those are the verb.
+One box meant the teacher wrote the masculine and a woman learnt the wrong
+word about herself.
+
+**Two columns, not a flag on the cell.** A cell is a sub-form carrying
+where it sits and nothing more, and everything downstream — scheduling,
+recordings, sync, the pronoun that names a column — reads it that way. A
+second column is one more place to sit; a "feminine variant" on the *I*
+cell would have been a second kind of thing for every reader to learn.
+The cost is that a verb whose two forms coincide is typed twice, which is
+already what بتاكل costs under *you (m)* and *she*: a cell carries the
+words it was given, and the app does not know which forms coincide.
+
+**The masculine keeps the id `i`.** Renaming both would have orphaned
+every *I* cell ever written and every pronoun card the Pronouns screen
+saved as `"i"`; keeping the id and changing the label to *I (m)* moves
+nothing. The feminine is `i-f`, declared right after it, so a teacher
+reading down the table meets them together and the Pronouns screen gets
+its row in the same place. That row is the one visible cost: أنا is the
+same word for both, so a teacher who fills it in has two pronoun cards
+that read alike. They need not fill it in — a row left empty makes no
+card — and filling it in is what lets `{{pronoun}} {{verb}}` produce
+أنا رايحة.
+
+**Arabic's own list, not the shared one.** Hebrew's present tense varies
+by gender in every person, singular and plural, which is not one extra
+column but a different table, and deciding it here would have been
+deciding it by accident. So Arabic spreads its own nine and Hebrew stays
+on the eight until that is looked at.
+
+---
+
 ## What a question cannot tell apart, it does not ask a learner to
 
 **26 September 2026** · `twinsOf` in `src/ArabicTrainer.tsx`; `familyOf`
