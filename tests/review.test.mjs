@@ -120,6 +120,92 @@ test("the teacher's list puts the agreeing form beside its noun, as the student 
   assert.equal(car.took.noun.card, "car", "with the card behind each blank");
 });
 
+/* A verb drawn into a sentence card agrees with the blank beside it, as
+   an adjective does and as a verb card's own sentence always has. */
+const pronoun = (/** @type {string} */ person, /** @type {string} */ word, /** @type {string} */ en, /** @type {Record<string, string>} */ picks = {}, created = 1) => ({
+  id: `p-${person}`, lang: "ar-PS", category: "pronoun", person, created,
+  forms: [{ id: `p-${person}`, ar: word, en, lat: en, ...picks }],
+});
+const speak = {
+  id: "speak", lang: "ar-PS", category: "verb", created: 6,
+  forms: [
+    { id: "speak", ar: "حكى", en: "to speak", lat: "haka" },
+    { id: "v-pres-i", row: "present", col: "i", ar: "بحكي", en: "speak", lat: "bahki" },
+    { id: "v-pres-he", row: "present", col: "he", ar: "بيحكي", en: "speaks", lat: "biyihki" },
+    { id: "v-pres-she", row: "present", col: "she", ar: "بتحكي", en: "speaks", lat: "btihki" },
+    { id: "v-pres-they", row: "present", col: "they", ar: "بيحكوا", en: "speak", lat: "biyihku" },
+    { id: "v-past-i", row: "past", col: "i", ar: "حكيت", en: "spoke", lat: "hakeet" },
+    /* The he-past, which is the word Arabic lists the verb under: the
+       card's own word above is this cell, copied. */
+    { id: "v-past-he", row: "past", col: "he", ar: "حكى", en: "spoke", lat: "haka" },
+    { id: "v-past-she", row: "past", col: "she", ar: "حكت", en: "spoke", lat: "hakat" },
+  ],
+};
+const pronouns = [
+  pronoun("i", "أنا", "I", {}, 1),
+  pronoun("he", "هو", "he", { number: "singular", gender: "masculine" }, 2),
+  pronoun("she", "هي", "she", { number: "singular", gender: "feminine" }, 3),
+  pronoun("they", "هم", "they", { number: "plural" }, 4),
+];
+
+test("a verb in a sentence card takes the person its pronoun names, once per tense", () => {
+  const sentence = {
+    id: "s", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "s", ar: "{{pronoun}} {{verb}} عربي", en: "{{pronoun}} {{verb}} Arabic", lat: "{{pronoun}} {{verb}} arabi",
+      tenses: { verb: ["present"] } }],
+  };
+  const [part] = cardSentences(sentence, [...pronouns, speak, sentence], ar);
+  assert.equal(part.combos, 4, "four pronouns by one present, not four by four cells");
+  assert.deepEqual(part.list.map((s) => s.ar).sort(), ["أنا بحكي عربي", "هم بيحكوا عربي", "هو بيحكي عربي", "هي بتحكي عربي"].sort());
+  const she = must(part.list.find((s) => s.ar === "هي بتحكي عربي"), "she speaks");
+  assert.equal(she.en, "she speaks Arabic");
+  assert.equal(she.lat, "she btihki arabi");
+  assert.equal(she.took.verb.card, "speak", "the card behind the blank is still the verb");
+  assert.equal(she.took.verb.word, "بتحكي", "and the word is the one shown");
+
+  /* A blank not narrowed to a tense takes each tense in turn, and the
+     person still follows the pronoun: a tense the pronoun has no cell in
+     is a sentence not asked. The card's own word — the he-past, which the
+     past row lends already — is not a third thing to count. */
+  const any = { ...sentence, forms: [{ ...sentence.forms[0], tenses: undefined }] };
+  const [open] = cardSentences(any, [...pronouns, speak, any], ar);
+  assert.equal(open.combos, 8, "four pronouns by two tenses");
+  const pastWords = ["حكيت", "حكى", "حكت"];
+  assert.deepEqual(open.list.filter((s) => pastWords.includes(s.took.verb.word)).map((s) => s.ar).sort(),
+    ["أنا حكيت عربي", "هو حكى عربي", "هي حكت عربي"].sort(), "the past has cells for three of the four");
+  assert.equal(open.list.length, 7);
+  assert.ok(!open.list.some((s) => s.ar === "هي حكى عربي"), "and never she beside the he-past");
+
+  /* And the reading blanks are the same pronoun, so the verb follows them too. */
+  const is = { ...sentence, forms: [{ ...sentence.forms[0], ar: "{{pronoun-is}} {{verb}}", en: "{{pronoun-is}} {{verb}}", lat: "" }] };
+  const [read] = cardSentences(is, [...pronouns, speak, is], ar);
+  assert.ok(read.list.some((s) => s.ar === "هي بتحكي" && s.en === "she is speaks"), read.list.map((s) => s.en).join(" | "));
+});
+
+test("a verb beside a blank that names no person is not asked, and one beside nothing takes its turns", () => {
+  /* A name with number and gender picks a column, as it does for a verb
+     card's own sentence; a card that says nothing about itself picks
+     none, and the sentence is left rather than asked with a guess. */
+  const sarah = { id: "sarah", lang: "ar-PS", fills: ["name"], drill: false, created: 1,
+    forms: [{ id: "sarah", ar: "سارة", en: "Sarah", lat: "Sarah", number: "singular", gender: "feminine", human: "person" }] };
+  const blank = { id: "x", lang: "ar-PS", fills: ["name"], drill: false, created: 2,
+    forms: [{ id: "x", ar: "فلان", en: "so-and-so", lat: "" }] };
+  const named = { id: "n", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "n", ar: "{{name}} {{verb}}", en: "{{name}} {{verb}}", lat: "", tenses: { verb: ["present"] } }] };
+  const [part] = cardSentences(named, [sarah, blank, speak, named], ar);
+  assert.equal(part.combos, 2);
+  assert.deepEqual(part.list.map((s) => s.ar), ["سارة بتحكي"], "Sarah speaks; so-and-so is not asked");
+
+  /* A verb with no other blank beside it has nothing to agree with and is
+     met as every cell of the tense, which is every sentence written
+     before this. */
+  const alone = { id: "a", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "a", ar: "أنا {{verb}} عربي", en: "I {{verb}} Arabic", lat: "", tenses: { verb: ["present"] } }] };
+  const [turns] = cardSentences(alone, [speak, alone], ar);
+  assert.equal(turns.combos, 4, "every cell of the present");
+  assert.equal(turns.list.length, 4);
+});
+
 test("where a card stands: never reviewed, reviewed with sentences waiting, and too many to read", () => {
   const pool = [noun("house", "بيت", "house", "masculine", 1), noun("car", "سيارة", "car", "feminine", 2), big, frame];
   const legacy = reviewState(frame, pool, ar);

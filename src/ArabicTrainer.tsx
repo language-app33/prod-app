@@ -163,6 +163,7 @@ import {
   cellsIn,
   hasCells,
   ownSlot,
+  partnerOf,
   citedCell,
   isCitation,
   openRows,
@@ -1094,8 +1095,11 @@ function fillsFor(unit: Form, langId?: LangId): Record<string, Value[]> {
  */
 function askedIn(unit: Form, slot: string, list: Value[]): Value[] {
   const rows = slotRows(unit, slot);
-  if (!rows.length) return list;
-  const admits = (lang: Lang) => blankAdmits(lang, () => rows);
+  /* And whether the blank agrees with another — a verb beside a subject
+     stands in it once per tense, since the subject picks the person. */
+  const agrees = !!partnerOf(unit, slotsOf(unit), slot);
+  if (!rows.length && !agrees) return list;
+  const admits = (lang: Lang) => blankAdmits(lang, () => rows, () => agrees);
   return list.filter((value) => {
     const owner = VALUE_OWNER.get(refOf(value));
     if (!owner) return true;

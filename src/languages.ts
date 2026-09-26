@@ -36,7 +36,8 @@ import { leadOf, subFormsOf } from "./cards.ts";
 /* And what a row is, for the one rule below that reads one: verbs.ts
    knows what a table is made of and no language at all, which is the
    same direction every other import here goes. */
-import { colOf, isCell, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows } from "./verbs.ts";
+import { citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows } from "./verbs.ts";
+import { isLent } from "./variables.ts";
 /*
  * How each language builds its numbers and tells the time.
  *
@@ -1954,30 +1955,51 @@ export const tensedOf = (
  * `rowsFor` is asked per blank rather than handed a list, because a
  * sentence narrows each of its blanks on its own: "Yesterday {{name}}
  * {{verb}} while {{name2}} {{verb2}}" is two questions about two holes.
+ *
+ * `agreesFor` says whether the blank agrees with another one in the same
+ * sentence — see partnerOf in verbs.ts. Where it does, a word laid out in
+ * tenses stands in it as **one form per tense**, the cell that leads its
+ * row: the sentence picks the person from the blank it agrees with, so
+ * the other cells of the row would be the same sentence over again, and
+ * counted as if they were different ones. Its own word stands aside
+ * there too, where the language cites a cell for it — Arabic's *to eat*
+ * is the he-past, which is already lent by its row, and beside *she* it
+ * would be *she he-ate*. A blank that agrees with nothing takes every
+ * cell and the word in turn, as it always did.
  */
 export const blankAdmits = (
   lang: Lang | null | undefined,
   rowsFor: (slot: string) => string[],
+  agreesFor: (slot: string) => boolean = () => false,
 ): ((
   card: { category?: string } | null | undefined,
   form: Record<string, unknown>,
   slot: string,
 ) => boolean) => (card, form, slot) => {
   const rows = rowsFor(slot) || [];
-  if (!rows.length) return true;
-  /* Whether it has a pronoun on the end, where the sentence said: the
-     attached pronouns' own row for "my name, your name", and BARE_ROW for
-     "name" and the word's other forms. A form carrying a pronoun is
-     admitted by the first and by nothing else — it is in no tense. */
-  const ends = endRowsOf(lang);
-  const endsSaid = rows.filter((r) => ends.has(r) || r === BARE_ROW);
-  if (endsSaid.length) {
-    if (ends.has(rowOf(form))) return endsSaid.some((r) => ends.has(r));
-    if (!endsSaid.includes(BARE_ROW)) return false;
+  if (rows.length) {
+    /* Whether it has a pronoun on the end, where the sentence said: the
+       attached pronouns' own row for "my name, your name", and BARE_ROW for
+       "name" and the word's other forms. A form carrying a pronoun is
+       admitted by the first and by nothing else — it is in no tense. */
+    const ends = endRowsOf(lang);
+    const endsSaid = rows.filter((r) => ends.has(r) || r === BARE_ROW);
+    if (endsSaid.length) {
+      if (ends.has(rowOf(form))) return endsSaid.some((r) => ends.has(r));
+      if (!endsSaid.includes(BARE_ROW)) return false;
+    }
+    const tenses = rows.filter((r) => !ends.has(r) && r !== BARE_ROW);
+    if (tenses.length && !standsInRows(tensedOf(lang, card && card.category), form, tenses)) return false;
   }
-  const tenses = rows.filter((r) => !ends.has(r) && r !== BARE_ROW);
-  if (!tenses.length) return true;
-  return standsInRows(tensedOf(lang, card && card.category), form, tenses);
+  if (agreesFor(slot)) {
+    const tensed = tensedOf(lang, card && card.category);
+    if (tensed && rowIdsOf(tensed).has(rowOf(form))) return isRowLead(card, tensed, form, isLent);
+    if (tensed && !isCell(form) && citedCell(card, tensed)) {
+      const own = leadOf(card);
+      if (own === form || (!!String(own.id || "") && String(own.id || "") === String(form.id || ""))) return false;
+    }
+  }
+  return true;
 };
 
 /*

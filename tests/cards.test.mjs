@@ -1486,6 +1486,41 @@ test("an adjective drawn into a sentence is swapped for the form that agrees wit
   assert.equal(blank, null);
 });
 
+test("a verb drawn into a sentence beside a pronoun is swapped for the person the pronoun names", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const speak = /** @type {any} */ ({
+    id: "speak", lang: "ar-PS", category: "verb",
+    forms: [
+      { id: "speak", ar: "حكى", en: "to speak", lat: "" },
+      { id: "v-i", ar: "بحكي", en: "speak", lat: "", row: "present", col: "i" },
+      { id: "v-she", ar: "بتحكي", en: "speaks", lat: "", row: "present", col: "she" },
+      { id: "v-past-i", ar: "حكيت", en: "spoke", lat: "", row: "past", col: "i" },
+    ],
+  });
+  const owners = /** @type {Record<string, any>} */ ({});
+  for (const form of speak.forms) owners[form.id] = { card: speak, form };
+  const ownerOf = (/** @type {any} */ v) => owners[v.id] || null;
+  const lead = { id: "v-i", ar: "بحكي", en: "speak", lat: "" };
+  const she = { id: "p-she", ar: "هي", en: "she", lat: "", grammar: { person: "she", number: "singular", gender: "feminine" } };
+  const swapped = agreeTook({ pronoun: she, verb: lead }, ["pronoun", "verb"], ownerOf, () => ar);
+  assert.equal(must(swapped, "filled").verb.ar, "بتحكي");
+  assert.equal(must(swapped, "filled").verb.id, "v-she", "the cell shown is the one credited");
+  assert.equal(must(swapped, "filled").pronoun.ar, "هي", "the pronoun is left as drawn");
+  /* The row is the drawn cell's: a past lead beside "she" wants the past
+     she-cell, which the teacher has not written, so nothing is asked. */
+  const past = { id: "v-past-i", ar: "حكيت", en: "spoke", lat: "" };
+  assert.equal(agreeTook({ pronoun: she, verb: past }, ["pronoun", "verb"], ownerOf, () => ar), null);
+  /* A partner that names no person is a sentence not asked. */
+  const nobody = { id: "x", ar: "فلان", en: "so-and-so", lat: "" };
+  assert.equal(agreeTook({ name: nobody, verb: lead }, ["name", "verb"], ownerOf, () => ar), null);
+  /* Nothing beside it: the cell as drawn. */
+  assert.equal(must(agreeTook({ verb: lead }, ["verb"], ownerOf, () => ar), "filled").verb.ar, "بحكي");
+  /* And a form of the verb that is in no row — the dictionary form — is
+     left alone, as every word with no table is. */
+  const own = { id: "speak", ar: "حكى", en: "to speak", lat: "" };
+  assert.equal(must(agreeTook({ pronoun: she, verb: own }, ["pronoun", "verb"], ownerOf, () => ar), "filled").verb.ar, "حكى");
+});
+
 /*
  * What a card opens as in the editor, and what a save carries — the rules
  * the four editors stand on, asked without a screen.

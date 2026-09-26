@@ -8,6 +8,32 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.258 — 26 September 2026
+
+**A verb in a sentence card now agrees with the pronoun or name beside
+it.**
+
+- A sentence card such as "{{pronoun}} {{verb}} Arabic" used to be met as
+  every person of the verb beside every pronoun — *she* with the *I* form,
+  *they* with the *he* form — because only a verb card's own sentence knew
+  to read its subject. A verb standing in any sentence's blank now takes
+  the form the first other blank calls for: a pronoun names the person, a
+  name or noun picks it by its number and gender. The tense is still the
+  blank's to narrow, as before.
+- Where the word beside the verb says nothing about who it is, or the
+  form it calls for is not written on the verb card, that sentence is not
+  asked rather than asked with a guess — the rule a verb card's own
+  sentence has always followed.
+- Such a blank now counts a verb once per tense instead of once per
+  person, so the number of sentences a card is met as, on the card and on
+  the review sheet, is the number a student can actually meet. A verb in
+  a blank with nothing beside it is unchanged, and so is Vietnamese, whose
+  verbs do not change with the person.
+- The example sentences shown on a card, and in a card's read-out, are now
+  the same sentences a student is asked: an adjective in the form that
+  agrees with its noun and a verb in the person of its subject. Before,
+  they showed the words as lent, which listed sentences nobody was asked.
+
 ## 0.257 — 26 September 2026
 
 **Scenes: a conversation or a text, built from your sentence cards, with

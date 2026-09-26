@@ -35,6 +35,10 @@ import {
   picksOf,
   agreeWith,
   agreedValue,
+  drawnOf,
+  partnerOf,
+  rowLead,
+  isRowLead,
   hasCells,
   cellsIn,
   openRows,
@@ -850,4 +854,39 @@ test("a sentence whose subject is a pronoun puts the verb in that pronoun's form
   assert.equal(must(agreedCell(toEat, arabic, "present", { person: "she" }), "she eats").ar, "بتاكل");
   /* A column the teacher left blank is no sentence, as it always was. */
   assert.equal(agreedCell(toEat, arabic, "present", { person: "we" }), null);
+});
+
+/*
+ * A verb drawn into a sentence card's blank agrees with the blank beside
+ * it, the way a verb card's own sentence agrees with its subject — and
+ * the pool it is drawn from knows it, so a row is lent once and not once
+ * per person.
+ */
+test("the blanks a sentence draws are every one but its own place, and a blank's partner is the first other", () => {
+  const frame = { ar: "{{name}} {{verb}} {{object}}", row: "present" };
+  assert.deepEqual(drawnOf(frame, ["name", "verb", "object"]), ["name", "object"], "a frame's own place is not drawn");
+  assert.deepEqual(drawnOf({ ar: "{{pronoun}} {{verb}}" }, ["pronoun", "verb"]), ["pronoun", "verb"],
+    "on a sentence card the verb is a blank like any other");
+  assert.equal(partnerOf({ ar: "{{pronoun}} {{verb}}" }, ["pronoun", "verb"], "verb"), "pronoun");
+  assert.equal(partnerOf({ ar: "{{verb}} {{pronoun}}" }, ["verb", "pronoun"], "verb"), "pronoun", "whichever side it is on");
+  assert.equal(partnerOf({ ar: "أنا {{verb}} عربي" }, ["verb"], "verb"), "", "nothing to agree with");
+  assert.equal(partnerOf(frame, ["name", "verb", "object"], "object"), "name", "and a frame's other blanks read past its own place");
+});
+
+test("one cell stands for a row: the first filled one the card lends, in the order the persons are listed", () => {
+  assert.equal(must(rowLead(toEat, arabic, "present"), "the present's lead").col, "i");
+  assert.equal(must(rowLead(toEat, arabic, "past"), "the past's lead").col, "he", "a row with no 'I' leads with the first it has");
+  assert.equal(must(rowLead(toEat, arabic, "command"), "the command's lead").col, "you-m");
+  assert.equal(rowLead(toEat, arabic, "nowhere"), null);
+  assert.ok(isRowLead(toEat, arabic, cellAt(toEat, "present", "i")));
+  assert.equal(isRowLead(toEat, arabic, cellAt(toEat, "present", "she")), false);
+  /* A cell kept out of sentences does not lead its row while another is
+     lent; where none is lent the first filled one still stands for it, so
+     the row reads as kept out rather than as missing. */
+  const lent = (/** @type {any} */ cell) => cell.col !== "i";
+  assert.equal(must(rowLead(toEat, arabic, "present", lent), "the lead among the lent").col, "he");
+  assert.equal(must(rowLead(toEat, arabic, "present", () => false), "the lead where none is lent").col, "i");
+  assert.ok(isRowLead(toEat, arabic, cellAt(toEat, "present", "he"), lent));
+  /* And a table one column wide leads with its one cell. */
+  assert.ok(isRowLead(toEatViet, viet, cellAt(toEatViet, "past", "any")));
 });

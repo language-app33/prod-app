@@ -3541,3 +3541,66 @@ ladder, out of every turn. And the casting is fixed by the scene's own
 read-through count rather than the question's, so it changes only when the
 scene is read through again — the price of never introducing Sami and then
 answering Rami in one session.
+
+---
+
+## A verb drawn into a blank agrees, once per tense
+
+**26 September 2026** · `agreeTook` in `src/review.ts`; `partnerOf`,
+`drawnOf`, `rowLead` in `src/verbs.ts`; `blankAdmits` in
+`src/languages.ts`; `examplesOf` in `src/card-facts.ts`
+
+The 0.141 entry above left a verb from the pool unable to agree, because
+"nothing on a sentence card says which tense". Since 0.2xx a sentence card
+does say — a blank is narrowed to the tenses it wants — so the reason had
+gone while the gap stayed: "{{pronoun}} {{verb}}" was met as every cell of
+the verb beside every pronoun, and twelve sentences in sixteen were forms
+nobody says. The owner noticed it on exactly that card.
+
+**The rule is the verb card's own, moved to where the cell came from.** A
+verb card's own sentence has always read its subject: the row is the
+frame's, the column is what filled the subject (`personFor`). A verb drawn
+into an ordinary blank now does the same in `agreeTook`, beside the
+adjective's swap: the row is the *drawn cell's* — which is what the blank's
+narrowing already chose — and the column is the first other blank's, a
+pronoun naming it by `person` and a noun or name picking it by number and
+gender. The same two refusals as the frame: a partner that names no column,
+or a column whose cell is blank, is a sentence not asked. Nothing is
+inferred, and no card had to be touched.
+
+**Why "the first other blank" and not a menu.** The rule an adjective and a
+verb's own place already follow, and for the same reason: the teacher who
+wrote the sentence said which came first. It is wrong for a sentence whose
+subject is typed out and whose first blank is an object — "هو {{verb}}
+{{noun}}" agrees with the noun — and it was wrong before as well, seven
+times in eight. The way to write that sentence is with the subject as a
+blank, which is what the Pronouns screen exists for.
+
+**Once per tense, or the count lies.** With every cell lent, four pronouns
+by eight persons made thirty-two combinations of four sentences: the odometer
+asked each four times over, the card said "met as 32 sentences" and the
+review sheet reached its ceiling eight times sooner. So a blank that agrees
+with another admits one cell per row — `rowLead`, the first filled cell the
+card lends, in the pack's person order — through the same `blankAdmits`
+every reader already goes through, which now takes "does this blank have a
+partner" beside "which rows does it want". A blank with no partner takes
+every cell in turn, which is every sentence written before this and every
+"{{verb}}!" since. The card's own word stands aside there too where the
+language cites a cell for it: Arabic's *to eat* is the he-past, already lent
+by its row, and beside *she* it read as *she he-ate*.
+
+**The preview walks the same list.** `examplesOf` filled the drawn words in
+as lent, so a card's own example list showed "سيارة كبير" while the review
+sheet and the session showed "سيارة كبيرة" — the pre-existing gap the owner
+saw the verb through. It is now `sentencesOf`, the review walk, and can
+show nothing the student is not asked.
+
+**What it costs.** A hole is gated on the lead cell's climb rather than on
+the cell shown, as an adjective is gated on its word: the swapped cell may
+be one the learner has not met on its own. It is credited on the cell
+shown, as before, because the owner index knows every form. Which sentence
+a given count lands on moved for every card with a verb beside another
+blank, once. And a language whose verb table has one column — Huế — is
+left out on purpose: its subject has nothing to pick, and running it
+through the rule would have dropped every one of its sentences as
+"nobody named a person".
