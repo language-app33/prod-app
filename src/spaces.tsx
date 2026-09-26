@@ -67,6 +67,8 @@ import { NumberSystemEditor } from "./number-system-editor.tsx";
 import { PronounsEditor, hasPronouns } from "./pronouns-editor.tsx";
 import type { NumberSystem, TimeSystem } from "./numbers/types.ts";
 import { needsReview, reviewStates, toReview } from "./review.ts";
+import { inPlayWith, teachingChoices } from "./lang-choice.ts";
+import type { LangChoice } from "./lang-choice.ts";
 import type { ReviewState } from "./review.ts";
 import { ReportsScreen, ReviewLine, ReviewScreen } from "./review-sheet.tsx";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
@@ -4186,10 +4188,16 @@ export function blanksInUse(cards: Card[]): { name: string; leaves: number; fill
  *   card they pressed the button on comes back as a prop and is read once,
  *   here, at the first render.
  */
-export function TeachSpace({ account, languages, settings, onTry, resume, onClose }: {
+export function TeachSpace({ account, languages, settings, langsOff, onLangChoices, onTry, resume, onClose }: {
   account: User;
   languages: Record<LangId, Lang>;
   settings?: any;
+  /* The languages switched off by the switch above the space, which lives
+     in the app's own bar rather than in here — see onLangChoices. */
+  langsOff?: LangId[];
+  /* Told which languages this space holds, so that switch has something to
+     offer; told nothing is held on the way out. */
+  onLangChoices?: (choices: LangChoice[]) => void;
   onTry?: (plan: { items: any[], exercise: any, back: any }) => void;
   resume?: { cardId?: string; tab?: string; deckId?: string | null } | null;
   onClose: () => void;
@@ -4417,6 +4425,83 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     [taught]
   );
 
+  const langOfDeck: (deck: Deck) => Lang | undefined = useCallback((deck) => {
+    if (deck && deck.lang && languages[deck.lang]) return languages[deck.lang];
+    for (const link of (deck && deck.courses) || []) {
+      const c = courses.find((x) => x.id === link.courseId);
+      if (c && languages[c.language]) return languages[c.language];
+    }
+    return languages[soleLang] || languages[Object.keys(languages)[0]];
+  }, [languages, courses, soleLang]);
+
+  const langOfCard: (card: Card) => Lang | undefined = useCallback((card) =>
+    (card && card.lang && languages[card.lang]) ||
+    langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || ({} as any)),
+  [languages, decks, langOfDeck]);
+
+  /*
+   * The language switch, as it reaches this space.
+   *
+   * The languages on offer are every one this teacher's courses, decks and
+   * cards are in, read the way each of them is labelled on screen — a deck
+   * by its own language or its course's, a card by its own or its deck's —
+   * so a thing is never hidden under a language other than the one it
+   * says it is in. Handed up as they change, and taken back on the way
+   * out, so the switch is not left offering Teaching's languages over
+   * Learning.
+   */
+  const langChoices = useMemo(
+    () =>
+      teachingChoices(
+        courses.map((c) => c.language),
+        decks.map((d) => (langOfDeck(d) || ({} as Lang)).id),
+        cards.map((c) => (langOfCard(c) || ({} as Lang)).id),
+        languages,
+      ),
+    [courses, decks, cards, languages, langOfDeck, langOfCard]
+  );
+  useEffect(() => {
+    if (onLangChoices) onLangChoices(langChoices);
+  }, [langChoices, onLangChoices]);
+  useEffect(() => () => {
+    if (onLangChoices) onLangChoices([]);
+  }, [onLangChoices]);
+
+  /* What the switch leaves: the courses, decks and cards every list in
+     this space is drawn from. Opening a course or a deck still shows all
+     of it — the switch narrows what is listed, not what a thing holds. */
+  /* Keyed by what is off rather than by the list handed down, which is a
+     new one whenever a background refresh brings new cards. */
+  const offKey = (langsOff || []).join("\u0000");
+  const off: LangId[] = useMemo(() => (offKey ? offKey.split("\u0000") : []), [offKey]);
+  /* A ticked card or deck the switch has just hidden would still be acted
+     on by Delete, out of sight — so switching lets go of what was ticked. */
+  useEffect(() => {
+    setSelCards(new Set());
+    setSelDecks(new Set());
+  }, [offKey]);
+  const onCourses = useMemo(
+    () => (off.length ? courses.filter((c) => inPlayWith(off, c.language)) : courses),
+    [courses, off]
+  );
+  const onDecks = useMemo(
+    () => (off.length ? decks.filter((d) => inPlayWith(off, (langOfDeck(d) || ({} as Lang)).id)) : decks),
+    [decks, off, langOfDeck]
+  );
+  const onCards = useMemo(
+    () => (off.length ? cards.filter((c) => inPlayWith(off, (langOfCard(c) || ({} as Lang)).id)) : cards),
+    [cards, off, langOfCard]
+  );
+  /* And the languages it leaves, for the things asked a language at a
+     time — Numbers, Pronouns, In context — so a teacher looking at one
+     language is not asked which. */
+  const taughtOn = useMemo(() => {
+    const kept = Object.keys(taught).filter((id) => !off.includes(id));
+    return kept.length ? Object.fromEntries(kept.map((id) => [id, taught[id]])) : taught;
+  }, [taught, off]);
+  const numberLangsOn = numberLangs.filter((id) => !!taughtOn[id]);
+  const pronounLangsOn = pronounLangs.filter((id) => !!taughtOn[id]);
+
   const snack = useSnackbar();
   /* How the card list is ordered and what it leaves out. Newest first by
      default, because the card just made is the one most likely wanted. */
@@ -4455,8 +4540,14 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   /* Narrowed then ordered. ItemList's own search runs after this, over what
      is left, so a search inside a filter behaves the way it reads. */
   const shownCards = useMemo(
-    () => sortCards(filterCards(cards, cardFilter, waitingIds), sortKey, newestFirst),
-    [cards, cardFilter, sortKey, newestFirst, waitingIds]
+    () => sortCards(filterCards(onCards, cardFilter, waitingIds), sortKey, newestFirst),
+    [onCards, cardFilter, sortKey, newestFirst, waitingIds]
+  );
+  /* The ones waiting that the switch leaves on screen, which is what the
+     banner over the list can promise to show. */
+  const waitingOn = useMemo(
+    () => onCards.filter((c) => waitingIds.has(c.id)).length,
+    [onCards, waitingIds]
   );
 
   /* Every blank the teacher's cards have written, for the filter to offer.
@@ -4854,15 +4945,6 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     );
   }
 
-  const langOfDeck: (deck: Deck) => Lang | undefined = (deck) => {
-    if (deck && deck.lang && languages[deck.lang]) return languages[deck.lang];
-    for (const link of (deck && deck.courses) || []) {
-      const c = courses.find((x) => x.id === link.courseId);
-      if (c && languages[c.language]) return languages[c.language];
-    }
-    return languages[soleLang] || languages[Object.keys(languages)[0]];
-  };
-
   /* How many of a deck's cards are waiting for review, said on the deck —
      a teacher looks after a deck, and what in it is not yet reaching
      students is the thing worth seeing without opening it. */
@@ -4870,10 +4952,6 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     const n = (deck.cardIds || []).filter((id) => waitingIds.has(id)).length;
     return n ? ` · ${n} to review` : "";
   };
-
-  const langOfCard: (card: Card) => Lang | undefined = (card) =>
-    (card && card.lang && languages[card.lang]) ||
-    langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || ({} as any));
 
   /*
    * The language a deck made from the add-to-a-deck screen takes.
@@ -5784,12 +5862,16 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
 
           {tab === "courses" && (
             <CoursesPage
-              courses={courses}
+              courses={onCourses}
               languages={languages}
               busy={busy}
               error={error}
               lead="Open a course to see its decks, its people and its student code."
-              emptyLead="You aren't teaching a course yet. Ask your administrator to add you, or join with a teacher code below."
+              emptyLead={
+                courses.length
+                  ? "None of your courses is in the languages switched on. The language button at the top brings the others back."
+                  : "You aren't teaching a course yet. Ask your administrator to add you, or join with a teacher code below."
+              }
               joinTitle="Join a course as a teacher"
               joinHint="Paste a teacher code another teacher or your administrator gave you."
               joinPlaceholder="Teacher code"
@@ -5863,7 +5945,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               {pronounLang !== null && (
                 <Screen title="Pronouns" onBack={() => setPronounLang(null)}>
                   <LanguageRadio
-                    languages={Object.fromEntries(pronounLangs.map((id) => [id, taught[id]]))}
+                    languages={Object.fromEntries(pronounLangsOn.map((id) => [id, taught[id]]))}
                     value={pronounLang}
                     onChange={setPronounLang}
                     label="Which language's pronouns?"
@@ -5888,7 +5970,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               {numberLang !== null && (
                 <Screen title="Numbers" onBack={() => setNumberLang(null)}>
                   <LanguageRadio
-                    languages={Object.fromEntries(numberLangs.map((id) => [id, taught[id]]))}
+                    languages={Object.fromEntries(numberLangsOn.map((id) => [id, taught[id]]))}
                     value={numberLang}
                     onChange={setNumberLang}
                     label="Which language's numbers?"
@@ -6108,13 +6190,13 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   rather than left to a filter, because both are work that
                   keeps a student from a sentence or shows them a wrong
                   one. */}
-              {waitingIds.size > 0 && cardFilter.review !== "waiting" && (
+              {waitingOn > 0 && cardFilter.review !== "waiting" && (
                 <div className="at-reviewbanner">
                   <span>
-                    {`${plural(waitingIds.size, "sentence card")} ${waitingIds.size === 1 ? "is" : "are"} waiting for review.`}
+                    {`${plural(waitingOn, "sentence card")} ${waitingOn === 1 ? "is" : "are"} waiting for review.`}
                   </span>
                   <Button size="sm" variant="primary" onClick={() => setCardFilter((f) => ({ ...f, review: "waiting" }))}>
-                    Show {waitingIds.size === 1 ? "it" : "them"}
+                    Show {waitingOn === 1 ? "it" : "them"}
                   </Button>
                 </div>
               )}
@@ -6135,9 +6217,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                 noun="card"
                 items={shownCards}
                 count={
-                  shownCards.length === cards.length
+                  shownCards.length === onCards.length
                     ? null
-                    : `${shownCards.length} of ${plural(cards.length, "card")}`
+                    : `${shownCards.length} of ${plural(onCards.length, "card")}`
                 }
                 /* Numbers are written a set at a time rather than a card
                    at a time, so they get their own screen off the toolbar
@@ -6155,30 +6237,30 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                         void loadReports();
                       }}
                     />
-                  {numberLangs.length || pronounLangs.length ? (
+                  {numberLangsOn.length || pronounLangsOn.length ? (
                     <>
-                      {numberLangs.length ? (
+                      {numberLangsOn.length ? (
                         <IconButton
                           icon="hash"
                           label="Numbers"
                           onClick={() =>
-                            numberLangs.length === 1
-                              ? setNumbering(numberLangs[0])
-                              : setNumberLang(numberLangs[0])
+                            numberLangsOn.length === 1
+                              ? setNumbering(numberLangsOn[0])
+                              : setNumberLang(numberLangsOn[0])
                           }
                         />
                       ) : null}
                       {/* Pronouns, beside Numbers and for the same reason:
                           a fixed set written once per language, rather
                           than a card at a time. */}
-                      {pronounLangs.length ? (
+                      {pronounLangsOn.length ? (
                         <IconButton
                           icon="person"
                           label="Pronouns"
                           onClick={() =>
-                            pronounLangs.length === 1
-                              ? setPronouning(pronounLangs[0])
-                              : setPronounLang(pronounLangs[0])
+                            pronounLangsOn.length === 1
+                              ? setPronouning(pronounLangsOn[0])
+                              : setPronounLang(pronounLangsOn[0])
                           }
                         />
                       ) : null}
@@ -6191,8 +6273,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                 size="small"
                 busy={busy}
                 empty={
-                  cards.length
+                  onCards.length
                     ? "No cards match the filter."
+                    : cards.length
+                    ? "No cards in the languages switched on."
                     : "No cards yet. Make one — a card is anything to learn, with its meaning."
                 }
                 match={(c, q) =>
@@ -6209,7 +6293,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   )
                 }
                 onNew={() => {
-                  if (mustAsk) setNewCardLang(knownLangs[0] || "");
+                  /* Offered first in the language the switch is on, where
+                     it is on one. */
+                  if (mustAsk) setNewCardLang(knownLangs.find((id) => !off.includes(id)) || knownLangs[0] || "");
                   else setMaking({ decks: [], lang: soleLang });
                 }}
                 selected={selCards}
@@ -6259,8 +6345,8 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
 
           {tab === "context" && (
             <InContext
-              cards={cards}
-              languages={taught}
+              cards={onCards}
+              languages={taughtOn}
               langOfCard={langOfCard}
               busy={busy}
               onLink={(card, word, line) =>
@@ -6388,10 +6474,14 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
 
               <ItemList
                 noun="deck"
-                items={decks}
+                items={onDecks}
                 size="large"
                 busy={busy}
-                empty="No decks yet. Make one, then add it to a course so students can see it."
+                empty={
+                  decks.length
+                    ? "No decks in the languages switched on."
+                    : "No decks yet. Make one, then add it to a course so students can see it."
+                }
                 match={(d, q) => d.title.toLowerCase().includes(q)}
                 onNew={() => setNaming("new")}
                 selected={selDecks}

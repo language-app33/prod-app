@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.247 — 25 September 2026
+
+**The language switch, in Teaching too.**
+
+Teachers who teach more than one language now get the same language button
+at the top of Teaching that learners have at the top of Learning.
+
+- Tick the languages you want to see. Courses, decks and cards in the
+  others leave Teaching's lists until you tick them again — and so do the
+  sentences waiting for review, and the words offered under *In context*.
+- With one language showing, **Numbers** and **Pronouns** open straight
+  onto that language, and **New card** offers it first.
+- It only changes what you see. Your students get everything as before,
+  and opening a course or a deck still shows all of it.
+- It is kept apart from Learning's switch: narrowing what you teach does
+  not narrow what you learn.
+- It appears only for somebody teaching more than one language, and the
+  last language showing can't be switched off.
+
 ## 0.246 — 24 September 2026
 
 **Sentences reach students once a teacher has read them.**
