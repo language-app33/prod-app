@@ -76,3 +76,17 @@ export function teachingChoices(
    nothing on the screen to say where it went. */
 export const inPlayWith = (off: LangId[], id: LangId | undefined | null): boolean =>
   !id || !off.includes(id);
+
+/*
+ * The languages a new thing could be in, once the switch has had its say.
+ *
+ * Something made with the switch narrowed to one language is made in that
+ * one: asking again is asking what the screen already says. So this is the
+ * known languages less the ones switched off, and it is only a question
+ * when that leaves other than one. Nothing known stays nothing — none is
+ * not the same as one, and a switch over the cards is no reason to guess.
+ */
+export const langsToMakeIn = (known: LangId[], off: LangId[]): LangId[] => {
+  const kept = known.filter((id) => !off.includes(id));
+  return kept.length ? kept : known;
+};

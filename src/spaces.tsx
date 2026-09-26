@@ -68,7 +68,7 @@ import { NumberSystemEditor } from "./number-system-editor.tsx";
 import { PronounsEditor, hasPronouns } from "./pronouns-editor.tsx";
 import type { NumberSystem, TimeSystem } from "./numbers/types.ts";
 import { needsReview, reviewStates, toReview } from "./review.ts";
-import { inPlayWith, teachingChoices } from "./lang-choice.ts";
+import { inPlayWith, langsToMakeIn, teachingChoices } from "./lang-choice.ts";
 import type { LangChoice } from "./lang-choice.ts";
 import type { ReviewState } from "./review.ts";
 import { ReportsScreen, ReviewLine, ReviewScreen } from "./review-sheet.tsx";
@@ -4395,10 +4395,6 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
   }, [teachingLangs, decks, languages]);
 
   const multiLang = knownLangs.length > 1;
-  /* Exactly one known language is the only case where there is nothing to
-     ask. None is not the same as one: it means nothing has said yet, and
-     guessing silently is how every card ended up in the wrong script. */
-  const mustAsk = knownLangs.length !== 1;
   const soleLang = knownLangs[0] || Object.keys(languages)[0];
   const taught = useMemo(
     () =>
@@ -4502,6 +4498,18 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
   }, [taught, off]);
   const numberLangsOn = numberLangs.filter((id) => !!taughtOn[id]);
   const pronounLangsOn = pronounLangs.filter((id) => !!taughtOn[id]);
+  /* And for making a card or a deck: with the switch on one language,
+     that is the one — see langsToMakeIn. Exactly one is the only case
+     where there is nothing to ask. None is not the same as one: it means
+     nothing has said yet, and guessing silently is how every card ended
+     up in the wrong script. */
+  const knownOn = useMemo(() => langsToMakeIn(knownLangs, off), [knownLangs, off]);
+  const mustAskOn = knownOn.length !== 1;
+  const soleLangOn = knownOn.length === 1 ? knownOn[0] : soleLang;
+  const choicesOn = useMemo(
+    () => (knownOn.length ? Object.fromEntries(knownOn.map((id) => [id, languages[id]])) : taught),
+    [knownOn, languages, taught]
+  );
 
   const snack = useSnackbar();
   /* How the card list is ordered and what it leaves out. Newest first by
@@ -5013,9 +5021,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         .filter(Boolean)
         .map((l) => (l as Lang).id)
     );
-    return langs.size === 1 ? [...langs][0] : soleLang;
+    return langs.size === 1 ? [...langs][0] : soleLangOn;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selCards, cards, decks, languages, soleLang, listedCards, deckView]);
+  }, [selCards, cards, decks, languages, soleLangOn, listedCards, deckView]);
 
   /* Made, then ticked: the deck a teacher just named is the one they were
      about to choose, so choosing it again by hand is a step that says
@@ -5139,9 +5147,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     return (
       <DeckEditor
         deck={existing}
-        choices={taught}
-        mustAsk={mustAsk}
-        initialLang={knownLangs.length === 1 ? soleLang : ""}
+        choices={choicesOn}
+        mustAsk={mustAskOn}
+        initialLang={knownOn.length === 1 ? soleLangOn : ""}
         busy={busy}
         courses={courses}
         languages={languages}
@@ -5153,7 +5161,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
           run(
             async () => {
               if (!existing) {
-                await API.createDeck(title, "", lang || soleLang);
+                await API.createDeck(title, "", lang || soleLangOn);
               } else {
                 if (title !== existing.title) await API.renameDeck(existing.id, title);
                 const was = (existing.courses || []).map((l: any) => l.courseId);
@@ -6103,7 +6111,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               {newCardLang !== null && (
                 <Screen title="New card" onBack={() => setNewCardLang(null)}>
                   <LanguageRadio
-                    languages={taught}
+                    languages={choicesOn}
                     value={newCardLang}
                     onChange={setNewCardLang}
                     label="Which language is this card in?"
@@ -6361,8 +6369,8 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 onNew={() => {
                   /* Offered first in the language the switch is on, where
                      it is on one. */
-                  if (mustAsk) setNewCardLang(knownLangs.find((id) => !off.includes(id)) || knownLangs[0] || "");
-                  else setMaking({ decks: [], lang: soleLang });
+                  if (mustAskOn) setNewCardLang(knownOn[0] || "");
+                  else setMaking({ decks: [], lang: soleLangOn });
                 }}
                 selected={selCards}
                 onSelectedChange={setSelCards}

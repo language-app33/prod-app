@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.258 — 26 September 2026
+
+**Teaching: the language switch at the top answers "which language?"**
+
+- With the switch narrowed to one language, **New card** no longer asks
+  which language the card is in. It is made in the one you are looking at.
+- The same for **New deck**, and for a deck made from ticked cards that
+  are in more than one language.
+- Where the switch still leaves more than one language on, the question
+  offers only those, not the ones you switched off.
+
 ## 0.257 — 26 September 2026
 
 **Scenes: a conversation or a text, built from your sentence cards, with
