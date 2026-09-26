@@ -394,6 +394,17 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   choosing it turns to the three readings, which is what put that picker
   on a screen rather than a sheet.
 
+  **And a list of cards shows a language's pronouns as one entry.** The
+  Pronouns screen writes a card per person, because each is practised,
+  recorded and lent on its own — but a teacher wrote them as one set, on
+  one screen, and a list showing eight tiles for it was showing storage.
+  `groupPronouns` in `src/card-facts.ts` folds them into a *Pronouns*
+  entry where the first of them stood, which opens that screen; only the
+  list draws it, and every other reader still sees eight cards. Anything
+  done to a selection goes through `pickedCardIds`, which opens an entry
+  back out into its cards. A pronoun saved before the screen existed
+  carries no person and stays a tile of its own.
+
   **Only a sentence may have a blank in it, and a sentence is one because
   the teacher said so.** The editor asks which kind of card it is — a word,
   a sentence, or a conversation — and that answer is now kept, in

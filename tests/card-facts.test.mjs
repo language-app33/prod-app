@@ -30,6 +30,9 @@ import {
   lexicalKeys,
   ruleFor,
   unnamedOn,
+  groupPronouns,
+  isPronounGroup,
+  pickedCardIds,
 } from "../src/card-facts.ts";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
@@ -221,4 +224,43 @@ test("the example cards are what they say they are, and nothing about them is a 
       `${what} carries ${unnamed.join(", ")}, which nothing in card-facts.ts describes`,
     );
   }
+});
+
+/* ---- a language's pronouns, as one entry in a list ---- */
+
+const pronoun = (/** @type {string} */ id, /** @type {string} */ person, /** @type {string} */ ar, /** @type {string} */ en, lang = "ar-PS") =>
+  ({ id, lang, category: "pronoun", person, forms: [{ ar, en, lat: "" }] });
+
+test("a language's pronouns are one entry, where the first of them stood, in the verb table's order", () => {
+  const book = { id: "w1", lang: "ar-PS", forms: [{ ar: "كتاب", en: "book", lat: "" }] };
+  const door = { id: "w2", lang: "ar-PS", forms: [{ ar: "باب", en: "door", lat: "" }] };
+  const hiya = pronoun("p-she", "she", "هي", "she");
+  const ana = pronoun("p-i", "i", "أنا", "I");
+  const toi = pronoun("v-i", "i", "tôi", "I", "vi-Hue");
+  const listed = groupPronouns([book, hiya, door, ana, toi]);
+  assert.equal(listed.length, 4, "two words, and one entry per language");
+  assert.equal(listed[0], book);
+  const ar = listed[1];
+  assert.ok(isPronounGroup(ar));
+  assert.equal(ar.id, "pronouns:ar-PS");
+  assert.deepEqual(ar.members, ["p-i", "p-she"], "I before she, as the table lists them");
+  assert.equal(ar.forms[0].ar, "أنا \u00b7 هي");
+  assert.equal(ar.name, "Pronouns");
+  assert.equal(listed[2], door);
+  assert.ok(isPronounGroup(listed[3]) && listed[3].lang === "vi-Hue");
+  /* A deck's list names its entry after the deck, so the two never share one. */
+  assert.equal(/** @type {any} */ (groupPronouns([ana], "deck-1")[0]).id, "pronouns:ar-PS@deck-1");
+});
+
+test("a pronoun card with no person, from before the Pronouns screen, stays a tile of its own", () => {
+  const old = { id: "p-old", lang: "ar-PS", category: "pronoun", forms: [{ ar: "هو", en: "he", lat: "" }] };
+  const listed = groupPronouns([old]);
+  assert.deepEqual(listed, [old]);
+});
+
+test("a selection opens a pronoun entry out into its cards, and leaves everything else as it was", () => {
+  const book = { id: "w1", lang: "ar-PS", forms: [{ ar: "كتاب", en: "book", lat: "" }] };
+  const listed = groupPronouns([book, pronoun("p-i", "i", "أنا", "I"), pronoun("p-he", "he", "هو", "he")]);
+  assert.deepEqual(pickedCardIds(["w1", "pronouns:ar-PS"], listed), ["w1", "p-i", "p-he"]);
+  assert.deepEqual(pickedCardIds(["w1"], listed), ["w1"]);
 });

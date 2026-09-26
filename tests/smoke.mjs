@@ -6414,6 +6414,24 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     !sent.enIs && !sent.enAsk, JSON.stringify({ enIs: sent.enIs, enAsk: sent.enAsk }));
   click([...(screen() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
+
+  /* And on the Cards tab they are one entry, not a tile each: the set is
+     written on one screen, and the entry opens it. */
+  /* Asked of the frame as it stands now: an open screen replaces the
+     teaching space's frame, so the one found above is gone. */
+  const tiles = () => [...(document.querySelector(".at-screen.bare") || document).querySelectorAll(".at-minicard")];
+  const faceOf = (/** @type {Element} */ t) => ((t.querySelector(".ar") || {}).textContent || "").trim();
+  const nameOf = (/** @type {Element} */ t) => ((t.querySelector(".at-mininame") || {}).textContent || "").trim();
+  const entry = () => /** @type {any} */ (tiles().find((t) => nameOf(t) === "Pronouns") || null);
+  check("the pronouns are listed as one Pronouns entry, not a tile each",
+    !!entry() && !tiles().some((t) => nameOf(t) !== "Pronouns" && faceOf(t) === "أنا") &&
+      /1 pronoun/.test((entry() || {}).textContent || ""),
+    tiles().map((t) => nameOf(t) || faceOf(t)).join(" | "));
+  click(entry());
+  await sleep(400);
+  check("and tapping it opens the Pronouns screen", !!screen(), screen() ? "open" : "(not open)");
+  click([...(screen() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
   takeSaves = false;
 }
 

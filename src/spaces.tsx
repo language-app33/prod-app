@@ -57,7 +57,8 @@ import {
   scriptVars } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
 import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
-import { fillersFor } from "./card-facts.ts";
+import { fillersFor, groupPronouns, isPronounGroup, pickedCardIds } from "./card-facts.ts";
+import type { PronounGroup } from "./card-facts.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -4543,6 +4544,47 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     () => sortCards(filterCards(onCards, cardFilter, waitingIds), sortKey, newestFirst),
     [onCards, cardFilter, sortKey, newestFirst, waitingIds]
   );
+  /* And as the list draws them: each language's pronouns folded into one
+     entry that opens the Pronouns screen — see groupPronouns. */
+  const listedCards = useMemo(() => groupPronouns(shownCards), [shownCards]);
+  /* The open deck's cards, the same way: through the Cards tab's sort and
+     filter, then with the pronouns folded. Worked out up here rather than
+     where the deck is drawn, so a selection made in it can be opened out
+     by the same hand as one made on the Cards tab. */
+  const deckView = useMemo(() => {
+    if (!openDeck) return null;
+    const held = cards.filter((c) => (c.decks || []).includes(openDeck));
+    const mine = sortCards(filterCards(held, cardFilter, waitingIds), sortKey, newestFirst);
+    return { held, mine, listed: groupPronouns(mine, openDeck) };
+  }, [openDeck, cards, cardFilter, waitingIds, sortKey, newestFirst]);
+  /* The cards a selection stands for. Everything that acts on one goes
+     through this, because a pronoun entry is eight cards and no action
+     knows what an entry is. */
+  const pickedIds = (ids: Iterable<string>) =>
+    pickedCardIds(ids, deckView ? deckView.listed : listedCards);
+  /* The entry itself: named Pronouns, the words on its face in the order
+     the verb table lists them, and a tap opens the screen they are written
+     on — the one place they are edited. No Delete on it: eight cards gone
+     from one bin on a tile would be the easiest mistake on the screen, and
+     Select still reaches them for a teacher who means it. */
+  const pronounTile = (group: PronounGroup) => (
+    <CardTile
+      card={group}
+      lang={languages[group.lang as LangId]}
+      meta={plural(group.members.length, "pronoun")}
+      onClick={() => setPronouning(group.lang as LangId)}
+      actions={
+        <IconButton
+          icon="edit"
+          label="Edit pronouns"
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            setPronouning(group.lang as LangId);
+          }}
+        />
+      }
+    />
+  );
   /* The ones waiting that the switch leaves on screen, which is what the
      banner over the list can promise to show. */
   const waitingOn = useMemo(
@@ -4965,7 +5007,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
    */
   const newDeckLang = useMemo(() => {
     const langs = new Set(
-      [...selCards]
+      pickedIds(selCards)
         .map((id) => cards.find((c) => c.id === id))
         .map((c) => c && langOfCard(c as Card))
         .filter(Boolean)
@@ -4973,7 +5015,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     );
     return langs.size === 1 ? [...langs][0] : soleLang;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selCards, cards, decks, languages, soleLang]);
+  }, [selCards, cards, decks, languages, soleLang, listedCards, deckView]);
 
   /* Made, then ticked: the deck a teacher just named is the one they were
      about to choose, so choosing it again by hand is a step that says
@@ -5584,7 +5626,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                    the deck is skipped, so the number selected is
                    not the number changed. */
                 let changed = 0;
-                for (const id of selCards) {
+                for (const id of pickedIds(selCards)) {
                   const card = cards.find((c) => c.id === id);
                   if (!card) continue;
                   const inNow = card.decks || [];
@@ -5624,11 +5666,12 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       setOpenDeck(null);
       return null;
     }
-    const held = cards.filter((c) => (c.decks || []).includes(d.id));
     /* The deck's cards, through the same sort and the same filter the Cards
        tab uses — this screen showed them in whatever order they arrived and
-       offered no way to narrow them at all. */
-    const mine = sortCards(filterCards(held, cardFilter, waitingIds), sortKey, newestFirst);
+       offered no way to narrow them at all. See deckView. */
+    const held = deckView ? deckView.held : [];
+    const mine = deckView ? deckView.mine : [];
+    const listed = deckView ? deckView.listed : [];
     return (
       <Screen title={d.title} onBack={() => { setOpenDeck(null); setCardAction(null); }}>
             <Notice kind="error">{error}</Notice>
@@ -5649,7 +5692,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
 
             <ItemList
               noun="card"
-              items={mine}
+              items={listed}
               count={mine.length === held.length ? null : `${mine.length} of ${plural(held.length, "card")}`}
               menus={cardMenus}
               resizable
@@ -5691,8 +5734,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 { label: "Add to another deck", onClick: () => setCardAction("add") },
                 {
                   label: "Remove from this deck",
-                  onClick: (ids) =>
-                    run(
+                  onClick: (picked) => {
+                    const ids = pickedIds(picked);
+                    return run(
                       async () => {
                         for (const id of ids) {
                           const card = cards.find((c) => c.id === id);
@@ -5704,15 +5748,16 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                         setSelCards(new Set());
                       },
                       `${plural(ids.length, "card")} removed from ${d.title}`
-                    ),
+                    );
+                  },
                 },
                 {
                   label: "Delete",
                   danger: true,
-                  onClick: (ids) => setConfirm({ kind: "cards", ids, action: () => {} }),
+                  onClick: (ids) => setConfirm({ kind: "cards", ids: pickedIds(ids), action: () => {} }),
                 },
               ]}
-              renderItem={(c) => (
+              renderItem={(c) => isPronounGroup(c) ? pronounTile(c) : (
                 <CardTile
                   card={c}
                   lang={langOfCard(c)}
@@ -6232,7 +6277,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
 
               <ItemList
                 noun="card"
-                items={shownCards}
+                items={listedCards}
                 count={
                   shownCards.length === onCards.length
                     ? null
@@ -6323,10 +6368,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   {
                     label: "Delete",
                     danger: true,
-                    onClick: (ids) => setConfirm({ kind: "cards", ids, action: () => {} }),
+                    onClick: (ids) => setConfirm({ kind: "cards", ids: pickedIds(ids), action: () => {} }),
                   },
                 ]}
-                renderItem={(c) => (
+                renderItem={(c) => isPronounGroup(c) ? pronounTile(c) : (
                   <CardTile
                     card={c}
                     lang={langOfCard(c)}

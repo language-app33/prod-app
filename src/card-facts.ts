@@ -51,7 +51,7 @@
 
 import type { Form, GrammarDim, Lang, VerbSpec } from "./types.ts";
 import { answersOf, splitAlternatives } from "./answers.ts";
-import { answerFields, blankAdmits, categoryLabel, GRAMMAR, kindOf, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
+import { answerFields, blankAdmits, categoryLabel, GRAMMAR, kindOf, LANGUAGES, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
@@ -1130,3 +1130,112 @@ export interface FieldOn {
  */
 export const unnamedOn = (card: Held | null | undefined): FieldOn[] =>
   fieldsOn(card).filter((f) => !f.rule && !f.why);
+
+/* ------------------------------------------------------------------
+   A language's pronouns, as one entry in a list of cards
+   ------------------------------------------------------------------ */
+
+/*
+ * The Pronouns screen writes a card per person — I, you (m), you (f), he,
+ * she, we, you (pl), they — because each is practised on its own, recorded,
+ * and is what fills a pronoun blank and picks the verb's form. That is
+ * right for everything that reads a card and wrong for a list of them:
+ * eight tiles for what the teacher wrote as one set, on one screen, and
+ * edits there.
+ *
+ * So a list shows them as one entry, which opens that screen. The cards
+ * underneath are untouched: this is how a list draws them and nothing
+ * else, and a pronoun card is still one card everywhere it is asked,
+ * synced, backed up or put in a deck.
+ *
+ * Only the cards the Pronouns screen wrote, which are the ones that say
+ * which person they are. A card saved as a Pronoun before that screen
+ * existed carries no person, cannot be edited there, and stays a tile of
+ * its own.
+ */
+export const PRONOUN_GROUP = "pronouns:";
+
+/** The entry a language's pronouns are listed as. */
+export interface PronounGroup {
+  /** `pronouns:` and the language, and where the list is one deck's, `@`
+      and the deck: two lists never hand out the same entry. */
+  id: string;
+  lang: string;
+  pronounGroup: true;
+  /** What the tile headlines. */
+  name: string;
+  /** Its face: the pronouns in the order the verb table lists them. */
+  forms: { ar: string; en: string; lat: string }[];
+  /** The cards it stands for, by id, in that same order. */
+  members: string[];
+}
+
+/** Whether a card is one the Pronouns screen wrote. */
+export const isPronounCard = (card: Held | null | undefined): boolean =>
+  !!card && str(card.category) === "pronoun" && !!str(card.person);
+
+export const isPronounGroup = (item: unknown): item is PronounGroup =>
+  !!item && typeof item === "object" && (item as Record<string, unknown>).pronounGroup === true;
+
+/**
+ * A list of cards with each language's pronouns folded into one entry,
+ * standing where the first of them stood — so a list sorted newest first
+ * puts the set where its newest pronoun would have gone, and a filter that
+ * leaves three of them leaves an entry of three.
+ *
+ * `scope` is appended to the entry's id, for a list that is one deck's.
+ */
+export function groupPronouns<T extends Held>(cards: T[], scope = ""): (T | PronounGroup)[] {
+  const byLang = new Map<string, T[]>();
+  for (const card of cards || []) {
+    if (!isPronounCard(card)) continue;
+    const lang = str(card.lang);
+    byLang.set(lang, (byLang.get(lang) || []).concat([card]));
+  }
+  if (!byLang.size) return cards || [];
+  const out: (T | PronounGroup)[] = [];
+  const placed = new Set<string>();
+  for (const card of cards) {
+    if (!isPronounCard(card)) {
+      out.push(card);
+      continue;
+    }
+    const lang = str(card.lang);
+    if (placed.has(lang)) continue;
+    placed.add(lang);
+    const order = personsOf(verbOf(LANGUAGES[lang as keyof typeof LANGUAGES])).map((p) => p.id);
+    const at = (c: T) => {
+      const i = order.indexOf(str(c.person));
+      return i < 0 ? order.length : i;
+    };
+    const members = [...(byLang.get(lang) || [])].sort((a, b) => at(a) - at(b));
+    const word = (c: T, field: string) => (splitAlternatives(str(leadOf(c)[field]))[0] || "").trim();
+    const join = (field: string, by: string) => members.map((c) => word(c, field)).filter(Boolean).join(by);
+    out.push({
+      id: `${PRONOUN_GROUP}${lang}${scope ? `@${scope}` : ""}`,
+      lang,
+      pronounGroup: true,
+      name: "Pronouns",
+      forms: [{ ar: join("ar", " \u00b7 "), en: join("en", ", "), lat: join("lat", " \u00b7 ") }],
+      members: members.map((c) => str(c.id)),
+    });
+  }
+  return out;
+}
+
+/**
+ * The card ids a selection stands for, with each pronoun entry opened out
+ * into its cards — what every action on a selection has to act on, since
+ * none of them knows what an entry is. `items` is the list the selection
+ * was made in; an id that is neither a card nor an entry of it comes back
+ * as it is.
+ */
+export function pickedCardIds(ids: Iterable<string>, items: unknown[]): string[] {
+  const groups = new Map<string, string[]>();
+  for (const it of items || []) if (isPronounGroup(it)) groups.set(it.id, it.members);
+  const out: string[] = [];
+  for (const id of ids) {
+    for (const one of groups.get(id) || [id]) if (!out.includes(one)) out.push(one);
+  }
+  return out;
+}

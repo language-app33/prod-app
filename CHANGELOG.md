@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.252 — 26 September 2026
+
+**The pronouns are one entry in the card list.**
+
+The Pronouns screen makes a card for each pronoun, so the Cards tab showed
+eight tiles for what you wrote as one set.
+
+- The Cards tab and a deck's card list now show a language's pronouns as
+  one *Pronouns* entry, with the pronouns on its face.
+- Tapping it, or its pencil, opens the Pronouns screen, where they are
+  edited.
+- Each pronoun is still its own card underneath. It is practised on its
+  own, fills pronoun blanks, and can be put in decks as before.
+- Selecting the entry selects all the pronouns in it, so adding them to a
+  deck or removing them works on the whole set. The entry has no delete
+  button of its own.
+- A pronoun card written before the Pronouns screen existed still shows as
+  its own tile.
+
 ## 0.251 — 26 September 2026
 
 **One pronoun blank again, then how it reads.**
