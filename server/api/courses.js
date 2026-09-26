@@ -297,11 +297,12 @@ const K = {
  * flag is its own small record here: what was wrong, on which question, by
  * whom, and when.
  *
- * The kinds are the three the app offers, listed here as well because a
+ * The kinds are the four the app offers — "easy" only arrives when the
+ * learner wrote something with it — listed here as well because a
  * kind the app never sends is a kind nothing can read, and an open field
  * would fill the admin screen with whatever anyone posted.
  */
-const FLAG_KINDS = ["strict", "data", "other"];
+const FLAG_KINDS = ["strict", "data", "easy", "other"];
 const FLAG_NOTE_MAX = 500;
 
 /*

@@ -1766,6 +1766,17 @@ test("a flag nobody could act on is refused, and only an administrator reads the
   });
   assert.equal(said.status, 200, said.text);
 
+  /* Every other kind takes words too, and goes without them. "Too easy"
+     arrives only when the learner wrote something with it. */
+  const easy = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "easy", note: "I know this one cold", cardId: "c1" },
+  });
+  assert.equal(easy.status, 200, easy.text);
+  const bare = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "data", cardId: "c1" },
+  });
+  assert.equal(bare.status, 200, bare.text);
+
   /* Reading them is the administrator's, and so is clearing them. */
   const nosy = await api("/api/courses?action=admin-overview", { key });
   assert.equal(nosy.status, 403);

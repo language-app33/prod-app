@@ -1034,11 +1034,12 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
  * would be the one that went stale.
  *
  * `fixes` marks the option that also overturns the marking; `asks` marks
- * the one that cannot be sent on its own, because it covers everything not
- * listed and so has to be said in words. `lifts` marks the one that is the
- * learner's own shortcut rather than a report: it moves the form that was
- * asked up a level of its ladder, on this device, and is never sent to
- * anybody — the server does not know the kind, and does not need to.
+ * the one that cannot be sent without the learner's own words, because it
+ * covers everything not listed. Every option takes words — the box is
+ * shared by all four — but only that one needs them. `lifts` marks the one
+ * that is the learner's own shortcut rather than a report: it moves the
+ * form that was asked up a level of its ladder, on this device, and is
+ * sent to nobody unless the learner wrote something with it.
  */
 export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: boolean; asks?: boolean; lifts?: boolean }[] = [
   {
@@ -1061,7 +1062,7 @@ export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: b
   {
     key: "other",
     title: "Something else",
-    what: "Anything the ones above don't cover. Tell us what happened.",
+    what: "Anything the ones above don't cover. Tell us what happened below.",
     asks: true,
   },
 ];

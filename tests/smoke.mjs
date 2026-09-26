@@ -1212,7 +1212,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the flag button opens the menu, and says that it has",
       !!menu && !!flag && flag.getAttribute("aria-expanded") === "true",
       menu && flag ? String(flag.getAttribute("aria-expanded")) : "no menu");
-    check("it offers the four things a learner can say, too easy third", opts.length === 4 &&
+    /* A screen of its own, not a panel over the foot: the whole window,
+       with the way back where every other screen keeps it. */
+    const flagScreen = menu && menu.closest(".at-screen");
+    check("and it is a full screen, not a sheet over the bar",
+      !!flagScreen && !(menu && menu.closest(".at-foot")),
+      menu && menu.parentElement ? menu.parentElement.className : "no menu");
+    check("it offers the four things a learner can say, too easy third, something else fourth", opts.length === 4 &&
       /too easy/.test(opts[2].textContent || "") && /Something else/.test(opts[3].textContent || ""),
       opts.map((o) => (o.querySelector(".at-flagopt-title") || {}).textContent).join(" | "));
     check("and says what too easy does",
@@ -1223,29 +1229,33 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       opts.length > 0 && opts.every((o) =>
         o.querySelector(".at-flagopt-title") && o.querySelector(".at-flagopt-what")),
       opts.map((o) => o.innerHTML.slice(0, 40)).join(" | "));
-    /* The menu stands on top of the flag button, so it has to say what it
-       is itself — otherwise the screen holds three options and nothing
-       naming what they are options about. */
-    check("and the menu says what it is",
+    check("and the screen says what it is",
       /Flag a problem/.test(
-        (document.querySelector('[data-el="flag-menu-label"]') || {}).textContent || ""),
-      (menu && menu.textContent || "").slice(0, 40));
+        ((flagScreen && flagScreen.querySelector(".at-screenhead h2")) || {}).textContent || ""),
+      (flagScreen && flagScreen.textContent || "").slice(0, 40));
 
-    /* Everything is there from the start: the box for the option that has
-       to be said in words, and the two buttons that act on the choice. The
-       box used to take the place of the list one press in, and the buttons
-       came with it — so until you had picked, there was nothing on screen
-       to press but the options themselves, and picking sent. */
+    /* One box for all four, there from the start and belonging to none of
+       them: whichever is picked, there may be more to say. */
     const noteBox = document.querySelector('[data-el="flag-note"]');
     const noteInput = document.querySelector('[data-el="flag-note-input"]');
-    check("Something else brings its box with it, before anything is picked",
-      !!noteBox && !!noteInput && !!menu && menu.contains(noteBox),
-      noteBox ? "" : "no note box");
-    check("and Back and Send are on screen from the start",
-      !!buttonNamed(/^Back$/) && !!buttonNamed(/^Send$/),
-      [...document.querySelectorAll(".at-flagmenu button")].map((b) => b.textContent).join(" | "));
+    const noteNeed = () => ((document.querySelector('[data-el="flag-note-need"]') || {}).textContent || "");
+    check("Tell us what happened is its own box, under all four options",
+      !!noteBox && !!noteInput && !!menu && menu.contains(noteBox) &&
+        !opts.some((o) => o.contains(noteBox)) &&
+        /Tell us what happened/.test(noteBox.textContent || ""),
+      noteBox ? (noteBox.textContent || "").slice(0, 60) : "no note box");
+    check("and Send is on screen from the start",
+      !!buttonNamed(/^Send$/),
+      [...(flagScreen ? flagScreen.querySelectorAll("button") : [])].map((b) => b.textContent).join(" | "));
     check("Send waits for one of them to be picked",
       buttonState(/^Send$/).disabled, String(buttonState(/^Send$/).disabled));
+
+    /* On every option but the last the box is optional. */
+    click(opts[1]);
+    await sleep(60);
+    check("on any other option the box is optional, and Send is ready without it",
+      /Optional/.test(noteNeed()) && !buttonState(/^Send$/).disabled,
+      `${noteNeed()} disabled=${buttonState(/^Send$/).disabled}`);
 
     /* Picking is now picking: nothing leaves the device until Send. */
     const somethingElse = opts.find((o) => /Something else/.test(o.textContent));
@@ -1255,8 +1265,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!somethingElse && somethingElse.getAttribute("aria-pressed") === "true" &&
         !calls.some((c) => c.includes("report-flag")),
       somethingElse ? String(somethingElse.getAttribute("aria-pressed")) : "no option");
-    check("and it still waits, because it is the one that has to be said in words",
-      buttonState(/^Send$/).disabled, String(buttonState(/^Send$/).disabled));
+    check("and it waits, because it is the one that has to be said in words",
+      buttonState(/^Send$/).disabled && /Required/.test(noteNeed()),
+      `${noteNeed()} disabled=${buttonState(/^Send$/).disabled}`);
 
     /* jsdom's value setter is the React-controlled one, so the change has
        to be made the way a keystroke makes it. */

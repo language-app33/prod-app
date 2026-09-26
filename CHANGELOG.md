@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.253 — 26 September 2026
+
+**Flagging a problem opens a full screen, and every option can take a note.**
+
+- *Flag a problem* now opens a screen of its own instead of a panel over
+  the bottom of the question. Back is at the top left and Send is at the
+  foot, like the other screens.
+- There are four options, as before: *My answer should have been
+  accepted*, *The card's data is incorrect*, *This was too easy* and
+  *Something else*.
+- *Tell us what happened* is now one box under all four options, not a
+  part of *Something else*. It is optional for the first three and
+  required for *Something else*; the box says which.
+- *This was too easy* still moves the card up a level. If you write
+  something with it, what you wrote is now sent as a report too; without
+  a note nothing is sent, as before.
+
 ## 0.252 — 26 September 2026
 
 **The pronouns are one entry in the card list.**
