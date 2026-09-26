@@ -1249,6 +1249,12 @@ export default async (req) => {
            on every other card; undefined rather than left out, because
            this object is spread over the card as it stood. */
         person: idish(card.person) || undefined,
+        /* And what a pronoun reads as in English with *to be* — "I am" —
+           and as a question — "am I". The teacher's words, capped like
+           every other line of text; absent where none was written, which
+           reads as the reading the app makes of the pronoun's English. */
+        enIs: String(card.enIs || "").trim().slice(0, 120) || undefined,
+        enAsk: String(card.enAsk || "").trim().slice(0, 120) || undefined,
         /* No `value` here, and none taken from a save.
            It was what made a card one of the parts a number was built out
            of, and there are no parts any more: a language's numbers are

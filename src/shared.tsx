@@ -3839,6 +3839,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
     /* And which verb column it is, where it is a pronoun: what a sentence's
        verb reads to take that column. */
     ...(card.person ? { person: String(card.person) } : null),
+    /* And what it reads as with *to be*, where the teacher wrote it: what
+       the `{{pronoun-is}}` and `{{is-pronoun}}` blanks put in the English. */
+    ...(card.enIs ? { enIs: String(card.enIs) } : null),
+    ...(card.enAsk ? { enAsk: String(card.enAsk) } : null),
     /* And what number it is worth, where it is a number. Carried for the
        same reason the three above are — it is the teacher's answer and
        nothing here could read it off the word — and it is what everything

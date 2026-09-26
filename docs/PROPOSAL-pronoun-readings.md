@@ -1,5 +1,10 @@
 # Proposal: a pronoun that reads three ways in English
 
+**Status: built in 0.250.** One change from what is below: a teacher's
+own readings are kept on the pronoun's card rather than on its word, beside
+the person it is, and are stored only where they differ from the automatic
+ones.
+
 Palestinian Arabic says *I am tired* without any word for *am*: أنا تعبان
 is *I* and then *tired*, and the *am* is understood. Hebrew does the same.
 The app does not know that, and two things go wrong in sentence frames

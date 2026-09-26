@@ -6366,6 +6366,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     JSON.stringify(sent).slice(0, 200));
   check("and the English is the person's name where none was typed",
     ((sent.forms || [])[0] || {}).en === "I", JSON.stringify((sent.forms || [])[0]));
+  const reading = (/** @type {string} */ what) => {
+    const box = iRow() && [...iRow().querySelectorAll("input")].find((i) => (i.getAttribute("aria-label") || "") === `${what}, for I`);
+    return box ? /** @type {any} */ (box).value : "(no box)";
+  };
+  check("each row reads its pronoun with to be and as a question, filled in already",
+    reading("With to be") === "I am" && reading("As a question") === "am I",
+    `${reading("With to be")} | ${reading("As a question")}`);
+  check("and a reading left as it came is not stored, so it goes on following the English",
+    !sent.enIs && !sent.enAsk, JSON.stringify({ enIs: sent.enIs, enAsk: sent.enAsk }));
   click([...(screen() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
   takeSaves = false;

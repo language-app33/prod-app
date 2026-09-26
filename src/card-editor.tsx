@@ -38,7 +38,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
+import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, IS_PRONOUN_SLOT, MAX_FILLS, movedSlot, PRONOUN_IS_SLOT, PRONOUN_SLOT, READING_SLOTS, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
 import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
@@ -3314,7 +3314,9 @@ export interface Blank {
   used: number;
   /** Cards that named it in `fills`: whether anybody wrote this blank by hand. */
   wrote: number;
-  built?: "any" | "category";
+  /* `reading` is a pronoun read with *to be* — `{{pronoun-is}}` and
+     `{{is-pronoun}}`, which the same cards fill as `{{pronoun}}`. */
+  built?: "any" | "category" | "reading";
 }
 
 /**
@@ -3935,6 +3937,15 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         wrote: named.get(c.id) || 0,
         built: "category" as const,
       })),
+      /* And a pronoun read with *to be*, where the language has pronouns
+         to read — see READING_SLOTS. */
+      ...(categoriesOf(lang).some((c) => c.id === PRONOUN_SLOT) ? READING_SLOTS : []).map((name) => ({
+        name,
+        words: behind.get(name) || 0,
+        used: used.get(name) || 0,
+        wrote: named.get(name) || 0,
+        built: "reading" as const,
+      })),
     ];
     const names = [...new Set([...named.keys(), ...used.keys()])]
       .filter((n) => !builtIn.some((b) => b.name === n))
@@ -4011,7 +4022,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
        it is, and they are listed under Default tags. A sentence with a
        {{name}} blank is asking for Names, not for a custom tag. */
     const kinds = new Set(categoriesOf(lang).map((c) => c.id));
-    const custom = (name: string) => name !== WORD_SLOT && !kinds.has(name);
+    const custom = (name: string) => name !== WORD_SLOT && !kinds.has(name) && !READING_SLOTS.includes(name);
     const written = blanksAround.filter(
       (b) => custom(b.name) && (b.used > 0 || b.wrote > 0),
     );
@@ -4051,7 +4062,25 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
       if (b.built === "any") {
         rows.push({ name: b.name, kind: "any", words, note: "Any word in the language" });
       } else if (b.built === "category") {
-        rows.push({ name: b.name, kind: "category", words, note: `Any ${named(b.name).toLowerCase()}` });
+        rows.push({
+          name: b.name,
+          kind: "category",
+          words,
+          /* Said what it reads as, beside the two below it, so the three
+             pronoun blanks can be told apart without trying them. */
+          note: b.name === PRONOUN_SLOT ? "Any pronoun: I, he, they" : `Any ${named(b.name).toLowerCase()}`,
+        });
+      } else if (b.built === "reading") {
+        rows.push({
+          name: b.name,
+          kind: "category",
+          words,
+          note: b.name === PRONOUN_IS_SLOT
+            ? "Any pronoun, with \u201cto be\u201d: I am, he is, they are"
+            : b.name === IS_PRONOUN_SLOT
+              ? "Any pronoun, as a question: am I, is he, are they"
+              : "Any pronoun",
+        });
       } else if (b.used > 0 || b.wrote > 0) {
         rows.push({ name: b.name, kind: "group", words, note: "The cards tagged with it" });
       }

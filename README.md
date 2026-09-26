@@ -375,6 +375,22 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   trainer): the cell a column picks, the word where none does, and nothing
   where the cell is blank.
 
+  **A pronoun reads three ways in English, and the blank says which.**
+  Arabic and Hebrew drop *to be* in the present — أنا تعبان is *I am
+  tired* — and ask a question without moving anything, where English turns
+  *I am* into *am I*. So one pronoun card fills three blanks that differ in
+  the English alone: `{{pronoun}}` reads *I*, `{{pronoun-is}}` reads *I am*
+  and `{{is-pronoun}}` reads *am I*, while the script and transliteration
+  are the pronoun as it is and a verb beside it agrees the same way
+  through any of them. The readings are worked out from the pronoun's
+  English (`beReadings` in `src/variables.ts`, which is about English and
+  nothing else), shown filled in on the Pronouns screen, and stored on the
+  card as `enIs` and `enAsk` only where a teacher wrote something else —
+  so a pronoun written before this reads correctly without being opened.
+  A value carries them as `readings`, by blank name, and `fillText` puts
+  the reading in the English where the blank asks for one. Both names are
+  reserved the way `{{word}}` is.
+
   **Only a sentence may have a blank in it, and a sentence is one because
   the teacher said so.** The editor asks which kind of card it is — a word,
   a sentence, or a conversation — and that answer is now kept, in

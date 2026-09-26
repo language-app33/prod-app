@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.250 — 26 September 2026
+
+**A pronoun in a sentence can mean "I", "I am" or "am I".**
+
+Arabic says *I am tired* with no word for *am*, and asks *are you tired?*
+without moving anything. A sentence with a pronoun blank could only read
+the pronoun as *I*, so it came out as *I tired*; writing *am* into the
+sentence gave *he am tired* for every other pronoun.
+
+- When you put a blank into a sentence there are now three pronoun
+  blanks. *pronoun* reads as *I*, *he*, *they*, as before. *pronoun-is*
+  reads as *I am*, *he is*, *they are*. *is-pronoun* reads as *am I*,
+  *is he*, *are they*, for questions.
+- The Arabic is the same pronoun whichever you choose. Only the English
+  changes, and a verb in the same sentence still takes the pronoun's form.
+- The Pronouns screen shows two more English boxes on each row, *With "to
+  be"* and *As a question*. They come filled in, and you only change them
+  if you want other words, such as *I'm*.
+- Sentences already written are unchanged, and pronouns already written
+  need no visit to the Pronouns screen.
+
 ## 0.249 — 26 September 2026
 
 **Every question starts at the top.**

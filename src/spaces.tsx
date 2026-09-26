@@ -5252,6 +5252,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                            since this screen does not ask it and a save
                            without it would take it away. */
                         ...(editing.card && editing.card.person ? { person: editing.card.person } : {}),
+                        /* And what it reads as with "to be", for the same
+                           reason: written on the Pronouns screen only. */
+                        ...(editing.card && editing.card.enIs ? { enIs: editing.card.enIs } : {}),
+                        ...(editing.card && editing.card.enAsk ? { enAsk: editing.card.enAsk } : {}),
                       }),
                 },
                 inDecks

@@ -614,6 +614,22 @@ export const CARD_FACTS: FieldRule[] = [
     },
   },
   {
+    key: "enIs",
+    on: "card",
+    label: "With “to be”",
+    what: "What a pronoun reads as in English with “to be” — I am, he is — where a sentence leaves a {{pronoun-is}} blank. Written on the Pronouns screen, and absent where it is what the pronoun's English gives anyway.",
+    reader: "both",
+    shown: (value) => (str(value) ? [str(value)] : []),
+  },
+  {
+    key: "enAsk",
+    on: "card",
+    label: "As a question",
+    what: "What a pronoun reads as in an English question — am I, is he — where a sentence leaves an {{is-pronoun}} blank. Written on the Pronouns screen, and absent where it is what the pronoun's English gives anyway.",
+    reader: "both",
+    shown: (value) => (str(value) ? [str(value)] : []),
+  },
+  {
     key: "sentence",
     on: "card",
     label: "",

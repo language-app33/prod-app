@@ -3627,6 +3627,36 @@ test("a pronoun card keeps which person it is", async () => {
   assert.equal(plain.json.card.person, undefined);
 });
 
+/* And what it reads as with "to be", where the teacher wrote their own —
+   the {{pronoun-is}} and {{is-pronoun}} blanks put it in a sentence's
+   English. Stored where written, and taken off again when sent empty,
+   which is how the Pronouns screen hands a reading back to the automatic
+   one. */
+test("a pronoun card keeps the English it reads as with to be", async () => {
+  const teacher = await anAdmin("Rana");
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key: teacher.key,
+    body: {
+      card: {
+        id: "", lang: "ar-PS", category: "pronoun", person: "i", enIs: "I'm", enAsk: "am I",
+        forms: [{ ar: "أنا", en: "I", lat: "ana" }],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.card.enIs, "I'm");
+  assert.equal(saved.json.card.enAsk, "am I");
+  const cleared = await api("/api/courses?action=save-card", {
+    method: "POST", key: teacher.key,
+    body: { card: { ...saved.json.card, enIs: "", enAsk: "" }, decks: [] },
+  });
+  assert.equal(cleared.status, 200, cleared.text);
+  assert.equal(cleared.json.card.enIs, undefined);
+  assert.equal(cleared.json.card.enAsk, undefined);
+  assert.equal(cleared.json.card.person, "i");
+});
+
 /*
  * A sentence reaches a student once a teacher has read it — see
  * src/review.ts. The server's half: a card that makes sentences starts
