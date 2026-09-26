@@ -27,6 +27,10 @@ eight tiles for what you wrote as one set.
 - A pronoun card written before the Pronouns screen existed still shows as
   its own tile.
 
+Behind the scenes, the automated checks no longer fail at random on a busy
+machine. When they do fail, they now say which check failed, instead of
+cutting off before it.
+
 ## 0.251 — 26 September 2026
 
 **One pronoun blank again, then how it reads.**

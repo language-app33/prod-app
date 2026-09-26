@@ -701,11 +701,29 @@ function report(why) {
   console.log(results.join("\n"));
   if (errors.length) console.log("\nthe app said:\n  " + errors.join("\n  "));
 }
+/*
+ * Leave once everything printed has reached whoever is reading it.
+ *
+ * The report is one write of about a hundred kilobytes at the very end, and
+ * into a pipe that is written as fast as the reader takes it. CI's log is
+ * a slow reader, so process.exit landed with the report still queued: the
+ * log stopped at 64 KB, the size of a pipe's buffer, and every FAIL line
+ * after that point went with it. A run that failed said it had failed and
+ * not what. So the exit waits for the last write to be taken — and not for
+ * ever, in case the reader has gone.
+ */
+/** @param {number} code */
+function exitWhenWritten(code) {
+  process.exitCode = code;
+  setTimeout(() => process.exit(code), 30000);
+  process.stdout.write("", () => process.stderr.write("", () => process.exit(code)));
+}
+
 /** @param {unknown} err */
 const died = (err) => {
   report("DIED partway through. Everything up to that point:");
   origError("\n", err);
-  process.exit(1);
+  exitWhenWritten(1);
 };
 process.on("uncaughtException", died);
 process.on("unhandledRejection", died);
@@ -7885,9 +7903,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     document.body.appendChild(host);
     const r = createRoot(host);
     r.render(React.createElement(App));
-    await sleep(1500);
-    click([...host.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim())));
-    await sleep(600);
+    /* Waited for rather than slept on. The first of these walks is the
+       first time the app is started cold on its own document, and on a
+       busy machine it was not up after a fixed second and a half: the
+       button was not there to press, no session ran, and all three
+       checks on it failed with nothing counted — one CI run in three. */
+    const startBtn = () => [...host.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim()));
+    for (let t = 0; t < 100 && !startBtn(); t++) await sleep(100);
+    click(startBtn());
+    for (let t = 0; t < 50 && !host.querySelector(".at-instruction"); t++) await sleep(100);
     const met = { chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0 };
     for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
       const pics = host.querySelector(".at-picchoices");
@@ -8110,4 +8134,4 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
 report();
 console.log("\nrequests:", calls.join("\n          "));
-process.exit(results.some((r) => r.startsWith("FAIL")) ? 1 : 0);
+exitWhenWritten(results.some((r) => r.startsWith("FAIL")) ? 1 : 0);
