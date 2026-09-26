@@ -34,6 +34,7 @@ import {
   isPronounGroup,
   fillersFor,
   pickedCardIds,
+  whyStarved,
 } from "../src/card-facts.ts";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
@@ -285,4 +286,35 @@ test("a sentence fills a noun blank with the word, or with its forms that carry 
   assert.deepEqual(words(null), ["day", "my day", "your day"], "a blank that has not said takes both");
   assert.deepEqual(words({ noun: ["bare"] }), ["day"]);
   assert.deepEqual(words({ noun: ["attached"] }), ["my day", "your day"]);
+});
+
+/* ---- why a blank has nothing behind it ---- */
+
+test("a form reaches a sentence only if its word lends it and the blank asks for its kind, and an empty blank says which shut it", async () => {
+  const { LANGUAGES } = await import("../src/languages.ts");
+  const ar = LANGUAGES["ar-PS"];
+  const day = (/** @type {boolean} */ lendEnds) => ({
+    id: "day", lang: "ar-PS", category: "noun",
+    forms: [
+      { ar: "يوم", en: "day", lat: "" },
+      { id: "d-my", ar: "يومي", en: "my day", lat: "", row: "attached", col: "me", ...(lendEnds ? {} : { lend: false }) },
+    ],
+  });
+  const frame = (/** @type {any} */ tenses) => ({ ar: "كيف كان {{noun}}؟", en: "how was {{noun}}?", lat: "", ...(tenses ? { tenses } : {}) });
+  const ends = frame({ noun: ["attached"] });
+
+  /* Both allow it: the blank is filled, and nothing is wrong. */
+  assert.deepEqual((fillersFor(ends, [day(true)], ar).noun || []).map((v) => v.en), ["my day"]);
+  assert.equal(whyStarved(ends, "noun", [day(true)], ar), "");
+  /* The word keeps its endings out of sentences: the sentence asking for
+     them gets nothing, and says the word's tick is why. */
+  assert.deepEqual(fillersFor(ends, [day(false)], ar).noun, []);
+  assert.equal(whyStarved(ends, "noun", [day(false)], ar), "kept-out");
+  /* While a sentence asking for the word itself is untouched by that tick. */
+  assert.deepEqual((fillersFor(frame({ noun: ["bare"] }), [day(false)], ar).noun || []).map((v) => v.en), ["day"]);
+  /* No word behind the blank has any endings written. */
+  const plain = { id: "book", lang: "ar-PS", category: "noun", forms: [{ ar: "كتاب", en: "book", lat: "" }] };
+  assert.equal(whyStarved(ends, "noun", [plain], ar), "no-such-form");
+  /* And nothing fills the name at all. */
+  assert.equal(whyStarved(ends, "noun", [], ar), "nothing");
 });

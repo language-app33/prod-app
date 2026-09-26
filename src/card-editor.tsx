@@ -41,7 +41,7 @@ import {
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
 import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, IS_PRONOUN_SLOT, MAX_FILLS, movedSlot, PRONOUN_IS_SLOT, PRONOUN_SLOT, READING_SLOTS, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
-import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks } from "./card-facts.ts";
+import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
 import { MAX_IMAGES, shrinkImage } from "./images.ts";
@@ -3988,7 +3988,12 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     for (const c of allCards || []) {
       if (lang && c.lang && c.lang !== lang.id) continue;
       if (isSentence(c)) continue;
-      const cells = (cellsIn(c, spec) as Record<string, any>[]).filter((cell) => String(cell.ar || "").trim());
+      /* Only the forms its card lets into sentences: a form kept out of
+         them on its own card is never what a blank is filled with, so
+         counting it would promise a word the sentence never gets. */
+      const cells = (cellsIn(c, spec) as Record<string, any>[]).filter(
+        (cell) => String(cell.ar || "").trim() && isLent(cell),
+      );
       if (!cells.length) continue;
       /* The word's own endings where it has them, before a plural's. */
       const own = cells.filter((cell) => !String(cell.of || "").trim());
@@ -4265,7 +4270,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         },
       ];
       row.readingsHint =
-        "Some words in this blank have a pronoun on the end written out. Choose whether the sentence uses the word itself or those forms.";
+        "Some words in this blank have a pronoun on the end written out. Choose whether this sentence uses the word itself or those forms \u2014 for every word in the blank. A form kept out of sentences on its own card stays out either way.";
     }
     return rows.sort((a, b) => a.name.localeCompare(b.name));
   }, [blanksAround, behind, allCards, lang, card, endsBehind]);
@@ -4346,6 +4351,14 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
   const starved = useMemo(
     () => holes.filter((slot) => !(fillers[slot] || []).length),
     [holes, fillers],
+  );
+  /* And why, for each of them — see whyStarved. A form reaches a sentence
+     only if its word lends it and the blank asks for its kind, and each
+     way out is different, so the warning says which one shut it. */
+  const starvedWhy = useMemo(
+    () => Object.fromEntries(starved.map((slot) => [slot, whyStarved(main, slot, allCards || [], lang)])),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+    [starved, rowsKey, allCards, lang],
   );
   const setForm: (i: number, next: any) => void = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
@@ -4644,6 +4657,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     dropBlank,
     combos,
     starved,
+    starvedWhy,
     fillers,
     /* Which tenses each blank asks its verbs for, which blanks there is
        anything to ask about, and how one of them is answered. */
@@ -6118,6 +6132,11 @@ type DrillOf = "this form" | "these forms" | "this card";
 const drillLede = (of: DrillOf): string =>
   `Choose where ${of} ${of === "these forms" ? "come" : "comes"} up in practice.`;
 
+/* See DrillChecks. The sentence's half is the blank's own choice — a tense,
+   or a pronoun on the end or not — and a form is used only where both
+   allow it. */
+const LEND_LEDE = "Inside sentence cards lets any sentence use it; each sentence chooses which kinds of form it wants.";
+
 function DrillChecks({ word, part, label = "How this form can be practiced", of = "this form", lede = true }: {
   word: WordDraft;
   part: AskPart;
@@ -6135,7 +6154,16 @@ function DrillChecks({ word, part, label = "How this form can be practiced", of 
   return (
     <div className="at-drills">
       {label ? <span className="at-drillhead">{label}</span> : null}
-      {label && lede ? <p className="at-hint at-drilllede">{drillLede(of)}</p> : null}
+      {label && lede ? (
+        <p className="at-hint at-drilllede">
+          {drillLede(of)}
+          {/* And what the second tick decides, beside what a sentence
+              decides: whether the form may be used at all, where each
+              sentence asks for the kinds of form it wants. Said here, once,
+              and only where that tick is offered. */}
+          {canLend ? " " + LEND_LEDE : null}
+        </p>
+      ) : null}
       <CheckList
         options={[
           { id: "ask", title: "On its own" },
@@ -6710,7 +6738,7 @@ function StripAsk({ word }: { word: WordDraft }) {
 
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
-    holes, starved, combos, fillers, fills, fillsOffer, addFill,
+    holes, starved, starvedWhy, combos, fillers, fills, fillsOffer, addFill,
     main, trouble, sentence, strayHoles, tensed, blankRows, setBlankRow,
     endsBehind, setBlankEnds,
   } = word;
@@ -6858,13 +6886,43 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           <>
             {/* Named, because it is the reason the card is never
                 asked and the teacher cannot see it from here. */}
-            {starved.length > 0 && (
-              <p className="at-formneed unmet">
-                Nothing fills <BlankNames names={starved} joiner="or" /> yet, so
-                this card cannot be practised. Write a card that says it fills
-                it.
-              </p>
-            )}
+            {(() => {
+              /* Said by cause, because each has its own way out: nothing
+                 fills the name; the words that do keep the forms asked for
+                 out of sentences on their own cards; or none of them has a
+                 form of the kind this blank asks for. See whyStarved. */
+              const by = (why: string) => starved.filter((slot) => (starvedWhy[slot] || "nothing") === why);
+              const none = by("nothing").concat(starved.filter((slot) => starvedWhy[slot] === ""));
+              const kept = by("kept-out");
+              const shapeless = by("no-such-form");
+              const asked = (slot: string) => rowsLine(lang, blankRows[slot] || []);
+              return (
+                <>
+                  {none.length > 0 && (
+                    <p className="at-formneed unmet">
+                      Nothing fills <BlankNames names={none} joiner="or" /> yet, so
+                      this card cannot be practised. Write a card that says it fills
+                      it.
+                    </p>
+                  )}
+                  {kept.map((slot) => (
+                    <p className="at-formneed unmet" key={`kept-${slot}`}>
+                      <BlankNames names={[slot]} /> asks for the {asked(slot)}, and the
+                      words behind it keep those forms out of sentences. Tick
+                      &ldquo;Inside sentence cards&rdquo; on those forms, or change what
+                      the blank uses below.
+                    </p>
+                  ))}
+                  {shapeless.map((slot) => (
+                    <p className="at-formneed unmet" key={`shape-${slot}`}>
+                      <BlankNames names={[slot]} /> asks for the {asked(slot)}, and no
+                      word behind it has one written. Write those forms on a word,
+                      or change what the blank uses below.
+                    </p>
+                  ))}
+                </>
+              );
+            })()}
             <Help>
               One card, met as a sentence for every word that fills it. A word
               added later joins in without this card being touched.
@@ -6953,7 +7011,11 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             <Field
               key={`ends-${slot}`}
               label={<>What <BlankNames names={[slot]} /> uses</>}
-              hint={value ? undefined : "Both, until you choose: the word itself and its forms with a pronoun on the end."}
+              hint={
+                value
+                  ? "For every word in this blank. A form kept out of sentences on its own card stays out."
+                  : "Both, until you choose: the word itself and its forms with a pronoun on the end."
+              }
             >
               <RadioGroup
                 quiet

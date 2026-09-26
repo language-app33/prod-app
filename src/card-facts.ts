@@ -1251,3 +1251,51 @@ export function pickedCardIds(ids: Iterable<string>, items: unknown[]): string[]
   }
   return out;
 }
+
+/* ------------------------------------------------------------------
+   Why a blank has nothing behind it
+   ------------------------------------------------------------------ */
+
+/**
+ * Why a blank of this form has no word to stand in it — which the editor
+ * says, because each has a different way out.
+ *
+ * A form reaches a sentence only if two answers allow it: its own word
+ * lends it ("Inside sentence cards", ticked on that card), and the
+ * sentence's blank asks for its kind (a tense, or a pronoun on the end or
+ * not). Each can shut the other out without either being wrong, so where
+ * the two leave nothing it is worth saying which:
+ *
+ *   * `nothing`   — no card fills a blank of this name at all.
+ *   * `kept-out`  — words fill it and have the forms the blank asks for,
+ *                   but those forms are kept out of sentences on their own
+ *                   cards.
+ *   * `no-such-form` — words fill it, and none of them has a form of the
+ *                   kind the blank asks for.
+ *
+ * "" where something does stand in it after all.
+ */
+export function whyStarved(
+  form: Held | null | undefined,
+  slot: string,
+  pool: Held[],
+  lang: Lang | null | undefined,
+): "" | "nothing" | "kept-out" | "no-such-form" {
+  const admits = blankAdmits(lang, (s) => slotRows(form, s));
+  let fills = false;
+  let kept = false;
+  for (const card of pool || []) {
+    if (!card) continue;
+    if (lang && card.lang && card.lang !== lang.id) continue;
+    if (!fillsOf(card, kindOf(card, lang)).includes(slot)) continue;
+    fills = true;
+    const lends = lendsForm(lang, card);
+    for (const f of formsOf(card) as Held[]) {
+      if (!str(f.ar) || !lends(f) || !admits(card, f, slot)) continue;
+      if (isLent(f)) return "";
+      kept = true;
+    }
+  }
+  if (!fills) return "nothing";
+  return kept ? "kept-out" : "no-such-form";
+}

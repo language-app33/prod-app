@@ -5478,7 +5478,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           formsRole ? (formsRole.textContent || "").trim() : "(no Forms heading)");
         const drills = /** @type {any} */ (document.querySelector(".at-formtile.main .at-drills"));
         check("the practice ticks are explained once, under their heading, not in each tick",
-          !!drills && /^Choose where this form comes up in practice\.$/.test(
+          !!drills && /^Choose where this form comes up in practice\.( Inside sentence cards lets any sentence use it; each sentence chooses which kinds of form it wants\.)?$/.test(
             ((drills.querySelector(".at-drilllede") || {}).textContent) || "") &&
             ![...drills.querySelectorAll(".at-tickrow i")].length,
           drills ? (drills.textContent || "").trim().slice(0, 160) : "(no ticks)");
@@ -5722,6 +5722,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           /Inside sentence cards/.test(only[1].textContent || "") &&
           only.every((r) => /** @type {any} */ (r.querySelector("input")).checked),
         only.map((r) => (r.querySelector("b") || {}).textContent).join(" | ") || "(no lines)");
+      /* And the second says what it decides, beside what a sentence
+         decides: whether the form may be used at all, where the sentence
+         chooses the kinds of form it wants. */
+      check("the line under the ticks says the sentence tick lets any sentence use the form, and each sentence chooses the kinds it wants",
+        !!drills && /Inside sentence cards lets any sentence use it; each sentence chooses which kinds of form it wants\./.test(
+          ((drills.querySelector(".at-drilllede") || {}).textContent) || ""),
+        drills ? ((drills.querySelector(".at-drilllede") || {}).textContent || "").trim() : "(no ticks)");
     }
 
     const block = (/** @type {RegExp} */ re) =>

@@ -418,6 +418,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   Blanks section shows the answer to be changed. A blank that has not
   said admits both, which is every sentence written before this.
 
+  **Two answers let a form into a sentence, and the screen says which
+  shut it.** A word's own "Inside sentence cards" tick says whether a form
+  may be borrowed at all; the sentence's blank says which kinds of form it
+  wants. A form is used only where both allow it, so a blank can come out
+  empty with neither answer wrong. `whyStarved` in `src/card-facts.ts`
+  names the cause — nothing fills the name, the words keep the forms asked
+  for out of sentences, or none of them has such a form — and the editor
+  says the way out for each. The count of words behind a pronoun-ending
+  choice counts only forms their cards lend.
+
   **Only a sentence may have a blank in it, and a sentence is one because
   the teacher said so.** The editor asks which kind of card it is — a word,
   a sentence, or a conversation — and that answer is now kept, in

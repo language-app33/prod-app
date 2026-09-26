@@ -8,6 +8,29 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.255 — 26 September 2026
+
+**A word's forms and a sentence's blanks say how they fit together.**
+
+A form is used in a sentence only when two answers allow it. Its word card
+must let it into sentences, and the sentence's blank must ask for its kind.
+The kind is a tense, or a word with or without a pronoun on the end. This
+release makes that visible.
+
+- The line above a form's practice ticks now says what *Inside sentence
+  cards* decides: any sentence may use the form, and each sentence chooses
+  which kinds of form it wants.
+- When a blank can have a pronoun on the end, the choice now says it
+  applies to every word in the blank. A form kept out of sentences on its
+  own card stays out either way.
+- *With a pronoun on the end* counts only the words whose forms are
+  allowed into sentences. It could promise words the sentence would never
+  get.
+- When a sentence can't be practised because a blank has nothing behind
+  it, the warning now says why. Either nothing fills the blank, or the
+  words behind it keep the forms it asks for out of sentences, or none of
+  them has such a form written. It says what to do in each case.
+
 ## 0.254 — 26 September 2026
 
 **Flagging a problem opens a full screen, and every option can take a note.**
