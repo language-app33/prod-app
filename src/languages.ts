@@ -1963,8 +1963,38 @@ export const blankAdmits = (
 ) => boolean) => (card, form, slot) => {
   const rows = rowsFor(slot) || [];
   if (!rows.length) return true;
-  return standsInRows(tensedOf(lang, card && card.category), form, rows);
+  /* Whether it has a pronoun on the end, where the sentence said: the
+     attached pronouns' own row for "my name, your name", and BARE_ROW for
+     "name" and the word's other forms. A form carrying a pronoun is
+     admitted by the first and by nothing else — it is in no tense. */
+  const ends = endRowsOf(lang);
+  const endsSaid = rows.filter((r) => ends.has(r) || r === BARE_ROW);
+  if (endsSaid.length) {
+    if (ends.has(rowOf(form))) return endsSaid.some((r) => ends.has(r));
+    if (!endsSaid.includes(BARE_ROW)) return false;
+  }
+  const tenses = rows.filter((r) => !ends.has(r) && r !== BARE_ROW);
+  if (!tenses.length) return true;
+  return standsInRows(tensedOf(lang, card && card.category), form, tenses);
 };
+
+/*
+ * A blank that asks for the word with no pronoun on its end.
+ *
+ * A noun that takes the pronouns on its end lends every one of those forms
+ * to a sentence — "how was {{day}}?" is met as *my day*, *your day*, *his
+ * day* and *day* in turn — and a sentence may want only the word, or only
+ * the forms with a pronoun. The second is the attached pronouns' own row,
+ * narrowed exactly as a tense is; the first is this, which names no row of
+ * any table and means "none of those". Stored beside the tenses a blank
+ * asks for, in the same list, so it travels, syncs and is reviewed the way
+ * a tense does with nothing new underneath. No pack may name a row this.
+ */
+export const BARE_ROW = "bare";
+
+/** The rows a language puts a pronoun on the end of a word in. Empty for a
+    language that attaches none. */
+export const endRowsOf = (lang: Lang | null | undefined): Set<string> => rowIdsOf(attachedOf(lang));
 
 /* Every value any dimension can hold, for validating stored cards without
    knowing which language wrote them. */

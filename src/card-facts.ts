@@ -51,7 +51,7 @@
 
 import type { Form, GrammarDim, Lang, VerbSpec } from "./types.ts";
 import { answersOf, splitAlternatives } from "./answers.ts";
-import { answerFields, blankAdmits, categoryLabel, GRAMMAR, kindOf, LANGUAGES, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
+import { answerFields, BARE_ROW, blankAdmits, categoryLabel, endRowsOf, GRAMMAR, kindOf, LANGUAGES, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
@@ -236,7 +236,19 @@ export function rowLabel(lang: Lang | null | undefined, row: string): string {
  * a blank that admits every tense and has nothing to say about it.
  */
 export function rowsLine(lang: Lang | null | undefined, rows: string[]): string {
-  const said = (rows || []).map((row) => rowLabel(lang, row)).filter(Boolean);
+  /* Whether its words carry a pronoun on the end, which a sentence narrows
+     in the same list as its tenses — see BARE_ROW. Said here and not by
+     rowLabel, which also names the row a cell of that table sits in. */
+  const ends = endRowsOf(lang);
+  const said = (rows || [])
+    .map((row) =>
+      str(row) === BARE_ROW
+        ? "word without a pronoun on the end"
+        : ends.has(str(row))
+          ? "forms with a pronoun on the end"
+          : rowLabel(lang, row),
+    )
+    .filter(Boolean);
   if (said.length < 2) return said[0] || "";
   return `${said.slice(0, -1).join(", ")} and ${said[said.length - 1]}`;
 }

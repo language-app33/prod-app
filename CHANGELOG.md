@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.253 — 26 September 2026
+
+**A noun blank can use the word, or its forms with a pronoun on the end.**
+
+A noun whose attached pronouns are written out, such as *day* with *my
+day* and *your day*, used to fill a sentence blank with all of them in
+turn. So *how was ___?* came out as *how was day?*, *how was my day?* and
+*how was his day?*.
+
+- When you put in a blank that such a word fills, you now choose how it
+  reads, as you do for a pronoun. *Main form* uses the word itself, and its
+  other forms such as the plural. *With a pronoun on the end* uses only
+  *my day*, *your day* and the rest.
+- The question is asked only when a word behind the blank has attached
+  pronoun forms written out. Other blanks go straight in.
+- The choice is shown under the card's blanks as *What ___ uses*, where it
+  can be changed.
+- Sentences written before this keep using both, until you choose.
+
 ## 0.252 — 26 September 2026
 
 **The pronouns are one entry in the card list.**

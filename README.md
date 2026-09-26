@@ -405,6 +405,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   back out into its cards. A pronoun saved before the screen existed
   carries no person and stays a tile of its own.
 
+  **A blank says whether its words carry a pronoun on the end.** A noun
+  with its attached pronouns written out lends every one of them, so
+  "how was {{day}}?" used to be met as *day*, *my day* and *his day* in
+  turn. A sentence now narrows such a blank the way it narrows a verb
+  blank to tenses, in the same `tenses` list: the attached table's own row
+  admits only the forms with a pronoun on the end, and `BARE_ROW` only
+  the forms without — see `blankAdmits` in `src/languages.ts`, which every
+  filler of a blank goes through. The blank screen asks it as a second
+  step, as it asks a pronoun's reading, only where some word behind the
+  blank has those forms (`endsBehind` in `src/card-editor.tsx`), and the
+  Blanks section shows the answer to be changed. A blank that has not
+  said admits both, which is every sentence written before this.
+
   **Only a sentence may have a blank in it, and a sentence is one because
   the teacher said so.** The editor asks which kind of card it is — a word,
   a sentence, or a conversation — and that answer is now kept, in

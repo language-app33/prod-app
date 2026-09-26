@@ -3425,3 +3425,18 @@ from a bottom sheet to a screen rising over the card: a sheet would have
 needed a back button of its own, the list had grown past what a sheet
 shows on a phone, and a screen brings Back, Escape and the full height
 with it.
+
+**A noun's pronoun endings, narrowed like a tense (0.253).** The same
+second step asks, of a blank some word in which has its attached pronouns
+written out, whether the sentence uses the word or those forms. Unlike a
+pronoun's reading this is *not* a name in braces: the words differ, not
+only their English, and a blank can be any name — `{{noun}}`, a group
+tag, one card's ID — so a second name per reading would have doubled
+every name there is. It is stored as the narrowing a verb blank already
+had, in the same list as its tenses: the attached table's row for "with",
+and `BARE_ROW` for "without". That list already reaches the server, the
+student's device and the review list, and `blankAdmits` is already the one
+rule all three fill a blank through, so nothing new travels. The cost is a
+list named `tenses` holding two things that are not tenses, which
+`blankAdmits` and the editor keep apart by asking which rows are the
+attached table's.

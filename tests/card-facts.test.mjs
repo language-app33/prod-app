@@ -32,6 +32,7 @@ import {
   unnamedOn,
   groupPronouns,
   isPronounGroup,
+  fillersFor,
   pickedCardIds,
 } from "../src/card-facts.ts";
 
@@ -263,4 +264,25 @@ test("a selection opens a pronoun entry out into its cards, and leaves everythin
   const listed = groupPronouns([book, pronoun("p-i", "i", "أنا", "I"), pronoun("p-he", "he", "هو", "he")]);
   assert.deepEqual(pickedCardIds(["w1", "pronouns:ar-PS"], listed), ["w1", "p-i", "p-he"]);
   assert.deepEqual(pickedCardIds(["w1"], listed), ["w1"]);
+});
+
+/* ---- a noun blank with or without a pronoun on the end ---- */
+
+test("a sentence fills a noun blank with the word, or with its forms that carry a pronoun, as it says", async () => {
+  const { LANGUAGES } = await import("../src/languages.ts");
+  const ar = LANGUAGES["ar-PS"];
+  const day = {
+    id: "day", lang: "ar-PS", category: "noun",
+    forms: [
+      { ar: "يوم", en: "day", lat: "yom", number: "singular", gender: "masculine" },
+      { id: "d-my", ar: "يومي", en: "my day", lat: "yomi", row: "attached", col: "me" },
+      { id: "d-your", ar: "يومك", en: "your day", lat: "yomak", row: "attached", col: "you-m" },
+    ],
+  };
+  const words = (/** @type {any} */ tenses) =>
+    (fillersFor({ ar: "كيف كان {{noun}}؟", en: "how was {{noun}}?", lat: "", ...(tenses ? { tenses } : {}) }, [day], ar).noun || [])
+      .map((v) => v.en).sort();
+  assert.deepEqual(words(null), ["day", "my day", "your day"], "a blank that has not said takes both");
+  assert.deepEqual(words({ noun: ["bare"] }), ["day"]);
+  assert.deepEqual(words({ noun: ["attached"] }), ["my day", "your day"]);
 });
