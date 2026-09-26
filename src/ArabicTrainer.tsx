@@ -6799,6 +6799,12 @@ export default function ArabicTrainer() {
      down. Nothing reads the number itself. */
   const [, setNow_] = useState(0);
   const [qi, setQi] = useState(0);
+  /* Each question starts at the top. A long one — a scene, a word with its
+     relatives laid out under the answer — is read scrolled down, and the
+     next question used to arrive at that same depth, its prompt somewhere
+     above the fold. Keyed on the question's place only while a session is
+     running, so nothing outside one moves. */
+  useScrollTop(session ? `q:${qi}` : null);
   const [typed, setTyped] = useState("");
   const [checked, setChecked] = useState<any | null>(null);
   const [pairs, setPairs] = useState<any[]>([]); // minimal pairs for the answered card

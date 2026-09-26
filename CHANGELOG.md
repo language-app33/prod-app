@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.249 — 26 September 2026
+
+**Every question starts at the top.**
+
+In a practice session, a question read scrolled down — a scene, or the
+related words laid out under an answer — used to hand the next question over
+at the same depth, with its prompt out of sight above. Moving on now brings
+the screen back to the top.
+
 ## 0.248 — 26 September 2026
 
 **Cards can go from one deck into another.**
