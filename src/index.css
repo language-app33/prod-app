@@ -777,6 +777,10 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-blankmake span, .at-blanklist span { font-size:13px; font-weight:500; color: var(--text-soft);
   line-height:1.5; overflow-wrap:anywhere; }
 .at-blanklist { list-style:none; margin:10px 0 0; padding:0; }
+/* The same list on the screen it is chosen from, which is a screen and not
+   a sheet since 0.251: the hint and the box sit as they did in the sheet. */
+.at-screen.blanks .at-screeninner > .at-hint { margin:4px 0 12px; }
+.at-screen.blanks .at-screeninner > .at-input { width:100%; }
 .at-blanklist em { font-style:normal; font-size:12px; font-weight:700; color: var(--muted); }
 .at-blanklist em.unmet { color: var(--rose); }
 

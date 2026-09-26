@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.251 — 26 September 2026
+
+**One pronoun blank again, then how it reads.**
+
+0.250 listed three pronoun blanks side by side. Now the list has one,
+*pronoun*, as it used to.
+
+- Choosing it asks how the pronoun reads in English: *Pronoun* (I, he,
+  they), *Pronoun with "to be"* (I am, he is, they are), or *Pronoun with
+  "to be", as a question* (am I, is he, are they).
+- Back from that question returns to the list of blanks.
+- Choosing a blank now happens on a full screen that rises over the card,
+  rather than a sheet from the bottom, so the whole list fits on a phone.
+
 ## 0.250 — 26 September 2026
 
 **A pronoun in a sentence can mean "I", "I am" or "am I".**

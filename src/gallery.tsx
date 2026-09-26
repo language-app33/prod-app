@@ -180,7 +180,7 @@ const PLACES: Record<string, [string, string]> = {
   BlanksBlock: [TEACH, "Editing a card · its blanks"],
   BlankChip: [TEACH, "Editing a card · one blank, and the words that fill it"],
   BlankBar: [TEACH, "Editing a card · putting a blank into a field"],
-  BlankSheet: [TEACH, "Editing a card · choosing which blank to put in"],
+  BlankScreen: [TEACH, "Editing a card · choosing which blank to put in"],
   IdBox: [TEACH, "Editing a card · the ID it answers to"],
   TagList: [TEACH, "Editing a card · its tags"],
   TagSheet: [TEACH, "Editing a card · the sheet custom tags are chosen in"],

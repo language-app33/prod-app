@@ -389,7 +389,10 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   so a pronoun written before this reads correctly without being opened.
   A value carries them as `readings`, by blank name, and `fillText` puts
   the reading in the English where the blank asks for one. Both names are
-  reserved the way `{{word}}` is.
+  reserved the way `{{word}}` is. The screen a blank is chosen on
+  (`BlankScreen` in `src/card-editor.tsx`) lists the pronoun once, and
+  choosing it turns to the three readings, which is what put that picker
+  on a screen rather than a sheet.
 
   **Only a sentence may have a blank in it, and a sentence is one because
   the teacher said so.** The editor asks which kind of card it is — a word,

@@ -2119,6 +2119,13 @@ interface BlankOffer {
   /** How many words are behind it today — nothing is a hole that starves. */
   words: number;
   kind: "any" | "category" | "group" | "card";
+  /**
+   * The ways this blank can be read, where it can be read more than one —
+   * a pronoun as *I*, *I am* or *am I*. Choosing the blank then asks which,
+   * and what is put in the field is the name of the one chosen. Absent on
+   * every other blank, which is put in as it is.
+   */
+  readings?: { name: string; label: string; note: string }[];
 }
 
 /** What a field needs in order to have blanks put into it. */
@@ -2378,7 +2385,29 @@ function BlankBar({ wiring, value, onChange, label, lang, script = false, box }:
 }
 
 /*
- * The sheet a blank is chosen in.
+ * The three ways a pronoun blank reads, in the order they are offered.
+ *
+ * The same pronoun cards fill all three and the script is the same word in
+ * each: what differs is the English, because Arabic says "I am tired" with
+ * no word for "am" and asks a question without moving anything. See
+ * READING_SLOTS in variables.ts.
+ */
+const PRONOUN_READINGS: { name: string; label: string; note: string }[] = [
+  { name: PRONOUN_SLOT, label: "Pronoun", note: "I, he, they \u2014 I like coffee" },
+  {
+    name: PRONOUN_IS_SLOT,
+    label: "Pronoun with \u201cto be\u201d",
+    note: "I am, he is, they are \u2014 I am tired",
+  },
+  {
+    name: IS_PRONOUN_SLOT,
+    label: "Pronoun with \u201cto be\u201d, as a question",
+    note: "am I, is he, are they \u2014 am I tired?",
+  },
+];
+
+/*
+ * The screen a blank is chosen in.
  *
  * Every name that means something in this language, each saying what would
  * stand in the hole and how many words are behind it — because the one
@@ -2392,107 +2421,144 @@ function BlankBar({ wiring, value, onChange, label, lang, script = false, box }:
  * has written is offered as what it would be — a group tag, waiting for
  * the cards that say they are in it.
  *
- * Over everything, because it is raised from inside a screen that is
- * itself raised — see Overlay.
+ * **A screen, not a sheet**, since 0.251. It was a sheet from the foot of
+ * the window, which suited one short list. The list grew to a row for every
+ * kind of word, and choosing a pronoun now asks a second question — how it
+ * reads in English — which a sheet would have had to answer with a back
+ * button of its own. A screen has one already, and Escape, and the whole
+ * height of a phone for the list. It rises rather than arriving, as the
+ * recordings do, because it is a step to the side of the card.
+ *
+ * **One pronoun, then how it reads.** A blank with `readings` — the pronoun
+ * — is not put in when it is chosen: the screen turns to the ways it can
+ * be read and puts in the one picked. Typing one of those names in the box
+ * puts it straight in, since the teacher has already said which.
  */
-function BlankSheet({ lang, offers, onPick, onClose }: {
+function BlankScreen({ lang, offers, onPick, onClose }: {
   lang: Lang;
   offers: BlankOffer[];
   onPick: (name: string) => void;
   onClose: () => void;
 }) {
   const [typed, setTyped] = useState("");
+  /* The blank whose readings are being asked, once one with any is chosen. */
+  const [asking, setAsking] = useState<BlankOffer | null>(null);
   const name = slotName(typed);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  const shown = name ? offers.filter((o) => o.name.includes(name)) : offers;
-  const exact = offers.some((o) => o.name === name);
+  const readingsOf = (o: BlankOffer) => o.readings || [];
+  const matches = (o: BlankOffer) =>
+    o.name.includes(name) || readingsOf(o).some((r) => r.name.includes(name));
+  const shown = name ? offers.filter(matches) : offers;
+  /* A name the list already answers to — its own, or one of the ways a
+     row can be read — is not offered again as a new tag. */
+  const exact = offers.some((o) => o.name === name || readingsOf(o).some((r) => r.name === name));
+  const put = (chosen: string) => {
+    onPick(chosen);
+    onClose();
+  };
+  const choose = (offer: BlankOffer) => (readingsOf(offer).length ? setAsking(offer) : put(offer.name));
   const KINDS: Record<BlankOffer["kind"], string> = {
     any: "Any word",
     category: "Kind of word",
     group: "Tag",
     card: "One card",
   };
+  const behind = (words: number) => (
+    <em className={words ? "" : "unmet"}>
+      {words ? `${plural(words, "word")} behind it` : "nothing fills it yet"}
+    </em>
+  );
+
+  if (asking) {
+    return (
+      <Screen
+        title={`How the ${asking.name} reads`}
+        onBack={() => setAsking(null)}
+        backLabel="Back to the blanks"
+        rise
+        className="blanks"
+      >
+        <p className="at-hint">
+          Choose what it reads as in English. The {lang.scriptLabel} is the same {asking.name} in
+          all three, since &ldquo;am&rdquo; and &ldquo;is&rdquo; are often left unsaid and a
+          question keeps the same word order.
+        </p>
+        <ul className="at-blanklist">
+          {readingsOf(asking).map((r) => (
+            <li key={r.name}>
+              <button onClick={() => put(r.name)} data-blank={r.name}>
+                <b>{r.label}</b>
+                <span className="at-sheetnote">{r.name}</span>
+                <span>{r.note}</span>
+                {behind(asking.words)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Screen>
+    );
+  }
+
   return (
-    <Overlay>
-      <div className="at-modalback sheet" onClick={onClose}>
-        <div
-          className="at-sheet"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Choose a blank"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="at-sheettop">
-            <h3 className="at-modaltitle">Put in a blank</h3>
-            <IconButton icon="close" label="Close" onClick={onClose} />
-          </div>
-          <p className="at-hint">
-            A hole this sentence leaves, and the words that will stand in it.
-          </p>
+    <Screen title="Put in a blank" onBack={onClose} backLabel="Back to the card" rise className="blanks">
+      <p className="at-hint">
+        A hole this sentence leaves, and the words that will stand in it.
+      </p>
 
-          <input
-            className="at-input"
-            value={typed}
-            autoFocus
-            placeholder="Find a blank, or name a new one"
-            aria-label="Find a blank, or name a new one"
-            onChange={(e) => setTyped(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter" || !name) return;
-              onPick(name);
-              onClose();
-            }}
-          />
+      <input
+        className="at-input"
+        value={typed}
+        autoFocus
+        placeholder="Find a blank, or name a new one"
+        aria-label="Find a blank, or name a new one"
+        onChange={(e) => setTyped(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" || !name) return;
+          /* The row's own name asks how it reads, as tapping it does. */
+          const row = offers.find((o) => o.name === name);
+          if (row) choose(row);
+          else put(name);
+        }}
+      />
 
-          {/* A name nobody has written yet, offered as the thing it would
-              be. Not where the list already has it: choosing it from the
-              list and typing it out are the same answer, and two ways to
-              give it on one screen is one too many. */}
-          {name && !exact && (
-            <button className="at-blankmake" onClick={() => { onPick(name); onClose(); }}>
-              <b>{name}</b>
-              <span>
-                A new tag. Nothing fills it until a card is given this tag,
-                which is a tick on that card.
-              </span>
+      {/* A name nobody has written yet, offered as the thing it would
+          be. Not where the list already has it: choosing it from the
+          list and typing it out are the same answer, and two ways to
+          give it on one screen is one too many. */}
+      {name && !exact && (
+        <button className="at-blankmake" onClick={() => put(name)}>
+          <b>{name}</b>
+          <span>
+            A new tag. Nothing fills it until a card is given this tag,
+            which is a tick on that card.
+          </span>
+        </button>
+      )}
+
+      <ul className="at-blanklist">
+        {shown.map((offer) => (
+          <li key={offer.name}>
+            <button onClick={() => choose(offer)} data-blank={offer.name}>
+              <b
+                lang={offer.kind === "card" ? lang.id : undefined}
+                dir={offer.kind === "card" ? lang.direction : undefined}
+              >
+                {offer.name}
+              </b>
+              <span className="at-sheetnote">{KINDS[offer.kind]}</span>
+              <span>{offer.note}</span>
+              {behind(offer.words)}
             </button>
-          )}
+          </li>
+        ))}
+      </ul>
 
-          <ul className="at-blanklist">
-            {shown.map((offer) => (
-              <li key={offer.name}>
-                <button onClick={() => { onPick(offer.name); onClose(); }}>
-                  <b
-                    lang={offer.kind === "card" ? lang.id : undefined}
-                    dir={offer.kind === "card" ? lang.direction : undefined}
-                  >
-                    {offer.name}
-                  </b>
-                  <span className="at-sheetnote">{KINDS[offer.kind]}</span>
-                  <span>{offer.note}</span>
-                  <em className={offer.words ? "" : "unmet"}>
-                    {offer.words
-                      ? `${plural(offer.words, "word")} behind it`
-                      : "nothing fills it yet"}
-                  </em>
-                </button>
-              </li>
-            ))}
-          </ul>
-
-          {!shown.length && !name && (
-            <Help>
-              No blank exists yet in {lang.name}. Type a name above and it
-              becomes a tag, which cards can then be given.
-            </Help>
-          )}
-        </div>
-      </div>
-    </Overlay>
+      {!shown.length && !name && (
+        <Help>
+          No blank exists yet in {lang.name}. Type a name above and it
+          becomes a tag, which cards can then be given.
+        </Help>
+      )}
+    </Screen>
   );
 }
 
@@ -4062,25 +4128,22 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
       if (b.built === "any") {
         rows.push({ name: b.name, kind: "any", words, note: "Any word in the language" });
       } else if (b.built === "category") {
+        /* A pronoun is one blank on this list and three in a sentence: the
+           same cards, read as *I*, *I am* or *am I*. Which is asked once it
+           is chosen — see BlankScreen — rather than laid out here as three
+           rows a teacher has to tell apart before they know why. */
+        const reads = b.name === PRONOUN_SLOT && blanksAround.some((r) => r.built === "reading");
         rows.push({
           name: b.name,
           kind: "category",
           words,
-          /* Said what it reads as, beside the two below it, so the three
-             pronoun blanks can be told apart without trying them. */
-          note: b.name === PRONOUN_SLOT ? "Any pronoun: I, he, they" : `Any ${named(b.name).toLowerCase()}`,
+          note: reads
+            ? "Any pronoun \u2014 then choose how it reads in English"
+            : `Any ${named(b.name).toLowerCase()}`,
+          ...(reads ? { readings: PRONOUN_READINGS } : null),
         });
       } else if (b.built === "reading") {
-        rows.push({
-          name: b.name,
-          kind: "category",
-          words,
-          note: b.name === PRONOUN_IS_SLOT
-            ? "Any pronoun, with \u201cto be\u201d: I am, he is, they are"
-            : b.name === IS_PRONOUN_SLOT
-              ? "Any pronoun, as a question: am I, is he, are they"
-              : "Any pronoun",
-        });
+        /* Offered under the pronoun, above. */
       } else if (b.used > 0 || b.wrote > 0) {
         rows.push({ name: b.name, kind: "group", words, note: "The cards tagged with it" });
       }
@@ -6278,7 +6341,7 @@ function TagList({ word, rows, maker, full, open, onOpen, onClose }: {
 /*
  * The sheet custom tags are chosen, made, renamed and taken off in.
  *
- * The same bottom sheet a blank is put into a sentence from (BlankSheet):
+ * A bottom sheet, as the blank picker was before it became a screen:
  * a box for a new name at the top, then every tag there is, each with its
  * tick, the pencil that renames it and — where cards actually carry it —
  * the bin that takes it off all of them. A tick list with a second control
@@ -7411,7 +7474,7 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
         />
       ))}
       {putting && (
-        <BlankSheet
+        <BlankScreen
           lang={lang}
           offers={word.blankOffer}
           onPick={(name) => putting.put(name)}

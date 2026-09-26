@@ -4901,7 +4901,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       const chip = (/** @type {RegExp} */ re) => /** @type {any} */ (
         [...document.querySelectorAll(".at-blankput")]
           .find((b) => re.test(b.getAttribute("aria-label") || "")) || null);
-      const sheet = () => document.querySelector(".at-sheet");
+      /* A screen rather than a sheet since 0.251 — see BlankScreen. */
+      const sheet = () => document.querySelector(".at-screen.blanks");
       const rows = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
         .map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
       const rowFor = (/** @type {RegExp} */ re) => /** @type {any} */ (
@@ -4915,7 +4916,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
       click(addIn(/into English$/));
       await sleep(300);
-      check("the button opens a sheet of the blanks this language has",
+      check("the button opens a screen of the blanks this language has",
         !!sheet() && rows().length > 0, rows().slice(0, 3).join(" / ") || "(nothing offered)");
       /* The one thing a teacher cannot tell from a name: whether the hole
          they are about to write has anything to fill it. */
@@ -4945,7 +4946,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("choosing one puts it into the field it was asked from",
         readField(enNow()) === "My name is {{friend}}",
         readField(enNow()) || "(no field)");
-      check("and the sheet closes behind it", !sheet(), sheet() ? "still open" : "closed");
+      check("and the screen closes behind it", !sheet(), sheet() ? "still open" : "closed");
 
       /* ---- and it is in the words, not beside them ----
 
@@ -4994,6 +4995,42 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !!saveBtn() && !saveBtn().disabled && !pillsIn(enNow()).length && !pillsIn(arNow()).length,
         `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}, ` +
           `${pillsIn(enNow()).length + pillsIn(arNow()).length} pills left`);
+
+      /* ---- one pronoun, then how it reads ----
+
+         A pronoun reads as "I", "I am" or "am I" in English and is the
+         same word in Arabic, so the list has one pronoun and choosing it
+         asks which of the three. */
+      click(addIn(/into English$/));
+      await sleep(300);
+      const names = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+        .map((b) => b.getAttribute("data-blank") || "");
+      check("the pronoun is one blank on the list, not three",
+        names().includes("pronoun") && !names().includes("pronoun-is") && !names().includes("is-pronoun"),
+        names().join(" ") || "(nothing offered)");
+      click(rowFor(/^pronoun$/));
+      await sleep(300);
+      const title = () => {
+        const open = sheet();
+        const head = open ? open.querySelector("h2") : null;
+        return ((head && head.textContent) || "").trim();
+      };
+      check("and choosing it asks how it reads, rather than putting it in",
+        title() === "How the pronoun reads" &&
+          JSON.stringify(names()) === JSON.stringify(["pronoun", "pronoun-is", "is-pronoun"]) &&
+          readField(enNow()) === "My name is",
+        `${title()} · ${names().join(" ")} · ${readField(enNow())}`);
+      click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the blanks"));
+      await sleep(300);
+      check("Back from there is the list of blanks again, not the card",
+        title() === "Put in a blank" && names().includes("friend"), title() || "(closed)");
+      click(rowFor(/^pronoun$/));
+      await sleep(300);
+      click(/** @type {any} */ ((sheet() || document).querySelector('[data-blank="pronoun-is"]')));
+      await sleep(300);
+      check("and the reading chosen is the blank put in",
+        readField(enNow()) === "My name is {{pronoun-is}}" && !sheet(),
+        `${readField(enNow())} · ${sheet() ? "still open" : "closed"}`);
     }
 
     /* And written back into the words, it is read off them again. Into
