@@ -793,6 +793,15 @@ export type Card = {
    */
   person?: string;
   /**
+   * What a pronoun reads as in English with *to be* — "I am" — and as a
+   * question — "am I" — in the `{{pronoun-is}}` and `{{is-pronoun}}`
+   * blanks, where the teacher has written one on the Pronouns screen.
+   * Absent means the reading beReadings makes of the pronoun's English,
+   * which is what every pronoun written before this reads as.
+   */
+  enIs?: string;
+  enAsk?: string;
+  /**
    * Which of the sentences this card makes a teacher has read — the
    * fingerprints of the ones approved and the ones struck, and who last
    * changed it. See review.ts.
@@ -812,9 +821,12 @@ export type Card = {
    */
   drill?: boolean;
   uses?: string[];
-  lines?: (CardForm & { who?: number; uses?: string[] })[];
+  lines?: (CardForm & { who?: number; uses?: string[]; from?: string; roles?: Record<string, string>; review?: import("./review.ts").Review })[];
   speakers?: string[];
   you?: number | null;
+  /** A text, where the scene is one; absent (or, on its way to the server,
+      "conversation") on a conversation. See sceneKindOf in dialogs.ts. */
+  sceneKind?: "text" | "conversation";
   rev?: number;
   created?: Millis;
   updated?: Millis;
@@ -1041,7 +1053,15 @@ export type Form = Record<string, any> & {
  * card's `speakers`; `uses` is the same list a phrase card carries, and is
  * what lets a scene stand in for a phrase in the gap-fill.
  */
-export type Line = Form & { who?: number; uses?: string[] };
+export type Line = Form & {
+  who?: number;
+  uses?: string[];
+  /** The sentence card this turn was picked from, where it was picked. */
+  from?: string;
+  /** Which member of the scene's cast each of its blanks plays, where one
+      plays somebody other than the member named after it — see cast.ts. */
+  roles?: Record<string, string>;
+};
 
 /**
  * A card as it lives on a device: the teacher's wording plus this
@@ -1095,6 +1115,9 @@ export type Item = {
   name?: string;
   /** Which verb column it is, where it is a pronoun. See Card. */
   person?: string;
+  /** What a pronoun reads as with "to be", and as a question. See Card. */
+  enIs?: string;
+  enAsk?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */
   category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
@@ -1138,6 +1161,8 @@ export type Item = {
   lines?: Line[];
   speakers?: string[];
   you?: number | null;
+  /** A text, where the scene is one. See Card. */
+  sceneKind?: "text";
   /**
    * Where a card the learner did not write came from.
    *

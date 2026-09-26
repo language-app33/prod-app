@@ -8,6 +8,203 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.257 — 26 September 2026
+
+**Scenes: a conversation or a text, built from your sentence cards, with
+the same person all the way through.**
+
+- *Conversation* is now *Scene* at New card. A scene is either a
+  **conversation**, as before, or a **text**: sentences read together as
+  one paragraph, with nobody speaking. You choose which inside the editor,
+  and can change it later. Every line keeps what students have learnt.
+- A text is practised by reading it through, with the pronunciation and
+  meaning a tap away. It has no speakers, no replies to choose and no order
+  to restore.
+- A line can be **picked from a sentence card** instead of typed. It shows
+  that sentence's words, recordings and blanks, and changes when the
+  sentence card changes. It is reviewed on the sentence card, so approving
+  a sentence once approves it in every scene. *Type it here instead* turns
+  it back into an ordinary line.
+- **A blank means the same person all through a scene.** "{{name}} lives
+  here" and "{{name}} likes it" now name the same person. Before, each line
+  drew its own word. Under each line with a blank you can say who it is,
+  including *someone new*, for a story with two people or two places.
+- Each person takes the form their line asks for. One line can use *the
+  house* and the next *my house*, and both are the same house.
+- The new **Who is who** section lists everyone in the scene, how many
+  words could be each one, and one way the scene will read. It warns when
+  nothing fits, or when two people would have to be the same word.
+- Fixes for blanks in conversations: the other lines no longer show their
+  braces to students, and the words that fill a line's blanks now reach
+  students' devices.
+
+## 0.256 — 26 September 2026
+
+**Fixes from learners' reports.**
+
+- **A phrase with a masculine and a feminine version takes either, when
+  the question can't say which.** *Not good*, *please* and *where are you
+  from?* each have two versions that mean the same in English, and nothing
+  on the card says which is masculine. Asked for *Not good*, writing the
+  other version was marked wrong. Now either is right. Where the question
+  does name the form, such as *feminine* on an adjective, only that one
+  counts, as before. On a *choose* question the other version is never
+  one of the wrong answers.
+- **The masculine or feminine label is under the word being asked.** It
+  used to be at the end of the instruction line, where it was easy to
+  miss.
+- **Match the pairs never puts two versions of the same card in one
+  grid.** Side by side they could not be told apart, so pairing them was a
+  guess. Labelling just those two tiles showed which two went together.
+  Now each version gets a grid of its own, and no tile needs a label.
+- **The gap question gives the whole phrase in English.** *In a phrase →
+  Arabic* and *In a phrase → choose* showed only the missing word's own
+  meaning, which the word's own questions already ask. They now show what
+  the whole phrase means, and the missing word is worked out from it. The
+  question that plays the phrase aloud still names the word, because there
+  is no gap on the screen to point at.
+- **A long answer stays readable once it is marked.** After a misspelt
+  answer, what you wrote was squeezed into a one-line box and cut off at
+  the top and bottom. The box now grows to fit it.
+
+## 0.255 — 26 September 2026
+
+**A word's forms and a sentence's blanks say how they fit together.**
+
+A form is used in a sentence only when two answers allow it. Its word card
+must let it into sentences, and the sentence's blank must ask for its kind.
+The kind is a tense, or a word with or without a pronoun on the end. This
+release makes that visible.
+
+- The line above a form's practice ticks now says what *Inside sentence
+  cards* decides: any sentence may use the form, and each sentence chooses
+  which kinds of form it wants.
+- When a blank can have a pronoun on the end, the choice now says it
+  applies to every word in the blank. A form kept out of sentences on its
+  own card stays out either way.
+- *With a pronoun on the end* counts only the words whose forms are
+  allowed into sentences. It could promise words the sentence would never
+  get.
+- When a sentence can't be practised because a blank has nothing behind
+  it, the warning now says why. Either nothing fills the blank, or the
+  words behind it keep the forms it asks for out of sentences, or none of
+  them has such a form written. It says what to do in each case.
+
+## 0.254 — 26 September 2026
+
+**Flagging a problem opens a full screen, and every option can take a note.**
+
+- *Flag a problem* now opens a screen of its own instead of a panel over
+  the bottom of the question. Back is at the top left and Send is at the
+  foot, like the other screens.
+- There are four options, as before: *My answer should have been
+  accepted*, *The card's data is incorrect*, *This was too easy* and
+  *Something else*.
+- *Tell us what happened* is now one box under all four options, not a
+  part of *Something else*. It is optional for the first three and
+  required for *Something else*; the box says which.
+- *This was too easy* still moves the card up a level. If you write
+  something with it, what you wrote is now sent as a report too; without
+  a note nothing is sent, as before.
+
+## 0.253 — 26 September 2026
+
+**A noun blank can use the word, or its forms with a pronoun on the end.**
+
+A noun whose attached pronouns are written out, such as *day* with *my
+day* and *your day*, used to fill a sentence blank with all of them in
+turn. So *how was ___?* came out as *how was day?*, *how was my day?* and
+*how was his day?*.
+
+- When you put in a blank that such a word fills, you now choose how it
+  reads, as you do for a pronoun. *Main form* uses the word itself, and its
+  other forms such as the plural. *With a pronoun on the end* uses only
+  *my day*, *your day* and the rest.
+- The question is asked only when a word behind the blank has attached
+  pronoun forms written out. Other blanks go straight in.
+- The choice is shown under the card's blanks as *What ___ uses*, where it
+  can be changed.
+- Sentences written before this keep using both, until you choose.
+
+## 0.252 — 26 September 2026
+
+**The pronouns are one entry in the card list.**
+
+The Pronouns screen makes a card for each pronoun, so the Cards tab showed
+eight tiles for what you wrote as one set.
+
+- The Cards tab and a deck's card list now show a language's pronouns as
+  one *Pronouns* entry, with the pronouns on its face.
+- Tapping it, or its pencil, opens the Pronouns screen, where they are
+  edited.
+- Each pronoun is still its own card underneath. It is practised on its
+  own, fills pronoun blanks, and can be put in decks as before.
+- Selecting the entry selects all the pronouns in it, so adding them to a
+  deck or removing them works on the whole set. The entry has no delete
+  button of its own.
+- A pronoun card written before the Pronouns screen existed still shows as
+  its own tile.
+
+Behind the scenes, the automated checks no longer fail at random on a busy
+machine. When they do fail, they now say which check failed, instead of
+cutting off before it.
+
+## 0.251 — 26 September 2026
+
+**One pronoun blank again, then how it reads.**
+
+0.250 listed three pronoun blanks side by side. Now the list has one,
+*pronoun*, as it used to.
+
+- Choosing it asks how the pronoun reads in English: *Pronoun* (I, he,
+  they), *Pronoun with "to be"* (I am, he is, they are), or *Pronoun with
+  "to be", as a question* (am I, is he, are they).
+- Back from that question returns to the list of blanks.
+- Choosing a blank now happens on a full screen that rises over the card,
+  rather than a sheet from the bottom, so the whole list fits on a phone.
+
+## 0.250 — 26 September 2026
+
+**A pronoun in a sentence can mean "I", "I am" or "am I".**
+
+Arabic says *I am tired* with no word for *am*, and asks *are you tired?*
+without moving anything. A sentence with a pronoun blank could only read
+the pronoun as *I*, so it came out as *I tired*; writing *am* into the
+sentence gave *he am tired* for every other pronoun.
+
+- When you put a blank into a sentence there are now three pronoun
+  blanks. *pronoun* reads as *I*, *he*, *they*, as before. *pronoun-is*
+  reads as *I am*, *he is*, *they are*. *is-pronoun* reads as *am I*,
+  *is he*, *are they*, for questions.
+- The Arabic is the same pronoun whichever you choose. Only the English
+  changes, and a verb in the same sentence still takes the pronoun's form.
+- The Pronouns screen shows two more English boxes on each row, *With "to
+  be"* and *As a question*. They come filled in, and you only change them
+  if you want other words, such as *I'm*.
+- Sentences already written are unchanged, and pronouns already written
+  need no visit to the Pronouns screen.
+
+## 0.249 — 26 September 2026
+
+**Every question starts at the top.**
+
+In a practice session, a question read scrolled down — a scene, or the
+related words laid out under an answer — used to hand the next question over
+at the same depth, with its prompt out of sight above. Moving on now brings
+the screen back to the top.
+
+## 0.248 — 26 September 2026
+
+**Cards can go from one deck into another.**
+
+Inside a deck, selecting cards used to offer only to take them out of it or
+delete them. Now **Add to another deck** is there too.
+
+- It opens the same list of decks the Cards tab uses, without the deck you
+  are in, and a new deck can be made from it on the way.
+- The cards stay in the deck you are in; they are added to the others as
+  well.
+
 ## 0.247 — 25 September 2026
 
 **The language switch, in Teaching too.**

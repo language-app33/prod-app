@@ -721,6 +721,113 @@ test("a card can hold a conversation, and keeps its turns in order", async () =>
 });
 
 /*
+ * A scene may be a text, and its turns may be picked from sentence cards.
+ *
+ * What the server has to keep: that it is a text, with nobody speaking;
+ * which sentence a turn was picked from, with the sentence's words rather
+ * than whatever copy arrived; which member of the cast each blank plays.
+ * And what a student is handed: the sentence as it is now, its review,
+ * and the words the scene's blanks are filled from.
+ */
+test("a text keeps its kind, its picked turns read their sentence, and a student gets both", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Huda" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const sentence = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "{{guest}} ساكن هون", en: "{{guest}} lives here", lat: "{{guest}} saakin hoon" }, [], { sentence: true }), decks: [] },
+  });
+  const sentenceId = sentence.json.card.id;
+  /* And a name to fill it with, in no deck, as a name always is. */
+  await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "سامي", en: "Sami", lat: "Sami" }, [], { fills: ["guest"], drill: false }), decks: [] },
+  });
+
+  const text = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", lang: "ar-PS", forms: [{ ar: "", en: "Our street", lat: "" }],
+        sceneKind: "text", speakers: ["A", "B"], you: 1,
+        lines: [
+          { who: 1, from: sentenceId, ar: "a stale copy", en: "stale", lat: "", roles: { guest: "guest~2", nothere: "x" } },
+          { who: 0, ar: "{{guest}} بحب الشارع", en: "{{guest}} loves the street", lat: "" },
+        ],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(text.status, 200, text.text);
+  const held = text.json.card;
+  assert.equal(held.sceneKind, "text");
+  assert.deepEqual(held.speakers, [], "nobody speaks a text");
+  assert.equal(held.you, null);
+  assert.deepEqual(held.lines.map((/** @type {any} */ l) => l.who), [0, 0]);
+  assert.equal(held.lines[0].from, sentenceId);
+  assert.equal(held.lines[0].ar, "{{guest}} ساكن هون", "the sentence's words, not the copy that arrived");
+  assert.deepEqual(held.lines[0].roles, { guest: "guest~2" }, "a role only for a blank the turn has");
+  assert.equal(held.lines[1].roles, undefined, "a blank playing itself says nothing");
+  /* The scene reviews its own typed turn; the picked one is the sentence's. */
+  assert.ok(held.review, "a scene with a typed blank waits for its teacher");
+
+  /* A build from before texts says nothing about the subtype, and saving
+     from it must not turn a text back into a conversation. */
+  const stale = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { ...held, sceneKind: undefined, speakers: ["A", "B"], lines: held.lines.map((/** @type {any} */ l, /** @type {number} */ i) => ({ ...l, who: i % 2 })) }, decks: [] },
+  });
+  assert.equal(stale.json.card.sceneKind, "text", "saying nothing is not saying conversation");
+  assert.deepEqual(stale.json.card.speakers, [], "and a text has nobody in it, whoever sent them");
+  assert.deepEqual(stale.json.card.lines.map((/** @type {any} */ l) => l.who), [0, 0]);
+  /* Turned into a conversation on purpose, it stops being a text. */
+  const talk = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { ...held, sceneKind: "conversation", speakers: ["A", "B"] }, decks: [] },
+  });
+  assert.equal(talk.json.card.sceneKind, undefined);
+  assert.deepEqual(talk.json.card.speakers, ["A", "B"]);
+  const again = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { ...held }, decks: [] },
+  });
+  assert.equal(again.json.card.sceneKind, "text");
+
+  /* A student gets the text, the sentence as it is now, and the name. */
+  const deck = await api("/api/courses?action=create-deck", { method: "POST", key, body: { title: "Texts", lang: "ar-PS" } });
+  const deckId = deck.json.deck.id;
+  await api("/api/courses?action=save-card", { method: "POST", key, body: { card: { ...held }, decks: [deckId] } });
+  const course = await api("/api/courses?action=create-course", { method: "POST", key, body: { title: "Readers", language: "ar-PS" } });
+  await api("/api/courses?action=attach-deck", { method: "POST", key, body: { deckId, courseId: course.json.course.id } });
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nour" } });
+  await api("/api/courses?action=assign-student", {
+    method: "POST", key, body: { courseId: course.json.course.id, handle: student.json.user.handle },
+  });
+  /* The sentence is edited and reviewed after the scene was saved. */
+  await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "{{guest}} ساكن بالحارة", en: "{{guest}} lives in the quarter", lat: "" }, [], { id: sentenceId, sentence: true }), decks: [] },
+  });
+  const okKey = "0123456789abcdef";
+  await api("/api/courses?action=review-card", { method: "POST", key, body: { cardId: sentenceId, ok: [okKey] } });
+  const first = await api("/api/courses?action=my-material", { key: student.json.key });
+  const cards = (first.json.cards || []).flatMap((/** @type {any} */ d) => d.cards);
+  const handed = must(cards.find((/** @type {any} */ c) => c.id === held.id), "the text on the student's device");
+  assert.equal(handed.lines[0].ar, "{{guest}} ساكن بالحارة", "the sentence as it is now");
+  assert.deepEqual(handed.lines[0].review.ok, [okKey], "with the review that turn answers to");
+  assert.ok(cards.some((/** @type {any} */ c) => lead(c).en === "Sami"),
+    "and the name its blanks are filled with, which scene turns were never sent");
+
+  /* Editing the sentence again moves the version the student compares. */
+  await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "{{guest}} ساكن هناك", en: "{{guest}} lives there", lat: "" }, [], { id: sentenceId, sentence: true }), decks: [] },
+  });
+  const later = await api(`/api/courses?action=my-material&version=${first.json.version}`, { key: student.json.key });
+  assert.notEqual(later.json.unchanged, true, "a sentence a scene picked is news to that scene's students");
+});
+
+/*
  * The values a deck's phrases need travel with it.
  *
  * A card that fills a variable is in no deck — that is the point of it: it
@@ -1765,6 +1872,17 @@ test("a flag nobody could act on is refused, and only an administrator reads the
     method: "POST", key, body: { kind: "other", note: "  the recording is silent  ", cardId: "c1" },
   });
   assert.equal(said.status, 200, said.text);
+
+  /* Every other kind takes words too, and goes without them. "Too easy"
+     arrives only when the learner wrote something with it. */
+  const easy = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "easy", note: "I know this one cold", cardId: "c1" },
+  });
+  assert.equal(easy.status, 200, easy.text);
+  const bare = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "data", cardId: "c1" },
+  });
+  assert.equal(bare.status, 200, bare.text);
 
   /* Reading them is the administrator's, and so is clearing them. */
   const nosy = await api("/api/courses?action=admin-overview", { key });
@@ -3625,6 +3743,36 @@ test("a pronoun card keeps which person it is", async () => {
     body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "باب", en: "door", lat: "baab" }] }, decks: [] },
   });
   assert.equal(plain.json.card.person, undefined);
+});
+
+/* And what it reads as with "to be", where the teacher wrote their own —
+   the {{pronoun-is}} and {{is-pronoun}} blanks put it in a sentence's
+   English. Stored where written, and taken off again when sent empty,
+   which is how the Pronouns screen hands a reading back to the automatic
+   one. */
+test("a pronoun card keeps the English it reads as with to be", async () => {
+  const teacher = await anAdmin("Rana");
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key: teacher.key,
+    body: {
+      card: {
+        id: "", lang: "ar-PS", category: "pronoun", person: "i", enIs: "I'm", enAsk: "am I",
+        forms: [{ ar: "أنا", en: "I", lat: "ana" }],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.card.enIs, "I'm");
+  assert.equal(saved.json.card.enAsk, "am I");
+  const cleared = await api("/api/courses?action=save-card", {
+    method: "POST", key: teacher.key,
+    body: { card: { ...saved.json.card, enIs: "", enAsk: "" }, decks: [] },
+  });
+  assert.equal(cleared.status, 200, cleared.text);
+  assert.equal(cleared.json.card.enIs, undefined);
+  assert.equal(cleared.json.card.enAsk, undefined);
+  assert.equal(cleared.json.card.person, "i");
 });
 
 /*

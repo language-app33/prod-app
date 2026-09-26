@@ -11,7 +11,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
 import { cardRef, fillNames, fillsOf, isSentence, MAX_FILLS, slotName, slotsOf } from "../../src/variables.ts";
-import { isDialog } from "../../src/dialogs.ts";
+import { isDialog, isText, linesOf, pickedFrom, pickedLine, TEXT } from "../../src/dialogs.ts";
+/* Which member of a scene's cast each blank of a turn plays — see cast.ts. */
+import { cleanRoles, memberName } from "../../src/cast.ts";
 import { formsOf } from "../../src/cards.ts";
 /* And which tenses a sentence's blanks ask their verbs for, read the one
    way the app reads it. */
@@ -297,11 +299,12 @@ const K = {
  * flag is its own small record here: what was wrong, on which question, by
  * whom, and when.
  *
- * The kinds are the three the app offers, listed here as well because a
+ * The kinds are the four the app offers — "easy" only arrives when the
+ * learner wrote something with it — listed here as well because a
  * kind the app never sends is a kind nothing can read, and an open field
  * would fill the admin screen with whatever anyone posted.
  */
-const FLAG_KINDS = ["strict", "data", "other"];
+const FLAG_KINDS = ["strict", "data", "easy", "other"];
 const FLAG_NOTE_MAX = 500;
 
 /*
@@ -1249,6 +1252,12 @@ export default async (req) => {
            on every other card; undefined rather than left out, because
            this object is spread over the card as it stood. */
         person: idish(card.person) || undefined,
+        /* And what a pronoun reads as in English with *to be* — "I am" —
+           and as a question — "am I". The teacher's words, capped like
+           every other line of text; absent where none was written, which
+           reads as the reading the app makes of the pronoun's English. */
+        enIs: String(card.enIs || "").trim().slice(0, 120) || undefined,
+        enAsk: String(card.enAsk || "").trim().slice(0, 120) || undefined,
         /* No `value` here, and none taken from a save.
            It was what made a card one of the parts a number was built out
            of, and there are no parts any more: a language's numbers are
@@ -1406,7 +1415,7 @@ export default async (req) => {
            is handed to every student in the course. A card with no lines
            stores none, so an ordinary word is unchanged by passing
            through here. */
-        speakers: Array.isArray(card.speakers)
+        speakers: Array.isArray(card.speakers) && !isText(card)
           ? card.speakers.slice(0, 4).map((/** @type {unknown} */ n) => String(n || "").slice(0, 40))
           : [],
         /* Which part the learner takes, or null where the teacher left it
@@ -1415,9 +1424,16 @@ export default async (req) => {
            as null rather than 0 because 0 is a real answer: "the one who
            speaks first", which is the opposite of no answer at all. */
         you:
-          card.you === null || card.you === undefined || card.you === ""
+          card.you === null || card.you === undefined || card.you === "" || isText(card)
             ? null
             : Math.max(0, Math.min(3, Math.round(Number(card.you) || 0))),
+        /* Which kind of scene it is, where it is one: a text, or — saying
+           nothing — the conversation every scene was before texts. Absent
+           rather than "conversation", so a conversation saved here is
+           byte for byte what it was. Undefined rather than left out,
+           because this object is spread over the card as it stood and a
+           text turned back into a conversation must stop being a text. */
+        sceneKind: isDialog(card) && isText(card) ? TEXT : undefined,
         lines: Array.isArray(card.lines)
           ? card.lines.slice(0, 12).map((/** @type {Record<string, any>} */ ln) => ({
               /* What this turn is called, for as long as anything points
@@ -1430,7 +1446,24 @@ export default async (req) => {
                  were named for that reason in 0.131 and table cells in
                  0.145; this is the third and last of them. */
               ...(idish(ln.id) ? { id: idish(ln.id) } : {}),
-              who: Math.max(0, Math.min(3, Math.round(Number(ln.who) || 0))),
+              /* Nobody says a line of a text, so every one is the first
+                 speaker's, which is what a scene with no speakers reads. */
+              who: isText(card) ? 0 : Math.max(0, Math.min(3, Math.round(Number(ln.who) || 0))),
+              /* The sentence card this turn was picked from, where it was
+                 picked rather than typed — an id, cleaned the way every card
+                 id is. Its words are the sentence's, refreshed below and
+                 again on the way to every student. */
+              ...(cardIdish(ln.from) ? { from: cardIdish(ln.from) } : {}),
+              /* Which member of the scene's cast each of its blanks plays,
+                 where one plays somebody other than the member named after
+                 it. Each name narrowed here; which of them the turn keeps
+                 is settled once its words are final — see below — because
+                 a picked turn's blanks are its sentence's, not the copy's. */
+              ...rolesOf(ln),
+              /* And which forms its blanks take — a tense, or a pronoun on
+                 the end — the narrowing a sentence's form carries, read the
+                 same way. A picked turn brings its sentence's. */
+              ...slotTenses(ln),
               ar: String(ln.ar || "").slice(0, 400),
               en: String(ln.en || "").slice(0, 400),
               lat: String(ln.lat || "").slice(0, 400),
@@ -1478,7 +1511,7 @@ export default async (req) => {
           "turns",
         );
         note(
-          Array.isArray(card.speakers) ? card.speakers.length : 0,
+          Array.isArray(card.speakers) && !isText(card) ? card.speakers.length : 0,
           fields.speakers.length,
           "speaker",
           "speakers",
@@ -1629,15 +1662,58 @@ export default async (req) => {
        * was anything to pin: until then a sentence was recognised by the
        * braces in its words, and taking the braces out made it a word.
        */
-      /** @param {Record<string, any>} was @param {Record<string, any>} sent */
+      /**
+       * @param {Record<string, any>} was @param {Record<string, any>} sent
+       * @returns {Record<string, any>}
+       */
       function keptKind(was, sent) {
         if (isDialog(was)) {
           /* Its turns are the lesson, so they are the teacher's to edit —
              but never to empty, which is the one edit that would stop it
-             being a conversation. */
-          return { sentence: false, lines: sent.lines.length ? sent.lines : was.lines };
+             being a scene. Whether it is a conversation or a text is the
+             teacher's to change, the way a word's subtype is: it moves
+             which questions it is asked and leaves every line's progress
+             where it was. */
+          const lines = sent.lines.length ? sent.lines : was.lines;
+          /* And saying nothing about it is not saying "conversation": a
+             build from before texts sends no subtype, and must not turn a
+             text back into a conversation by saving it. A text has nobody
+             in it, whoever sent the speakers. */
+          const said = card.sceneKind;
+          const text = said === undefined || said === null || said === "" ? isText(was) : said === TEXT;
+          return text
+            ? {
+                sentence: false,
+                sceneKind: TEXT,
+                speakers: [],
+                you: null,
+                lines: lines.map((/** @type {Record<string, any>} */ l) => ({ ...l, who: 0 })),
+              }
+            : { sentence: false, sceneKind: undefined, lines };
         }
-        return { sentence: isSentence(was), speakers: [], you: null, lines: [] };
+        return { sentence: isSentence(was), speakers: [], you: null, lines: [], sceneKind: undefined };
+      }
+
+      /* A turn's cast, each entry narrowed to a blank's name and a
+         member's, and capped like every other list here. */
+      /** @param {Record<string, any>} ln */
+      function rolesOf(ln) {
+        const said = ln && ln.roles && typeof ln.roles === "object" ? ln.roles : {};
+        /** @type {Record<string, string>} */
+        const out = {};
+        for (const name of Object.keys(said).slice(0, MAX_FILLS)) {
+          const slot = slotName(name);
+          const member = memberName(said[name]);
+          if (slot && member && member !== slot) out[slot] = member;
+        }
+        return Object.keys(out).length ? { roles: out } : {};
+      }
+
+      /* A card's id, cleaned the way a card id is everywhere on this
+         document — it is read back as identity. */
+      /** @param {unknown} x */
+      function cardIdish(x) {
+        return String(x || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
       }
 
       /* The shape an id can take, which is all the server checks of one:
@@ -1803,6 +1879,47 @@ export default async (req) => {
         if (record) deckRecords.push(record);
       }
       /*
+       * A turn picked from a sentence card carries that sentence's words,
+       * as they are now.
+       *
+       * The editor copied them when the teacher picked it, and copies them
+       * again whenever the scene is opened; this is the same step where it
+       * cannot be skipped, so what is stored is never older than the save.
+       * A sentence that has gone, or that is no longer a sentence, leaves
+       * the turn as the words it last had, typed into the scene — which is
+       * what it now is — and reviewed with the scene's own turns.
+       */
+      if (linesOf(saved).some((l) => pickedFrom(l))) {
+        const ids = [...new Set(linesOf(saved).map((l) => pickedFrom(l)).filter(Boolean))];
+        const rows = await readManyJson(store, ids.map((x) => K.card(x)), EVENTUAL);
+        /** @type {Map<string, any>} */
+        const sources = new Map();
+        ids.forEach((x, i) => {
+          const c = rows[i];
+          if (c && !isDialog(c) && isSentence(c)) sources.set(x, c);
+        });
+        saved.lines = linesOf(saved).map((l) => {
+          const from = pickedFrom(l);
+          if (!from) return l;
+          const source = sources.get(from);
+          if (!source) {
+            const { from: _gone, ...typed } = l;
+            return typed;
+          }
+          return pickedLine(l, source);
+        });
+      }
+      /* And the cast kept only for blanks each turn actually has, now that
+         its words are final. */
+      if (linesOf(saved).some((l) => l.roles)) {
+        saved.lines = linesOf(saved).map((l) => {
+          const { roles: _was, ...rest } = /** @type {any} */ (l);
+          const roles = cleanRoles(l);
+          return roles ? { ...rest, roles } : rest;
+        });
+      }
+
+      /*
        * A sentence nobody has read is not shown.
        *
        * A card that makes sentences — a frame with blanks, a verb's own
@@ -1829,7 +1946,11 @@ export default async (req) => {
       await writeJson(store, K.card(saved.id), saved);
       /* Through the same answer the bundling uses, so a card that fills a
          blank only by the kind of word it is moves the revision too. */
-      if (fillsOf(saved).length || wasFilling) await bumpFills(saved.owner || "");
+      /* And a sentence moves it too, because a scene may have picked it:
+         the scene's decks are not this card's, and it is this teacher's
+         revision that tells their students' devices to fetch the scene's
+         lines again. */
+      if (fillsOf(saved).length || wasFilling || isSentence(saved)) await bumpFills(saved.owner || "");
       await taught();
       /* `trimmed` only where something was — an ordinary save says nothing,
          and the client has nothing to report. */
@@ -1920,6 +2041,10 @@ export default async (req) => {
           d ? { ...d, version: (d.version || 1) + 1, updated: Date.now() } : null,
         );
       }
+      /* A sentence's review is also the review of every scene turn picked
+         from it, and those scenes are in other decks — so its teacher's
+         revision moves, as it does when the sentence is saved. */
+      if (isSentence(next || card)) await bumpFills((next || card).owner || "");
       await taught();
       return json({ ok: true, card: { ...(next || card), decks: holding } });
     }
@@ -2547,12 +2672,68 @@ export default async (req) => {
         return out;
       }
 
+      /*
+       * The sentences the scenes in these decks picked their turns from.
+       *
+       * A picked turn is sent with the sentence's words as they are now —
+       * the copy on the scene is only as fresh as the scene's last save —
+       * and with the sentence's review, which is the review that turn
+       * answers to (see lineGate in review.ts). The sentence itself need
+       * not be in any deck this student holds: it is the scene that is
+       * being taught. Read once for the whole answer, like the libraries
+       * below.
+       */
+      const pickedIds = [
+        ...new Set(
+          [...cardById.values()].flatMap((/** @type {any} */ c) =>
+            isDialog(c) ? linesOf(c).map((l) => pickedFrom(l)).filter(Boolean) : [],
+          ),
+        ),
+      ];
+      const missing = pickedIds.filter((x) => !cardById.has(x));
+      const extraRows = await readManyJson(store, missing.map((x) => K.card(x)), EVENTUAL);
+      /** @type {Map<string, any>} */
+      const sentenceById = new Map();
+      for (const x of pickedIds) {
+        const c = cardById.get(x) || extraRows[missing.indexOf(x)];
+        if (c && !isDialog(c) && isSentence(c)) sentenceById.set(x, c);
+      }
+      /** @param {any} c */
+      const withSentences = (c) => {
+        if (!isDialog(c) || !linesOf(c).some((l) => pickedFrom(l))) return c;
+        return {
+          ...c,
+          lines: linesOf(c).map((l) => {
+            const from = pickedFrom(l);
+            if (!from) return l;
+            const source = sentenceById.get(from);
+            /* Gone, or no longer a sentence: a typed turn with the words it
+               last had, reviewed with the scene's own — which is what the
+               next save of the scene will make it. */
+            if (!source) {
+              const { from: _gone, ...typed } = /** @type {any} */ (l);
+              return typed;
+            }
+            const review = reviewOf(source);
+            return { ...pickedLine(l, source), ...(review ? { review } : {}) };
+          }),
+        };
+      };
+
       const bundled = [];
       for (const d of decks) {
-        const own = d.cardIds.map((/** @type {string} */ id) => cardById.get(id)).filter(Boolean);
+        const own = d.cardIds
+          .map((/** @type {string} */ id) => cardById.get(id))
+          .filter(Boolean)
+          .map(withSentences);
+        /* The blanks these cards leave — in their forms, and in the turns
+           of a scene, which were left out until scenes could be cast and
+           so sent a scene's blanks nothing to fill them with. */
         const wanted = new Set(
           own.flatMap((/** @type {any} */ c) =>
-            formsOf(c).flatMap((/** @type {any} */ f) => slotsOf(f))
+            formsOf(c)
+              .flatMap((/** @type {any} */ f) => slotsOf(f))
+              .concat(linesOf(c).flatMap((l) => slotsOf(l))),
           )
         );
         if (!wanted.size) {

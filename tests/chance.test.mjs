@@ -103,6 +103,26 @@ test("two words reading the same, or meaning the same, never share a grid", () =
   assert.deepEqual(ids(filled.grids[0]), ["a", "s1", "s3"]);
 });
 
+test("two forms of one card never share a grid, however differently they read", () => {
+  /* مِن وين إِنتَ؟ and مِن وين إِنتِ؟ — the masculine and the feminine of one
+     phrase. Worded apart here, so only the card can tell the guard they
+     are one question in two shapes. */
+  const card = { m: "k1", f: "k1" };
+  const familyOf = (/** @type {{id: string}} */ w) => /** @type {Record<string, string>} */ (card)[w.id] || w.id;
+  const forms = [word("m", "مِن وين إِنتَ؟", "Where are you from? (to a man)"), word("f", "مِن وين إِنتِ؟", "Where are you from? (to a woman)")];
+  const { grids, dropped } = matchGroups({ wanting: forms, spares: words(6, "s"), textOf, meaningOf, familyOf });
+  for (const g of grids) {
+    assert.ok(!(g.some((w) => w.id === "m") && g.some((w) => w.id === "f")), "not side by side");
+  }
+  assert.equal(grids.flat().filter((w) => w.id in card).length + dropped.length, 2, "each is dealt or handed back");
+  /* And a spare that is another form of a word already up is passed over. */
+  const filled = matchGroups({ wanting: [forms[0]], spares: [forms[1], ...words(4, "s")], textOf, meaningOf, familyOf });
+  assert.ok(!ids(filled.grids[0]).includes("f"));
+  /* And no spare meaning is drawn from it either. */
+  const grid = matchSet({ answers: [forms[0], word("b"), word("c")], pool: [forms[1], ...words(3, "p")], seed: "x", textOf, meaningOf, familyOf });
+  assert.ok(!grid.meanings.includes(forms[1].en));
+});
+
 test("a word with nothing written on one side is not asked", () => {
   const { grids, dropped } = matchGroups({
     wanting: [word("a"), word("blank", "كلمة", ""), word("b"), word("c")],

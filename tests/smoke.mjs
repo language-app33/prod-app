@@ -215,6 +215,16 @@ const twoGenders = {
     number: "singular", gender: "feminine", classifier: "", clips: [],
   }],
 };
+/* A phrase and its feminine, both "Not good", with no grammar written on
+   either — the shape a learner reported three times in one morning. There
+   is no tag to put up, so the question cannot say which it wants, and
+   either is right. In no deck. */
+const notGood = {
+  id: "k6a6a6a6a6a6a", owner: "t-1", ar: "مِش منيح", en: "Not good", lat: "miš mnīḥ",
+  note: "", lang: "ar-PS", number: "", gender: "", classifier: "",
+  clips: [], uses: [], rev: 1, updated: 1, created: 7,
+  subs: [{ ar: "مِش منيحة", en: "Not good", lat: "miš mnīḥa", number: "", gender: "", classifier: "", clips: [] }],
+};
 /* A word with pronouns on its end, as a teacher saved it: one cell, in the
    attached table's row. It is here to be *reopened* — the editor used to
    read any cell as a verb's, seed the dictionary form, and open the card on
@@ -411,6 +421,7 @@ const fakeFetch = async (input, opts = {}) => {
           { ...rafa, decks: [] },
           { ...viktor, decks: [] },
           { ...twoGenders, decks: [] },
+          { ...notGood, decks: [] },
           { ...penWithPronouns, decks: [] },
           { ...bigWithForms, decks: [] },
           { ...toEat, decks: [] },
@@ -701,11 +712,29 @@ function report(why) {
   console.log(results.join("\n"));
   if (errors.length) console.log("\nthe app said:\n  " + errors.join("\n  "));
 }
+/*
+ * Leave once everything printed has reached whoever is reading it.
+ *
+ * The report is one write of about a hundred kilobytes at the very end, and
+ * into a pipe that is written as fast as the reader takes it. CI's log is
+ * a slow reader, so process.exit landed with the report still queued: the
+ * log stopped at 64 KB, the size of a pipe's buffer, and every FAIL line
+ * after that point went with it. A run that failed said it had failed and
+ * not what. So the exit waits for the last write to be taken — and not for
+ * ever, in case the reader has gone.
+ */
+/** @param {number} code */
+function exitWhenWritten(code) {
+  process.exitCode = code;
+  setTimeout(() => process.exit(code), 30000);
+  process.stdout.write("", () => process.stderr.write("", () => process.exit(code)));
+}
+
 /** @param {unknown} err */
 const died = (err) => {
   report("DIED partway through. Everything up to that point:");
   origError("\n", err);
-  process.exit(1);
+  exitWhenWritten(1);
 };
 process.on("uncaughtException", died);
 process.on("unhandledRejection", died);
@@ -1194,7 +1223,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the flag button opens the menu, and says that it has",
       !!menu && !!flag && flag.getAttribute("aria-expanded") === "true",
       menu && flag ? String(flag.getAttribute("aria-expanded")) : "no menu");
-    check("it offers the four things a learner can say, too easy third", opts.length === 4 &&
+    /* A screen of its own, not a panel over the foot: the whole window,
+       with the way back where every other screen keeps it. */
+    const flagScreen = menu && menu.closest(".at-screen");
+    check("and it is a full screen, not a sheet over the bar",
+      !!flagScreen && !(menu && menu.closest(".at-foot")),
+      menu && menu.parentElement ? menu.parentElement.className : "no menu");
+    check("it offers the four things a learner can say, too easy third, something else fourth", opts.length === 4 &&
       /too easy/.test(opts[2].textContent || "") && /Something else/.test(opts[3].textContent || ""),
       opts.map((o) => (o.querySelector(".at-flagopt-title") || {}).textContent).join(" | "));
     check("and says what too easy does",
@@ -1205,29 +1240,33 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       opts.length > 0 && opts.every((o) =>
         o.querySelector(".at-flagopt-title") && o.querySelector(".at-flagopt-what")),
       opts.map((o) => o.innerHTML.slice(0, 40)).join(" | "));
-    /* The menu stands on top of the flag button, so it has to say what it
-       is itself — otherwise the screen holds three options and nothing
-       naming what they are options about. */
-    check("and the menu says what it is",
+    check("and the screen says what it is",
       /Flag a problem/.test(
-        (document.querySelector('[data-el="flag-menu-label"]') || {}).textContent || ""),
-      (menu && menu.textContent || "").slice(0, 40));
+        ((flagScreen && flagScreen.querySelector(".at-screenhead h2")) || {}).textContent || ""),
+      (flagScreen && flagScreen.textContent || "").slice(0, 40));
 
-    /* Everything is there from the start: the box for the option that has
-       to be said in words, and the two buttons that act on the choice. The
-       box used to take the place of the list one press in, and the buttons
-       came with it — so until you had picked, there was nothing on screen
-       to press but the options themselves, and picking sent. */
+    /* One box for all four, there from the start and belonging to none of
+       them: whichever is picked, there may be more to say. */
     const noteBox = document.querySelector('[data-el="flag-note"]');
     const noteInput = document.querySelector('[data-el="flag-note-input"]');
-    check("Something else brings its box with it, before anything is picked",
-      !!noteBox && !!noteInput && !!menu && menu.contains(noteBox),
-      noteBox ? "" : "no note box");
-    check("and Back and Send are on screen from the start",
-      !!buttonNamed(/^Back$/) && !!buttonNamed(/^Send$/),
-      [...document.querySelectorAll(".at-flagmenu button")].map((b) => b.textContent).join(" | "));
+    const noteNeed = () => ((document.querySelector('[data-el="flag-note-need"]') || {}).textContent || "");
+    check("Tell us what happened is its own box, under all four options",
+      !!noteBox && !!noteInput && !!menu && menu.contains(noteBox) &&
+        !opts.some((o) => o.contains(noteBox)) &&
+        /Tell us what happened/.test(noteBox.textContent || ""),
+      noteBox ? (noteBox.textContent || "").slice(0, 60) : "no note box");
+    check("and Send is on screen from the start",
+      !!buttonNamed(/^Send$/),
+      [...(flagScreen ? flagScreen.querySelectorAll("button") : [])].map((b) => b.textContent).join(" | "));
     check("Send waits for one of them to be picked",
       buttonState(/^Send$/).disabled, String(buttonState(/^Send$/).disabled));
+
+    /* On every option but the last the box is optional. */
+    click(opts[1]);
+    await sleep(60);
+    check("on any other option the box is optional, and Send is ready without it",
+      /Optional/.test(noteNeed()) && !buttonState(/^Send$/).disabled,
+      `${noteNeed()} disabled=${buttonState(/^Send$/).disabled}`);
 
     /* Picking is now picking: nothing leaves the device until Send. */
     const somethingElse = opts.find((o) => /Something else/.test(o.textContent));
@@ -1237,8 +1276,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!somethingElse && somethingElse.getAttribute("aria-pressed") === "true" &&
         !calls.some((c) => c.includes("report-flag")),
       somethingElse ? String(somethingElse.getAttribute("aria-pressed")) : "no option");
-    check("and it still waits, because it is the one that has to be said in words",
-      buttonState(/^Send$/).disabled, String(buttonState(/^Send$/).disabled));
+    check("and it waits, because it is the one that has to be said in words",
+      buttonState(/^Send$/).disabled && /Required/.test(noteNeed()),
+      `${noteNeed()} disabled=${buttonState(/^Send$/).disabled}`);
 
     /* jsdom's value setter is the React-controlled one, so the change has
        to be made the way a keystroke makes it. */
@@ -4200,7 +4240,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     kindRows().length === 3 &&
       /^Word or phrase/.test((kindRows()[0].textContent || "").trim()) &&
       /^Sentence/.test((kindRows()[1].textContent || "").trim()) &&
-      /^Conversation/.test((kindRows()[2].textContent || "").trim()),
+      /^Scene/.test((kindRows()[2].textContent || "").trim()),
     kindRows().map((r) => (r.textContent || "").slice(0, 18)).join(" | ") || "(no kind picker)");
   check("each of the three saying what it is",
     kindRows().length === 3 && kindRows().every((r) => !!r.querySelector("i")),
@@ -4236,15 +4276,45 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   /* A conversation is made the same way as everything else: by answering
      this question. It had a button of its own once, and then a segment
      inside the editor that turned a half-written word into one. */
-  await pickCardKind(/^Conversation/);
+  await pickCardKind(/^Scene/);
   const talkEditor = [...document.querySelectorAll(".at-screen.over")].pop();
   const talkText = talkEditor ? (talkEditor.textContent || "").replace(/\s+/g, " ") : "";
-  check("picking Conversation opens the editor for one",
+  check("picking Scene opens the editor for one",
     /The scene/.test(talkText) && /Who is in it/.test(talkText) &&
       [...document.querySelectorAll('[role="group"][aria-label="Who says line 1"]')].length === 1,
     talkText.slice(0, 100) || "(no editor open)");
   check("and the screen is named for what is being made",
-    screenTitle() === "New conversation", screenTitle() || "(no title)");
+    screenTitle() === "New scene", screenTitle() || "(no title)");
+
+  /* A scene is a conversation or a text, asked the way a word's subtype
+     is, and nothing is chosen for the teacher. */
+  check("a new scene is asked whether it is a conversation or a text",
+    !!wordKindBtn() && /Not set/.test(wordKindBtn().textContent || ""),
+    wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(nothing asked)");
+  await openWordKind();
+  check("and the two answers each say what they are",
+    formRows().length === 2 &&
+      /^Conversation/.test((formRows()[0].textContent || "").trim()) &&
+      /^Text/.test((formRows()[1].textContent || "").trim()) &&
+      formRows().every((r) => !!r.querySelector("i")),
+    formRows().map((r) => (r.textContent || "").slice(0, 16)).join(" | ") || "(no sheet)");
+  await pickKind(/^Text/);
+  const textEditor = [...document.querySelectorAll(".at-screen.over")].pop();
+  const textText = textEditor ? (textEditor.textContent || "").replace(/\s+/g, " ") : "";
+  check("a text has nobody in it: no speakers, and sentences where turns were",
+    /The text/.test(textText) && !/Who is in it/.test(textText) && /Sentence 1/.test(textText) &&
+      ![...document.querySelectorAll('[role="group"][aria-label="Who says line 1"]')].length,
+    textText.slice(0, 120) || "(no editor open)");
+  /* And a line can be picked from a sentence card rather than typed. */
+  click(buttonNamed(/^Pick a sentence card$/));
+  await sleep(400);
+  const topTitle = () =>
+    (([...document.querySelectorAll(".at-screen.over .at-screenhead h2")].pop() || {}).textContent || "").trim();
+  check("a sentence card can be picked as a line, from a screen of its own",
+    topTitle() === "Pick a sentence card" && !!document.querySelector('[aria-label="Find a sentence"]'),
+    topTitle() || "(no picker)");
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the scene"));
+  await sleep(350);
 
   await leaveScreen();
   await newCard();
@@ -4901,7 +4971,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       const chip = (/** @type {RegExp} */ re) => /** @type {any} */ (
         [...document.querySelectorAll(".at-blankput")]
           .find((b) => re.test(b.getAttribute("aria-label") || "")) || null);
-      const sheet = () => document.querySelector(".at-sheet");
+      /* A screen rather than a sheet since 0.251 — see BlankScreen. */
+      const sheet = () => document.querySelector(".at-screen.blanks");
       const rows = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
         .map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
       const rowFor = (/** @type {RegExp} */ re) => /** @type {any} */ (
@@ -4915,7 +4986,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
       click(addIn(/into English$/));
       await sleep(300);
-      check("the button opens a sheet of the blanks this language has",
+      check("the button opens a screen of the blanks this language has",
         !!sheet() && rows().length > 0, rows().slice(0, 3).join(" / ") || "(nothing offered)");
       /* The one thing a teacher cannot tell from a name: whether the hole
          they are about to write has anything to fill it. */
@@ -4945,7 +5016,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("choosing one puts it into the field it was asked from",
         readField(enNow()) === "My name is {{friend}}",
         readField(enNow()) || "(no field)");
-      check("and the sheet closes behind it", !sheet(), sheet() ? "still open" : "closed");
+      check("and the screen closes behind it", !sheet(), sheet() ? "still open" : "closed");
 
       /* ---- and it is in the words, not beside them ----
 
@@ -4994,6 +5065,74 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !!saveBtn() && !saveBtn().disabled && !pillsIn(enNow()).length && !pillsIn(arNow()).length,
         `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}, ` +
           `${pillsIn(enNow()).length + pillsIn(arNow()).length} pills left`);
+
+      /* ---- one pronoun, then how it reads ----
+
+         A pronoun reads as "I", "I am" or "am I" in English and is the
+         same word in Arabic, so the list has one pronoun and choosing it
+         asks which of the three. */
+      click(addIn(/into English$/));
+      await sleep(300);
+      const names = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+        .map((b) => b.getAttribute("data-blank") || "");
+      check("the pronoun is one blank on the list, not three",
+        names().includes("pronoun") && !names().includes("pronoun-is") && !names().includes("is-pronoun"),
+        names().join(" ") || "(nothing offered)");
+      click(rowFor(/^pronoun$/));
+      await sleep(300);
+      const title = () => {
+        const open = sheet();
+        const head = open ? open.querySelector("h2") : null;
+        return ((head && head.textContent) || "").trim();
+      };
+      check("and choosing it asks how it reads, rather than putting it in",
+        title() === "How the pronoun reads" &&
+          JSON.stringify(names()) === JSON.stringify(["pronoun", "pronoun-is", "is-pronoun"]) &&
+          readField(enNow()) === "My name is",
+        `${title()} · ${names().join(" ")} · ${readField(enNow())}`);
+      click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the blanks"));
+      await sleep(300);
+      check("Back from there is the list of blanks again, not the card",
+        title() === "Put in a blank" && names().includes("friend"), title() || "(closed)");
+      click(rowFor(/^pronoun$/));
+      await sleep(300);
+      click(/** @type {any} */ ((sheet() || document).querySelector('[data-blank="pronoun-is"]')));
+      await sleep(300);
+      check("and the reading chosen is the blank put in",
+        readField(enNow()) === "My name is {{pronoun-is}}" && !sheet(),
+        `${readField(enNow())} · ${sheet() ? "still open" : "closed"}`);
+
+      /* ---- a word with a pronoun on the end, or without ----
+
+         The pen in this collection has "my pen" written out, and it is a
+         word, so a {{word}} blank asks whether the sentence wants the word
+         itself or its forms with a pronoun on the end. No noun here has
+         any, so {{noun}} is put straight in. */
+      click(addIn(/into English$/));
+      await sleep(300);
+      click(rowFor(/^noun$/));
+      await sleep(300);
+      check("a blank whose words have no pronoun endings is put straight in",
+        readField(enNow()) === "My name is {{pronoun-is}} {{noun}}" && !sheet(),
+        `${readField(enNow())} · ${title() || "closed"}`);
+      click(addIn(/into English$/));
+      await sleep(300);
+      click(rowFor(/^word$/));
+      await sleep(300);
+      const options = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+        .map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
+      check("one whose words have them asks whether to use the word or those forms",
+        title() === "How the word reads" && options().length === 2 &&
+          /^Main form.*8 words behind it/.test(options()[0]) &&
+          /^With a pronoun on the end.*my pen.*1 word behind it/.test(options()[1]),
+        `${title()} · ${options().join(" / ")}`);
+      click(/** @type {any} */ ((sheet() || document).querySelector('[data-rows="attached"]')));
+      await sleep(300);
+      const endsPicked = () => /** @type {any} */ (document.querySelector('input[name="ends-word"]:checked'));
+      check("and the choice is put in with the blank, and shown under Blanks to be changed",
+        readField(enNow()) === "My name is {{pronoun-is}} {{noun}} {{word}}" && !sheet() &&
+          !!endsPicked() && /With a pronoun on the end/.test((endsPicked().closest("label") || {}).textContent || ""),
+        `${readField(enNow())} · ${endsPicked() ? (endsPicked().closest("label") || {}).textContent : "(nothing chosen)"}`);
     }
 
     /* And written back into the words, it is read off them again. Into
@@ -5380,7 +5519,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           formsRole ? (formsRole.textContent || "").trim() : "(no Forms heading)");
         const drills = /** @type {any} */ (document.querySelector(".at-formtile.main .at-drills"));
         check("the practice ticks are explained once, under their heading, not in each tick",
-          !!drills && /^Choose where this form comes up in practice\.$/.test(
+          !!drills && /^Choose where this form comes up in practice\.( Inside sentence cards lets any sentence use it; each sentence chooses which kinds of form it wants\.)?$/.test(
             ((drills.querySelector(".at-drilllede") || {}).textContent) || "") &&
             ![...drills.querySelectorAll(".at-tickrow i")].length,
           drills ? (drills.textContent || "").trim().slice(0, 160) : "(no ticks)");
@@ -5624,6 +5763,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           /Inside sentence cards/.test(only[1].textContent || "") &&
           only.every((r) => /** @type {any} */ (r.querySelector("input")).checked),
         only.map((r) => (r.querySelector("b") || {}).textContent).join(" | ") || "(no lines)");
+      /* And the second says what it decides, beside what a sentence
+         decides: whether the form may be used at all, where the sentence
+         chooses the kinds of form it wants. */
+      check("the line under the ticks says the sentence tick lets any sentence use the form, and each sentence chooses the kinds it wants",
+        !!drills && /Inside sentence cards lets any sentence use it; each sentence chooses which kinds of form it wants\./.test(
+          ((drills.querySelector(".at-drilllede") || {}).textContent) || ""),
+        drills ? ((drills.querySelector(".at-drilllede") || {}).textContent || "").trim() : "(no ticks)");
     }
 
     const block = (/** @type {RegExp} */ re) =>
@@ -6366,6 +6512,33 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     JSON.stringify(sent).slice(0, 200));
   check("and the English is the person's name where none was typed",
     ((sent.forms || [])[0] || {}).en === "I", JSON.stringify((sent.forms || [])[0]));
+  const reading = (/** @type {string} */ what) => {
+    const box = iRow() && [...iRow().querySelectorAll("input")].find((i) => (i.getAttribute("aria-label") || "") === `${what}, for I`);
+    return box ? /** @type {any} */ (box).value : "(no box)";
+  };
+  check("each row reads its pronoun with to be and as a question, filled in already",
+    reading("With to be") === "I am" && reading("As a question") === "am I",
+    `${reading("With to be")} | ${reading("As a question")}`);
+  check("and a reading left as it came is not stored, so it goes on following the English",
+    !sent.enIs && !sent.enAsk, JSON.stringify({ enIs: sent.enIs, enAsk: sent.enAsk }));
+  click([...(screen() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+
+  /* And on the Cards tab they are one entry, not a tile each: the set is
+     written on one screen, and the entry opens it. */
+  /* Asked of the frame as it stands now: an open screen replaces the
+     teaching space's frame, so the one found above is gone. */
+  const tiles = () => [...(document.querySelector(".at-screen.bare") || document).querySelectorAll(".at-minicard")];
+  const faceOf = (/** @type {Element} */ t) => ((t.querySelector(".ar") || {}).textContent || "").trim();
+  const nameOf = (/** @type {Element} */ t) => ((t.querySelector(".at-mininame") || {}).textContent || "").trim();
+  const entry = () => /** @type {any} */ (tiles().find((t) => nameOf(t) === "Pronouns") || null);
+  check("the pronouns are listed as one Pronouns entry, not a tile each",
+    !!entry() && !tiles().some((t) => nameOf(t) !== "Pronouns" && faceOf(t) === "أنا") &&
+      /1 pronoun/.test((entry() || {}).textContent || ""),
+    tiles().map((t) => nameOf(t) || faceOf(t)).join(" | "));
+  click(entry());
+  await sleep(400);
+  check("and tapping it opens the Pronouns screen", !!screen(), screen() ? "open" : "(not open)");
   click([...(screen() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
   takeSaves = false;
@@ -6629,6 +6802,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      feminine was left bare. */
   check("and names it by the grammar the language declares", /m\./.test(tag()),
     tag() || "(nothing said)");
+  /* Beside the word it is about, where a learner looks for it, rather than
+     after an instruction that reads the same on every question of a kind. */
+  check("and says it under the word being asked, not in the instruction",
+    !!document.querySelector('[data-el="question-prompt"] [data-el="question-form-tag"]') &&
+      !document.querySelector('[data-el="question-instruction"] [data-el="question-form-tag"]'),
+    said() || "(no question up)");
 
   /* Answered and continued rather than left, the way the other trial is:
      the teaching space is unmounted while a question is up, and Continue is
@@ -6649,22 +6828,103 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(300);
 }
 
-/* ---- and two forms of one card in a grid say which each is ----
+/* ---- and one it cannot say which of takes either ----
 
-   The instruction can only speak for the word the question is *about*, and
-   in a matching grid every word is asked: what a learner has to do is put
+   مِش منيح and مِش منيحة are both "Not good", and nothing on either says
+   which is masculine: the question has no tag to put up, so writing the
+   other form is right. Tried on the teacher's own trial, for the reason the
+   block above is. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("Not good"));
+  check("the phrase whose two forms mean one thing is listed", !!tile, "no tile");
+  click(tile);
+  await sleep(450);
+  const tryIt = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try English → Arabic$/.test(b.getAttribute("aria-label") || ""));
+  check("it can be tried written from its meaning", !!tryIt,
+    [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
+  click(tryIt);
+  await sleep(600);
+  check("it has no form to name", !document.querySelector('[data-el="question-form-tag"]'),
+    ((document.querySelector('[data-el="question-form-tag"]') || {}).textContent || "").trim());
+  const box = /** @type {any} */ (document.querySelector('[data-el="answer-input"]'));
+  const setter = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "the value descriptor").set;
+  must(setter, "the value setter").call(box, "مش منيحة");
+  box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await sleep(150);
+  click(document.querySelector('[data-el="check-button"]'));
+  await sleep(300);
+  const verdict = ((document.querySelector('[data-el="verdict"]') || {}).textContent || "").replace(/\s+/g, " ").trim();
+  check("and the feminine, written where the masculine was asked, is right",
+    !!box && /^(Correct|Right|Yes|Nice|Great|Well done)/i.test(verdict) ||
+      !!document.querySelector(".at-shout.ok"),
+    verdict || "(no verdict)");
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- a gap in a phrase comes with what the phrase means ----
+
+   The missing word's own meaning is what the word's own questions already
+   ask, and a learner said so: the gap question should give the whole
+   phrase in English and leave the missing word to be worked out. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === "كتاب");
+  click(tile);
+  await sleep(450);
+  const tryIt = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try In a phrase → Arabic$/.test(b.getAttribute("aria-label") || ""));
+  check("the word can be tried in the phrase that uses it", !!tryIt,
+    [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
+  click(tryIt);
+  await sleep(600);
+  const means = ((document.querySelector('[data-el="question-context-meaning"]') || {}).textContent || "").trim();
+  check("and the question gives the phrase's English, not the word's", means === "the book is big",
+    means || "(nothing said)");
+  click(buttonNamed(/^I don't know$/));
+  await sleep(200);
+  if (!document.querySelector('[data-el="verdict"]')) {
+    click(document.querySelector('[data-el="check-button"]'));
+    await sleep(250);
+  }
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- and two forms of one card never share a grid ----
+
+   In a matching grid every word is asked: what a learner has to do is put
    the right English against each of five words. Two forms of one card
    standing in the same grid is the pairing they cannot reason out — كبير
-   and كبيرة are both "big", however differently the two meanings are
-   written — so those tiles, and only those, carry their own grammar, on
-   the meanings as well as on the words.
+   and كبيرة are both "big". Tagging the two with their grammar settled it
+   and gave it away, since only those two tiles carried a tag; a learner
+   reported both. So the two are never dealt together, and no tile needs a
+   tag.
 
    Driven through the teacher's trial for the reason the block above is: it
    asks one named exercise on one named card, and the adjective's feminine
    is the word in this material most like it, so it is the company the grid
-   is filled with. Which tiles get a tag is checked over every combination
-   in tests/cards.test.mjs; what is checked here is that the grid on screen
-   carries them. */
+   would be filled with if anything let it in. The dealing is checked over
+   every combination in tests/chance.test.mjs; what is checked here is the
+   grid on screen. */
 {
   const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
   const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
@@ -6696,28 +6956,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const meaningTile = (re) =>
     tiles('[data-el="match-meaning"]').find((el) => re.test((el.textContent || "").trim()));
 
-  const both = !!wordTile("كبير") && !!wordTile("كبيرة");
-  check("the grid stands a card's two forms beside each other", both,
+  check("the grid does not stand a card's two forms beside each other",
+    !!wordTile("كبير") && !wordTile("كبيرة"),
     tiles('[data-el="match-word"]').map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).join(" · "));
-  check("and each of the two says which form it is",
-    both && /m\./.test(tagOn(must(wordTile("كبير"), "the masculine tile"))) &&
-      /f\./.test(tagOn(must(wordTile("كبيرة"), "the feminine tile"))),
-    both
-      ? `كبير: "${tagOn(must(wordTile("كبير"), "the masculine tile"))}" · ` +
-        `كبيرة: "${tagOn(must(wordTile("كبيرة"), "the feminine tile"))}"`
-      : "the two forms were not both dealt");
-  /* The half that matters most: a tag on the words alone names the form
-     without saying which English belongs to it, which is the whole of what
-     was being asked for. */
-  check("and so does the meaning each of them belongs to",
-    !!meaningTile(/^big\b/) && !!meaningTile(/^big \(f\)/) &&
-      !!tagOn(must(meaningTile(/^big\b/), "the meaning tile for big")) &&
-      !!tagOn(must(meaningTile(/^big \(f\)/), "the meaning tile for big (f)")),
+  check("nor put the other form's meaning up as a spare",
+    !meaningTile(/^big \(f\)/),
     tiles('[data-el="match-meaning"]').map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).join(" · "));
-  /* And nobody else: a grid of five labelled words is a reading exercise
-     about labels. */
-  check("while a word with nothing to be confused with stays bare",
-    tiles('[data-el="match-word"]').some((el) => !tagOn(el)),
+  /* And so nothing on it is labelled: a grid in which some tiles carry
+     their grammar tells a learner which tiles go together. */
+  check("and no tile carries a grammar tag",
+    tiles('[data-el="match-word"], [data-el="match-meaning"]').every((el) => !tagOn(el)),
     tiles('[data-el="match-word"]').map((el) => `${(el.textContent || "").replace(/\s+/g, " ").trim()}`).join(" · "));
 
   click(document.querySelector('[data-el="leave-session"]'));
@@ -7821,9 +8069,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     document.body.appendChild(host);
     const r = createRoot(host);
     r.render(React.createElement(App));
-    await sleep(1500);
-    click([...host.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim())));
-    await sleep(600);
+    /* Waited for rather than slept on. The first of these walks is the
+       first time the app is started cold on its own document, and on a
+       busy machine it was not up after a fixed second and a half: the
+       button was not there to press, no session ran, and all three
+       checks on it failed with nothing counted — one CI run in three. */
+    const startBtn = () => [...host.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim()));
+    for (let t = 0; t < 100 && !startBtn(); t++) await sleep(100);
+    click(startBtn());
+    for (let t = 0; t < 50 && !host.querySelector(".at-instruction"); t++) await sleep(100);
     const met = { chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0 };
     for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
       const pics = host.querySelector(".at-picchoices");
@@ -8046,4 +8300,4 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
 report();
 console.log("\nrequests:", calls.join("\n          "));
-process.exit(results.some((r) => r.startsWith("FAIL")) ? 1 : 0);
+exitWhenWritten(results.some((r) => r.startsWith("FAIL")) ? 1 : 0);

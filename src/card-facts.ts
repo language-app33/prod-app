@@ -51,7 +51,7 @@
 
 import type { Form, GrammarDim, Lang, VerbSpec } from "./types.ts";
 import { answersOf, splitAlternatives } from "./answers.ts";
-import { answerFields, blankAdmits, categoryLabel, GRAMMAR, kindOf, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
+import { answerFields, BARE_ROW, blankAdmits, categoryLabel, endRowsOf, GRAMMAR, kindOf, LANGUAGES, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
@@ -236,7 +236,19 @@ export function rowLabel(lang: Lang | null | undefined, row: string): string {
  * a blank that admits every tense and has nothing to say about it.
  */
 export function rowsLine(lang: Lang | null | undefined, rows: string[]): string {
-  const said = (rows || []).map((row) => rowLabel(lang, row)).filter(Boolean);
+  /* Whether its words carry a pronoun on the end, which a sentence narrows
+     in the same list as its tenses — see BARE_ROW. Said here and not by
+     rowLabel, which also names the row a cell of that table sits in. */
+  const ends = endRowsOf(lang);
+  const said = (rows || [])
+    .map((row) =>
+      str(row) === BARE_ROW
+        ? "word without a pronoun on the end"
+        : ends.has(str(row))
+          ? "forms with a pronoun on the end"
+          : rowLabel(lang, row),
+    )
+    .filter(Boolean);
   if (said.length < 2) return said[0] || "";
   return `${said.slice(0, -1).join(", ")} and ${said[said.length - 1]}`;
 }
@@ -614,6 +626,22 @@ export const CARD_FACTS: FieldRule[] = [
     },
   },
   {
+    key: "enIs",
+    on: "card",
+    label: "With “to be”",
+    what: "What a pronoun reads as in English with “to be” — I am, he is — where a sentence leaves a {{pronoun-is}} blank. Written on the Pronouns screen, and absent where it is what the pronoun's English gives anyway.",
+    reader: "both",
+    shown: (value) => (str(value) ? [str(value)] : []),
+  },
+  {
+    key: "enAsk",
+    on: "card",
+    label: "As a question",
+    what: "What a pronoun reads as in an English question — am I, is he — where a sentence leaves an {{is-pronoun}} blank. Written on the Pronouns screen, and absent where it is what the pronoun's English gives anyway.",
+    reader: "both",
+    shown: (value) => (str(value) ? [str(value)] : []),
+  },
+  {
     key: "sentence",
     on: "card",
     label: "",
@@ -728,6 +756,14 @@ export const CARD_FACTS: FieldRule[] = [
     what: "The people in a conversation, in the order their columns are drawn.",
     reader: "both",
     shown: (value) => (Array.isArray(value) ? value.map(str).filter(Boolean) : []),
+  },
+  {
+    key: "sceneKind",
+    on: "card",
+    label: "Kind of scene",
+    what: "Whether the scene is a text — prose nobody speaks, asked as a whole — or, saying nothing, a conversation.",
+    reader: "both",
+    shown: (value) => [value === "text" ? "A text" : "A conversation"],
   },
   {
     key: "you",
@@ -896,6 +932,29 @@ export const CARD_FACTS: FieldRule[] = [
     what: "The word cards this one turn is a good example of, ticked the way a phrase's are.",
     reader: "both",
     shown: usedWords,
+  },
+  {
+    key: "from",
+    on: "line",
+    label: "Picked from",
+    what: "The sentence card this turn was picked from. Its words are that sentence's, kept up to date with it, and it is reviewed on that card.",
+    reader: "teacher",
+    shown: (value, ctx) => {
+      const source = (ctx.cards || []).find((c) => str(c.id) === str(value));
+      const words = source ? str(source.name) || str((formsOf(source)[0] || {}).en) || str((formsOf(source)[0] || {}).ar) : "";
+      return [words || "a sentence card that is no longer there"];
+    },
+  },
+  {
+    key: "roles",
+    on: "line",
+    label: "Who each blank is",
+    what: "Which member of the scene's cast a blank in this turn plays, where it is not the one named after the blank. Every blank playing one member is filled with the same word.",
+    reader: "teacher",
+    shown: (value) =>
+      value && typeof value === "object"
+        ? Object.entries(value as Record<string, unknown>).map(([slot, m]) => `${slot} → ${String(m).replace("~", " ")}`)
+        : [],
   },
 
   /* ---- one accepted answer ---- */
@@ -1114,3 +1173,160 @@ export interface FieldOn {
  */
 export const unnamedOn = (card: Held | null | undefined): FieldOn[] =>
   fieldsOn(card).filter((f) => !f.rule && !f.why);
+
+/* ------------------------------------------------------------------
+   A language's pronouns, as one entry in a list of cards
+   ------------------------------------------------------------------ */
+
+/*
+ * The Pronouns screen writes a card per person — I, you (m), you (f), he,
+ * she, we, you (pl), they — because each is practised on its own, recorded,
+ * and is what fills a pronoun blank and picks the verb's form. That is
+ * right for everything that reads a card and wrong for a list of them:
+ * eight tiles for what the teacher wrote as one set, on one screen, and
+ * edits there.
+ *
+ * So a list shows them as one entry, which opens that screen. The cards
+ * underneath are untouched: this is how a list draws them and nothing
+ * else, and a pronoun card is still one card everywhere it is asked,
+ * synced, backed up or put in a deck.
+ *
+ * Only the cards the Pronouns screen wrote, which are the ones that say
+ * which person they are. A card saved as a Pronoun before that screen
+ * existed carries no person, cannot be edited there, and stays a tile of
+ * its own.
+ */
+export const PRONOUN_GROUP = "pronouns:";
+
+/** The entry a language's pronouns are listed as. */
+export interface PronounGroup {
+  /** `pronouns:` and the language, and where the list is one deck's, `@`
+      and the deck: two lists never hand out the same entry. */
+  id: string;
+  lang: string;
+  pronounGroup: true;
+  /** What the tile headlines. */
+  name: string;
+  /** Its face: the pronouns in the order the verb table lists them. */
+  forms: { ar: string; en: string; lat: string }[];
+  /** The cards it stands for, by id, in that same order. */
+  members: string[];
+}
+
+/** Whether a card is one the Pronouns screen wrote. */
+export const isPronounCard = (card: Held | null | undefined): boolean =>
+  !!card && str(card.category) === "pronoun" && !!str(card.person);
+
+export const isPronounGroup = (item: unknown): item is PronounGroup =>
+  !!item && typeof item === "object" && (item as Record<string, unknown>).pronounGroup === true;
+
+/**
+ * A list of cards with each language's pronouns folded into one entry,
+ * standing where the first of them stood — so a list sorted newest first
+ * puts the set where its newest pronoun would have gone, and a filter that
+ * leaves three of them leaves an entry of three.
+ *
+ * `scope` is appended to the entry's id, for a list that is one deck's.
+ */
+export function groupPronouns<T extends Held>(cards: T[], scope = ""): (T | PronounGroup)[] {
+  const byLang = new Map<string, T[]>();
+  for (const card of cards || []) {
+    if (!isPronounCard(card)) continue;
+    const lang = str(card.lang);
+    byLang.set(lang, (byLang.get(lang) || []).concat([card]));
+  }
+  if (!byLang.size) return cards || [];
+  const out: (T | PronounGroup)[] = [];
+  const placed = new Set<string>();
+  for (const card of cards) {
+    if (!isPronounCard(card)) {
+      out.push(card);
+      continue;
+    }
+    const lang = str(card.lang);
+    if (placed.has(lang)) continue;
+    placed.add(lang);
+    const order = personsOf(verbOf(LANGUAGES[lang as keyof typeof LANGUAGES])).map((p) => p.id);
+    const at = (c: T) => {
+      const i = order.indexOf(str(c.person));
+      return i < 0 ? order.length : i;
+    };
+    const members = [...(byLang.get(lang) || [])].sort((a, b) => at(a) - at(b));
+    const word = (c: T, field: string) => (splitAlternatives(str(leadOf(c)[field]))[0] || "").trim();
+    const join = (field: string, by: string) => members.map((c) => word(c, field)).filter(Boolean).join(by);
+    out.push({
+      id: `${PRONOUN_GROUP}${lang}${scope ? `@${scope}` : ""}`,
+      lang,
+      pronounGroup: true,
+      name: "Pronouns",
+      forms: [{ ar: join("ar", " \u00b7 "), en: join("en", ", "), lat: join("lat", " \u00b7 ") }],
+      members: members.map((c) => str(c.id)),
+    });
+  }
+  return out;
+}
+
+/**
+ * The card ids a selection stands for, with each pronoun entry opened out
+ * into its cards — what every action on a selection has to act on, since
+ * none of them knows what an entry is. `items` is the list the selection
+ * was made in; an id that is neither a card nor an entry of it comes back
+ * as it is.
+ */
+export function pickedCardIds(ids: Iterable<string>, items: unknown[]): string[] {
+  const groups = new Map<string, string[]>();
+  for (const it of items || []) if (isPronounGroup(it)) groups.set(it.id, it.members);
+  const out: string[] = [];
+  for (const id of ids) {
+    for (const one of groups.get(id) || [id]) if (!out.includes(one)) out.push(one);
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------
+   Why a blank has nothing behind it
+   ------------------------------------------------------------------ */
+
+/**
+ * Why a blank of this form has no word to stand in it — which the editor
+ * says, because each has a different way out.
+ *
+ * A form reaches a sentence only if two answers allow it: its own word
+ * lends it ("Inside sentence cards", ticked on that card), and the
+ * sentence's blank asks for its kind (a tense, or a pronoun on the end or
+ * not). Each can shut the other out without either being wrong, so where
+ * the two leave nothing it is worth saying which:
+ *
+ *   * `nothing`   — no card fills a blank of this name at all.
+ *   * `kept-out`  — words fill it and have the forms the blank asks for,
+ *                   but those forms are kept out of sentences on their own
+ *                   cards.
+ *   * `no-such-form` — words fill it, and none of them has a form of the
+ *                   kind the blank asks for.
+ *
+ * "" where something does stand in it after all.
+ */
+export function whyStarved(
+  form: Held | null | undefined,
+  slot: string,
+  pool: Held[],
+  lang: Lang | null | undefined,
+): "" | "nothing" | "kept-out" | "no-such-form" {
+  const admits = blankAdmits(lang, (s) => slotRows(form, s));
+  let fills = false;
+  let kept = false;
+  for (const card of pool || []) {
+    if (!card) continue;
+    if (lang && card.lang && card.lang !== lang.id) continue;
+    if (!fillsOf(card, kindOf(card, lang)).includes(slot)) continue;
+    fills = true;
+    const lends = lendsForm(lang, card);
+    for (const f of formsOf(card) as Held[]) {
+      if (!str(f.ar) || !lends(f) || !admits(card, f, slot)) continue;
+      if (isLent(f)) return "";
+      kept = true;
+    }
+  }
+  if (!fills) return "nothing";
+  return kept ? "kept-out" : "no-such-form";
+}

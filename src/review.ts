@@ -43,7 +43,7 @@
  */
 import type { Form, Lang } from "./types.ts";
 import { formsOf } from "./cards.ts";
-import { linesOf } from "./dialogs.ts";
+import { linesOf, pickedFrom } from "./dialogs.ts";
 import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, verbOf } from "./languages.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
@@ -141,14 +141,43 @@ export function passes(review: Review | null | undefined, key: string): boolean 
  * with a hole in them.
  *
  * A form switched off is never dealt, so there is nothing of it to review.
+ * Nor is a turn picked from a sentence card: that sentence is reviewed on
+ * its own card, once, for every scene it is in — see `lineGate`.
  */
 export function holedParts(card: Held | null | undefined): Held[] {
   const out: Held[] = [];
   for (const form of formsOf(card) as Held[]) {
     if (slotsOf(form).length && isAsked(form as Form)) out.push(form);
   }
-  for (const line of linesOf(card as Held) as Held[]) if (slotsOf(line).length) out.push(line);
+  for (const line of linesOf(card as Held) as Held[]) {
+    if (slotsOf(line).length && !pickedFrom(line)) out.push(line);
+  }
   return out;
+}
+
+/**
+ * The review one turn of a scene answers to.
+ *
+ * A turn typed into the scene answers to the scene's own review, as it
+ * always has. A turn picked from a sentence card answers to that card's:
+ * what the teacher approved of the sentence is approved wherever the
+ * sentence is used, and the cast only ever fills a line with what its
+ * blank would have taken on its own, so it can make nothing the teacher
+ * has not read. `source` is the sentence card where the caller holds it;
+ * a device is handed its review on the line instead, as `review`, by the
+ * server. A picked turn whose sentence says nothing about review was
+ * written before review existed and is asked as it always was.
+ */
+export function lineGate(
+  scene: Held | null | undefined,
+  line: Held | null | undefined,
+  source?: Held | null,
+): Review | null {
+  if (line && pickedFrom(line)) {
+    if (source) return reviewOf(source);
+    return reviewOf(line);
+  }
+  return reviewOf(scene);
 }
 
 /** Whether a card makes any sentence a teacher has to read. */

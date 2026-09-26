@@ -22,6 +22,7 @@ import {
   cardSentences,
   holedParts,
   isSentenceKey,
+  lineGate,
   narrowed,
   passes,
   REVIEW_CEILING,
@@ -69,6 +70,22 @@ test("the parts of a card that are filled are its asked forms and turns with a b
   };
   assert.deepEqual(holedParts(card).map((p) => p.id), ["c", "l1"]);
   assert.deepEqual(holedParts({ id: "w", forms: [{ ar: "باب", en: "door" }] }), []);
+});
+
+test("a turn picked from a sentence card is reviewed on that card, not on the scene", () => {
+  const scene = {
+    id: "sc", review: { ok: ["a"] },
+    lines: [
+      { id: "l1", ar: "مرحبا {{name}}", en: "hello {{name}}" },
+      { id: "l2", from: "s1", ar: "{{name}} هون", en: "{{name}} is here", review: { ok: ["b"] } },
+    ],
+  };
+  assert.deepEqual(holedParts(scene).map((p) => p.id), ["l1"], "the scene's own list is its typed turns");
+  assert.deepEqual(lineGate(scene, scene.lines[0]), { ok: ["a"] });
+  assert.deepEqual(lineGate(scene, scene.lines[1]), { ok: ["b"] }, "the sentence's review, as the device is handed it");
+  assert.deepEqual(lineGate(scene, scene.lines[1], { id: "s1", review: { ok: ["c"] } }), { ok: ["c"] },
+    "or read off the sentence card, where the caller holds it");
+  assert.equal(lineGate(scene, scene.lines[1], { id: "s1" }), null, "a sentence from before review is asked as it always was");
 });
 
 /* ---- the list the teacher reads is the list a student is asked from ---- */
@@ -286,4 +303,45 @@ test("a sentence approved on the teacher's list is the sentence a student's devi
   const unit = must(castQuestion(items, { id: "srvf", subId: null, type: "ar2en" }), "the question");
   assert.equal(unit.ar, "سيارة كبيرة");
   assert.equal(unit.reviewKey, car.key);
+});
+
+/*
+ * A scene is filled whole, on the student's device: one person in every
+ * line that names them, and each line only in a sentence its review allows
+ * — the scene's own for a typed turn, the sentence card's for a picked one.
+ */
+/** @param {Record<string, any>} [over] @param {Record<string, any>[]} [lines] */
+const sceneItem = (over = {}, lines = [
+  { id: "L1", who: 0, ar: "مرحبا {{name}}", en: "hello {{name}}", lat: "marhaba {{name}}", lang: "ar-PS", s: {} },
+  { id: "L2", who: 1, ar: "كيفك {{name}}", en: "how are you {{name}}", lat: "keefak {{name}}", lang: "ar-PS", s: {} },
+]) => ({
+  id: "D", lang: "ar-PS", kind: "dialog", tags: [], created: 1,
+  forms: [{ id: "D", ar: "", en: "At the door", lat: "", lang: "ar-PS", s: {} }],
+  speakers: ["A", "B"], you: null,
+  lines,
+  ...over,
+});
+
+test("a scene's blanks are filled once, so a name is the same in every line", () => {
+  const item = sceneItem();
+  const items = [item, ...names];
+  installIndexes(items, settings);
+  const whole = must(castQuestion(items, { id: "D", subId: null, type: "dlgwhole" }), "the read-through");
+  assert.equal(whole.id, "D");
+  const reply = must(castQuestion(items, { id: "D", subId: "L2", type: "dlgpick" }), "the reply question");
+  assert.equal(reply.ar, "كيفك سامي", "the second line names the first line's person");
+});
+
+test("a picked turn is shown only in sentences its sentence card approved", () => {
+  const rami2 = sentenceKey({ ar: "كيفك رامي", lat: "keefak Rami", en: "how are you Rami" });
+  const item = sceneItem({}, [
+    { id: "L1", who: 0, ar: "مرحبا {{name}}", en: "hello {{name}}", lat: "marhaba {{name}}", lang: "ar-PS", s: {} },
+    { id: "L2", who: 1, from: "S9", review: { ok: [rami2] }, ar: "كيفك {{name}}", en: "how are you {{name}}", lat: "keefak {{name}}", lang: "ar-PS", s: {} },
+  ]);
+  const items = [item, ...names];
+  installIndexes(items, settings);
+  const reply = must(castQuestion(items, { id: "D", subId: "L2", type: "dlgpick" }), "the reply question");
+  assert.equal(reply.ar, "كيفك رامي", "walked on to the casting the sentence's review allows");
+  const other = must(castQuestion(items, { id: "D", subId: "L1", type: "dlgpick" }), "the first line");
+  assert.equal(other.ar, "مرحبا رامي", "and the typed line follows the same person");
 });

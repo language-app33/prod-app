@@ -135,6 +135,100 @@ export const isDialog = (it: Scene): boolean => linesOf(it).length > 0;
 
 export const linesOf = (it: Scene): Line[] => (it && it.lines) || [];
 
+/*
+ * The two kinds of scene.
+ *
+ * A scene is lines in order, read through and drilled a line at a time. A
+ * conversation has people saying them — speakers, sides of the page, a
+ * part for the learner, the reply to choose and the order to put back. A
+ * text has nobody saying them: it is prose, read as a paragraph, and asked
+ * only as a whole. Everything else about the two is the same card, which
+ * is why they are one kind with a subtype rather than two kinds — the way
+ * a word is one kind whether it is a noun or a verb.
+ *
+ * Stored as `sceneKind: "text"` on a text and nothing on a conversation,
+ * so every scene written before texts existed is the conversation it was.
+ */
+export type SceneKind = "conversation" | "text";
+export const CONVERSATION: SceneKind = "conversation";
+export const TEXT: SceneKind = "text";
+
+export const sceneKindOf = (it: Scene): SceneKind => (it && it.sceneKind === TEXT ? TEXT : CONVERSATION);
+
+/** A scene nobody speaks: prose, with no speakers and no parts. */
+export const isText = (it: Scene): boolean => sceneKindOf(it) === TEXT;
+
+/*
+ * A text's lines as the paragraph a reader is shown.
+ *
+ * A sentence card is usually written without a full stop — it is a frame,
+ * and nobody punctuates a frame — so joining a text's sentences as they
+ * stand ran them into one another: "Rami lives here Sami loves it". Each
+ * is ended with a full stop where it has no closing mark of its own, in
+ * any of the scripts a pack writes (the Arabic question mark included),
+ * and a line with nothing in that field is left out rather than stopped.
+ */
+const CLOSERS = /[.!?؟…:;"'»”)\]]$/;
+export function proseOf(lines: Record<string, any>[], field: "ar" | "lat" | "en"): string {
+  return (lines || [])
+    .map((l) => String((l && l[field]) || "").trim())
+    .filter(Boolean)
+    .map((t) => (CLOSERS.test(t) ? t : `${t}.`))
+    .join(" ");
+}
+
+/*
+ * A line picked from a sentence card rather than typed into the scene.
+ *
+ * `from` is the sentence card's id. The line keeps a copy of the
+ * sentence's words, so a reader that cannot see the sentence card — a
+ * student whose decks do not hold it, a screen that was handed the scene
+ * alone — still has a line to show. Whoever *can* see the sentence card
+ * reads the line through `pickedLine`, so an edit to the sentence reaches
+ * every scene it is in.
+ */
+export const pickedFrom = (line: Scene): string => String((line && line.from) || "");
+
+/* What a line takes from the sentence it was picked from: the words, the
+   recordings, the narrowing of its blanks, and the words it teaches. Its
+   own name, speaker and cast stay the line's, because those are about
+   this scene rather than about the sentence. */
+const PICKED_FIELDS = ["ar", "en", "lat", "clips", "slowClips", "recs", "tenses", "uses"];
+
+/**
+ * A picked line with the sentence card's current words in it.
+ *
+ * The sentence's own first form, which is the sentence itself; a card's
+ * other forms are other ways of saying it and a scene says one thing. A
+ * field the sentence has not got is taken off the line rather than left
+ * over from the copy — narrowing a blank and then widening it again must
+ * widen it here too. No sentence to read, and the line is what it was.
+ */
+export function pickedLine<T extends Record<string, any>>(line: T, source: Scene): T {
+  if (!source || !pickedFrom(line)) return line;
+  const forms = Array.isArray(source.forms) ? source.forms : [];
+  const lead: Record<string, any> = forms[0] || source;
+  const out: Record<string, any> = { ...line };
+  for (const field of PICKED_FIELDS) {
+    const from = field === "uses" ? source.uses : lead[field];
+    if (from === undefined || from === null) delete out[field];
+    else out[field] = from;
+  }
+  return out as T;
+}
+
+/**
+ * A scene with every picked line read from its sentence, where the
+ * sentence can be found. The same object back where nothing was picked,
+ * which is almost every scene — so a caller can tell "nothing to do" by
+ * identity.
+ */
+export function withPickedLines<T extends Record<string, any>>(card: T, lookup: (id: string) => Scene): T {
+  const lines = linesOf(card);
+  if (!lines.some((l) => pickedFrom(l))) return card;
+  return { ...card, lines: lines.map((l) => (pickedFrom(l) ? pickedLine(l, lookup(pickedFrom(l))) : l)) };
+}
+
 export function speakersOf(it: Scene): string[] {
   const named: unknown[] = (it && it.speakers) || [];
   const out = named.map((n) => String(n || "").trim()).filter(Boolean);
@@ -191,6 +285,8 @@ export function partsToPlay(it: Scene): number[] {
    leads, which is what makes the order worth having. */
 export function speakingParts(it: Scene): number[] {
   const seen: number[] = [];
+  /* Nobody speaks a text, so it has no parts and no sides. */
+  if (isText(it)) return seen;
   for (const line of linesOf(it)) {
     const who = Number(line && line.who) || 0;
     if (!seen.includes(who)) seen.push(who);
@@ -219,6 +315,7 @@ export function speakingParts(it: Scene): number[] {
  * itself under a teacher the moment they filled in the reply.
  */
 export function sidesOf(it: Scene): number[] {
+  if (isText(it)) return [];
   const seen = speakingParts(it);
   const named = speakersOf(it).length;
   for (let who = 0; who < named; who++) if (!seen.includes(who)) seen.push(who);
@@ -405,6 +502,10 @@ export function dialogNeedMet(need: string, scene: Placed | null, unit: Record<s
      and the teaching space both do — the unit itself. */
   const card = scene ? scene.card : unit;
   if (need === "dialog") return isDialog(card);
+  /* A text is asked as a whole and nothing else: a line of prose has no
+     reply to choose, nobody to play, and a paragraph's order is too often
+     arguable to mark. */
+  if (isText(card)) return false;
   /* A turn, which the scene's own word is not. */
   if (need === "line") return !!scene && scene.at !== WHOLE_SCENE;
   /* Something has to have been said before there is a reply to make. */

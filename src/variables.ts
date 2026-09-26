@@ -75,6 +75,86 @@ export const FILLED_FIELDS = ["ar", "en", "lat"];
  */
 export const WORD_SLOT = "word";
 
+/*
+ * A pronoun, read three ways in English.
+ *
+ * Palestinian Arabic says *I am tired* as أنا تعبان — *I*, then *tired*,
+ * with the *am* understood — and Hebrew and Huế drop it in the same
+ * places. So one pronoun card answers to three English phrasings: *I* in
+ * "I like coffee", *I am* in "I am tired", and *am I* in "am I tired?",
+ * where English turns the pair round and the language does not. A frame
+ * could ask for only the first, and came out as "I tired" — or, with the
+ * *am* written into the frame, as "he am tired" seven times in eight.
+ *
+ * So there are three blanks over the same pronoun cards, and they differ
+ * in the English alone: the script and the transliteration are the same
+ * word whichever is used, which is exactly the difference being taught.
+ *
+ *     {{pronoun}}      I      · he     · they
+ *     {{pronoun-is}}   I am   · he is  · they are
+ *     {{is-pronoun}}   am I   · is he  · are they
+ *
+ * Filled by every card that says it is a pronoun, as `{{pronoun}}` is —
+ * see fillsOf — and reserved like `{{word}}`: nothing else may be called
+ * either name. A verb beside the pronoun agrees with it whichever blank it
+ * came through, because the value carries its person the same way.
+ */
+export const PRONOUN_SLOT = "pronoun";
+export const PRONOUN_IS_SLOT = "pronoun-is";
+export const IS_PRONOUN_SLOT = "is-pronoun";
+export const READING_SLOTS = [PRONOUN_IS_SLOT, IS_PRONOUN_SLOT];
+
+/**
+ * The two readings of a pronoun's English, worked out from the English.
+ *
+ * About English and nothing else — which verb *to be* takes after I, he
+ * or you is a fact of the language every card is explained in, not of the
+ * one being learnt, so it can live here. *I* takes *am*; *he*, *she* and
+ * *it* take *is*; everything else takes *are*. A note in brackets — "you
+ * (m)" — stays on the end, where it still reads as a note: *you are (m)*,
+ * *are you (m)*.
+ *
+ * A default, not a rule: the Pronouns screen shows it filled in and a
+ * teacher who prefers *I'm* writes that instead. Empty for empty English.
+ */
+export function beReadings(en: string | null | undefined): { is: string; ask: string } {
+  const whole = String(en || "").trim();
+  if (!whole) return { is: "", ask: "" };
+  const m = whole.match(/^(.*?)\s*(\([^)]*\))?$/);
+  const base = ((m && m[1]) || whole).trim() || whole;
+  const note = m && m[2] && base !== whole ? ` ${m[2]}` : "";
+  const first = base.split(/\s+/)[0].toLowerCase();
+  const be = first === "i" ? "am" : ["he", "she", "it"].includes(first) ? "is" : "are";
+  return { is: `${base} ${be}${note}`, ask: `${be} ${base}${note}` };
+}
+
+/**
+ * The English a pronoun lends each of the two reading blanks: what the
+ * teacher wrote on the Pronouns screen, or what beReadings makes of its
+ * English where they wrote nothing.
+ *
+ * Empty for a card that is not a pronoun, which lends its plain English
+ * everywhere. `form` is the form being lent — the card's own word, almost
+ * always — and the teacher's readings belong to that word alone: another
+ * form of a pronoun is read off its own English.
+ */
+export function readingsOf(
+  card: WithSlots | null | undefined,
+  form: WithSlots | null | undefined,
+  lead = true,
+): Record<string, string> {
+  if (!card || String(card.category || "").toLowerCase() !== PRONOUN_SLOT) return {};
+  const en = (splitAlternatives(text(form, "en"))[0] || "").trim();
+  const made = beReadings(en);
+  const said = (field: string) => (lead ? text(card, field).trim() : "");
+  const out: Record<string, string> = {};
+  const is = said("enIs") || made.is;
+  const ask = said("enAsk") || made.ask;
+  if (is) out[PRONOUN_IS_SLOT] = is;
+  if (ask) out[IS_PRONOUN_SLOT] = ask;
+  return out;
+}
+
 /**
  * Which slots a card can stand in: the one it names, the kind of word it
  * is, and the built-in.
@@ -127,6 +207,9 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
   if (kind === WORD_SLOT && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
   const said = String((card && card.category) || "").toLowerCase();
   if (said && !out.includes(said)) out.push(said);
+  /* And a pronoun fills the two blanks that read it with *to be* — the
+     same cards, with a different English. See READING_SLOTS. */
+  if (said === PRONOUN_SLOT) for (const slot of READING_SLOTS) if (!out.includes(slot)) out.push(slot);
   return out;
 }
 
@@ -190,6 +273,9 @@ export function refClash(
   const want = slotName(name);
   if (!want) return null;
   if (want === WORD_SLOT) return { kind: "group" };
+  /* The two ways of reading a pronoun are spoken for as `{{word}}` is:
+     every pronoun fills them already. */
+  if (READING_SLOTS.includes(want)) return { kind: "category" };
   if (kinds.includes(want)) return { kind: "category" };
   for (const card of pool || []) {
     if (String((card && card.id) || "") === self) continue;
@@ -521,9 +607,16 @@ export interface Value {
    * from. Empty for a value whose card declares nothing, which is most.
    */
   grammar?: Record<string, string>;
+  /**
+   * The English this value reads as in a blank that asks for something
+   * other than its plain English — a pronoun's *I am* in `{{pronoun-is}}`
+   * and *am I* in `{{is-pronoun}}`. By the blank's name. Absent on every
+   * value that is not a pronoun, which reads as its English everywhere.
+   */
+  readings?: Record<string, string>;
 }
 
-const text = (form: WithSlots | null | undefined, field: string): string => {
+const text =(form: WithSlots | null | undefined, field: string): string => {
   const v = form ? form[field] : "";
   return typeof v === "string" ? v : v == null ? "" : String(v);
 };
@@ -814,7 +907,11 @@ export function lentBy(
     /* The card's own word carries the card's person, where it has one —
        the form handed in above cannot know it. */
     const person = at === 0 ? text(card, "person").trim() : "";
-    const value = person ? { ...lent, grammar: { ...(lent.grammar || {}), person } } : lent;
+    const withPerson = person ? { ...lent, grammar: { ...(lent.grammar || {}), person } } : lent;
+    /* And the English it reads as in the blanks that add *to be*, where it
+       is a pronoun — see readingsOf. */
+    const readings = readingsOf(card, form as WithSlots, at === 0);
+    const value = Object.keys(readings).length ? { ...withPerson, readings } : withPerson;
     /* The card's own word answers to the card where the form carries no
        name of its own. */
     const named = value.id || at > 0 ? value : { ...value, id: own };
@@ -867,12 +964,15 @@ export function valueOf(card: WithSlots | null | undefined, fields: string[] = [
      and the column is a fact about the card. */
   const person = text(card, "person").trim();
   if (person) grammar.person = person;
+  /* And, where it is a pronoun, the English it reads as with *to be*. */
+  const readings = readingsOf(card, word);
   return {
     id: String((card && card.id) || ""),
     ar: first("ar"),
     en: first("en"),
     lat: first("lat"),
     ...(Object.keys(grammar).length ? { grammar } : {}),
+    ...(Object.keys(readings).length ? { readings } : {}),
   };
 }
 
@@ -1034,15 +1134,22 @@ export function mergeMet(
 
 /* One string, with its holes filled. A slot nobody offered a value for is
    left standing rather than blanked: the caller is meant to have checked,
-   and a visible {{name}} is a bug report where a silent gap is a mystery. */
+   and a visible {{name}} is a bug report where a silent gap is a mystery.
+
+   The English of a blank that reads its value some other way — a pronoun
+   in `{{pronoun-is}}` — is that reading rather than the plain English;
+   the script and the transliteration are the word as it is. */
 export function fillText(
   value: string | null | undefined,
   values: Record<string, Value>,
   field = "ar",
 ): string {
   return String(value || "").replace(SLOT, (whole, name) => {
-    const took = values && values[String(name).toLowerCase()];
+    const slot = String(name).toLowerCase();
+    const took = values && values[slot];
     if (!took) return whole;
+    const read = field === "en" && took.readings ? took.readings[slot] : "";
+    if (read) return read;
     const word = (took as unknown as Record<string, string>)[field];
     return word === undefined || word === "" ? whole : word;
   });

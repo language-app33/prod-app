@@ -19,29 +19,58 @@
  * A row left empty makes no card. A row cleared that had one leaves the
  * card alone: taking a card away is the card list's job, where what else
  * it is in can be seen.
+ *
+ * Each row also says what the pronoun reads as in English with *to be* —
+ * "I am" — and as a question — "am I", which is what the `{{pronoun-is}}`
+ * and `{{is-pronoun}}` blanks put in a sentence's English. They arrive
+ * filled in from the English (see beReadings), follow it while nobody has
+ * changed them, and are stored only where the teacher wrote something
+ * else: an empty reading is the automatic one, so a pronoun saved before
+ * this reads correctly without being opened.
  */
 import { useMemo, useState } from "react";
 import type { Card, Lang } from "./types.ts";
 import { verbOf } from "./languages.ts";
 import { personsOf, picksOf } from "./verbs.ts";
 import { formsOf } from "./cards.ts";
+import { beReadings } from "./variables.ts";
 import { Button, Field, Help, Notice, Screen, plural } from "./shared.tsx";
 import { RecordingScreen, ScriptInput } from "./card-editor.tsx";
 import * as API from "./courses-api.ts";
 
 /** What one row holds while it is being written. */
-type Row = { ar: string; lat: string; en: string; clips: string[]; slowClips: string[] };
+type Row = {
+  ar: string;
+  lat: string;
+  en: string;
+  /* What it reads as with "to be", and as a question — as shown, which is
+     the automatic reading until the teacher writes another. */
+  enIs: string;
+  enAsk: string;
+  clips: string[];
+  slowClips: string[];
+};
 
-const EMPTY: Row = { ar: "", lat: "", en: "", clips: [], slowClips: [] };
+const EMPTY: Row = { ar: "", lat: "", en: "", enIs: "", enAsk: "", clips: [], slowClips: [] };
 
-/* The row as the card on file has it, or empty. */
-const rowOf = (card: Card | undefined): Row => {
-  if (!card) return { ...EMPTY };
+/* The English a row's readings are worked out from: what was typed, or the
+   column's own name where nothing was — which is what a save writes. */
+const englishOf = (row: Row, label: string) => row.en.trim() || label;
+
+/* The row as the card on file has it, or empty — with its readings filled
+   in from its English wherever the card carries none of its own. */
+const rowOf = (card: Card | undefined, label: string): Row => {
+  const made = beReadings(label);
+  if (!card) return { ...EMPTY, enIs: made.is, enAsk: made.ask };
   const lead = (formsOf(card)[0] || {}) as Record<string, any>;
+  const en = String(lead.en || "");
+  const auto = beReadings(en.trim() || label);
   return {
     ar: String(lead.ar || ""),
     lat: String(lead.lat || ""),
-    en: String(lead.en || ""),
+    en,
+    enIs: String(card.enIs || "") || auto.is,
+    enAsk: String(card.enAsk || "") || auto.ask,
     clips: Array.isArray(lead.clips) ? lead.clips : [],
     slowClips: Array.isArray(lead.slowClips) ? lead.slowClips : [],
   };
@@ -49,7 +78,12 @@ const rowOf = (card: Card | undefined): Row => {
 
 const same = (a: Row, b: Row) =>
   a.ar === b.ar && a.lat === b.lat && a.en === b.en &&
+  a.enIs.trim() === b.enIs.trim() && a.enAsk.trim() === b.enAsk.trim() &&
   a.clips.join() === b.clips.join() && a.slowClips.join() === b.slowClips.join();
+
+/* A reading as it is stored: nothing where it is what the English would
+   give anyway, so it goes on following the English. */
+const kept = (said: string, auto: string) => (said.trim() && said.trim() !== auto ? said.trim() : "");
 
 /** The pronoun card for one column of this language, where there is one. */
 export const pronounCardFor = (cards: Card[], langId: string, person: string): Card | undefined =>
@@ -78,7 +112,7 @@ export function PronounsEditor({ lang, cards, busy, onSave, onClose }: {
     [persons, cards, lang.id],
   );
   const [rows, setRows] = useState<Record<string, Row>>(() =>
-    Object.fromEntries(persons.map((p) => [p.id, rowOf(held[p.id])])),
+    Object.fromEntries(persons.map((p) => [p.id, rowOf(held[p.id], p.label)])),
   );
   const [recording, setRecording] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -86,10 +120,27 @@ export function PronounsEditor({ lang, cards, busy, onSave, onClose }: {
 
   const set = (id: string, patch: Partial<Row>) =>
     setRows((r) => ({ ...r, [id]: { ...(r[id] || EMPTY), ...patch } }));
+  /* The English changed: a reading nobody has touched — still what the old
+     English gave — follows it, and one the teacher wrote stays theirs. */
+  const setEnglish = (id: string, label: string, en: string) =>
+    setRows((r) => {
+      const was = r[id] || EMPTY;
+      const before = beReadings(englishOf(was, label));
+      const after = beReadings(en.trim() || label);
+      return {
+        ...r,
+        [id]: {
+          ...was,
+          en,
+          enIs: was.enIs === before.is ? after.is : was.enIs,
+          enAsk: was.enAsk === before.ask ? after.ask : was.enAsk,
+        },
+      };
+    });
   /* What would be saved: rows with a word in them that differ from their card. */
   const changed = persons.filter((p) => {
     const row = rows[p.id] || EMPTY;
-    return row.ar.trim() && !same(row, rowOf(held[p.id]));
+    return row.ar.trim() && !same(row, rowOf(held[p.id], p.label));
   });
 
   async function save() {
@@ -103,6 +154,7 @@ export function PronounsEditor({ lang, cards, busy, onSave, onClose }: {
            masculine — so the pronoun agrees like any word where a sentence
            asks it to. "I" has none, and needs none: the column is named. */
         const picks = picksOf(p).length === 1 ? picksOf(p)[0] : {};
+        const auto = beReadings(englishOf(row, p.label));
         await onSave(
           {
             ...(card || {}),
@@ -110,6 +162,11 @@ export function PronounsEditor({ lang, cards, busy, onSave, onClose }: {
             lang: lang.id,
             category: "pronoun",
             person: p.id,
+            /* Only where it differs from what the English gives — see kept.
+               Written as "" rather than left out, so a reading taken back
+               to the automatic one is taken off the card. */
+            enIs: kept(row.enIs, auto.is),
+            enAsk: kept(row.enAsk, auto.ask),
             forms: [{
               ...((card && formsOf(card)[0]) || {}),
               ar: row.ar.trim(),
@@ -159,6 +216,12 @@ export function PronounsEditor({ lang, cards, busy, onSave, onClose }: {
         that can be practised and put in decks, and a sentence with a {"{{pronoun}}"} blank puts
         its verb in the form that goes with the pronoun it is filled with.
       </Help>
+      <Help>
+        A sentence can also read each pronoun with &ldquo;to be&rdquo; &mdash; {"{{pronoun-is}}"},
+        for &ldquo;I am tired&rdquo; &mdash; or as a question &mdash; {"{{is-pronoun}}"}, for
+        &ldquo;am I tired?&rdquo;. The two English boxes on each row are what those read as. They
+        are filled in for you; change them only if you want other words.
+      </Help>
       <Notice kind="error">{error}</Notice>
       <div className="at-formblock at-pronouns">
         {persons.map((p) => {
@@ -191,7 +254,25 @@ export function PronounsEditor({ lang, cards, busy, onSave, onClose }: {
                   value={row.en}
                   placeholder={p.label}
                   aria-label={`English for ${p.label}`}
-                  onChange={(e) => set(p.id, { en: e.target.value })}
+                  onChange={(e) => setEnglish(p.id, p.label, e.target.value)}
+                />
+              </Field>
+              <Field label={'With \u201cto be\u201d'}>
+                <input
+                  className="at-input"
+                  value={row.enIs}
+                  placeholder={beReadings(englishOf(row, p.label)).is}
+                  aria-label={`With to be, for ${p.label}`}
+                  onChange={(e) => set(p.id, { enIs: e.target.value })}
+                />
+              </Field>
+              <Field label="As a question">
+                <input
+                  className="at-input"
+                  value={row.enAsk}
+                  placeholder={beReadings(englishOf(row, p.label)).ask}
+                  aria-label={`As a question, for ${p.label}`}
+                  onChange={(e) => set(p.id, { enAsk: e.target.value })}
                 />
               </Field>
               <div className="at-chips">

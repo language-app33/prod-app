@@ -10,8 +10,8 @@ import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, Lan
 import { formsOf, leadOf } from "./cards.ts";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
-import { answerFields, categoryLabel, dimValues, kindLabel, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
-import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
+import { answerFields, categoryLabel, dimValues, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
+import { isDialog, isText, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { cardRef, fillNames, fillsOf, isSentence, mergeMet, slotsOf, splitSlots } from "./variables.ts";
 import { reviewOf } from "./review.ts";
 import type { Reader, TableGroup } from "./card-facts.ts";
@@ -964,7 +964,9 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
           than a puzzle. Only this kind is marked: word, phrase and
           sentence look like what they are, and a label on every tile is
           the small print this list was cleared of. */}
-      {isDialog(card) ? <div className="at-minikind">{kindLabel(DIALOG_KIND)}</div> : null}
+      {/* Which of the two kinds of scene, which says more on a tile than
+          that it is a scene at all. */}
+      {isDialog(card) ? <div className="at-minikind">{isText(card) ? "Text" : "Conversation"}</div> : null}
       {/*
         * A name, where the card has one, is what it is listed under.
         *
@@ -1034,11 +1036,12 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
  * would be the one that went stale.
  *
  * `fixes` marks the option that also overturns the marking; `asks` marks
- * the one that cannot be sent on its own, because it covers everything not
- * listed and so has to be said in words. `lifts` marks the one that is the
- * learner's own shortcut rather than a report: it moves the form that was
- * asked up a level of its ladder, on this device, and is never sent to
- * anybody — the server does not know the kind, and does not need to.
+ * the one that cannot be sent without the learner's own words, because it
+ * covers everything not listed. Every option takes words — the box is
+ * shared by all four — but only that one needs them. `lifts` marks the one
+ * that is the learner's own shortcut rather than a report: it moves the
+ * form that was asked up a level of its ladder, on this device, and is
+ * sent to nobody unless the learner wrote something with it.
  */
 export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: boolean; asks?: boolean; lifts?: boolean }[] = [
   {
@@ -1061,7 +1064,7 @@ export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: b
   {
     key: "other",
     title: "Something else",
-    what: "Anything the ones above don't cover. Tell us what happened.",
+    what: "Anything the ones above don't cover. Tell us what happened below.",
     asks: true,
   },
 ];
@@ -2489,9 +2492,12 @@ export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
     return (
       <div className="at-readout">
         <section className="at-panel">
-          <p className="at-eyebrow">The scene</p>
+          <p className="at-eyebrow">{isText(card) ? "The text" : "The scene"}</p>
           <p className="at-hint">
-            {card.note || "A conversation. Each line is practised in its own right."}
+            {card.note ||
+              (isText(card)
+                ? "A text. It is read as a whole."
+                : "A conversation. Each line is practised in its own right.")}
           </p>
           {/* Its name, which is where a conversation keeps the words a word
               card keeps in its own script: the card is the scene, and the
@@ -2507,7 +2513,9 @@ export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
                 className={`at-sceneline${sideOf(card, line.who || 0) === null ? "" : ` side${sideOf(card, line.who || 0)}`}`}
                 key={line.id || i}
               >
-                <span className={`at-speaker s${(line.who || 0) % 4}`}>{nameOf(line.who || 0)}</span>
+                {isText(card) ? null : (
+                  <span className={`at-speaker s${(line.who || 0) % 4}`}>{nameOf(line.who || 0)}</span>
+                )}
                 <div className="at-scenesaid">
                   <p className="at-arabic phrase" lang={L.id} dir={L.direction}
                     style={{ fontFamily: L.fontStack, direction: L.direction, ...scriptVars(L) }}>
@@ -2516,7 +2524,9 @@ export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
                   {line.en ? <p className="at-scenemeaning"><Written text={line.en} /></p> : null}
                   {line.lat ? <p className="at-scenemeaning"><Written text={line.lat} /></p> : null}
                   {clipsOf(line).length ? <ClipList clips={clipsOf(line)} /> : null}
-                  {teacher ? <ReadAsked form={line as Record<string, any>} /> : null}
+                  {/* A line of a text is never asked on its own, so there is
+                      nothing for this to say about one. */}
+                  {teacher && !isText(card) ? <ReadAsked form={line as Record<string, any>} /> : null}
                   <ReadTaught of={line as Record<string, any>} cards={cards} label="Words this turn teaches" />
                   <ReadGrammar of={line as Record<string, any>} lang={L} />
                 </div>
@@ -2525,6 +2535,7 @@ export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
           </div>
         </section>
 
+        {isText(card) ? null : (
         <section className="at-panel">
           <p className="at-eyebrow">The student's part</p>
           <p className="at-hint">
@@ -2536,6 +2547,7 @@ export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
             {speakers.length ? speakers.join(" · ") : null}
           </ReadRow>
         </section>
+        )}
 
         <ReadBlanks card={card} lang={L} cards={cards} />
 
@@ -3755,6 +3767,16 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
     lat: ln.lat || "",
     en: ln.en || "",
     uses: (ln.uses || []).map(localIdFor),
+    /* Which member of the scene's cast each blank plays, and which forms
+       each blank takes: both read when the scene is filled whole — see
+       cast.ts. Absent on a turn that says nothing, which is most. */
+    ...(ln.roles ? { roles: ln.roles } : null),
+    ...(ln.tenses ? { tenses: ln.tenses } : null),
+    /* And, on a turn picked from a sentence card, which one and the review
+       that sentence carries — the review this turn answers to, handed
+       over by the server because the sentence need not be on the device. */
+    ...(ln.from ? { from: ln.from } : null),
+    ...(ln.from && ln.review ? { review: ln.review } : null),
     lang: card.lang,
     recs: recsOf(ln),
     created: Date.now(),
@@ -3780,6 +3802,8 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
       ? {
           lines,
           speakers: (card.speakers || []).filter(Boolean),
+          /* A text or a conversation — see sceneKindOf. */
+          ...(card.sceneKind === "text" ? { sceneKind: "text" as const } : null),
           /* Which part the student takes, or null where the teacher left it
              open — in which case the question picks one, and picks the
              other next time. */
@@ -3839,6 +3863,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
     /* And which verb column it is, where it is a pronoun: what a sentence's
        verb reads to take that column. */
     ...(card.person ? { person: String(card.person) } : null),
+    /* And what it reads as with *to be*, where the teacher wrote it: what
+       the `{{pronoun-is}}` and `{{is-pronoun}}` blanks put in the English. */
+    ...(card.enIs ? { enIs: String(card.enIs) } : null),
+    ...(card.enAsk ? { enAsk: String(card.enAsk) } : null),
     /* And what number it is worth, where it is a number. Carried for the
        same reason the three above are — it is the teacher's answer and
        nothing here could read it off the word — and it is what everything

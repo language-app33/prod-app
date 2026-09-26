@@ -264,20 +264,16 @@ test("the quiet way out is text, like the flag beside it", () => {
     "the quiet button has picked up a rule of its own again");
 });
 
-test("the flag menu covers the answer bar rather than floating over it", () => {
-  /* It used to open upward from the flag button, leaving Continue live an
-     inch below Send. Anchored to the foot's own bottom edge it takes the
-     bar's place while it is open, and its own Back button is the way out.
-     Both halves are needed: the bar is blurred, which makes a stacking
-     context of it, so without a layer of its own the menu would be painted
-     under a bar it is sitting exactly on top of. */
-  const body = rule(".at-footextra .at-flagmenu");
-  assert.match(body, /bottom:\s*0/, "the menu no longer reaches the foot of the screen");
-  assert.match(body, /position:\s*absolute/);
-  assert.ok(layer[".at-footextra .at-flagmenu"] > 0,
-    "the menu has no layer, so the answer bar paints over it");
-  assert.match(rule(".at-footextra .at-flagwrap"), /position:\s*static/,
-    "the menu is measured from the flag button again, which cannot reach past the bar");
+test("the flag menu is a screen of its own, not a panel over the answer bar", () => {
+  /* It used to be a panel anchored to the foot, which had to be layered
+     over the blurred bar, hide it from the keyboard, and scroll inside
+     itself to fit a phone with the keyboard up. A screen is above the whole
+     app by construction, so none of that is needed — and any of it coming
+     back means the panel has too. */
+  assert.equal(rule(".at-footextra .at-flagmenu"), "",
+    "the flag menu is positioned in the foot again");
+  assert.equal(css.includes(".at-footextra:has(.at-flagmenu)"), false,
+    "the foot still makes room for a menu inside it");
 });
 
 test("a screen that rises does it quickly, and not at all if you asked for less motion", () => {

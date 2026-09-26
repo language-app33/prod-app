@@ -3387,3 +3387,157 @@ already shows one number of every shape a language gets wrong; a teacher
 signs that off, and students get the signed version whole until the next
 sign-off. The first edit of a system since this shipped records the
 version before it as signed, so nobody loses the numbers they had.
+
+---
+
+## A pronoun reads three ways, chosen after the pronoun
+
+**26 September 2026** · `READING_SLOTS`, `beReadings` and `readingsOf` in
+`src/variables.ts`; `BlankScreen` and `PRONOUN_READINGS` in
+`src/card-editor.tsx`; `src/pronouns-editor.tsx`
+
+Arabic and Hebrew drop *to be* in the present and ask a question without
+moving anything, so one pronoun answers to *I*, *I am* and *am I*. 0.250
+made those three blanks — `{{pronoun}}`, `{{pronoun-is}}`,
+`{{is-pronoun}}` — filled by the same cards and differing in the English
+alone.
+
+**Names in braces, not a setting on the blank.** A blank can already be
+narrowed to some tenses by a setting stored beside it, and the reading
+could have been one more. It was not, because the frame would then not say
+what it reads as: two frames with the same words would read differently
+and look the same in every list. A name is how every other distinction a
+blank makes is written, and the pill in the field says which reading it is.
+
+**Worked out, and stored only where changed.** Which verb *to be* takes
+after *I*, *he* or *you* is a fact about English, the language every card
+is explained in, so the readings are worked out from the pronoun's own
+English. A teacher's own wording goes on the card as `enIs` and `enAsk`,
+beside `person`, only where it differs; a pronoun written before 0.250
+therefore reads correctly without anyone opening it.
+
+**One pronoun on the list, then how it reads (0.251).** 0.250 listed the
+three as three rows among the kinds of word, where a teacher had to tell
+them apart before knowing why there were three. The list has one pronoun
+again, and choosing it turns to the three readings; typing a reading's name
+in the box puts it straight in. That second step is what moved the picker
+from a bottom sheet to a screen rising over the card: a sheet would have
+needed a back button of its own, the list had grown past what a sheet
+shows on a phone, and a screen brings Back, Escape and the full height
+with it.
+
+**A noun's pronoun endings, narrowed like a tense (0.253).** The same
+second step asks, of a blank some word in which has its attached pronouns
+written out, whether the sentence uses the word or those forms. Unlike a
+pronoun's reading this is *not* a name in braces: the words differ, not
+only their English, and a blank can be any name — `{{noun}}`, a group
+tag, one card's ID — so a second name per reading would have doubled
+every name there is. It is stored as the narrowing a verb blank already
+had, in the same list as its tenses: the attached table's row for "with",
+and `BARE_ROW` for "without". That list already reaches the server, the
+student's device and the review list, and `blankAdmits` is already the one
+rule all three fill a blank through, so nothing new travels. The cost is a
+list named `tenses` holding two things that are not tenses, which
+`blankAdmits` and the editor keep apart by asking which rows are the
+attached table's.
+
+---
+
+## What a question cannot tell apart, it does not ask a learner to
+
+**26 September 2026** · `twinsOf` in `src/ArabicTrainer.tsx`; `familyOf`
+on `matchGroups` and `matchSet` in `src/chance.ts`
+
+A card's forms are asked on their own, and two of them can answer one
+question: a phrase and its feminine both mean *Not good*. 0.171 and 0.220
+answered that by naming the form, as a tag. That works where the card says
+what each form is, through an adjective's table or the grammar written on
+an answer. A phrase says neither, so there was no tag to show and the
+masculine was marked wrong for knowing it.
+
+**Accept, rather than invent a label.** Inferring *masculine* from a
+phrase's letters would be guessing about a dialect. What the screen
+actually shows is known exactly: the prompt reads the same for both forms,
+and no tag is up. In that case, and only then, every such form is a right
+answer, and none is offered as a wrong one. Where a tag is up, the form
+named stays the only answer, because that is what the tag promises.
+
+**In a grid, keep them apart rather than tag them.** A tag on only the two
+tiles that needed one showed the learner which two went together. So
+`matchGroups` never deals two forms of one card into a grid, and `matchSet`
+draws no spare meaning from one. `kinTags` stays as a backstop for a grid
+that reaches the screen some other way. The cost is that a card's two forms
+are never asked against each other in a grid. The typed and *choose*
+questions ask that wherever a tag can say which is wanted.
+
+**The gap shows the phrase's meaning.** Showing the missing word's own
+meaning was chosen because *close the ___ please* read with the phrase's
+English has more than one defensible answer. In practice the Arabic around
+the gap settles which word it is. The word's own meaning repeated what
+that word's own questions already ask, and a learner found the exercise
+pointless for it. The owner decided to show the phrase's meaning. The
+heard version keeps the word's meaning, because it has no gap on the
+screen.
+
+
+---
+
+## A scene is one kind with two subtypes, and its blanks are cast
+
+**26 September 2026** · `src/cast.ts`; `sceneKindOf`, `pickedLine` in
+`src/dialogs.ts`; `lineGate` in `src/review.ts`; `sceneFill` in
+`src/ArabicTrainer.tsx`
+
+A teacher wanted a *text*: several sentences read together, built out of
+sentence cards so each keeps the variety its blanks give it. Three choices
+made it one feature rather than three.
+
+**A text is a scene, not a fourth kind of card.** A conversation was
+already lines in order, read through and drilled a line at a time; a text
+is that with nobody speaking. The two things a text needed — lines picked
+from sentence cards, and blanks that agree across lines — a conversation
+needed just as much, so building them for a separate kind would have been
+building them twice or leaving conversations behind. So `sceneKind: "text"`
+is a subtype, asked the way a word's is and changeable the way a word's is:
+it moves which questions the scene is asked (a text is read as a whole and
+nothing else, `dialogNeedMet`) and leaves every line's progress where it
+was. Absent means conversation, so every scene written before is unchanged.
+
+**A picked line keeps a copy, refreshed wherever the sentence can be
+read.** Pointing at the sentence alone would leave a scene with holes in it
+for any reader that cannot see the sentence card — a student whose decks do
+not hold it. Copying alone would leave the scene stale the moment the
+sentence was edited. So the line carries `from` and the sentence's words,
+and three places read the sentence afresh through `pickedLine`: the editor
+on opening, the server on every save of the scene, and the server on every
+material download. A sentence saved or reviewed moves its teacher's
+revision (`bumpFills`), because the scenes it is in are in other decks. A
+sentence that has gone leaves the line as typed words, reviewed with the
+scene.
+
+**Blanks are cast, not matched by name.** Filling each line alone made a
+conversation greet one person and answer another. Matching by blank name
+alone fails the other way: a reusable sentence cannot know whether its
+`{{person}}` is this story's first character or its second. So each blank
+of each line *plays a member* (`roles` on the line), defaulting to the
+member named after the blank — which is what most scenes want and costs
+nothing — and a member draws one **card**, from which each line takes the
+form its own blank admits (`blankAdmits`, as within one sentence). Two
+members never draw the same card. The walk is an odometer over members,
+like `valuesForTurn` over blanks, forward from the turn to the first
+casting every line's review allows.
+
+**Review is reused, not repeated.** A member draws only what each of its
+blanks would have taken alone, so every filled line is a sentence its own
+review already covers. A typed line answers to the scene's review; a picked
+line to its sentence card's (`lineGate`), which the server hands the device
+on the line. `holedParts` therefore leaves picked lines off the scene's own
+list.
+
+**What it costs.** A scene's blanks are filled at the bottom level whatever
+is asked (`SCENE_KEY`): every scene question is reading, and holding a
+choice question to words the learner can write left names, which have no
+ladder, out of every turn. And the casting is fixed by the scene's own
+read-through count rather than the question's, so it changes only when the
+scene is read through again — the price of never introducing Sami and then
+answering Rami in one session.

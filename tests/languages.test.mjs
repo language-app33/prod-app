@@ -35,6 +35,7 @@ import {
   dimsFor,
   agreementOf,
   blankAdmits,
+  BARE_ROW,
   lendsForm,
   tensedOf,
   categoriesOf,
@@ -902,6 +903,37 @@ test("a narrowed blank takes the verbs of those tenses and everything else as be
   const perSlot = blankAdmits(ar, (slot) => (slot === "verb" ? ["past"] : []));
   assert.equal(perSlot(verb, { ar: "بياكل", row: "present", col: "he" }, "verb2"), true);
   assert.equal(perSlot(verb, { ar: "بياكل", row: "present", col: "he" }, "verb"), false);
+});
+
+test("a noun blank can ask for the word itself, or only its forms with a pronoun on the end", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const noun = { category: "noun" };
+  const day = { ar: "يوم", en: "day" };
+  const days = { ar: "أيام", en: "days", id: "pl" };
+  const yourDay = { ar: "يومك", en: "your day", row: "attached", col: "you-m" };
+  const yourDays = { ar: "أيامك", en: "your days", row: "attached", col: "you-m", of: "pl" };
+  const bare = blankAdmits(ar, () => [BARE_ROW]);
+  assert.equal(bare(noun, day, "noun"), true, "the word itself");
+  assert.equal(bare(noun, days, "noun"), true, "and its other forms, such as the plural");
+  assert.equal(bare(noun, yourDay, "noun"), false, "but no form with a pronoun on the end");
+  const ends = blankAdmits(ar, () => ["attached"]);
+  assert.equal(ends(noun, yourDay, "noun"), true);
+  assert.equal(ends(noun, yourDays, "noun"), true, "the plural's endings as well as the word's");
+  assert.equal(ends(noun, day, "noun"), false);
+  assert.equal(ends({ category: "name" }, { ar: "رافائيل" }, "noun"), false, "a word with no endings has none to offer");
+  /* And a blank that has not said takes both, which is every sentence
+     written before the question was asked. */
+  const open = blankAdmits(ar, () => []);
+  assert.equal(open(noun, day, "noun"), true);
+  assert.equal(open(noun, yourDay, "noun"), true);
+  /* Beside a tense on the same blank, a verb is narrowed by the tense
+     alone when the words are asked for bare. */
+  const pastBare = blankAdmits(ar, () => [BARE_ROW, "past"]);
+  const verb = { category: "verb" };
+  assert.equal(pastBare(verb, { ar: "أكل", row: "past", col: "he" }, "word"), true);
+  assert.equal(pastBare(verb, { ar: "بياكل", row: "present", col: "he" }, "word"), false);
+  assert.equal(pastBare(noun, day, "word"), true);
+  assert.equal(pastBare(noun, yourDay, "word"), false);
 });
 
 test("whether a noun is a person or a thing is never printed on a tag", () => {
