@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.248 — 26 September 2026
+
+**Cards can go from one deck into another.**
+
+Inside a deck, selecting cards used to offer only to take them out of it or
+delete them. Now **Add to another deck** is there too.
+
+- It opens the same list of decks the Cards tab uses, without the deck you
+  are in, and a new deck can be made from it on the way.
+- The cards stay in the deck you are in; they are added to the others as
+  well.
+
 ## 0.247 — 25 September 2026
 
 **The language switch, in Teaching too.**
