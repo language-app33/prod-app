@@ -1353,6 +1353,15 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    long or short the words above them are. The meta line is pinned there
    too, so where a tile carries both, the meta keeps the bottom and the bar
    sits under it. */
+/* A tile that says all of itself — the lists behind the tiles on Progress,
+   where the date line is what was asked for. Nothing clamped and nothing
+   cut off: the words take the lines they need and the small print wraps.
+   The grid still stretches every tile in a row to the tallest, so a long
+   one makes its row taller rather than making its neighbours ragged. */
+.at-minicard.whole .ar, .at-minicard.whole .at-minien { display:block; -webkit-line-clamp:unset;
+  line-clamp:none; overflow:visible; }
+.at-minicard.whole .at-minimeta { white-space:normal; overflow:visible; text-overflow:clip;
+  word-break:break-word; }
 .at-minibar { margin-top:auto; padding-top:8px; display:flex; align-items:center; gap:6px; }
 .at-minimeta + .at-minibar { margin-top:0; padding-top:4px; }
 .at-minibarrail { flex:1; min-width:0; height:6px; border-radius:999px;
