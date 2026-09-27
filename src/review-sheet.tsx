@@ -37,6 +37,31 @@ import { Button, CheckList, Field, Help, Notice, Screen, Section, Segmented, plu
 
 type Mark = "ok" | "no" | null;
 
+/*
+ * Which of a card's sentences the review screen is showing.
+ *
+ * Waiting first, and what the screen opens on: it is the work, and a card
+ * that has been reviewed before is mostly sentences already answered —
+ * reading down past them to find the three new ones is the part a teacher
+ * came here to be spared. The others are for going back over an answer.
+ */
+type Tab = "wait" | "no" | "ok" | "all";
+const TABS: { value: Tab; label: string }[] = [
+  { value: "wait", label: "Waiting" },
+  { value: "no", label: "Struck" },
+  { value: "ok", label: "Approved" },
+  { value: "all", label: "All" },
+];
+const inTab = (tab: Tab, mark: Mark) => tab === "all" || (tab === "wait" ? !mark : mark === tab);
+/* What an empty tab says. "All" has nothing of its own to say: an empty
+   card is explained once, above the tabs. */
+const EMPTY: Record<Tab, string> = {
+  wait: "Nothing is waiting for review.",
+  no: "No sentences struck.",
+  ok: "No sentences approved yet.",
+  all: "",
+};
+
 /* How many sentences of a frame that is over the ceiling are drawn, so the
    teacher can see what the blank is being filled with while narrowing. */
 const OVER_SHOWN = 30;
@@ -126,16 +151,32 @@ export function ReviewScreen({
   }, [review]);
   const [marks, setMarks] = useState<Map<string, Mark>>(() => new Map(had));
   const [error, setError] = useState("");
+  const [tab, setTab] = useState<Tab>("wait");
+  /* The sentences marked since this tab was opened. They stay on it,
+     showing their new mark, until the tab is changed: a sentence that left
+     the list the moment it was approved would take the teacher's place in
+     it with it, and a slip of the finger could not be undone where it was
+     made. */
+  const [kept, setKept] = useState<Set<string>>(() => new Set());
   const markOf = (key: string): Mark => (marks.has(key) ? (marks.get(key) as Mark) : null);
-  const set = (key: string, mark: Mark) =>
+  const set = (key: string, mark: Mark) => {
+    setKept((prev) => new Set(prev).add(key));
     setMarks((prev) => {
       const next = new Map(prev);
       if (mark) next.set(key, mark);
       else next.delete(key);
       return next;
     });
+  };
+  const pick = (next: Tab) => {
+    setTab(next);
+    setKept(new Set());
+  };
   const all = parts.flatMap((p) => p.list);
   const waiting = all.filter((s) => !markOf(s.key));
+  const count = (t: Tab) => all.filter((s) => inTab(t, markOf(s.key))).length;
+  const shows = (s: Sentence) => inTab(tab, markOf(s.key)) || kept.has(s.key);
+  const shown = all.filter(shows);
   const changed = all.filter((s) => (had.get(s.key) || null) !== markOf(s.key));
 
   async function save() {
@@ -188,61 +229,84 @@ export function ReviewScreen({
         <OverCeiling card={card} cards={cards} lang={lang} parts={parts} busy={busy} onNarrow={onNarrow} />
       ) : (
         <>
-          <div className="at-reviewcounts">
-            <span>{plural(all.length, "sentence")}</span>
-            <span className="ok">{all.filter((s) => markOf(s.key) === "ok").length} approved</span>
-            <span className="no">{all.filter((s) => markOf(s.key) === "no").length} struck</span>
-            <span className="wait">{waiting.length} waiting</span>
+          {/* The counts are on the tabs, so the tally that used to sit
+              here would be saying everything twice. */}
+          <div className="at-reviewtabs">
+            {/* Full width, and each count under its label rather than beside
+                it: four labels with their counts in a line are more than a
+                phone has room for, and the fourth went down to a row of its
+                own. */}
+            <Segmented
+              size={null}
+              label="Which sentences"
+              value={tab}
+              onChange={pick}
+              options={TABS.map((t) => ({
+                value: t.value,
+                label: (
+                  <>
+                    <span>{t.label}</span>{" "}
+                    <span className="at-reviewtabn">{count(t.value)}</span>
+                  </>
+                ),
+              }))}
+            />
           </div>
-          {!all.length && (
+          {!all.length ? (
             <Help>
               Nothing fills its blanks yet, so it makes no sentences. Once words fill them, the sentences
               they make appear here to review.
             </Help>
+          ) : (
+            !shown.length && <Help>{EMPTY[tab]}</Help>
           )}
-          {waiting.length > 0 && (
+          {waiting.length > 0 && (tab === "wait" || tab === "all") && (
             <div className="at-row">
               <Button onClick={() => waiting.forEach((s) => set(s.key, "ok"))}>
                 Approve the {plural(waiting.length, "waiting sentence")}
               </Button>
             </div>
           )}
-          {parts.map((part, at) => (
-            <Section
-              key={part.id || at}
-              title={parts.length > 1 ? partTitle(card, part, at) : undefined}
-              count={parts.length > 1 ? part.list.length : undefined}
-            >
-              <ol className="at-asked at-reviewlist">
-                {part.list.map((line) => {
-                  const m = markOf(line.key);
-                  return (
-                    <li className={`at-askedline${m ? ` ${m}` : " wait"}`} key={line.key}>
-                      <SentenceText line={line} lang={lang} />
-                      <span className="at-reviewmarks">
-                        <button
-                          type="button"
-                          className={`at-reviewmark ok${m === "ok" ? " on" : ""}`}
-                          aria-pressed={m === "ok"}
-                          onClick={() => set(line.key, m === "ok" ? null : "ok")}
-                        >
-                          {m === "ok" ? "Approved" : "Approve"}
-                        </button>
-                        <button
-                          type="button"
-                          className={`at-reviewmark no${m === "no" ? " on" : ""}`}
-                          aria-pressed={m === "no"}
-                          onClick={() => set(line.key, m === "no" ? null : "no")}
-                        >
-                          {m === "no" ? "Struck" : "Strike"}
-                        </button>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ol>
-            </Section>
-          ))}
+          {parts.map((part, at) => {
+            const lines = part.list.filter(shows);
+            if (!lines.length) return null;
+            return (
+              <Section
+                key={part.id || at}
+                title={parts.length > 1 ? partTitle(card, part, at) : undefined}
+                count={parts.length > 1 ? lines.length : undefined}
+              >
+                <ol className="at-asked at-reviewlist">
+                  {lines.map((line) => {
+                    const m = markOf(line.key);
+                    return (
+                      <li className={`at-askedline${m ? ` ${m}` : " wait"}`} key={line.key}>
+                        <SentenceText line={line} lang={lang} />
+                        <span className="at-reviewmarks">
+                          <button
+                            type="button"
+                            className={`at-reviewmark ok${m === "ok" ? " on" : ""}`}
+                            aria-pressed={m === "ok"}
+                            onClick={() => set(line.key, m === "ok" ? null : "ok")}
+                          >
+                            {m === "ok" ? "Approved" : "Approve"}
+                          </button>
+                          <button
+                            type="button"
+                            className={`at-reviewmark no${m === "no" ? " on" : ""}`}
+                            aria-pressed={m === "no"}
+                            onClick={() => set(line.key, m === "no" ? null : "no")}
+                          >
+                            {m === "no" ? "Struck" : "Strike"}
+                          </button>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </Section>
+            );
+          })}
         </>
       )}
     </Screen>

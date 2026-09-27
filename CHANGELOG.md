@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.266 — 27 September 2026
+
+**Reviewing a card's sentences starts with the ones waiting.**
+
+- In Teaching > Cards, **Review sentences** now opens on **Waiting**, which
+  lists only the sentences you have not approved or struck yet. A card
+  reviewed before no longer makes you read past everything you have
+  already answered to find the new ones.
+- Three more tabs go back over earlier answers: **Struck**, **Approved**
+  and **All**. Each tab shows how many sentences it holds.
+- A sentence you approve or strike stays where it is, showing its new
+  mark, until you change tab. That way a mis-tap can be undone on the spot
+  and the list does not jump under your finger.
+
 ## 0.265 — 27 September 2026
 
 **Cards opened from a tile on Progress now show everything.**

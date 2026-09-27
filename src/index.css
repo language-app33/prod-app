@@ -3582,11 +3582,11 @@ body.at-screening .at-chromebar { display:none; }
   border-radius: var(--r-sm); background: var(--surface); }
 .at-reviewline.waiting { border-color: var(--tag-line); background: var(--tag-bg); }
 .at-reviewsays { flex:1 1 12em; min-width:0; font-size: var(--fs-sm); font-weight:600; color: var(--text); }
-.at-reviewcounts { display:flex; flex-wrap:wrap; gap:6px 14px; margin:14px 0 4px;
-  font-size: var(--fs-sm); font-weight:700; color: var(--text-soft); }
-.at-reviewcounts .ok { color: var(--jade); }
-.at-reviewcounts .no { color: var(--rose); }
-.at-reviewcounts .wait { color: var(--brass-shade); }
+/* Waiting, struck, approved, all — the tabs over a card's sentences, where
+   the tally of the four used to sit. */
+.at-reviewtabs { margin:14px 0 4px; }
+.at-reviewtabs .at-seg { flex-direction:column; gap:1px; padding:6px 4px; line-height:1.2; }
+.at-reviewtabn { font-size:1.15em; letter-spacing:0; }
 .at-reviewlist .at-askedline { flex-wrap:wrap; }
 .at-reviewlist .at-askedline.wait { box-shadow: inset 3px 0 0 var(--tag-line); padding-left:8px; }
 .at-reviewlist .at-askedline.no .at-askedsays { text-decoration: line-through;

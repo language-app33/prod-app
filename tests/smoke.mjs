@@ -8184,6 +8184,27 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(50);
   click(up().querySelectorAll(".at-reviewlist .at-askedline")[1].querySelector(".at-reviewmark.no"));
   await sleep(50);
+
+  /* The screen opens on the sentences still waiting, and one marked there
+     stays in its place until the tab is changed — then each tab holds only
+     its own. */
+  const tabOf = (/** @type {string} */ name) =>
+    [...up().querySelectorAll(".at-reviewtabs .at-seg")].find((b) =>
+      (b.firstChild?.textContent || "") === name);
+  const listed = () => up().querySelectorAll(".at-reviewlist .at-askedline").length;
+  check("the review screen opens on Waiting",
+    tabOf("Waiting")?.getAttribute("aria-pressed") === "true",
+    [...up().querySelectorAll(".at-reviewtabs .at-seg")].map((b) => b.textContent).join(" "));
+  check("and a sentence marked there stays where it was", listed() === 3, `${listed()} rows`);
+  /** @type {[string, number][]} */
+  const tabs = [["Waiting", 1], ["Struck", 1], ["Approved", 1], ["All", 3]];
+  for (const [name, n] of tabs) {
+    click(tabOf(name));
+    await sleep(30);
+    check(`${name} lists only its own sentences`, listed() === n,
+      `${listed()} rows; tab says ${tabOf(name)?.textContent}`);
+  }
+
   click(buttonIn(/^Save review$/));
   await sleep(100);
   check("and Save review sends one approved and one struck",
