@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.267 — 27 September 2026
+
+**Selecting cards is tidier, and forgets what it was doing when you leave.**
+
+- While you are selecting in a list — cards in Teaching > Cards, decks,
+  people — each card's own edit and delete buttons are hidden, so a tap
+  only ever ticks or unticks it.
+- Selecting cards, going to another screen and coming back used to show
+  those cards still ticked. The list now comes back with nothing selected,
+  and pressing **Select** always starts from a clean slate.
+
 ## 0.266 — 27 September 2026
 
 **Reviewing a card's sentences starts with the ones waiting.**

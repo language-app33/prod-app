@@ -1176,6 +1176,9 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-tilewrap { position:relative; }
 .at-tilewrap.picked > .at-deckcard, .at-tilewrap.picked > .at-minicard,
 .at-tilewrap.picked > .at-item { border-color: var(--accent); }
+/* A tap on a tile ticks it while selecting, so a tile's own edit and delete
+   would only be a second answer to the same tap. */
+.at-tilewrap.selecting .at-miniacts, .at-tilewrap.selecting .at-deckacts { display:none; }
 .at-tilewrap > .at-ckbox.pick { position:absolute; top:10px; right:10px; z-index:2; }
 /* The bar that rises once something is ticked: a plain tray across the
    bottom, not a floating pill. */

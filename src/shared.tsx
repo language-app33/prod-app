@@ -1659,7 +1659,12 @@ export function ItemList<T>({
   }, [query]);
   const page = ordered.length > limit ? ordered.slice(0, limit) : ordered;
 
-  const picked = selected || new Set();
+  /* A selection belongs to one go at selecting. The set itself is kept by
+     the screen, which outlives this list — leave for another tab and come
+     back, and the list is drawn afresh out of select mode while the screen
+     still holds what was ticked. So outside select mode nothing is picked,
+     and entering it starts from nothing. */
+  const picked: Set<string> = (selecting && selected) || new Set();
   /* Nothing to select means no toggle: an empty list should not offer a mode
      that cannot do anything. */
   const canSelect = !!(onSelectedChange && bulkActions && bulkActions.length && items.length);
@@ -1673,6 +1678,11 @@ export function ItemList<T>({
   const at = TILE_SIZES[tile] || TILE_SIZES[0];
   const then = TILE_SIZES[(tile + 1) % TILE_SIZES.length];
   const sizeLabel = `Card size: ${at.name} — press for ${then.name.toLowerCase()}`;
+
+  const startSelecting = () => {
+    if (onSelectedChange) onSelectedChange(new Set());
+    setSelecting(true);
+  };
 
   const stopSelecting = () => {
     setSelecting(false);
@@ -1779,7 +1789,7 @@ export function ItemList<T>({
             <button
               className={`at-btn sm ghost at-selectbtn${selecting ? " on" : ""}`}
               aria-pressed={selecting}
-              onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+              onClick={() => (selecting ? stopSelecting() : startSelecting())}
             >
               <Icon name={selecting ? "close" : "select"} size={16} />
               {selecting ? "Done" : "Select"}
@@ -1846,7 +1856,7 @@ export function ItemList<T>({
           const opens = run !== null && of && (i === 0 || of(page[i - 1]) !== run);
           const tile = (
             <div
-              className={`at-tilewrap${on ? " picked" : ""}`}
+              className={`at-tilewrap${selecting ? " selecting" : ""}${on ? " picked" : ""}`}
               key={id}
               onClickCapture={
                 selecting
