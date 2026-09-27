@@ -298,7 +298,7 @@ export function castFill(input: CastInput): Record<string, Record<string, Value>
         break;
       }
       const gate = gateOf ? gateOf(line) : null;
-      if (gate && !passes(gate, sentenceKey(fillForm(line, took)))) {
+      if (gate && !passes(gate, sentenceKey(fillForm(line, took, false)))) {
         ok = false;
         break;
       }
@@ -323,7 +323,7 @@ export function filledScene<T extends Held>(card: T, took: Record<string, Record
       const values = took[String(line.id || i)];
       if (!values) return line;
       const filled = fillForm(line as Held, values);
-      return { ...filled, reviewKey: sentenceKey(filled) };
+      return { ...filled, reviewKey: sentenceKey(fillForm(line as Held, values, false)) };
     }),
   };
 }

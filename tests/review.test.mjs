@@ -158,7 +158,7 @@ test("a verb in a sentence card takes the person its pronoun names, once per ten
   assert.equal(part.combos, 4, "four pronouns by one present, not four by four cells");
   assert.deepEqual(part.list.map((s) => s.ar).sort(), ["أنا بحكي عربي", "هم بيحكوا عربي", "هو بيحكي عربي", "هي بتحكي عربي"].sort());
   const she = must(part.list.find((s) => s.ar === "هي بتحكي عربي"), "she speaks");
-  assert.equal(she.en, "she speaks Arabic");
+  assert.equal(she.en, "She speaks Arabic");
   assert.equal(she.lat, "she btihki arabi");
   assert.equal(she.took.verb.card, "speak", "the card behind the blank is still the verb");
   assert.equal(she.took.verb.word, "بتحكي", "and the word is the one shown");
@@ -179,7 +179,7 @@ test("a verb in a sentence card takes the person its pronoun names, once per ten
   /* And the reading blanks are the same pronoun, so the verb follows them too. */
   const is = { ...sentence, forms: [{ ...sentence.forms[0], ar: "{{pronoun-is}} {{verb}}", en: "{{pronoun-is}} {{verb}}", lat: "" }] };
   const [read] = cardSentences(is, [...pronouns, speak, is], ar);
-  assert.ok(read.list.some((s) => s.ar === "هي بتحكي" && s.en === "she is speaks"), read.list.map((s) => s.en).join(" | "));
+  assert.ok(read.list.some((s) => s.ar === "هي بتحكي" && s.en === "She is speaks"), read.list.map((s) => s.en).join(" | "));
 });
 
 test("a verb beside a blank that names no person is not asked, and one beside nothing takes its turns", () => {

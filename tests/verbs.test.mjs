@@ -339,6 +339,33 @@ test("a cell of a closed row is not open, and a non-cell always is", () => {
   assert.equal(cellIsOpen(toEat, arabic, { ar: "كتاب" }, () => false), true);
 });
 
+/*
+ * Arabic's *I* is two columns.
+ *
+ * The finite verb is the same word whoever says it, but the participles
+ * Palestinian Arabic uses for much of its present are not — رايح and
+ * رايحة — and a table with one box for *I* could only hold one of them.
+ * The masculine keeps the id the single column had, so every cell and
+ * every pronoun written before the split stays where it was; the feminine
+ * is the new column, beside it. Hebrew is not split with it: its present
+ * varies by gender in every person, which is a different table.
+ */
+test("Arabic marks I for gender, keeping the old column under the masculine", () => {
+  const ids = personsOf(arabic).map((p) => p.id);
+  assert.deepEqual(ids, ["i", "i-f", "you-m", "you-f", "he", "she", "we", "you-pl", "they"]);
+  assert.equal(must(personsOf(arabic).find((p) => p.id === "i"), "I (m)").label, "I (m)");
+  assert.equal(must(personsOf(arabic).find((p) => p.id === "i-f"), "I (f)").label, "I (f)");
+  /* A cell written before the split is still the masculine I. */
+  assert.equal(must(cellAt(toEat, "present", "i"), "I eat").ar, "باكل");
+  /* Neither is ever chosen by agreeing: no noun in a subject is the speaker. */
+  assert.equal(picksOf(must(personsOf(arabic).find((p) => p.id === "i-f"), "I (f)")).length, 0);
+  assert.equal(personFor(arabic, { number: "singular", gender: "feminine" })?.id, "she");
+  /* And a pronoun the Pronouns screen writes as the feminine I takes it by name. */
+  assert.equal(must(personFor(arabic, { person: "i-f" }), "I (f)").id, "i-f");
+  const hebrew = must(verbOf(LANGUAGES["he-IL"]), "the Hebrew verb table");
+  assert.deepEqual(personsOf(hebrew).map((p) => p.id), ["i", "you-m", "you-f", "he", "she", "we", "you-pl", "they"]);
+});
+
 test("the table is crossed row by row, in teaching order", () => {
   const all = tableOf(toEat, arabic);
   assert.equal(all.length, tensesOf(arabic).length * personsOf(arabic).length);
@@ -348,7 +375,7 @@ test("the table is crossed row by row, in teaching order", () => {
      before they, wherever a caller deals from this. */
   assert.deepEqual(
     all.slice(0, 3).map((c) => c.col),
-    ["i", "you-m", "you-f"],
+    ["i", "i-f", "you-m"],
   );
   const { filled, blank } = tableCount(toEat, arabic);
   assert.equal(filled, 8);
@@ -836,7 +863,7 @@ test("none of it knows what a tense is: Huế narrows by its own rows", () => {
  */
 test("a subject that names a column takes it, whatever else it says", () => {
   const arabic = must(verbOf(LANGUAGES["ar-PS"]), "the Arabic verb table");
-  for (const id of ["i", "you-m", "you-f", "we", "you-pl"]) {
+  for (const id of ["i", "i-f", "you-m", "you-f", "we", "you-pl"]) {
     assert.equal(must(personFor(arabic, { person: id }), id).id, id, `${id} by name`);
   }
   /* Named beats agreeing: a "he" pronoun card is also singular and

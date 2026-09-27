@@ -8,7 +8,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inPlayWith, langsOffAmong, teachingChoices } from "../src/lang-choice.ts";
+import { inPlayWith, langsOffAmong, langsToMakeIn, teachingChoices } from "../src/lang-choice.ts";
 
 const known = { "ar-PS": { name: "Palestinian Arabic" }, "vi-Hue": { name: "Huế Vietnamese" } };
 
@@ -47,4 +47,11 @@ test("a thing that cannot say its language stays in play", () => {
   assert.equal(inPlayWith(["vi-Hue"], "vi-Hue"), false);
   assert.equal(inPlayWith(["vi-Hue"], "ar-PS"), true);
   assert.equal(inPlayWith(["vi-Hue"], undefined), true);
+});
+
+test("with the switch on one language, something new is made in it without asking", () => {
+  assert.deepEqual(langsToMakeIn(["ar-PS", "vi-Hue"], ["vi-Hue"]), ["ar-PS"]);
+  assert.deepEqual(langsToMakeIn(["ar-PS", "vi-Hue", "he-IL"], ["ar-PS"]), ["vi-Hue", "he-IL"]);
+  assert.deepEqual(langsToMakeIn(["ar-PS", "vi-Hue"], []), ["ar-PS", "vi-Hue"]);
+  assert.deepEqual(langsToMakeIn([], ["vi-Hue"]), []);
 });
