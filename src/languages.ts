@@ -36,7 +36,8 @@ import { leadOf, subFormsOf } from "./cards.ts";
 /* And what a row is, for the one rule below that reads one: verbs.ts
    knows what a table is made of and no language at all, which is the
    same direction every other import here goes. */
-import { colOf, isCell, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows } from "./verbs.ts";
+import { citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows } from "./verbs.ts";
+import { isLent } from "./variables.ts";
 /*
  * How each language builds its numbers and tells the time.
  *
@@ -1535,8 +1536,8 @@ export const cardDims = (
  *
  * Here rather than written out twice because Arabic and Hebrew mark a verb
  * for the same eight — the two are not related by accident — and a pack
- * that wants six or nine simply writes its own. Nothing reads this but the
- * packs below.
+ * that wants six or nine simply writes its own. Arabic now does, below:
+ * these eight plus a feminine *I*. Nothing reads either list but the packs.
  *
  * There were seven until 0.195, and the missing one was the plural *you*.
  * It was never a decision: the worked example in the proposal this feature
@@ -1576,6 +1577,36 @@ const SUBJECT_PERSONS: VerbPerson[] = [
      in two different orders. */
   { id: "you-pl", label: "you (pl)" },
   { id: "they", label: "they", picks: { number: "plural" } },
+];
+
+/*
+ * Arabic's nine: the eight above, with *I* split by gender the way *you*
+ * already is.
+ *
+ * The finite verb does not mark a speaker's gender — أكلت and باكل are
+ * anybody's — but a great deal of what Palestinian Arabic says in the
+ * present is said with a participle, and that does: أنا رايح is a man
+ * going and أنا رايحة a woman, عارف and عارفة know, ساكن and ساكنة live
+ * somewhere. Those are verbs to a learner, laid out in this table, and
+ * until 0.261 the table had one box for *I*, so a teacher wrote the
+ * masculine and a woman learnt to say the wrong word about herself. A
+ * verb whose two forms are the same is typed twice, as بتاكل already is
+ * under *you (m)* and *she*: a cell carries the words it was given.
+ *
+ * The masculine keeps the id the single column had, so every *I* cell a
+ * teacher has written, and the pronoun أنا the Pronouns screen wrote as
+ * "i", stay exactly where they are; only the label changes. The feminine
+ * is the new column and sits beside it, where a teacher reading down the
+ * table expects it.
+ *
+ * Hebrew is left on the eight for now. Its present tense varies by gender
+ * in every person — אוכל and אוכלת, אוכלים and אוכלות — which is a
+ * different shape of table and wants deciding on its own.
+ */
+const AR_SUBJECT_PERSONS: VerbPerson[] = [
+  { id: "i", label: "I (m)" },
+  { id: "i-f", label: "I (f)" },
+  ...SUBJECT_PERSONS.slice(1),
 ];
 
 /*
@@ -1742,6 +1773,20 @@ const WORD_CATEGORIES: WordCategory[] = [
     /* Its number and gender are its table. */
     grammar: [],
   },
+  /* This and that — هاد, هاي, هدول — which change with the noun exactly
+     as an adjective does, so they lay out the same table and a sentence
+     picks their form the same way. A subtype of their own rather than an
+     adjective for the blank's sake: a card fills the blank its subtype is
+     named after, and هاد dealt into "the house is {{adjective}}" is a
+     sentence nobody says. Two or three cards a language, and in half the
+     sentences a beginner meets. */
+  {
+    id: "demonstrative",
+    label: "Demonstrative",
+    note: "this, that — with the forms it takes beside a noun.",
+    table: "agreement",
+    grammar: [],
+  },
   {
     id: "preposition",
     label: "Preposition",
@@ -1812,7 +1857,7 @@ const WORD_CATEGORIES: WordCategory[] = [
  * and Hebrew — where Pronoun is retired as something a teacher picks.
  *
  * A pronoun there is not one more word: it is what chooses the verb's
- * column, and the eight of them are the columns the verb table already
+ * column, and the set of them is the columns the verb table already
  * has. So they are written once per language on the Pronouns screen,
  * which knows which column each one is — something no subtype could say,
  * since "I" and "he" are both singular. Kept, not removed, so every card
@@ -1954,30 +1999,51 @@ export const tensedOf = (
  * `rowsFor` is asked per blank rather than handed a list, because a
  * sentence narrows each of its blanks on its own: "Yesterday {{name}}
  * {{verb}} while {{name2}} {{verb2}}" is two questions about two holes.
+ *
+ * `agreesFor` says whether the blank agrees with another one in the same
+ * sentence — see partnerOf in verbs.ts. Where it does, a word laid out in
+ * tenses stands in it as **one form per tense**, the cell that leads its
+ * row: the sentence picks the person from the blank it agrees with, so
+ * the other cells of the row would be the same sentence over again, and
+ * counted as if they were different ones. Its own word stands aside
+ * there too, where the language cites a cell for it — Arabic's *to eat*
+ * is the he-past, which is already lent by its row, and beside *she* it
+ * would be *she he-ate*. A blank that agrees with nothing takes every
+ * cell and the word in turn, as it always did.
  */
 export const blankAdmits = (
   lang: Lang | null | undefined,
   rowsFor: (slot: string) => string[],
+  agreesFor: (slot: string) => boolean = () => false,
 ): ((
   card: { category?: string } | null | undefined,
   form: Record<string, unknown>,
   slot: string,
 ) => boolean) => (card, form, slot) => {
   const rows = rowsFor(slot) || [];
-  if (!rows.length) return true;
-  /* Whether it has a pronoun on the end, where the sentence said: the
-     attached pronouns' own row for "my name, your name", and BARE_ROW for
-     "name" and the word's other forms. A form carrying a pronoun is
-     admitted by the first and by nothing else — it is in no tense. */
-  const ends = endRowsOf(lang);
-  const endsSaid = rows.filter((r) => ends.has(r) || r === BARE_ROW);
-  if (endsSaid.length) {
-    if (ends.has(rowOf(form))) return endsSaid.some((r) => ends.has(r));
-    if (!endsSaid.includes(BARE_ROW)) return false;
+  if (rows.length) {
+    /* Whether it has a pronoun on the end, where the sentence said: the
+       attached pronouns' own row for "my name, your name", and BARE_ROW for
+       "name" and the word's other forms. A form carrying a pronoun is
+       admitted by the first and by nothing else — it is in no tense. */
+    const ends = endRowsOf(lang);
+    const endsSaid = rows.filter((r) => ends.has(r) || r === BARE_ROW);
+    if (endsSaid.length) {
+      if (ends.has(rowOf(form))) return endsSaid.some((r) => ends.has(r));
+      if (!endsSaid.includes(BARE_ROW)) return false;
+    }
+    const tenses = rows.filter((r) => !ends.has(r) && r !== BARE_ROW);
+    if (tenses.length && !standsInRows(tensedOf(lang, card && card.category), form, tenses)) return false;
   }
-  const tenses = rows.filter((r) => !ends.has(r) && r !== BARE_ROW);
-  if (!tenses.length) return true;
-  return standsInRows(tensedOf(lang, card && card.category), form, tenses);
+  if (agreesFor(slot)) {
+    const tensed = tensedOf(lang, card && card.category);
+    if (tensed && rowIdsOf(tensed).has(rowOf(form))) return isRowLead(card, tensed, form, isLent);
+    if (tensed && !isCell(form) && citedCell(card, tensed)) {
+      const own = leadOf(card);
+      if (own === form || (!!String(own.id || "") && String(own.id || "") === String(form.id || ""))) return false;
+    }
+  }
+  return true;
 };
 
 /*
@@ -2377,7 +2443,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
        say. */
     tables: {
       verb: {
-        persons: SUBJECT_PERSONS,
+        persons: AR_SUBJECT_PERSONS,
         tenses: [
           { id: "present", label: "present" },
           { id: "past", label: "past" },
@@ -2638,8 +2704,10 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* Nouns carry number and gender, and adjectives agree with both —
        the same two axes Arabic declares. */
     grammar: ["number", "gender"],
-    /* Marked for the same eight persons as Arabic, and for the same reason
-       — so the same columns, declared once above. The rows are its own:
+    /* Marked for the eight persons Arabic had before its *I* was split,
+       and for the same reason — so the shared columns, declared once
+       above; see AR_SUBJECT_PERSONS for why Hebrew is not split with it.
+       The rows are its own:
        Hebrew's future is a form of the verb rather than a word in front of
        it, and is taught after the past. */
     tables: {

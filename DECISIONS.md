@@ -3443,6 +3443,45 @@ attached table's.
 
 ---
 
+## Arabic's *I* is two columns, and the old one keeps its name
+
+**26 September 2026** · `AR_SUBJECT_PERSONS` in `src/languages.ts`
+
+The verb table had one column for *I*, shared with Hebrew through
+`SUBJECT_PERSONS`. Palestinian Arabic's finite verb does not mark the
+speaker's gender, but the participles it uses for much of its present do
+— رايح and رايحة, عارف and عارفة — and to a learner those are the verb.
+One box meant the teacher wrote the masculine and a woman learnt the wrong
+word about herself.
+
+**Two columns, not a flag on the cell.** A cell is a sub-form carrying
+where it sits and nothing more, and everything downstream — scheduling,
+recordings, sync, the pronoun that names a column — reads it that way. A
+second column is one more place to sit; a "feminine variant" on the *I*
+cell would have been a second kind of thing for every reader to learn.
+The cost is that a verb whose two forms coincide is typed twice, which is
+already what بتاكل costs under *you (m)* and *she*: a cell carries the
+words it was given, and the app does not know which forms coincide.
+
+**The masculine keeps the id `i`.** Renaming both would have orphaned
+every *I* cell ever written and every pronoun card the Pronouns screen
+saved as `"i"`; keeping the id and changing the label to *I (m)* moves
+nothing. The feminine is `i-f`, declared right after it, so a teacher
+reading down the table meets them together and the Pronouns screen gets
+its row in the same place. That row is the one visible cost: أنا is the
+same word for both, so a teacher who fills it in has two pronoun cards
+that read alike. They need not fill it in — a row left empty makes no
+card — and filling it in is what lets `{{pronoun}} {{verb}}` produce
+أنا رايحة.
+
+**Arabic's own list, not the shared one.** Hebrew's present tense varies
+by gender in every person, singular and plural, which is not one extra
+column but a different table, and deciding it here would have been
+deciding it by accident. So Arabic spreads its own nine and Hebrew stays
+on the eight until that is looked at.
+
+---
+
 ## What a question cannot tell apart, it does not ask a learner to
 
 **26 September 2026** · `twinsOf` in `src/ArabicTrainer.tsx`; `familyOf`
@@ -3541,3 +3580,98 @@ ladder, out of every turn. And the casting is fixed by the scene's own
 read-through count rather than the question's, so it changes only when the
 scene is read through again — the price of never introducing Sami and then
 answering Rami in one session.
+
+---
+
+## A verb drawn into a blank agrees, once per tense
+
+**26 September 2026** · `agreeTook` in `src/review.ts`; `partnerOf`,
+`drawnOf`, `rowLead` in `src/verbs.ts`; `blankAdmits` in
+`src/languages.ts`; `examplesOf` in `src/card-facts.ts`
+
+The 0.141 entry above left a verb from the pool unable to agree, because
+"nothing on a sentence card says which tense". Since 0.192 a sentence card
+does say — a blank is narrowed to the tenses it wants — so the reason had
+gone while the gap stayed: "{{pronoun}} {{verb}}" was met as every cell of
+the verb beside every pronoun, and twelve sentences in sixteen were forms
+nobody says. The owner noticed it on exactly that card.
+
+**The rule is the verb card's own, moved to where the cell came from.** A
+verb card's own sentence has always read its subject: the row is the
+frame's, the column is what filled the subject (`personFor`). A verb drawn
+into an ordinary blank now does the same in `agreeTook`, beside the
+adjective's swap: the row is the *drawn cell's* — which is what the blank's
+narrowing already chose — and the column is the first other blank's, a
+pronoun naming it by `person` and a noun or name picking it by number and
+gender. The same two refusals as the frame: a partner that names no column,
+or a column whose cell is blank, is a sentence not asked. Nothing is
+inferred, and no card had to be touched.
+
+**Why "the first other blank" and not a menu.** The rule an adjective and a
+verb's own place already follow, and for the same reason: the teacher who
+wrote the sentence said which came first. It is wrong for a sentence whose
+subject is typed out and whose first blank is an object — "هو {{verb}}
+{{noun}}" agrees with the noun — and it was wrong before as well, seven
+times in eight. The way to write that sentence is with the subject as a
+blank, which is what the Pronouns screen exists for.
+
+**Once per tense, or the count lies.** With every cell lent, four pronouns
+by eight persons made thirty-two combinations of four sentences: the odometer
+asked each four times over, the card said "met as 32 sentences" and the
+review sheet reached its ceiling eight times sooner. So a blank that agrees
+with another admits one cell per row — `rowLead`, the first filled cell the
+card lends, in the pack's person order — through the same `blankAdmits`
+every reader already goes through, which now takes "does this blank have a
+partner" beside "which rows does it want". A blank with no partner takes
+every cell in turn, which is every sentence written before this and every
+"{{verb}}!" since. The card's own word stands aside there too where the
+language cites a cell for it: Arabic's *to eat* is the he-past, already lent
+by its row, and beside *she* it read as *she he-ate*.
+
+**The preview walks the same list.** `examplesOf` filled the drawn words in
+as lent, so a card's own example list showed "سيارة كبير" while the review
+sheet and the session showed "سيارة كبيرة" — the pre-existing gap the owner
+saw the verb through. It is now `sentencesOf`, the review walk, and can
+show nothing the student is not asked.
+
+**What it costs.** A hole is gated on the lead cell's climb rather than on
+the cell shown, as an adjective is gated on its word: the swapped cell may
+be one the learner has not met on its own. It is credited on the cell
+shown, as before, because the owner index knows every form. Which sentence
+a given count lands on moved for every card with a verb beside another
+blank, once. And a language whose verb table has one column — Huế — is
+left out on purpose: its subject has nothing to pick, and running it
+through the rule would have dropped every one of its sentences as
+"nobody named a person".
+
+---
+
+## Demonstratives are a subtype of their own, not adjectives
+
+**27 September 2026** · `src/languages.ts` (`WORD_CATEGORIES`)
+
+هاد, هاي, هدول change with the noun beside them exactly as an adjective
+does, and the adjective's agreement table already chooses between them. So
+the obvious move was to file them as adjectives. The cost was the blank: a
+card fills the blank its subtype is named after, so هاد went into every
+`{{adjective}}` hole — "the house is هاد". A way for one card to opt out of
+its subtype's blank was weighed and dropped: it would be a rule a teacher
+has to remember, and the card would still say Adjective.
+
+So Demonstrative is its own subtype pointing at the same `agreement` table.
+Nothing new happens in the trainer. `agreementOf` reads the table off
+whatever subtype names it. A saved adjective can be moved across because
+both lay out the same table, as a noun and a preposition can.
+
+One change outside the subtype was needed. A word agrees with the first
+other blank in the sentence. In "{{demonstrative}} {{noun}} {{adjective}}"
+that blank is هاد, which has no gender of its own to give, and verbs have
+read the same way since 0.262. So the blank an agreeing word or a verb
+reads now skips blanks filled by words that themselves agree (`leadsOf` in
+`src/review.ts`), and falls back to the first other blank where nothing is
+left.
+
+**What it costs.** It inherits the adjective's rule that a plural of things
+takes the feminine. Palestinian speech often says هدول الكتب instead. A
+teacher who wants that marks the noun as a person. If that becomes common,
+demonstratives want a table of their own.

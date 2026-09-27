@@ -129,11 +129,11 @@ test("a value lends its first accepted answer, not the whole field", () => {
   /* A value card may accept two spellings, and "kitaab / safar" dropped
      whole into a sentence is not a sentence. */
   const two = { id: "v9", fills: "name", ar: "raafi / rafa", en: "Raphael", lat: "raafi / rafa" };
-  assert.deepEqual(valueOf(two), { id: "v9", ar: "raafi", en: "Raphael", lat: "raafi" });
+  assert.deepEqual(valueOf(two), { id: "v9", ar: "raafi", en: "Raphael", lat: "raafi", proper: true });
 });
 
 test("one value per question, in every field at once", () => {
-  const took = { name: { id: "v1", ar: "Raphael-script", en: "Raphael", lat: "raphael" } };
+  const took = { name: { id: "v1", ar: "Raphael-script", en: "Raphael", lat: "raphael", proper: true } };
   const filled = fillForm(frame(), took);
   assert.equal(filled.ar, "ismi Raphael-script");
   assert.equal(filled.en, "My name is Raphael");
@@ -417,6 +417,18 @@ test("a sentence draws its blanks from the cards that say what they are", () => 
   const have = valuesFor(frame, pool, "ar-PS");
   assert.deepEqual(have.noun.map((/** @type {any} */ v) => v.ar), ["kitaab", "beit"]);
   assert.deepEqual(have.adjective.map((/** @type {any} */ v) => v.ar), ["kbiir"]);
+});
+
+test("a demonstrative fills its own blank and never an adjective's", () => {
+  const frame = { ar: "{{demonstrative}} {{noun}} {{adjective}}", en: "{{demonstrative}} {{noun}} is {{adjective}}", lat: "" };
+  const pool = [
+    { id: "n1", ar: "beit", en: "house", lat: "", category: "noun", lang: "ar-PS" },
+    { id: "a1", ar: "kbiir", en: "big", lat: "", category: "adjective", lang: "ar-PS" },
+    { id: "d1", ar: "haad", en: "this", lat: "", category: "demonstrative", lang: "ar-PS" },
+  ];
+  const have = valuesFor(frame, pool, "ar-PS");
+  assert.deepEqual(have.demonstrative.map((/** @type {any} */ v) => v.ar), ["haad"]);
+  assert.deepEqual(have.adjective.map((/** @type {any} */ v) => v.ar), ["kbiir"], "هاد is not something a house is");
 });
 
 test("every form of a card lends itself, each under its own name", () => {
@@ -1083,10 +1095,10 @@ test("a frame reads its pronoun as I, I am or am I by the blank it leaves; the A
 
   assert.equal(said(plain, ana).en, "I from Palestine", "the plain blank is unchanged");
   assert.equal(said(is, ana).en, "I am from Palestine");
-  assert.equal(said(is, hiya).en, "she is from Palestine");
-  assert.equal(said(is, inta).en, "you are (m) from Palestine");
-  assert.equal(said(ask, ana).en, "am I from Palestine?");
-  assert.equal(said(ask, hiya).en, "is she from Palestine?");
+  assert.equal(said(is, hiya).en, "She is from Palestine", "a capital, at the start of the sentence");
+  assert.equal(said(is, inta).en, "You are (m) from Palestine");
+  assert.equal(said(ask, ana).en, "Am I from Palestine?");
+  assert.equal(said(ask, hiya).en, "Is she from Palestine?");
 
   /* The script and the transliteration are the word as it is. */
   assert.equal(said(is, hiya).ar, "هي من فلسطين");
@@ -1111,4 +1123,34 @@ test("a teacher's own reading wins over the worked-out one, and the person still
   assert.equal(fillText("{{pronoun}} like it", { pronoun: lent[0].value }, "en"), "I like it");
   /* And valueOf, handed the card, says the same. */
   assert.equal(must(valueOf(ana).readings, "readings")[IS_PRONOUN_SLOT], "am I");
+});
+
+/* A blank's first letter, fitted to where it stands in a Latin-written
+   language: a capital at the start of a sentence, small anywhere else
+   unless the word is a person or a place. */
+test("a blank's first letter fits where it stands", () => {
+  const cà = { id: "c", ar: "Cà phê", en: "Coffee", lat: "" };
+  const huế = { id: "h", ar: "Huế", en: "Hue", lat: "", proper: true };
+  const sách = { id: "s", ar: "sách", en: "book", lat: "" };
+  assert.equal(fillText("tôi thích {{word}}", { word: cà }), "tôi thích cà phê");
+  assert.equal(fillText("{{word}} ngon", { word: sách }), "Sách ngon");
+  assert.equal(fillText("« {{word}} ngon", { word: sách }), "« Sách ngon");
+  assert.equal(fillText("Chào. {{word}} ngon", { word: sách }), "Chào. Sách ngon");
+  assert.equal(fillText("tôi ở {{place}}", { place: huế }), "tôi ở Huế");
+  assert.equal(fillText("tôi xem {{word}}", { word: { id: "t", ar: "TV", en: "TV", lat: "" } }), "tôi xem TV");
+  /* English adds the capital at the start and keeps the teacher's elsewhere. */
+  assert.equal(fillText("{{word}} is good", { word: sách }, "en"), "Book is good");
+  assert.equal(fillText("I like {{word}}", { word: cà }, "en"), "I like Coffee");
+  /* A transliteration is left as written, and so is a script with no capitals. */
+  assert.equal(fillText("{{word}} kbiir", { word: { ar: "بيت", en: "house", lat: "beet" } }, "lat"), "beet kbiir");
+  assert.equal(fillText("{{word}} كبير", { word: { ar: "بيت", en: "house", lat: "beet" } }), "بيت كبير");
+  /* And uncased is the words as written, which is what a review is keyed on. */
+  assert.equal(fillText("{{word}} ngon", { word: sách }, "ar", false), "sách ngon");
+});
+
+test("a person or a place says so on the value it lends", () => {
+  const card = { id: "p", category: "Place", forms: [{ ar: "Huế", en: "Hue", lat: "" }] };
+  assert.equal(valueOf(card).proper, true);
+  assert.equal(lentBy(card)[0].value.proper, true);
+  assert.equal(valueOf({ id: "w", category: "noun", ar: "sách", en: "book" }).proper, undefined);
 });

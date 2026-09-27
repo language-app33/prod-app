@@ -2213,8 +2213,8 @@ function ReadBlanks({ card, lang, cards }: {
      number of sentences behind it. */
   const combos = fillers ? combosOf(mine, fillers) : 0;
   const asked = useMemo(
-    () => (fillers && open ? examplesOf(lead, mine, fillers) : []),
-    [fillers, open, lead, mine],
+    () => (fillers && open ? examplesOf(card, lead, cards || [], lang) : []),
+    [fillers, open, card, lead, cards, lang],
   );
   if (!holes.length) return null;
   return (

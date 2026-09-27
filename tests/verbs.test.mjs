@@ -35,6 +35,10 @@ import {
   picksOf,
   agreeWith,
   agreedValue,
+  drawnOf,
+  partnerOf,
+  rowLead,
+  isRowLead,
   hasCells,
   cellsIn,
   openRows,
@@ -335,6 +339,33 @@ test("a cell of a closed row is not open, and a non-cell always is", () => {
   assert.equal(cellIsOpen(toEat, arabic, { ar: "كتاب" }, () => false), true);
 });
 
+/*
+ * Arabic's *I* is two columns.
+ *
+ * The finite verb is the same word whoever says it, but the participles
+ * Palestinian Arabic uses for much of its present are not — رايح and
+ * رايحة — and a table with one box for *I* could only hold one of them.
+ * The masculine keeps the id the single column had, so every cell and
+ * every pronoun written before the split stays where it was; the feminine
+ * is the new column, beside it. Hebrew is not split with it: its present
+ * varies by gender in every person, which is a different table.
+ */
+test("Arabic marks I for gender, keeping the old column under the masculine", () => {
+  const ids = personsOf(arabic).map((p) => p.id);
+  assert.deepEqual(ids, ["i", "i-f", "you-m", "you-f", "he", "she", "we", "you-pl", "they"]);
+  assert.equal(must(personsOf(arabic).find((p) => p.id === "i"), "I (m)").label, "I (m)");
+  assert.equal(must(personsOf(arabic).find((p) => p.id === "i-f"), "I (f)").label, "I (f)");
+  /* A cell written before the split is still the masculine I. */
+  assert.equal(must(cellAt(toEat, "present", "i"), "I eat").ar, "باكل");
+  /* Neither is ever chosen by agreeing: no noun in a subject is the speaker. */
+  assert.equal(picksOf(must(personsOf(arabic).find((p) => p.id === "i-f"), "I (f)")).length, 0);
+  assert.equal(personFor(arabic, { number: "singular", gender: "feminine" })?.id, "she");
+  /* And a pronoun the Pronouns screen writes as the feminine I takes it by name. */
+  assert.equal(must(personFor(arabic, { person: "i-f" }), "I (f)").id, "i-f");
+  const hebrew = must(verbOf(LANGUAGES["he-IL"]), "the Hebrew verb table");
+  assert.deepEqual(personsOf(hebrew).map((p) => p.id), ["i", "you-m", "you-f", "he", "she", "we", "you-pl", "they"]);
+});
+
 test("the table is crossed row by row, in teaching order", () => {
   const all = tableOf(toEat, arabic);
   assert.equal(all.length, tensesOf(arabic).length * personsOf(arabic).length);
@@ -344,7 +375,7 @@ test("the table is crossed row by row, in teaching order", () => {
      before they, wherever a caller deals from this. */
   assert.deepEqual(
     all.slice(0, 3).map((c) => c.col),
-    ["i", "you-m", "you-f"],
+    ["i", "i-f", "you-m"],
   );
   const { filled, blank } = tableCount(toEat, arabic);
   assert.equal(filled, 8);
@@ -832,7 +863,7 @@ test("none of it knows what a tense is: Huế narrows by its own rows", () => {
  */
 test("a subject that names a column takes it, whatever else it says", () => {
   const arabic = must(verbOf(LANGUAGES["ar-PS"]), "the Arabic verb table");
-  for (const id of ["i", "you-m", "you-f", "we", "you-pl"]) {
+  for (const id of ["i", "i-f", "you-m", "you-f", "we", "you-pl"]) {
     assert.equal(must(personFor(arabic, { person: id }), id).id, id, `${id} by name`);
   }
   /* Named beats agreeing: a "he" pronoun card is also singular and
@@ -850,4 +881,39 @@ test("a sentence whose subject is a pronoun puts the verb in that pronoun's form
   assert.equal(must(agreedCell(toEat, arabic, "present", { person: "she" }), "she eats").ar, "بتاكل");
   /* A column the teacher left blank is no sentence, as it always was. */
   assert.equal(agreedCell(toEat, arabic, "present", { person: "we" }), null);
+});
+
+/*
+ * A verb drawn into a sentence card's blank agrees with the blank beside
+ * it, the way a verb card's own sentence agrees with its subject — and
+ * the pool it is drawn from knows it, so a row is lent once and not once
+ * per person.
+ */
+test("the blanks a sentence draws are every one but its own place, and a blank's partner is the first other", () => {
+  const frame = { ar: "{{name}} {{verb}} {{object}}", row: "present" };
+  assert.deepEqual(drawnOf(frame, ["name", "verb", "object"]), ["name", "object"], "a frame's own place is not drawn");
+  assert.deepEqual(drawnOf({ ar: "{{pronoun}} {{verb}}" }, ["pronoun", "verb"]), ["pronoun", "verb"],
+    "on a sentence card the verb is a blank like any other");
+  assert.equal(partnerOf({ ar: "{{pronoun}} {{verb}}" }, ["pronoun", "verb"], "verb"), "pronoun");
+  assert.equal(partnerOf({ ar: "{{verb}} {{pronoun}}" }, ["verb", "pronoun"], "verb"), "pronoun", "whichever side it is on");
+  assert.equal(partnerOf({ ar: "أنا {{verb}} عربي" }, ["verb"], "verb"), "", "nothing to agree with");
+  assert.equal(partnerOf(frame, ["name", "verb", "object"], "object"), "name", "and a frame's other blanks read past its own place");
+});
+
+test("one cell stands for a row: the first filled one the card lends, in the order the persons are listed", () => {
+  assert.equal(must(rowLead(toEat, arabic, "present"), "the present's lead").col, "i");
+  assert.equal(must(rowLead(toEat, arabic, "past"), "the past's lead").col, "he", "a row with no 'I' leads with the first it has");
+  assert.equal(must(rowLead(toEat, arabic, "command"), "the command's lead").col, "you-m");
+  assert.equal(rowLead(toEat, arabic, "nowhere"), null);
+  assert.ok(isRowLead(toEat, arabic, cellAt(toEat, "present", "i")));
+  assert.equal(isRowLead(toEat, arabic, cellAt(toEat, "present", "she")), false);
+  /* A cell kept out of sentences does not lead its row while another is
+     lent; where none is lent the first filled one still stands for it, so
+     the row reads as kept out rather than as missing. */
+  const lent = (/** @type {any} */ cell) => cell.col !== "i";
+  assert.equal(must(rowLead(toEat, arabic, "present", lent), "the lead among the lent").col, "he");
+  assert.equal(must(rowLead(toEat, arabic, "present", () => false), "the lead where none is lent").col, "i");
+  assert.ok(isRowLead(toEat, arabic, cellAt(toEat, "present", "he"), lent));
+  /* And a table one column wide leads with its one cell. */
+  assert.ok(isRowLead(toEatViet, viet, cellAt(toEatViet, "past", "any")));
 });

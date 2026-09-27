@@ -6485,7 +6485,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     .find((sc) => /^Pronouns · /.test(((sc.querySelector(".at-screenhead h2") || {}).textContent || "").trim())) || null);
   const rows = () => screen() ? [...screen().querySelectorAll("[data-person]")].map((r) => r.getAttribute("data-person")) : [];
   check("which lists one row for each person the verb table has",
-    JSON.stringify(rows()) === JSON.stringify(["i", "you-m", "you-f", "he", "she", "we", "you-pl", "they"]),
+    JSON.stringify(rows()) === JSON.stringify(["i", "i-f", "you-m", "you-f", "he", "she", "we", "you-pl", "they"]),
     rows().join(" ") || "(no screen)");
   const setValue = (/** @type {any} */ el, /** @type {string} */ v) => {
     if (!el) return;
@@ -6510,14 +6510,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     sent.person === "i" && sent.category === "pronoun" && sent.lang === "ar-PS" &&
       ((sent.forms || [])[0] || {}).ar === "أنا" && ((sent.forms || [])[0] || {}).lat === "ana",
     JSON.stringify(sent).slice(0, 200));
+  /* The column's label — "I (m)" since 0.261, the split having given the
+     masculine the name the single column had. */
   check("and the English is the person's name where none was typed",
-    ((sent.forms || [])[0] || {}).en === "I", JSON.stringify((sent.forms || [])[0]));
+    ((sent.forms || [])[0] || {}).en === "I (m)", JSON.stringify((sent.forms || [])[0]));
   const reading = (/** @type {string} */ what) => {
-    const box = iRow() && [...iRow().querySelectorAll("input")].find((i) => (i.getAttribute("aria-label") || "") === `${what}, for I`);
+    const box = iRow() && [...iRow().querySelectorAll("input")].find((i) => (i.getAttribute("aria-label") || "") === `${what}, for I (m)`);
     return box ? /** @type {any} */ (box).value : "(no box)";
   };
   check("each row reads its pronoun with to be and as a question, filled in already",
-    reading("With to be") === "I am" && reading("As a question") === "am I",
+    reading("With to be") === "I am (m)" && reading("As a question") === "am I (m)",
     `${reading("With to be")} | ${reading("As a question")}`);
   check("and a reading left as it came is not stored, so it goes on following the English",
     !sent.enIs && !sent.enAsk, JSON.stringify({ enIs: sent.enIs, enAsk: sent.enAsk }));

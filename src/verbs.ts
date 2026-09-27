@@ -23,7 +23,7 @@
  * calls for, and which rows are open yet.
  *
  * Which rows and columns exist is the language's answer, never this
- * module's. Arabic declares eight persons and three tenses; Huế declares
+ * module's. Arabic declares nine persons and three tenses; Huế declares
  * one person and four; a language that declares none has no verb tables
  * and every function here comes back empty. Nothing below knows what a
  * tense is — only that a table has two axes, that the rows are in the
@@ -431,6 +431,68 @@ export const picksOf = (person: VerbPerson | null | undefined): Record<string, s
  */
 export const agreeWith = (slots: string[], slot: string): string =>
   (slots || []).find((s) => s !== slot) || "";
+
+/**
+ * The blanks a sentence draws from the cards: every one but its own place.
+ *
+ * A verb card's own sentence fills its own place from its table, so that
+ * slot is in the words and not in the draw. What is left is what the
+ * odometer turns, what agreement reads, and what the count of sentences
+ * multiplies — one list, so the three cannot disagree about it.
+ */
+export const drawnOf = (form: unknown, slots: string[]): string[] => {
+  const own = ownSlot(form);
+  return (slots || []).filter((s) => s !== own);
+};
+
+/**
+ * The blank one of a sentence's blanks agrees with, or "" where it stands
+ * alone: agreeWith, over the blanks actually drawn.
+ *
+ * Asked before a blank is filled as well as after, because the answer
+ * decides what goes in the pool — a verb standing beside another blank
+ * lends one form per tense, since the sentence picks the person — and the
+ * pool is counted before anything is drawn.
+ */
+export const partnerOf = (form: unknown, slots: string[], slot: string): string =>
+  agreeWith(drawnOf(form, slots), slot);
+
+/**
+ * The cell that stands for one row of a table, where a blank wants one
+ * form per row rather than every cell of it.
+ *
+ * A verb beside a subject blank is asked for its tense and not its person
+ * — the person is the subject's to pick — so lending all eight persons of
+ * the present would be lending the same sentence eight times over, and
+ * counting it eight times. One cell stands for the row: the first filled
+ * one the card lends, in the order the language lists its persons, or the
+ * first filled one at all where none is lent, so that a row kept out of
+ * sentences reads as kept out rather than as missing. Null for a row with
+ * nothing in it.
+ */
+export function rowLead(
+  card: unknown,
+  spec: VerbSpec | null | undefined,
+  row: string,
+  lent: (cell: Form) => boolean = () => true,
+  of: string = "",
+): Form | null {
+  const filled = tableOf(card, spec, of)
+    .filter((c) => c.row === str(row) && c.form && str(c.form.ar))
+    .map((c) => c.form as Form);
+  return filled.find((cell) => lent(cell)) || filled[0] || null;
+}
+
+/** Whether this cell is the one that stands for its row — see rowLead. */
+export function isRowLead(
+  card: unknown,
+  spec: VerbSpec | null | undefined,
+  form: unknown,
+  lent: (cell: Form) => boolean = () => true,
+): boolean {
+  const lead = rowLead(card, spec, rowOf(form), lent, ownerOf(form));
+  return !!lead && colOf(lead) === colOf(form);
+}
 
 /**
  * The form an agreeing card stands in a hole as, once what it agrees with

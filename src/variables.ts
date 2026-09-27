@@ -614,6 +614,11 @@ export interface Value {
    * value that is not a pronoun, which reads as its English everywhere.
    */
   readings?: Record<string, string>;
+  /**
+   * Whether it is a name — a person or a place — and so keeps its capital
+   * wherever it stands in a sentence. See fitCase.
+   */
+  proper?: boolean;
 }
 
 const text =(form: WithSlots | null | undefined, field: string): string => {
@@ -907,7 +912,8 @@ export function lentBy(
     /* The card's own word carries the card's person, where it has one —
        the form handed in above cannot know it. */
     const person = at === 0 ? text(card, "person").trim() : "";
-    const withPerson = person ? { ...lent, grammar: { ...(lent.grammar || {}), person } } : lent;
+    const asName = isProper(card) ? { ...lent, proper: true } : lent;
+    const withPerson = person ? { ...asName, grammar: { ...(asName.grammar || {}), person } } : asName;
     /* And the English it reads as in the blanks that add *to be*, where it
        is a pronoun — see readingsOf. */
     const readings = readingsOf(card, form as WithSlots, at === 0);
@@ -973,6 +979,7 @@ export function valueOf(card: WithSlots | null | undefined, fields: string[] = [
     lat: first("lat"),
     ...(Object.keys(grammar).length ? { grammar } : {}),
     ...(Object.keys(readings).length ? { readings } : {}),
+    ...(isProper(card) ? { proper: true } : {}),
   };
 }
 
@@ -1143,16 +1150,58 @@ export function fillText(
   value: string | null | undefined,
   values: Record<string, Value>,
   field = "ar",
+  cased = true,
 ): string {
-  return String(value || "").replace(SLOT, (whole, name) => {
+  return String(value || "").replace(SLOT, (whole, name, at: number, all: string) => {
     const slot = String(name).toLowerCase();
     const took = values && values[slot];
     if (!took) return whole;
     const read = field === "en" && took.readings ? took.readings[slot] : "";
-    if (read) return read;
-    const word = (took as unknown as Record<string, string>)[field];
-    return word === undefined || word === "" ? whole : word;
+    const word = read || (took as unknown as Record<string, string>)[field];
+    if (word === undefined || word === "") return whole;
+    if (!cased || field === "lat") return word;
+    const start = startsSentence(all.slice(0, at));
+    /* English capitalises more than people and places — I, Monday,
+       English itself — so there the teacher's capitals are kept and only
+       the start of a sentence is added. */
+    return field === "en" ? (start ? fitCase(word, true, true) : word) : fitCase(word, start, !!took.proper);
   });
+}
+
+/* The kinds of word that are names, and keep their capital mid-sentence:
+   a person, a place, and the retired Name that meant either — which a
+   card written before subtypes said by filling `{{name}}` by hand. */
+const PROPER_KINDS = ["person", "place", "name"];
+const isProper = (card: WithSlots | null | undefined): boolean =>
+  PROPER_KINDS.includes(text(card, "category").trim().toLowerCase()) || fillNames(card).includes("name");
+
+/* Whether a blank written after `before` opens a sentence: nothing but
+   space and opening marks since the start, or since a full stop, a
+   question or an exclamation. */
+const startsSentence = (before: string): boolean => {
+  const rest = before.replace(/[\s"'“‘«¿¡([\-–—]+$/u, "");
+  return rest === "" || /[.!?]$/.test(rest);
+};
+
+const hasCase = (ch: string): boolean => ch.toUpperCase() !== ch.toLowerCase();
+
+/*
+ * A word's first letter, fitted to where it stands: a capital at the
+ * start of a sentence, and small anywhere else unless it is a name.
+ *
+ * Only in a script that has capitals — Arabic and Hebrew letters have no
+ * case, so this changes nothing there, which is what confines it to the
+ * languages written in Latin letters. A word whose second letter is a
+ * capital too is an abbreviation and keeps its capitals: TV is not tV.
+ */
+export function fitCase(word: string, start: boolean, proper: boolean): string {
+  const [first, ...rest] = Array.from(word);
+  if (!first || !hasCase(first)) return word;
+  if (start) return first.toUpperCase() + rest.join("");
+  if (proper) return word;
+  const next = rest[0] || "";
+  if (next && hasCase(next) && next === next.toUpperCase()) return word;
+  return first.toLowerCase() + rest.join("");
 }
 
 /*
@@ -1164,12 +1213,18 @@ export function fillText(
  * was filled from one that never had a hole — the editor's preview reads
  * it, and so does anything that must not offer to record this.
  */
-export function fillForm<T extends WithSlots>(form: T, values: Record<string, Value> | null): T {
+export function fillForm<T extends WithSlots>(
+  form: T,
+  values: Record<string, Value> | null,
+  /** False for the words as written, with no capital fitted — what a
+      sentence's review fingerprint is taken from. See sentenceKey. */
+  cased = true,
+): T {
   if (!values) return form;
   const out: Record<string, unknown> = { ...form };
   for (const field of FILLED_FIELDS) {
     const written = text(form, field);
-    if (written) out[field] = fillText(written, values, field);
+    if (written) out[field] = fillText(written, values, field, cased);
   }
   /* The answers array is written from `ar` and would otherwise still hold
      the frame — see answersOf, which prefers it where the two agree. Filled
@@ -1177,8 +1232,8 @@ export function fillForm<T extends WithSlots>(form: T, values: Record<string, Va
   if (Array.isArray(form.answers)) {
     out.answers = (form.answers as Record<string, unknown>[]).map((a) => ({
       ...a,
-      text: fillText(typeof a.text === "string" ? a.text : "", values, "ar"),
-      lat: fillText(typeof a.lat === "string" ? a.lat : "", values, "lat"),
+      text: fillText(typeof a.text === "string" ? a.text : "", values, "ar", cased),
+      lat: fillText(typeof a.lat === "string" ? a.lat : "", values, "lat", cased),
     }));
   }
   out.filled = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.id || v.ar]));

@@ -8,6 +8,109 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.263 — 27 September 2026
+
+**A new word subtype: Demonstrative.**
+
+- *This* and *that* (هاد, هاي, هدول) change with the noun beside them the
+  way an adjective does, so they can now be a subtype of their own. Choose
+  **Demonstrative**, write the masculine as the word, and fill in the
+  feminine and plural (and the dual, if you want one) underneath.
+- A sentence with a `{{demonstrative}}` blank next to a noun takes the form
+  that matches the noun: هاد بيت, هاي سيارة, هدول الولاد. Give each form
+  the English it needs, such as *these* for the plural.
+- In a longer sentence such as هاي السيارة كبيرة or هاي البنت راحت, the
+  adjective and the verb take their form from the noun, not from هاي. This
+  also holds for an adjective written before the noun it describes.
+- A demonstrative only fills demonstrative blanks. Filed as an adjective,
+  هاد turned up in sentences like "the house is ___".
+- A plural of things takes the feminine, as it does for adjectives. For
+  هدول beside a plural of things, mark that noun as a person.
+- A card already saved as an adjective can be switched to Demonstrative
+  in the editor without losing its forms.
+
+## 0.262 — 26 September 2026
+
+**A verb in a sentence card now agrees with the pronoun or name beside
+it.**
+
+- A sentence card such as "{{pronoun}} {{verb}} Arabic" used to be met as
+  every person of the verb beside every pronoun — *she* with the *I* form,
+  *they* with the *he* form — because only a verb card's own sentence knew
+  to read its subject. A verb standing in any sentence's blank now takes
+  the form the first other blank calls for: a pronoun names the person, a
+  name or noun picks it by its number and gender. The tense is still the
+  blank's to narrow, as before.
+- Where the word beside the verb says nothing about who it is, or the
+  form it calls for is not written on the verb card, that sentence is not
+  asked rather than asked with a guess — the rule a verb card's own
+  sentence has always followed.
+- Such a blank now counts a verb once per tense instead of once per
+  person, so the number of sentences a card is met as, on the card and on
+  the review sheet, is the number a student can actually meet. A verb in
+  a blank with nothing beside it is unchanged, and so is Vietnamese, whose
+  verbs do not change with the person.
+- The example sentences shown on a card, and in a card's read-out, are now
+  the same sentences a student is asked: an adjective in the form that
+  agrees with its noun and a verb in the person of its subject. Before,
+  they showed the words as lent, which listed sentences nobody was asked.
+
+## 0.261 — 26 September 2026
+
+**Palestinian Arabic verbs have a feminine "I".**
+
+- A verb's table now has **I (m)** and **I (f)**, the way it already has
+  *you (m)* and *you (f)*. Much of what Palestinian Arabic says in the
+  present is said with a word that changes with the speaker — رايح and
+  رايحة, عارف and عارفة — and until now there was one box for "I", so a
+  woman could only learn the man's word for herself.
+- **Nothing you have written moves.** Every "I" form you typed is now the
+  *I (m)* one; *I (f)* is a new, empty box beside it. Where the two are the
+  same word, type it in both, as you already do when two persons share a
+  form. A box left empty is never asked.
+- The Pronouns screen lists *I (f)* too. Filling it in with أنا lets a
+  sentence built from a pronoun and a verb say *I (f) am going* with the
+  feminine form; leaving it empty makes no card.
+- Hebrew is unchanged for now: its present tense changes with gender in
+  every person, not only "I", which wants a decision of its own.
+
+## 0.260 — 26 September 2026
+
+**A word dropped into a blank takes the right capital.**
+
+- In a language written in Latin letters, such as Vietnamese, a word that
+  fills a blank now starts with a capital at the beginning of a sentence
+  and a small letter anywhere else. People and places keep their capital
+  wherever they fall, and so do abbreviations like *TV*.
+- The English under a sentence gets its capital at the start too. Elsewhere
+  it keeps the capitals the teacher wrote, because English capitalises more
+  than names: *I*, *Monday*.
+- Arabic and the transliteration are unchanged.
+- Sentences you have already approved stay approved. A capital does not
+  make it a new sentence.
+
+## 0.259 — 26 September 2026
+
+**Teaching: a card is only offered decks in its own language.**
+
+- The deck list inside a card, under *Add this card to a deck*, shows only
+  decks in the card's language. Before, it listed every deck, including
+  ones the switch at the top had hidden and ones in another script. Decks
+  the card is already in stay listed, so a mistake can still be undone.
+- The same for *Add the selected cards to…*: it lists the decks in the
+  ticked cards' languages.
+
+## 0.258 — 26 September 2026
+
+**Teaching: the language switch at the top answers "which language?"**
+
+- With the switch narrowed to one language, **New card** no longer asks
+  which language the card is in. It is made in the one you are looking at.
+- The same for **New deck**, and for a deck made from ticked cards that
+  are in more than one language.
+- Where the switch still leaves more than one language on, the question
+  offers only those, not the ones you switched off.
+
 ## 0.257 — 26 September 2026
 
 **Scenes: a conversation or a text, built from your sentence cards, with

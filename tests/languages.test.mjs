@@ -873,6 +873,20 @@ test("which kinds of word agree out of a table, and which do not", () => {
   assert.equal(agreementOf(LANGUAGES["vi-Hue"], "adjective"), null, "nothing agrees in Huế");
 });
 
+test("a demonstrative agrees the way an adjective does, and is a subtype of its own", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const cat = must(categoriesOf(ar).find((c) => c.id === "demonstrative"), "demonstrative");
+  assert.equal(cat.table, "agreement", "the same forms an adjective lays out");
+  assert.ok(!cat.retired, "offered to a teacher");
+  assert.deepEqual(dimsFor(ar, "demonstrative"), [], "its number and gender are its table");
+  assert.equal(agreementOf(ar, "demonstrative"), agreementOf(ar, "adjective"));
+  assert.ok(agreementOf(LANGUAGES["he-IL"], "demonstrative"), "Hebrew's זה and זאת agree too");
+  assert.equal(agreementOf(LANGUAGES["vi-Hue"], "demonstrative"), null, "nothing agrees in Huế");
+  /* Its forms wait for the sentence to pick one, like an adjective's. */
+  assert.equal(lendsForm(ar, { category: "demonstrative" })({ row: "agreement" }), false);
+  assert.equal(lendsForm(ar, { category: "demonstrative" })({}), true);
+});
+
 test("and which kinds of word a sentence can ask for a tense of", () => {
   const ar = LANGUAGES["ar-PS"];
   /* The other end of the same question: one row is a word that never has
@@ -991,4 +1005,48 @@ test("Pronoun is retired where verbs change with the person, and offered where t
   assert.equal(!!(pronounIn("ar-PS") || {}).retired, true, "Arabic writes them on the Pronouns screen");
   assert.equal(!!(pronounIn("he-IL") || {}).retired, true, "and so does Hebrew");
   assert.equal(!!(pronounIn("vi-Hue") || {}).retired, false, "Huế's verbs have no columns to pick");
+});
+
+test("a blank that agrees with another takes a verb once per tense, and everything else as before", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const verb = {
+    category: "verb",
+    forms: [
+      { id: "eat", ar: "أكل", en: "to eat" },
+      { id: "p-i", ar: "باكل", row: "present", col: "i" },
+      { id: "p-she", ar: "بتاكل", row: "present", col: "she" },
+      { id: "past-he", ar: "أكل", row: "past", col: "he" },
+      { id: "past-she", ar: "أكلت", row: "past", col: "she" },
+    ],
+  };
+  const beside = blankAdmits(ar, () => [], () => true);
+  assert.equal(beside(verb, verb.forms[1], "verb"), true, "the cell that leads the present");
+  assert.equal(beside(verb, verb.forms[2], "verb"), false, "and not the rest of the row: the sentence picks the person");
+  assert.equal(beside(verb, verb.forms[3], "verb"), true, "each row leads with its own");
+  assert.equal(beside(verb, verb.forms[4], "verb"), false);
+  /* The dictionary form is Arabic's he-past, which the past row already
+     lends: beside a pronoun it stands aside for that cell. Where the cited
+     cell is blank there is nothing standing in for it, and it is left
+     alone as every form in no row is. */
+  assert.equal(beside(verb, verb.forms[0], "verb"), false, "the cited word stands aside for its cell");
+  const uncited = { ...verb, forms: verb.forms.filter((f) => f.id !== "past-he") };
+  assert.equal(beside(uncited, uncited.forms[0], "verb"), true);
+  assert.equal(beside(verb, { id: "alt", ar: "أكل", en: "eat" }, "verb"), true, "another form in no row is untouched");
+  assert.equal(beside({ category: "name" }, { ar: "رافائيل" }, "verb"), true, "a word with no tenses is untouched");
+  /* Narrowed to a tense as well: the past's lead and nothing else. */
+  const pastBeside = blankAdmits(ar, () => ["past"], () => true);
+  assert.equal(pastBeside(verb, verb.forms[3], "verb"), true);
+  assert.equal(pastBeside(verb, verb.forms[4], "verb"), false);
+  assert.equal(pastBeside(verb, verb.forms[1], "verb"), false);
+  /* A blank with nothing to agree with takes every cell in turn, which is
+     every sentence written before this and every "{{verb}}!" since. */
+  const alone = blankAdmits(ar, () => []);
+  assert.equal(alone(verb, verb.forms[2], "verb"), true);
+  const alonePerSlot = blankAdmits(ar, () => [], (slot) => slot === "verb");
+  assert.equal(alonePerSlot(verb, verb.forms[2], "verb"), false);
+  assert.equal(alonePerSlot(verb, verb.forms[2], "verb2"), true, "each blank's own answer");
+  /* A lead kept out of sentences hands the row to the next cell lent. */
+  const kept = { ...verb, forms: verb.forms.map((f) => (f.id === "p-i" ? { ...f, lend: false } : f)) };
+  assert.equal(beside(kept, kept.forms[1], "verb"), false);
+  assert.equal(beside(kept, kept.forms[2], "verb"), true);
 });

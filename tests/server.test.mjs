@@ -302,8 +302,8 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
   const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nadia" } });
   const key = made.json.key;
 
-  /* Eight persons across three tenses, which is what Arabic declares. */
-  const persons = ["i", "you-m", "you-f", "he", "she", "we", "you-pl", "they"];
+  /* Nine persons across three tenses, which is what Arabic declares. */
+  const persons = ["i", "i-f", "you-m", "you-f", "he", "she", "we", "you-pl", "they"];
   const cells = [];
   for (const row of ["present", "past", "command"]) {
     for (const col of persons) {
@@ -316,7 +316,7 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
     body: { card: carded({ ar: "أكل", en: "to eat" }, cells), decks: [] },
   });
   assert.equal(saved.status, 200, saved.text);
-  assert.equal(subs(saved.json.card).length, 24, "the whole table survived the save");
+  assert.equal(subs(saved.json.card).length, 27, "the whole table survived the save");
 
   const she = subs(saved.json.card).find(
     (/** @type {Record<string, any>} */ s) => s.row === "past" && s.col === "she",
