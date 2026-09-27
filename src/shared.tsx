@@ -2718,7 +2718,9 @@ function ReadTaught({ of, cards, label, panel = false }: {
    ------------------------------------------------------------------ */
 
 export function CheckList({ options, chosen, onToggle, empty }: {
-  options: { id: string, title?: Node, note?: Node }[];
+  /* `disabled` shows a choice that cannot be made — a locked deck — rather
+     than leaving it off, so its absence is not a puzzle. */
+  options: { id: string, title?: Node, note?: Node, disabled?: boolean }[];
   chosen?: string[];
   onToggle?: (id: string, wasOn: boolean) => void;
   empty?: Node;
@@ -2735,8 +2737,13 @@ export function CheckList({ options, chosen, onToggle, empty }: {
       {options.map((o) => {
         const on = (chosen || []).includes(o.id);
         return (
-          <label className="at-tickrow" key={o.id}>
-            <input type="checkbox" checked={on} onChange={() => onToggle && onToggle(o.id, on)} />
+          <label className={`at-tickrow${o.disabled ? " off" : ""}`} key={o.id}>
+            <input
+              type="checkbox"
+              checked={on}
+              disabled={o.disabled}
+              onChange={() => !o.disabled && onToggle && onToggle(o.id, on)}
+            />
             <span className="at-tickbody">
               <b>{o.title}</b>
               {o.note ? <i>{o.note}</i> : null}

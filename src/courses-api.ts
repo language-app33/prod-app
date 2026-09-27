@@ -180,6 +180,8 @@ export const createDeck = (title: string, description: string, lang: LangId) =>
   call("create-deck", { body: { title, description, lang } });
 export const renameDeck = (deckId: string, title: string) => call("rename-deck", { body: { deckId, title } });
 export const deleteDeck = (deckId: string) => call("delete-deck", { body: { deckId } });
+/* A locked deck keeps the cards it has: nothing added, nothing taken out. */
+export const lockDeck = (deckId: string, locked: boolean) => call("lock-deck", { body: { deckId, locked } });
 export const myCards = () => call("my-cards");
 /* The server calls this field "decks"; sending anything else means the
    card saves but never lands in a deck. */
@@ -310,6 +312,7 @@ export function explain(err: unknown): string {
       "not-yours": "That deck belongs to another teacher.",
       "not-teaching": "You aren't teaching that course.",
       "no-deck": "That deck no longer exists.",
+      "deck-locked": "That deck is locked. Unlock it in its settings first.",
       "no-user": "No account with that handle.",
       "no-card": "That card no longer exists.",
       "stale-system":

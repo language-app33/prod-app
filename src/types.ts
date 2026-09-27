@@ -852,6 +852,8 @@ export interface Deck {
   cardIds?: string[];
   cardCount?: number;
   updated?: Millis;
+  /** Which cards it holds is fixed until unlocked. What they say is not. */
+  locked?: boolean;
 }
 
 export interface Course {

@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.268 — 27 September 2026
+
+**A deck can be locked, so its cards stay exactly the ones it has.**
+
+- In Teaching > Decks, open a deck's **Deck settings** and tick **Lock this
+  deck**. Any teacher who can change the deck can lock or unlock it there.
+- A locked deck shows a padlock and "Locked" on its tile. Inside it, **New
+  card** and **Remove from this deck** are gone.
+- In the card editor's deck list and on the screens for adding selected
+  cards to decks or taking them out, a locked deck is shown greyed out
+  with a padlock and can't be ticked.
+- The cards in a locked deck can still be edited, and the deck can still be
+  renamed and added to courses or taken out of them.
+- Deleting a card that sits in a locked deck is still allowed. The
+  confirmation warns that it will leave the locked deck too.
+- A locked deck can't be deleted. Unlock it first.
+- If a change can't be made because a deck is locked — for instance one
+  saved while offline and sent later — the rest of the change is kept and
+  a message says which deck stayed as it was.
+- Deleting an account now also takes its older cards out of other
+  teachers' decks, instead of leaving gaps where they were.
+
 ## 0.267 — 27 September 2026
 
 **Selecting cards is tidier, and forgets what it was doing when you leave.**

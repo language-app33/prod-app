@@ -617,6 +617,10 @@ async function wipeAccount(store, handle) {
   const user = await readUser(store, handle);
   if (!user) return false;
 
+  /* The person's cards go, so they come out of everyone's decks too —
+     locked or not, the same as deleting a card does. Left in, another
+     teacher's deck would point at cards that no longer exist. */
+  const ownIds = new Set((await readJson(store, K.ownCards(handle))) || []);
   const deckIds = await readIndex(store, "decks");
   const keptDecks = [];
   for (const id of deckIds) {
@@ -624,6 +628,19 @@ async function wipeAccount(store, handle) {
     if (!d) continue;
     if (d.owner !== handle) {
       keptDecks.push(id);
+      if (ownIds.size && (d.cardIds || []).some((/** @type {string} */ x) => ownIds.has(x))) {
+        await updateJson(store, K.deck(id), (fresh) => {
+          if (!fresh) return null;
+          const next = (fresh.cardIds || []).filter((/** @type {string} */ x) => !ownIds.has(x));
+          return {
+            ...fresh,
+            cardIds: next,
+            cardCount: next.length,
+            version: (fresh.version || 1) + 1,
+            updated: Date.now(),
+          };
+        });
+      }
       continue;
     }
     for (const link of d.courses || []) {
@@ -1832,6 +1849,8 @@ export default async (req) => {
       const touched = new Set([...current, ...wanted]);
       const final = [];
       const deckRecords = [];
+      /** @type {{ id: string, title: string }[]} */
+      const refusedLocked = [];
       for (const did of touched) {
         const d = await readDeck(store, did);
         if (!d) continue;
@@ -1840,6 +1859,15 @@ export default async (req) => {
         if (want !== has && !(await canEditDeck(store, d, mine, me.admin))) {
           /* Not this person's deck to change: leave it as it was. */
           if (has) final.push(did);
+          continue;
+        }
+        /* A locked deck's cards stay as they are, whoever asks. Left as it
+           was and named in the answer, so a save queued offline before the
+           lock still lands its words and the teacher is told which deck
+           did not take the change. */
+        if (want !== has && d.locked) {
+          if (has) final.push(did);
+          refusedLocked.push({ id: d.id, title: d.title });
           continue;
         }
         const ids = await deckCardIds(d);
@@ -1959,6 +1987,7 @@ export default async (req) => {
         card: { ...saved, decks: final },
         decks: deckRecords,
         ...(trimmed.length ? { trimmed } : {}),
+        ...(refusedLocked.length ? { locked: refusedLocked } : {}),
       });
     }
 
@@ -2169,12 +2198,33 @@ export default async (req) => {
       return json({ ok: true, title });
     }
 
-    /* The deck goes; the cards it held stay in the library. */
+    /*
+     * Locking a deck: its cards stay exactly the ones it has until it is
+     * unlocked. Anyone who may change the deck may lock or unlock it.
+     * What the cards say is not locked — only which cards are in it.
+     */
+    if (action === "lock-deck") {
+      const deck = await readDeck(store, String(body.deckId || ""));
+      if (!deck) return json({ error: "no-deck" }, 404);
+      if (!(await canEditDeck(store, deck, mine, me.admin)))
+        return json({ error: "not-yours" }, 403);
+      const locked = !!body.locked;
+      const { locked: _was, ...rest } = /** @type {any} */ (deck);
+      const next = locked ? { ...rest, locked: true } : rest;
+      await writeJson(store, K.deck(deck.id), { ...next, updated: Date.now() });
+      await taught();
+      return json({ ok: true, locked });
+    }
+
+    /* The deck goes; the cards it held stay in the library. A locked deck
+       is unlocked first: deleting it is the largest change there is to
+       which cards it holds. */
     if (action === "delete-deck") {
       const deck = await readDeck(store, String(body.deckId || ""));
       if (!deck) return json({ error: "no-deck" }, 404);
       if (!(await canEditDeck(store, deck, mine, me.admin)))
         return json({ error: "not-yours" }, 403);
+      if (deck.locked) return json({ error: "deck-locked" }, 409);
 
       for (const link of deck.courses || []) {
         const c = await readCourse(store, link.courseId);

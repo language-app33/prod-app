@@ -3675,3 +3675,35 @@ left.
 takes the feminine. Palestinian speech often says هدول الكتب instead. A
 teacher who wants that marks the noun as a person. If that becomes common,
 demonstratives want a table of their own.
+
+---
+
+## A locked deck fixes its membership, not its cards
+
+**27 September 2026** · `server/api/courses.js` (`lock-deck`, `save-card`, `delete-deck`), `src/spaces.tsx`
+
+A teacher can lock a deck so that which cards it holds cannot change. The
+lock is a flag on the deck (`locked: true`, absent when unlocked), set by
+anyone who may already edit the deck.
+
+**Enforced in `save-card`, not only hidden on screen.** Every way a card
+joins or leaves a deck — the editor's deck list, the bulk add and remove
+screens, a new card from inside a deck — ends in one `save-card` with the
+card's full list of decks. So the server compares that list against a
+locked deck's and leaves the locked deck as it was, the same way it treats
+a deck the person may not edit. The save itself still lands: a card's words
+are not locked, and a save queued offline before the lock would otherwise
+be thrown away whole. The answer carries `locked: [{ id, title }]`, and the
+client says which deck kept its cards.
+
+**Deleting a card is allowed; deleting the deck is not.** Deleting a card
+takes it out of every deck, locked or not — the owner chose a warning in
+the confirmation over a refusal, because a card that has to go should not
+need every deck unlocked first. Deleting a locked deck is refused
+(`deck-locked`, 409) until it is unlocked.
+
+**Deleting an account now takes its cards out of other people's decks.**
+`wipeAccount` deleted the account's old-style cards (`owncards:`) and left
+any deck holding them pointing at nothing. Those ids are now pulled from
+every remaining deck, locked or not, as a card deletion would. Library
+cards (`mycards:`) were never deleted with an account and still are not.
