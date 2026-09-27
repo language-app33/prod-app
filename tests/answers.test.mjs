@@ -16,6 +16,7 @@ import {
   answerGiven,
   answerRows,
   answersOf,
+  firstOfEach,
   joinAlternatives,
   meaningForTurn,
   meaningsOf,
@@ -629,4 +630,15 @@ test("a picture chosen is right when it is one of the card's pictures", () => {
   assert.equal(checkAnswer("b".repeat(64), item, "rec2img", s).ok, true, "any of its pictures");
   assert.equal(checkAnswer("c".repeat(64), item, "rec2img", s).ok, false, "another card's");
   assert.equal(checkAnswer("", item, "rec2img", s).ok, false, "nothing chosen");
+});
+
+test("a card in a list shows one answer of each, the transliteration beside its own word", () => {
+  assert.deepEqual(
+    firstOfEach({ ar: "كتاب / سفر", lat: "kitaab / safar", en: "office; desk" }),
+    { ar: "كتاب", lat: "kitaab", en: "office" },
+  );
+  /* A blank first answer is a place held, not the one to show. */
+  assert.deepEqual(firstOfEach({ ar: " / سفر", lat: " / safar", en: "" }), { ar: "سفر", lat: "safar", en: "" });
+  assert.deepEqual(firstOfEach({ ar: "بيت", en: "house" }), { ar: "بيت", lat: "", en: "house" });
+  assert.deepEqual(firstOfEach(null), { ar: "", lat: "", en: "" });
 });

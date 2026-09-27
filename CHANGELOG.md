@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.269 — 27 September 2026
+
+**Card tiles show one answer, not all of them.**
+
+- In every list of cards, a card that accepts more than one answer —
+  كتاب or سفر, "office" or "desk" — now shows only the first of each on
+  its tile: one word in the language, its transliteration where shown,
+  and one meaning. A list reads as a list of cards again, not of slashes.
+- Every accepted answer is still on the card itself when you open it, and
+  still accepted in practice.
+
 ## 0.268 — 27 September 2026
 
 **A deck can be locked, so its cards stay exactly the ones it has.**

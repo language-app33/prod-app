@@ -257,6 +257,7 @@ import {
   answerForTurn,
   answerGiven,
   answersOf,
+  firstOfEach,
   meaningForTurn,
   packAnswers,
   withAnswer as oneAnswer,
@@ -13042,12 +13043,12 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
                           className={`at-minicard${picked.has(it.id) ? " on" : ""}`}
                           onClick={() => toggleOne(it.id)}
                         >
-                          {leadOf(it).ar && (
+                          {firstOfEach(leadOf(it)).ar && (
                             <span className="ar" lang={activeLang().id} dir={activeLang().direction}>
-                              {leadOf(it).ar}
+                              {firstOfEach(leadOf(it)).ar}
                             </span>
                           )}
-                          <span className="en">{leadOf(it).en}</span>
+                          <span className="en">{firstOfEach(leadOf(it)).en}</span>
                         </button>
                       ))}
                     </div>
@@ -13097,12 +13098,12 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
                   className={`at-minicard${picked.has(it.id) ? " on" : ""}`}
                   onClick={() => toggleOne(it.id)}
                 >
-                  {leadOf(it).ar && (
+                  {firstOfEach(leadOf(it)).ar && (
                     <span className="ar" lang={activeLang().id} dir={activeLang().direction}>
-                      {leadOf(it).ar}
+                      {firstOfEach(leadOf(it)).ar}
                     </span>
                   )}
-                  <span className="en">{leadOf(it).en}</span>
+                  <span className="en">{firstOfEach(leadOf(it)).en}</span>
                 </button>
               ))}
               {!searched.length && <Help>Nothing matches that.</Help>}

@@ -1741,9 +1741,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      reads the phrase's tile as the word's. */
   const tile = tiles.find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === card.ar);
   const shown = tile ? tile.textContent : "";
+  /* Its first meaning: a tile shows one of each, not every one accepted. */
   check("a tile says the word, its meaning and when it was added",
     !!tile &&
-      ((tile.querySelector(".at-minien") || {}).textContent || "").trim() === card.en &&
+      ((tile.querySelector(".at-minien") || {}).textContent || "").trim() === card.en.split("/")[0].trim() &&
       /\d/.test(((tile.querySelector(".at-minimeta") || {}).textContent || "")),
     shown.replace(/\s+/g, " ").trim() ||
       tiles.map((t) => (t.textContent || "").replace(/\s+/g, " ").slice(0, 16)).join(" | ") || "(no tile)");
@@ -3832,8 +3833,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   const wordTile = [...frame.querySelectorAll(".at-minicard")]
     .find((t) => (t.textContent || "").includes("كتاب"));
-  check("the card that means two things is listed with both of them",
-    !!wordTile && /book\s*\/\s*notebook/.test(wordTile.textContent || ""),
+  /* Listed under one of them: a tile names the card, and every meaning
+     it accepts is on the card itself. */
+  check("the card that means two things is listed with one of them",
+    !!wordTile && /book/.test(wordTile.textContent || "") && !/notebook/.test(wordTile.textContent || ""),
     wordTile ? (wordTile.textContent || "").replace(/\s+/g, " ").slice(0, 60) : "no tile");
   click(wordTile);
   await sleep(450);

@@ -115,6 +115,26 @@ export function splitAlternatives(value: string | null | undefined): string[] {
   return String(value || "").split(ALT_SPLIT).map((x) => x.trim());
 }
 
+/*
+ * One answer of each, for a card shown in a list.
+ *
+ * A tile names a card; it does not teach it. Every accepted answer on it —
+ * "كتاب / سفر", "office / desk" — made a list of cards read as a list of
+ * slashes, and the whole set is one tap away on the card itself. The first
+ * answer written, and its own transliteration by position, since a
+ * transliteration read against the wrong word is worse than none. The
+ * meaning is the first one written, separately: meanings and answers are
+ * not paired.
+ */
+export function firstOfEach(form: WithAnswers | null | undefined): { ar: string; lat: string; en: string } {
+  const read = (k: string) => (form && typeof form[k] === "string" ? (form[k] as string) : "");
+  const ars = splitAlternatives(read("ar"));
+  const lats = splitAlternatives(read("lat"));
+  const at = Math.max(0, ars.findIndex(Boolean));
+  const ens = splitAlternatives(read("en")).filter(Boolean);
+  return { ar: ars[at] || "", lat: lats[at] || "", en: ens[0] || "" };
+}
+
 /* Back to one string. Trailing blanks go — they are rows nobody filled in —
    and any blank before a filled one stays, because it is holding a place. */
 export function joinAlternatives(list: (string | null | undefined)[]): string {

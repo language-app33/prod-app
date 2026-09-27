@@ -617,7 +617,7 @@ export function StickyFoot({ above, children, className }: {
    its transliteration is decided — and which a test can import. Re-exported
    here because this is where the screens look for it. */
 export { splitAlternatives, joinAlternatives } from "./answers.ts";
-import { answersOf, storedAnswer } from "./answers.ts";
+import { answersOf, firstOfEach, storedAnswer } from "./answers.ts";
 
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each
@@ -927,8 +927,9 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
      one, which is what a person recognises it by. Here rather than at each
      list, so every place cards are shown says the same thing about them —
      the tile with an empty face was the alternative. */
-  const lead = leadOf(card);
-  const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : lead.ar;
+  /* One accepted answer of each kind, not all of them: see firstOfEach. */
+  const lead = firstOfEach(leadOf(card));
+  const face = isDialog(card) ? firstOfEach(linesOf(card)[0]).ar : lead.ar;
   return (
     <div
       className={`at-minicard${className ? " " + className : ""}`}
