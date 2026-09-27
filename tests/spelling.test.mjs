@@ -286,3 +286,29 @@ test("an answer with no letters in it at all is a word missed, not a word misspe
   const wrongWord = mark(ar, "مشسط", "كتاب");
   assert.equal(wrongWord.wrong, false, "nothing to point at");
 });
+
+test("another word that shares a letter or two with the answer is not a misspelling", () => {
+  /* مدرسة for سيارة — *school* for *car* — share their last letter and
+     nothing else. Four of five letters painted as slips would say "nearly"
+     about a word the learner did not know. */
+  const school = mark(ar, "مدرسة", "سيارة");
+  assert.equal(school.wrong, false, "one letter in common is a coincidence");
+  assert.equal(show(school.yours), "مدرسة", "and the word comes back unmarked");
+  assert.equal(show(school.theirs), "سيارة");
+
+  /* Half is not more than half: two letters wrong in four is as much
+     another word as the same one. */
+  assert.equal(mark(ar, "كثاث", "كتاب").wrong, false, "two of four is not enough");
+
+  /* Letters that do not belong, padded round a few that do, are measured
+     against the longer side and do not clear the bar on the few. */
+  assert.equal(mark(ar, "مشكتسط", "كتاب").wrong, false, "padding does not help");
+
+  /* And the line sits where it says: more than half, and the marks are
+     back. Three of four is a misspelling; so is the two-letter slip in a
+     seven-letter word, *recieve* for *receive*, in any script. */
+  assert.equal(mark(ar, "كتاف", "كتاب").wrong, true, "three of four lines up");
+  const recieve = spellRuns("recieve", "receive", (ch) => ch.toLowerCase());
+  assert.equal(recieve.wrong, true);
+  assert.equal(show(recieve.yours), "rec[ie]ve");
+});

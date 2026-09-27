@@ -14159,6 +14159,14 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
                  card that is nearly through and one that has just begun —
                  and those look identical under "Learning" without it. */
               bar={onLevel ? { pct: levelPercent(progressOf.get(it.id)) } : undefined}
+              /* Everything on the tile, said in full. Elsewhere a tile is
+                 something to scan past and is clipped to keep it short;
+                 here the small print is the answer to the question the
+                 tile was pressed to ask — "Second review in 3d" cut to
+                 "Second revi…" answers nothing. The grid still makes the
+                 tiles in a row the same height, so the row grows to its
+                 tallest and the rest stay lined up. */
+              className="whole"
               onClick={() => setViewing(it)}
             />
           )}

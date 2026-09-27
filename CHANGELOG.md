@@ -8,6 +8,57 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.267 — 27 September 2026
+
+**Selecting cards is tidier, and forgets what it was doing when you leave.**
+
+- While you are selecting in a list — cards in Teaching > Cards, decks,
+  people — each card's own edit and delete buttons are hidden, so a tap
+  only ever ticks or unticks it.
+- Selecting cards, going to another screen and coming back used to show
+  those cards still ticked. The list now comes back with nothing selected,
+  and pressing **Select** always starts from a clean slate.
+
+## 0.266 — 27 September 2026
+
+**Reviewing a card's sentences starts with the ones waiting.**
+
+- In Teaching > Cards, **Review sentences** now opens on **Waiting**, which
+  lists only the sentences you have not approved or struck yet. A card
+  reviewed before no longer makes you read past everything you have
+  already answered to find the new ones.
+- Three more tabs go back over earlier answers: **Struck**, **Approved**
+  and **All**. Each tab shows how many sentences it holds.
+- A sentence you approve or strike stays where it is, showing its new
+  mark, until you change tab. That way a mis-tap can be undone on the spot
+  and the list does not jump under your finger.
+
+## 0.265 — 27 September 2026
+
+**Cards opened from a tile on Progress now show everything.**
+
+- The line under each card saying when it comes back — "Second review in
+  3d", "Next review in 12 days" — used to be cut short with "…" on a phone.
+  It is now shown in full, over two lines where it needs them.
+- A card's word and its meaning are no longer cut off after two lines
+  either, so a long phrase can be read without opening it.
+- Cards in the same row still line up: the row takes the height of its
+  tallest card, and the dates and bars sit at the bottom of each one.
+
+## 0.264 — 27 September 2026
+
+**A wrong word is no longer highlighted as if it were a typo.**
+
+- When a typed answer is wrong, the letters that went astray are
+  highlighted only if the answer is recognisably the right word misspelt:
+  more than half of its letters have to line up with the answer.
+- Writing a different word that happens to share a letter or two with the
+  answer — مدرسة for سيارة, which share only their last letter — used to
+  highlight almost every letter as a slip. It now shows as plainly wrong,
+  with the right answer underneath and nothing highlighted.
+- Real misspellings are highlighted as before, including a letter left out,
+  one too many, or two letters the wrong way round.
+
 ## 0.263 — 27 September 2026
 
 **A new word subtype: Demonstrative.**
