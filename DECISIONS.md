@@ -3580,3 +3580,27 @@ ladder, out of every turn. And the casting is fixed by the scene's own
 read-through count rather than the question's, so it changes only when the
 scene is read through again — the price of never introducing Sami and then
 answering Rami in one session.
+
+---
+
+## Demonstratives are a subtype of their own, not adjectives
+
+**27 September 2026** · `src/languages.ts` (`WORD_CATEGORIES`)
+
+هاد, هاي, هدول change with the noun beside them exactly as an adjective
+does, and the adjective's agreement table already chooses between them. So
+the obvious move was to file them as adjectives. The cost was the blank: a
+card fills the blank its subtype is named after, so هاد went into every
+`{{adjective}}` hole — "the house is هاد". A way for one card to opt out of
+its subtype's blank was weighed and dropped: it would be a rule a teacher
+has to remember, and the card would still say Adjective.
+
+So Demonstrative is its own subtype pointing at the same `agreement` table.
+Nothing new happens in the trainer. `agreementOf` reads the table off
+whatever subtype names it. A saved adjective can be moved across because
+both lay out the same table, as a noun and a preposition can.
+
+**What it costs.** It inherits the adjective's rule that a plural of things
+takes the feminine. Palestinian speech often says هدول الكتب instead. A
+teacher who wants that marks the noun as a person. If that becomes common,
+demonstratives want a table of their own.

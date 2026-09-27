@@ -419,6 +419,18 @@ test("a sentence draws its blanks from the cards that say what they are", () => 
   assert.deepEqual(have.adjective.map((/** @type {any} */ v) => v.ar), ["kbiir"]);
 });
 
+test("a demonstrative fills its own blank and never an adjective's", () => {
+  const frame = { ar: "{{demonstrative}} {{noun}} {{adjective}}", en: "{{demonstrative}} {{noun}} is {{adjective}}", lat: "" };
+  const pool = [
+    { id: "n1", ar: "beit", en: "house", lat: "", category: "noun", lang: "ar-PS" },
+    { id: "a1", ar: "kbiir", en: "big", lat: "", category: "adjective", lang: "ar-PS" },
+    { id: "d1", ar: "haad", en: "this", lat: "", category: "demonstrative", lang: "ar-PS" },
+  ];
+  const have = valuesFor(frame, pool, "ar-PS");
+  assert.deepEqual(have.demonstrative.map((/** @type {any} */ v) => v.ar), ["haad"]);
+  assert.deepEqual(have.adjective.map((/** @type {any} */ v) => v.ar), ["kbiir"], "هاد is not something a house is");
+});
+
 test("every form of a card lends itself, each under its own name", () => {
   const card = {
     id: "c1",

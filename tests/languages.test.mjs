@@ -873,6 +873,20 @@ test("which kinds of word agree out of a table, and which do not", () => {
   assert.equal(agreementOf(LANGUAGES["vi-Hue"], "adjective"), null, "nothing agrees in Huế");
 });
 
+test("a demonstrative agrees the way an adjective does, and is a subtype of its own", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const cat = must(categoriesOf(ar).find((c) => c.id === "demonstrative"), "demonstrative");
+  assert.equal(cat.table, "agreement", "the same forms an adjective lays out");
+  assert.ok(!cat.retired, "offered to a teacher");
+  assert.deepEqual(dimsFor(ar, "demonstrative"), [], "its number and gender are its table");
+  assert.equal(agreementOf(ar, "demonstrative"), agreementOf(ar, "adjective"));
+  assert.ok(agreementOf(LANGUAGES["he-IL"], "demonstrative"), "Hebrew's זה and זאת agree too");
+  assert.equal(agreementOf(LANGUAGES["vi-Hue"], "demonstrative"), null, "nothing agrees in Huế");
+  /* Its forms wait for the sentence to pick one, like an adjective's. */
+  assert.equal(lendsForm(ar, { category: "demonstrative" })({ row: "agreement" }), false);
+  assert.equal(lendsForm(ar, { category: "demonstrative" })({}), true);
+});
+
 test("and which kinds of word a sentence can ask for a tense of", () => {
   const ar = LANGUAGES["ar-PS"];
   /* The other end of the same question: one row is a word that never has

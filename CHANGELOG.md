@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.262 — 26 September 2026
+
+**A new word subtype: Demonstrative.**
+
+- *This* and *that* (هاد, هاي, هدول) change with the noun beside them the
+  way an adjective does, so they can now be a subtype of their own. Choose
+  **Demonstrative**, write the masculine as the word, and fill in the
+  feminine and plural (and the dual, if you want one) underneath.
+- A sentence with a `{{demonstrative}}` blank next to a noun takes the form
+  that matches the noun: هاد بيت, هاي سيارة, هدول الولاد. Give each form
+  the English it needs, such as *these* for the plural.
+- A demonstrative only fills demonstrative blanks. Filed as an adjective,
+  هاد turned up in sentences like "the house is ___".
+- A plural of things takes the feminine, as it does for adjectives. For
+  هدول beside a plural of things, mark that noun as a person.
+- A card already saved as an adjective can be switched to Demonstrative
+  in the editor without losing its forms.
+
 ## 0.261 — 26 September 2026
 
 **Palestinian Arabic verbs have a feminine "I".**

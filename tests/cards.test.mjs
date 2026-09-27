@@ -1486,6 +1486,30 @@ test("an adjective drawn into a sentence is swapped for the form that agrees wit
   assert.equal(blank, null);
 });
 
+test("a demonstrative drawn into a sentence takes هاد, هاي or هدول from the noun beside it", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const cell = (/** @type {string} */ col, /** @type {string} */ word, /** @type {string} */ en) =>
+    ({ id: `this-${col}`, ar: word, en, lat: "", row: "agreement", col });
+  const card = /** @type {any} */ ({
+    id: "this", lang: "ar-PS", category: "demonstrative",
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "" },
+      cell("feminine", "هاي", "this"),
+      cell("plural", "هدول", "these"),
+    ],
+  });
+  const ownerOf = (/** @type {any} */ v) => (v.id === "this" ? { card, form: card.forms[0] } : null);
+  const own = { id: "this", ar: "هاد", en: "this", lat: "" };
+  const beside = (/** @type {Record<string, string>} */ grammar) =>
+    must(agreeTook({ demonstrative: own, noun: { id: "n", ar: "x", en: "y", lat: "", grammar } },
+      ["demonstrative", "noun"], ownerOf, () => ar), "filled").demonstrative;
+  assert.equal(beside({ number: "singular", gender: "masculine", human: "thing" }).ar, "هاد");
+  assert.equal(beside({ number: "singular", gender: "feminine", human: "thing" }).ar, "هاي");
+  const people = beside({ number: "plural", gender: "masculine", human: "person" });
+  assert.equal(people.ar, "هدول");
+  assert.equal(people.en, "these", "and the English the teacher wrote for that form");
+});
+
 /*
  * What a card opens as in the editor, and what a save carries — the rules
  * the four editors stand on, asked without a screen.
@@ -2339,7 +2363,10 @@ test("a card with a table can still be told which kind of word it is", () => {
   /* A verb's table is only laid out by a verb, so there is no question to
      ask and the line underneath says what the card is instead. */
   assert.deepEqual(categoryOffers(arLang, { worded: true, storedForms: "verb" }), []);
-  assert.deepEqual(categoryOffers(arLang, { worded: true, storedForms: "agreement" }), []);
+  /* An adjective's forms are a demonstrative's too, so a هاد filed as an
+     adjective before the subtype existed can be moved across, forms and all. */
+  assert.deepEqual(categoryOffers(arLang, { worded: true, storedForms: "agreement" })
+    .map((/** @type {any} */ c) => c.value), ["adjective", "demonstrative"]);
   /* A card whose table is still empty is asked everything, as before. */
   assert.equal(categoryOffers(arLang, { worded: true, storedForms: "" }).length,
     categoryChoices(arLang).length);

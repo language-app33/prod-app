@@ -1772,6 +1772,20 @@ const WORD_CATEGORIES: WordCategory[] = [
     /* Its number and gender are its table. */
     grammar: [],
   },
+  /* This and that — هاد, هاي, هدول — which change with the noun exactly
+     as an adjective does, so they lay out the same table and a sentence
+     picks their form the same way. A subtype of their own rather than an
+     adjective for the blank's sake: a card fills the blank its subtype is
+     named after, and هاد dealt into "the house is {{adjective}}" is a
+     sentence nobody says. Two or three cards a language, and in half the
+     sentences a beginner meets. */
+  {
+    id: "demonstrative",
+    label: "Demonstrative",
+    note: "this, that — with the forms it takes beside a noun.",
+    table: "agreement",
+    grammar: [],
+  },
   {
     id: "preposition",
     label: "Preposition",
