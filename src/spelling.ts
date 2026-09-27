@@ -252,6 +252,27 @@ function runsOf(s: string, at: number[], bad: boolean[]): Run[] {
   return out;
 }
 
+/*
+ * Whether a wrong answer is the word spelt wrong, rather than another word.
+ *
+ * More than half the letters have to line up, counted against the longer
+ * of the two — so a short answer padded with letters that do not belong
+ * cannot clear the bar on the few that do, and a word with a letter left
+ * out is measured against the answer it fell short of. Half exactly is
+ * not enough: two letters wrong in four is as much another word as the
+ * same word.
+ *
+ * An answer with no letters in it at all is the one exception. There is
+ * nothing of theirs to point at, and what the answer's marks say — these
+ * are the letters that are missing — is still true and still the only
+ * thing to say.
+ */
+function misspelt(wrote: number, want: number, bad: boolean[]): boolean {
+  if (!wrote) return true;
+  const kept = bad.filter((b) => !b).length;
+  return kept * 2 > Math.max(wrote, want);
+}
+
 /** Nothing to line up: one side, whole, and no marks on it. */
 const plain = (given: string, expected: string): Spelling => ({
   yours: given ? [{ text: given }] : [],
@@ -278,10 +299,12 @@ const plain = (given: string, expected: string): Spelling => ({
  *     letter — a right answer marked down for its harakat or its tones,
  *     where the verdict already has a sentence and a highlighted letter
  *     would contradict it;
- *   * and a miss so wide that not one letter of what they wrote belongs
- *     in the answer. That is a word they did not know rather than a word
- *     they misspelt, and painting all of it says nothing "wrong" has not
- *     said already.
+ *   * and a miss so wide that it is not the answer spelt wrong but another
+ *     word — which is anything where half the letters or fewer line up.
+ *     That is a word they did not know rather than a word they misspelt,
+ *     and painting most of it says nothing "wrong" has not said already;
+ *     worse, it says "nearly" about *school* written for *car* because the
+ *     two happen to end in the same letter.
  */
 export function spellRuns(
   given: string,
@@ -305,16 +328,14 @@ export function spellRuns(
       aBad.filter(Boolean).length + bBad.filter(Boolean).length;
     if (count >= fewest) continue;
     fewest = count;
-    /* Every letter they wrote wrong is not a misspelling to point at —
-       see above. Measured on their own side alone, so a word one letter
-       short still carries its mark on the answer, which is the only mark
-       that case has. */
-    const allWrong = mine.keys.length > 0 && aBad.every(Boolean);
-    best = {
-      yours: runsOf(wrote, mine.at, aBad),
-      theirs: runsOf(form, want.at, bBad),
-      wrong: count > 0 && !allWrong,
-    };
+    best =
+      count > 0 && !misspelt(mine.keys.length, want.keys.length, aBad)
+        ? plain(wrote, form)
+        : {
+            yours: runsOf(wrote, mine.at, aBad),
+            theirs: runsOf(form, want.at, bBad),
+            wrong: count > 0,
+          };
     if (!count) break;
   }
   return best || plain(wrote, answer);

@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.264 — 27 September 2026
+
+**A wrong word is no longer highlighted as if it were a typo.**
+
+- When a typed answer is wrong, the letters that went astray are
+  highlighted only if the answer is recognisably the right word misspelt:
+  more than half of its letters have to line up with the answer.
+- Writing a different word that happens to share a letter or two with the
+  answer — مدرسة for سيارة, which share only their last letter — used to
+  highlight almost every letter as a slip. It now shows as plainly wrong,
+  with the right answer underneath and nothing highlighted.
+- Real misspellings are highlighted as before, including a letter left out,
+  one too many, or two letters the wrong way round.
+
 ## 0.263 — 27 September 2026
 
 **A new word subtype: Demonstrative.**
