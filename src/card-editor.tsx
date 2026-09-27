@@ -4662,6 +4662,9 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     starved,
     starvedWhy,
     fillers,
+    /* And the collection the fillers came from, for the block that draws
+       the sentences themselves once somebody asks to see them. */
+    pool: allCards || [],
     /* Which tenses each blank asks its verbs for, which blanks there is
        anything to ask about, and how one of them is answered. */
     blankRows,
@@ -6996,7 +6999,7 @@ function StripAsk({ word }: { word: WordDraft }) {
 
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
-    holes, starved, starvedWhy, combos, fillers, fills, fillsOffer, addFill,
+    holes, starved, starvedWhy, combos, fillers, pool, fills, fillsOffer, addFill,
     main, trouble, sentence, strayHoles, tensed, blankRows, setBlankRow,
     endsBehind, setBlankEnds,
   } = word;
@@ -7029,8 +7032,8 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
    * nothing above needs this.
    */
   const asked = useMemo(
-    () => (examplesOpen ? examplesOf(main, holes, fillers) : NO_ASKED),
-    [examplesOpen, main, holes, fillers],
+    () => (examplesOpen ? examplesOf(null, main, pool, lang) : NO_ASKED),
+    [examplesOpen, main, pool, lang],
   );
   /* A sentence fills nothing — see fillsOf, which is the one answer to
      that and which this only reports. So the second subsection has nothing
@@ -7183,7 +7186,9 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             })()}
             <Help>
               One card, met as a sentence for every word that fills it. A word
-              added later joins in without this card being touched.
+              added later joins in without this card being touched. A verb in a
+              blank takes the form the blank beside it calls for: a pronoun
+              names the person, a name or noun picks it by number and gender.
             </Help>
           </>
         )}

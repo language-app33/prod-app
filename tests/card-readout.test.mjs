@@ -139,7 +139,7 @@ test("the words behind each blank, and the sentences the card comes out as", () 
   );
   /* The sentences themselves are behind the fold, drawn by the same
      function: what is checked here is that it has something to draw. */
-  const asked = examplesOf(lead, holes, fillers);
+  const asked = examplesOf(frame.card, lead, POOL, LANGUAGES[frame.card.lang]);
   assert.ok(asked.length > 0, "the frame fills to nothing");
   assert.ok(asked.every((line) => !line.ar.includes("{{")), "a filled example still has braces in it");
 });

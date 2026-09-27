@@ -56,8 +56,9 @@ import { formsOf, leadOf } from "./cards.ts";
 import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
-import { cardRef, fillNames, fillsOf, fillText, isLent, slotsOf, splitSlots, valuesFor, valuesForTurn } from "./variables.ts";
-import { citationOf, colOf, isCell, ownerOf, personsOf, rowIdsOf, rowOf, slotRows, tensesOf } from "./verbs.ts";
+import { sentencesOf } from "./review.ts";
+import { cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
+import { citationOf, colOf, isCell, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotRows, tensesOf } from "./verbs.ts";
 
 /* A card, a form of one, a turn of one, or a half-written draft — open for
    the reason the other pure modules are: the same questions are asked of a
@@ -367,8 +368,13 @@ export function fillersFor(
     (c, f) => lendsForm(lang, c)(f),
     /* And the tenses this frame asks its verbs in, where it has narrowed a
        blank to some — see slotRows, which answers "every one of them" for
-       every blank nobody has narrowed. */
-    blankAdmits(lang, (slot) => slotRows(form, slot)),
+       every blank nobody has narrowed — and whether the blank agrees with
+       another, which is what has a verb stand in it once per tense. */
+    blankAdmits(
+      lang,
+      (slot) => slotRows(form, slot),
+      (slot) => !!partnerOf(form, slotsOf(form), slot),
+    ),
   );
 }
 
@@ -459,40 +465,27 @@ export const EXAMPLES_CEILING = 1000;
  * that exist today.
  *
  * All three fields, because a teacher writing an Arabic frame is owed the
- * Arabic sentence. A field whose filler has nothing to put in it keeps the
- * braces standing, exactly as the question would. Distinct, because two
- * cards carrying one word would otherwise print the same sentence twice
- * and read as a bug; `valuesForTurn` counts through the combinations in
- * order, so walking the turns is every filling exactly once.
+ * Arabic sentence. The walk is the review list's — sentencesOf, which is
+ * what the practice screen and the teacher's approval both read — so an
+ * adjective is shown in the form that agrees with its noun and a verb in
+ * the person its subject calls for, and a combination that makes no
+ * sentence is left out here as it is there. Until 0.258 this filled the
+ * drawn words in as they were lent, which listed "سيارة كبير" on a card
+ * that never asks it. Distinct, because two cards carrying one word would
+ * otherwise print the same sentence twice and read as a bug.
+ *
+ * `card` is the card the form belongs to, for a verb's own place; null
+ * leaves that place standing, which is what a half-written card shows.
  */
 export function examplesOf(
+  card: Held | null,
   form: Held | null | undefined,
-  holes: string[],
-  fillers: Record<string, Value[]>,
+  pool: Held[],
+  lang: Lang | null | undefined,
   ceiling = EXAMPLES_CEILING,
 ): { ar: string; lat: string; en: string }[] {
-  if (!holes.length) return [];
-  const out: { ar: string; lat: string; en: string }[] = [];
-  /* Kept as keys rather than compared against what is already out: a
-     thousand examples asking "have I printed this one" a thousand times is
-     a million string comparisons, on every keystroke in the field above. */
-  const had = new Set<string>();
-  const turns = Math.min(combosOf(holes, fillers), ceiling);
-  for (let turn = 0; turn < turns; turn++) {
-    const took = valuesForTurn(holes, fillers, turn);
-    if (!took) break;
-    const line = {
-      ar: fillText(str(form && form.ar), took, "ar").trim(),
-      lat: fillText(str(form && form.lat), took, "lat").trim(),
-      en: fillText(str(form && form.en), took, "en").trim(),
-    };
-    if (!line.ar && !line.lat && !line.en) continue;
-    const key = JSON.stringify([line.ar, line.lat, line.en]);
-    if (had.has(key)) continue;
-    had.add(key);
-    out.push(line);
-  }
-  return out;
+  if (!form || !slotsOf(form).length) return [];
+  return sentencesOf(card, form, pool || [], lang, ceiling).list.map(({ ar, lat, en }) => ({ ar, lat, en }));
 }
 
 /**
@@ -1312,7 +1305,11 @@ export function whyStarved(
   pool: Held[],
   lang: Lang | null | undefined,
 ): "" | "nothing" | "kept-out" | "no-such-form" {
-  const admits = blankAdmits(lang, (s) => slotRows(form, s));
+  const admits = blankAdmits(
+    lang,
+    (s) => slotRows(form, s),
+    (s) => !!partnerOf(form, slotsOf(form), s),
+  );
   let fills = false;
   let kept = false;
   for (const card of pool || []) {

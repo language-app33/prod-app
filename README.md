@@ -371,9 +371,20 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   `src/verbs.ts` is the one answer to. A word whose forms agree with what
   they stand beside — an adjective, a number — lends its own word only,
   and the sentence goes back to its card for the form the first other
-  blank calls for (`agreedValue` in `src/verbs.ts`, `agreeTook` in the
-  trainer): the cell a column picks, the word where none does, and nothing
-  where the cell is blank.
+  blank calls for (`agreedValue` in `src/verbs.ts`, `agreeTook` in
+  `src/review.ts`): the cell a column picks, the word where none does, and
+  nothing where the cell is blank. **A verb drawn into a sentence card's
+  blank agrees the same way**: its row is the cell's — a blank narrowed to
+  the past lends the past — and its column is the first other blank's, a
+  pronoun naming it (`person` on the card) and a name or noun picking it
+  by number and gender, exactly as a verb card's own sentence reads its
+  subject. A partner that names no column, or a cell the teacher left
+  blank, is a sentence not asked. Such a blank lends a verb **once per
+  tense** rather than once per cell (`rowLead`, read by `blankAdmits`
+  where the blank has a partner — `partnerOf`), so the count of sentences
+  is the count a learner meets; a verb beside no other blank takes every
+  cell in turn as it always did, and so does one in a language whose
+  table has one column.
 
   **A pronoun reads three ways in English, and the blank says which.**
   Arabic and Hebrew drop *to be* in the present — أنا تعبان is *I am

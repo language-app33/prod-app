@@ -44,11 +44,11 @@
 import type { Form, Lang } from "./types.ts";
 import { formsOf } from "./cards.ts";
 import { linesOf, pickedFrom } from "./dialogs.ts";
-import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, verbOf } from "./languages.ts";
+import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, tensedOf, verbOf } from "./languages.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
-import { agreedCell, agreedValue, agreeWith, ownSlot, rowOf, slotRows, subjectSlot } from "./verbs.ts";
+import { agreedCell, agreedValue, agreeWith, ownSlot, partnerOf, personsOf, rowIdsOf, rowOf, slotRows, subjectSlot } from "./verbs.ts";
 
 type Held = Record<string, any>;
 
@@ -206,6 +206,28 @@ type Owner = { card: Held; form: Held };
  * is what is shown. Null where the column picks a cell the teacher left
  * blank: nothing to ask and nothing to invent.
  *
+ * **A verb drawn into a blank agrees the same way**, since 0.258. A verb
+ * lends its cells, each in a tense, and a sentence card's "{{pronoun}}
+ * {{verb}}" used to be met as every person of the verb beside every
+ * pronoun, seven pairings in eight saying something nobody says. The row
+ * is the cell's — a blank narrowed to the past lends the past — and the
+ * column is now the partner's: a pronoun names it and a name or noun
+ * picks it by number and gender, exactly as a verb card's own sentence
+ * has always read its subject (ownVerb, below). And with the same two
+ * answers: a partner that names no column, or a column whose cell the
+ * teacher left blank, is a sentence not asked rather than one asked
+ * wrong. A verb with no other blank beside it has nothing to agree with
+ * and takes its turns as before; so does a verb in a language whose
+ * table has one column — Huế's *ăn* is *ăn* whoever eats, and there is
+ * nothing for a subject to pick.
+ *
+ * **What a word agrees with is never another word that agrees.** In
+ * "{{demonstrative}} {{noun}} {{adjective}}" — هاي السيارة كبيرة — the
+ * first other blank of the adjective is هاي, which has no gender of its
+ * own to give: it takes one from the noun too. So the partner is the
+ * first other blank filled by a word that does not agree (see leadsOf),
+ * and only where there is none is it the first other blank as before.
+ *
  * Here rather than in the trainer since review existed, because the
  * teacher's list has to take this step too or it lists sentences nobody
  * is asked. The trainer re-exports it.
@@ -217,32 +239,70 @@ export function agreeTook(
   langFor: (card: Held) => Lang | null | undefined,
 ): Record<string, Value> | null {
   const out = { ...took };
+  const leads = leadsOf(took, slots, ownerOf, langFor);
+  const partnerSlot = (slot: string) => agreeWith(leads, slot) || agreeWith(slots, slot);
   for (const slot of slots) {
     const value = took[slot];
     const owner = value ? ownerOf(value) : null;
     if (!owner) continue;
-    const spec = agreementOf(langFor(owner.card), owner.card.category);
-    if (!spec) continue;
-    const partner = took[agreeWith(slots, slot)] || null;
-    const agreed = agreedValue(owner.card, spec, value, partner);
-    if (!agreed) return null;
-    out[slot] = agreed;
+    const lang = langFor(owner.card);
+    const spec = agreementOf(lang, owner.card.category);
+    if (spec) {
+      const partner = took[partnerSlot(slot)] || null;
+      const agreed = agreedValue(owner.card, spec, value, partner);
+      if (!agreed) return null;
+      out[slot] = agreed;
+      continue;
+    }
+    const tensed = tensedOf(lang, owner.card.category);
+    if (!tensed || personsOf(tensed).length < 2) continue;
+    if (!rowIdsOf(tensed).has(rowOf(owner.form))) continue;
+    const beside = partnerSlot(slot);
+    if (!beside) continue;
+    const partner = took[beside] || null;
+    const cell = agreedCell(owner.card, tensed, rowOf(owner.form), partner ? partner.grammar : null);
+    if (!cell || !String(cell.ar || "").trim()) return null;
+    out[slot] = { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
   }
   return out;
+}
+
+/**
+ * The blanks a word can take its agreement from: every one but those
+ * filled by a word that agrees itself — an adjective, a demonstrative —
+ * which has nothing to give until it has taken it. In the order written,
+ * so "the first other one" still means what the teacher wrote first.
+ */
+export function leadsOf(
+  took: Record<string, Value>,
+  slots: string[],
+  ownerOf: (value: Value) => Owner | null,
+  langFor: (card: Held) => Lang | null | undefined,
+): string[] {
+  return slots.filter((slot) => {
+    const value = took[slot];
+    const owner = value ? ownerOf(value) : null;
+    return !(owner && agreementOf(langFor(owner.card), owner.card.category));
+  });
 }
 
 /**
  * The form of a verb a card's own sentence stands in its own place, for
  * whatever filled the subject. Null where the teacher left that cell
  * blank, or where nothing in the subject says which column to take.
+ *
+ * `leads` is the sentence's blanks less those an agreeing word filled
+ * (leadsOf), so "{{demonstrative}} {{noun}} {{verb}}" reads its subject
+ * off the noun and not off هاد. Left out, every blank counts.
  */
 export function ownVerb(
   part: Held,
   card: Held,
   lang: Lang | null | undefined,
   took: Record<string, Value>,
+  leads: string[] = slotsOf(part),
 ): Value | null {
-  const subject = subjectSlot(slotsOf(part));
+  const subject = subjectSlot(leads) || subjectSlot(slotsOf(part));
   const filler = subject ? took[subject] : null;
   const cell = agreedCell(card, verbOf(lang), rowOf(part), filler ? filler.grammar : null);
   if (!cell || !cell.ar) return null;
@@ -265,7 +325,7 @@ export function finishTook(
   if (!took) return null;
   const own = ownSlot(part);
   if (own && card && slotsOf(part).includes(own)) {
-    const verb = ownVerb(part, card, langFor(card), took);
+    const verb = ownVerb(part, card, langFor(card), took, leadsOf(turned, slotsOf(part), ownerOf, langFor));
     if (!verb) return null;
     took[own] = verb;
   }
@@ -291,7 +351,11 @@ export function reviewPool(
   const values: Record<string, Value[]> = {};
   for (const slot of drawn) values[slot] = [];
   const owner: Map<string, Owner> = new Map();
-  const admits = blankAdmits(lang, (slot) => slotRows(part, slot));
+  const admits = blankAdmits(
+    lang,
+    (slot) => slotRows(part, slot),
+    (slot) => !!partnerOf(part, slotsOf(part), slot),
+  );
   const langId = lang ? lang.id : "";
   const byAge = [...(pool || [])].sort(
     (a, b) => (a.created || 0) - (b.created || 0) || String(a.id).localeCompare(String(b.id)),
@@ -345,10 +409,11 @@ export interface PartSentences {
  * The sentences one part of a card makes, walked in the order the
  * practice screen walks them and kept once each.
  *
- * `card` is the card the part belongs to, wanted for a verb's own place.
+ * `card` is the card the part belongs to, wanted for a verb's own place;
+ * null where the caller has no card, which leaves that place standing.
  */
 export function sentencesOf(
-  card: Held,
+  card: Held | null,
   part: Held,
   pool: Held[],
   lang: Lang | null | undefined,
@@ -386,7 +451,7 @@ export function sentencesOf(
       took: who,
     });
   }
-  return { id: String(part.id || card.id || ""), combos, cut: combos > limit, list };
+  return { id: String(part.id || (card && card.id) || ""), combos, cut: combos > limit, list };
 }
 
 /** Every part of a card, listed. */

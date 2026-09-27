@@ -163,6 +163,7 @@ import {
   cellsIn,
   hasCells,
   ownSlot,
+  partnerOf,
   citedCell,
   isCitation,
   openRows,
@@ -262,7 +263,7 @@ import {
 } from "./answers.ts";
 import { fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
-import { agreeTook, finishTook, lineGate, passes, reviewOf, sentenceKey, SCAN_LIMIT } from "./review.ts";
+import { agreeTook, finishTook, leadsOf, lineGate, passes, reviewOf, sentenceKey, SCAN_LIMIT } from "./review.ts";
 import { castFill as castScene, filledScene, hasCast } from "./cast.ts";
 import type { Review } from "./review.ts";
 import { liftSubtypeTagsIn } from "./subtype-tags.ts";
@@ -1094,8 +1095,11 @@ function fillsFor(unit: Form, langId?: LangId): Record<string, Value[]> {
  */
 function askedIn(unit: Form, slot: string, list: Value[]): Value[] {
   const rows = slotRows(unit, slot);
-  if (!rows.length) return list;
-  const admits = (lang: Lang) => blankAdmits(lang, () => rows);
+  /* And whether the blank agrees with another — a verb beside a subject
+     stands in it once per tense, since the subject picks the person. */
+  const agrees = !!partnerOf(unit, slotsOf(unit), slot);
+  if (!rows.length && !agrees) return list;
+  const admits = (lang: Lang) => blankAdmits(lang, () => rows, () => agrees);
   return list.filter((value) => {
     const owner = VALUE_OWNER.get(refOf(value));
     if (!owner) return true;
@@ -1885,7 +1889,12 @@ function fillFor(
   );
   if (!took) return null;
   if (card && slots.length !== drawn.length) {
-    const agreed = verbValue({ unit, parent: card }, took);
+    const agreed = verbValue({ unit, parent: card }, took, leadsOf(
+      turned,
+      slots,
+      (v) => VALUE_OWNER.get(refOf(v)) || null,
+      (c) => LANGUAGES[String(c.lang || "")] || activeLang(),
+    ));
     /* No cell for what filled the subject — a sentence wanting the plural
        of a verb whose plural the teacher left blank. The same answer for
        the same reason. */
@@ -2087,13 +2096,16 @@ function castRange(
 function verbValue(
   resolved: { unit: Form, parent: Item },
   took: Record<string, Value>,
+  /* The blanks a subject can be, less any an agreeing word filled — see
+     leadsOf in review.ts. */
+  leads: string[],
 ): Value | null {
   const card = resolved.parent;
   /* The card's own language, the way every module-level reader here takes
      it: the pointer set during render is not to be relied on from a
      function that runs from anywhere. */
   const spec = verbOf(LANGUAGES[String((card && card.lang) || "")] || activeLang());
-  const subject = subjectSlot(slotsOf(resolved.unit));
+  const subject = subjectSlot(leads) || subjectSlot(slotsOf(resolved.unit));
   const filler = subject ? took[subject] : null;
   const cell = agreedCell(card, spec, rowOf(resolved.unit), filler ? filler.grammar : null);
   if (!cell || !cell.ar) return null;

@@ -92,6 +92,7 @@ const { leadSpeed, deckPercent, levelPercent, nextReviewAt, reviewLine, nextPass
   setValueIndex, valueKey, setMateCounts } =
   await import(path.join(out, "trainer.js"));
 const { TYPES, LANGUAGES, verbOf, attachedOf, specOf, levelOf } = await import(path.join(here, "..", "src", "languages.ts"));
+const { leadsOf } = await import(path.join(here, "..", "src", "review.ts"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -1508,6 +1509,84 @@ test("a demonstrative drawn into a sentence takes هاد, هاي or هدول fro
   const people = beside({ number: "plural", gender: "masculine", human: "person" });
   assert.equal(people.ar, "هدول");
   assert.equal(people.en, "these", "and the English the teacher wrote for that form");
+});
+
+test("a verb drawn into a sentence beside a pronoun is swapped for the person the pronoun names", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const speak = /** @type {any} */ ({
+    id: "speak", lang: "ar-PS", category: "verb",
+    forms: [
+      { id: "speak", ar: "حكى", en: "to speak", lat: "" },
+      { id: "v-i", ar: "بحكي", en: "speak", lat: "", row: "present", col: "i" },
+      { id: "v-she", ar: "بتحكي", en: "speaks", lat: "", row: "present", col: "she" },
+      { id: "v-past-i", ar: "حكيت", en: "spoke", lat: "", row: "past", col: "i" },
+    ],
+  });
+  const owners = /** @type {Record<string, any>} */ ({});
+  for (const form of speak.forms) owners[form.id] = { card: speak, form };
+  const ownerOf = (/** @type {any} */ v) => owners[v.id] || null;
+  const lead = { id: "v-i", ar: "بحكي", en: "speak", lat: "" };
+  const she = { id: "p-she", ar: "هي", en: "she", lat: "", grammar: { person: "she", number: "singular", gender: "feminine" } };
+  const swapped = agreeTook({ pronoun: she, verb: lead }, ["pronoun", "verb"], ownerOf, () => ar);
+  assert.equal(must(swapped, "filled").verb.ar, "بتحكي");
+  assert.equal(must(swapped, "filled").verb.id, "v-she", "the cell shown is the one credited");
+  assert.equal(must(swapped, "filled").pronoun.ar, "هي", "the pronoun is left as drawn");
+  /* The row is the drawn cell's: a past lead beside "she" wants the past
+     she-cell, which the teacher has not written, so nothing is asked. */
+  const past = { id: "v-past-i", ar: "حكيت", en: "spoke", lat: "" };
+  assert.equal(agreeTook({ pronoun: she, verb: past }, ["pronoun", "verb"], ownerOf, () => ar), null);
+  /* A partner that names no person is a sentence not asked. */
+  const nobody = { id: "x", ar: "فلان", en: "so-and-so", lat: "" };
+  assert.equal(agreeTook({ name: nobody, verb: lead }, ["name", "verb"], ownerOf, () => ar), null);
+  /* Nothing beside it: the cell as drawn. */
+  assert.equal(must(agreeTook({ verb: lead }, ["verb"], ownerOf, () => ar), "filled").verb.ar, "بحكي");
+  /* And a form of the verb that is in no row — the dictionary form — is
+     left alone, as every word with no table is. */
+  const own = { id: "speak", ar: "حكى", en: "to speak", lat: "" };
+  assert.equal(must(agreeTook({ pronoun: she, verb: own }, ["pronoun", "verb"], ownerOf, () => ar), "filled").verb.ar, "حكى");
+});
+
+test("an adjective or a verb after هاد agrees with the noun, not with هاد", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const agreeing = (/** @type {string} */ id, /** @type {string} */ category,
+    /** @type {string} */ m, /** @type {string} */ f) => /** @type {any} */ ({
+    id, lang: "ar-PS", category,
+    forms: [
+      { id, ar: m, en: id, lat: "" },
+      { id: `${id}-f`, ar: f, en: id, lat: "", row: "agreement", col: "feminine" },
+    ],
+  });
+  const dem = agreeing("this", "demonstrative", "هاد", "هاي");
+  const big = agreeing("big", "adjective", "كبير", "كبيرة");
+  const go = /** @type {any} */ ({
+    id: "go", lang: "ar-PS", category: "verb",
+    forms: [
+      { id: "go", ar: "راح", en: "to go", lat: "" },
+      { id: "go-he", ar: "راح", en: "went", lat: "", row: "past", col: "he" },
+      { id: "go-she", ar: "راحت", en: "went", lat: "", row: "past", col: "she" },
+    ],
+  });
+  const owners = /** @type {Record<string, any>} */ ({});
+  for (const card of [dem, big, go]) for (const form of card.forms) owners[form.id] = { card, form };
+  const ownerOf = (/** @type {any} */ v) => owners[v.id] || null;
+  const own = (/** @type {any} */ card, /** @type {number} */ i = 0) =>
+    ({ id: card.forms[i].id, ar: card.forms[i].ar, en: card.forms[i].en, lat: "" });
+  const car = { id: "car", ar: "سيارة", en: "car", lat: "", grammar: { number: "singular", gender: "feminine", human: "thing" } };
+  const girl = { id: "girl", ar: "بنت", en: "girl", lat: "", grammar: { number: "singular", gender: "feminine", human: "person" } };
+
+  /* هاي السيارة كبيرة: both agreeing words read the noun. */
+  const slots = ["demonstrative", "noun", "adjective"];
+  const phrase = must(agreeTook({ demonstrative: own(dem), noun: car, adjective: own(big) }, slots, ownerOf, () => ar), "filled");
+  assert.equal(phrase.demonstrative.ar, "هاي");
+  assert.equal(phrase.adjective.ar, "كبيرة", "the adjective's first other blank is هاي, which has no gender to give");
+
+  /* هاي البنت راحت: a drawn verb reads the noun too. */
+  const went = must(agreeTook({ demonstrative: own(dem), noun: girl, verb: own(go, 1) },
+    ["demonstrative", "noun", "verb"], ownerOf, () => ar), "filled");
+  assert.equal(went.verb.ar, "راحت");
+
+  /* And the words that agree are left out of what a subject can be. */
+  assert.deepEqual(leadsOf({ demonstrative: own(dem), noun: car, adjective: own(big) }, slots, ownerOf, () => ar), ["noun"]);
 });
 
 /*
