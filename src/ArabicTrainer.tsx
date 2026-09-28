@@ -134,7 +134,8 @@ import {
   kindOf,
   isListening,
   groupAttrOf,
-  formLabel,
+  answerLabel,
+  askLabel,
   labelFor,
   langOf,
   quizAttrOf,
@@ -8565,7 +8566,7 @@ export default function ArabicTrainer() {
     const tags = kinTags({
       units: (grid.words as Record<string, any>[]).concat(said),
       cardOf: (u) => (ownerOf.get(u.id) || { id: "" }).id,
-      labelOf: (u) => formLabel(u, ownerOf.get(u.id), qLang),
+      labelOf: (u) => askLabel(u, ownerOf.get(u.id), qLang),
     });
     return {
       words: grid.words.map((w) => tags[w.id] || ""),
@@ -8605,7 +8606,7 @@ export default function ArabicTrainer() {
       unit: item,
       kin: unitsOf(parentItem).map((u) => u.unit),
       promptField: spec.promptField || "",
-      told: !!formLabel(item, parentItem, qLang),
+      told: !!askLabel(item, parentItem, qLang),
     }) as Form[];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, parentItem, spec, qLang.id]);
@@ -8756,7 +8757,7 @@ export default function ArabicTrainer() {
   }, [item && item.id, checked, typed, skipped, spec && spec.answerField]);
   /* And what that answer is, grammatically, in this language's words. Empty
      where the language declares no grammar, or the answer carries none. */
-  const gaveLabel = gaveAnswer ? labelFor(gaveAnswer, qLang) : "";
+  const gaveLabel = gaveAnswer ? answerLabel(gaveAnswer, item, qLang) : "";
 
   /*
    * Where the spelling went wrong, where it did.
@@ -10225,9 +10226,9 @@ export default function ArabicTrainer() {
                         And nothing at all where the language declares no
                         grammar to say it with: Huế has none. */}
                     {(isSub || tellForm) && spec.promptField !== "pairs" && spec.promptField !== "scene" &&
-                      formLabel(item, parentItem, qLang) && (
+                      askLabel(item, parentItem, qLang) && (
                       <p className="at-asktag" data-el="question-form-tag">
-                        {formLabel(item, parentItem, qLang)}
+                        {askLabel(item, parentItem, qLang)}
                       </p>
                     )}
                     {/* What the phrase means, where the phrase is on the
@@ -13620,7 +13621,7 @@ export function twinsOf({ unit, kin, promptField, told }: {
  * marked wrong for knowing the word.
  *
  * So where one card has more than one form up, each of those forms carries
- * its own grammar — "f.", "pl." — and **both columns carry it**: a tag on
+ * its own grammar — "feminine", "plural" — and **both columns carry it**: a tag on
  * the words alone leaves the meanings exactly as unanswerable as they
  * were. Every other tile stays bare, because a grid of five labelled words
  * is a reading exercise about labels.
@@ -13643,7 +13644,7 @@ export function kinTags({ units, cardOf, labelOf }: {
   units: (Record<string, any> | null | undefined)[];
   /** Which card a form belongs to. Empty where it is not known. */
   cardOf: (unit: Record<string, any>) => string;
-  /** What the form is, in the language's own terms — see labelFor. */
+  /** What the form is, in the language's own terms — see askLabel. */
   labelOf: (unit: Record<string, any>) => string;
 }): Record<string, string> {
   /* A word and its own meaning are one form on two tiles, so the forms are

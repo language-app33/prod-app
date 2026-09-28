@@ -3753,3 +3753,29 @@ retested inside the session it was missed in. The home screen's count of
 cards ready is unchanged: a resting card is still ready, only later in
 the order.
 
+
+---
+
+## An exercise names grammar in whole words, and only what tells a form apart
+
+**28 September 2026** · `src/languages.ts` (`askLabel`, `answerLabel`, `spelledGrammar`)
+
+Exercises named a form three ways, by where the grammar was stored:
+`labelFor`'s abbreviations on a noun ("sg. f."), an agreement table's
+column on an adjective ("feminine"), a person label on a verb ("you (f)").
+The learner is the reader least able to decode shorthand, and the screen
+has room, so exercises now go through one function, `askLabel`, and
+`labelFor` is left to the editor, whose rows are narrow and whose reader
+is a teacher.
+
+**Fewest words that tell it apart.** The label names the smallest set of
+axes that separates the form from every other form and answer on its card
+(`fewestTelling`), gender before number. A plural beside two singulars is
+"plural"; only a card holding all four is "feminine plural". That is what
+drops "singular" and "masculine" wherever nothing on the card needs them,
+without a list of default values to maintain.
+
+**What it costs.** The tag now depends on the card's other forms, so the
+same form can read "plural" on one card and "feminine plural" on another.
+That is the point — it is the answer to "which of these is wanted?" — but
+it means a label cannot be computed from a form alone.

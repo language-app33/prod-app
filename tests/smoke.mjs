@@ -6805,7 +6805,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   /* The card's own form, which is the half that never got this: the tag was
      shown on sub-forms alone, so the masculine standing beside its own
      feminine was left bare. */
-  check("and names it by the grammar the language declares", /m\./.test(tag()),
+  /* In whole words, as every exercise names grammar since 0.275. */
+  check("and names it by the grammar the language declares", /^masculine\b/.test(tag()),
     tag() || "(nothing said)");
   /* Beside the word it is about, where a learner looks for it, rather than
      after an instruction that reads the same on every question of a kind. */

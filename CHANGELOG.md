@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.275 — 28 September 2026
+
+**Exercises name a form's grammar one way, whatever the card.**
+
+- The note under a question saying which form is wanted used to read
+  "sg. f." on a noun, "feminine" on an adjective and "you (f)" on a verb.
+  It is now always whole words: "feminine", "plural", "feminine plural",
+  "you (feminine)".
+- It names only what tells the form apart from the card's others. A
+  plural beside a singular says "plural"; "singular" or "masculine" appear
+  only where another form of the card is plural or feminine; a lone word
+  says nothing.
+- A verb's form names its tense too, where two forms read the same in
+  English and differ only in tense: "past", or "past · you (feminine)"
+  where it takes both.
+- After an answer, "You wrote the sg. f. one." now reads "You wrote the
+  feminine one."
+- The card editor keeps its short forms ("sg. f."), where space is tight.
+  Vietnamese cards are unchanged: they have no grammar to name.
+
 ## 0.274 — 28 September 2026
 
 **Deck tiles say less twice.**
