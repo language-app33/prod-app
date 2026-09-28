@@ -1100,6 +1100,11 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
   border:2px solid var(--line); border-radius: var(--r-sm); background: var(--raised);
   padding:10px 12px; }
 .at-tickrow:has(input:checked) { border-color: var(--accent); }
+.at-tickrow.off { opacity:.55; cursor:not-allowed; }
+.at-tickrow.off input { cursor:not-allowed; }
+.at-deckpick.locked { opacity:.55; cursor:not-allowed; }
+.at-lockmark { white-space:nowrap; }
+.at-decklock { display:inline-flex; align-items:center; padding:0 6px; color: var(--muted); }
 .at-tickrow input { width:20px; height:20px; flex:0 0 auto; margin:0; cursor:pointer;
   accent-color: var(--jade); }
 .at-tickbody { display:flex; flex-direction:column; gap:1px; min-width:0; }
@@ -3253,6 +3258,13 @@ body.at-screening .at-chromebar { display:none; }
   background: var(--raised); border:1px solid var(--line);
   font-family: var(--ui); font-size:11px; font-weight:800; color: var(--muted);
   display:inline-flex; align-items:center; justify-content:center; }
+/* The same circle before a pairing, empty and dashed, so pairing fills a
+   place already kept rather than moving the word over to make one. */
+.at-matchnum.empty { background:none; border-style:dashed; }
+/* And filled the moment its tile is tapped, in the colour of a tile held:
+   the circle says "this one is waiting for its other half" before there
+   is a number to put in it. */
+.at-matchtile.on .at-matchnum.empty { background: var(--brass); border-color: var(--brass); border-style:solid; }
 .at-matchtile.right .at-matchnum { border-color: var(--jade-soft); color: var(--jade); }
 .at-matchtile.wrong .at-matchnum { border-color: var(--rose-soft); color: var(--rose); }
 /* What a tile stacks: the word, whichever of its form's grammar is worth

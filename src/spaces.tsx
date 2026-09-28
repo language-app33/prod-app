@@ -2250,6 +2250,12 @@ export function AdminSpace({ account, languages, onClose }: {
                     danger: true,
                     onClick: (ids) => {
                       const picked = decks.filter((d) => ids.includes(d.id));
+                      /* A locked deck is unlocked before it can go. */
+                      const held = picked.filter((d) => d.locked);
+                      if (held.length) {
+                        snack(lockedDeleteNote(held.map((d) => d.title)), "warn");
+                        return;
+                      }
                       const n = picked.reduce((t, d) => t + (d.cardCount || 0), 0);
                       setConfirm({
                         title: `Delete ${plural(picked.length, "deck")}?`,
@@ -2273,10 +2279,19 @@ export function AdminSpace({ account, languages, onClose }: {
                 renderItem={(d) => (
                   <Tile
                     title={d.title}
-                    meta={`${d.ownerName} · ${plural(d.cardCount || 0, "card")}`}
+                    meta={
+                      <>
+                        <LockMark locked={d.locked} />
+                        {`${d.ownerName} · ${plural(d.cardCount || 0, "card")}`}
+                      </>
+                    }
                     actions={
                         <IconButton icon="delete" label="Delete deck" danger onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
+                            if (d.locked) {
+                              snack(lockedDeleteNote([d.title]), "warn");
+                              return;
+                            }
                             setConfirm({
                               title: `Delete ${d.title}?`,
                               confirmLabel: "Delete the deck",
@@ -3345,6 +3360,32 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }: {
   );
 }
 
+/* A padlock ahead of a deck's small print, where the deck is locked. */
+function LockMark({ locked }: { locked?: boolean }) {
+  if (!locked) return null;
+  return (
+    <span className="at-lockmark">
+      <Icon name="lock" size={12} /> Locked ·{" "}
+    </span>
+  );
+}
+
+/* Why a locked deck was not deleted, and how to delete it. */
+function lockedDeleteNote(titles: string[]): string {
+  const names = titles.map((t) => `"${t}"`).join(", ");
+  return titles.length === 1
+    ? `${names} is locked. Unlock it in deck settings to delete it.`
+    : `${names} are locked. Unlock them in deck settings to delete them.`;
+}
+
+/* What to say when a save left locked decks as they were. */
+function lockedNote(titles: Set<string>): string {
+  const names = [...titles].map((t) => `"${t}"`).join(", ");
+  return titles.size === 1
+    ? `${names} is locked, so its cards were not changed.`
+    : `${names} are locked, so their cards were not changed.`;
+}
+
 /* ------------------------------------------------------------------
    Naming a deck
 
@@ -3370,10 +3411,11 @@ function DeckEditor({
   busy?: boolean;
   courses?: Course[];
   languages: Record<LangId, Lang>;
-  onSave: (title: string, lang: LangId, picked: string[]) => void;
+  onSave: (title: string, lang: LangId, picked: string[], locked: boolean) => void;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState((deck && deck.title) || "");
+  const [locked, setLocked] = useState(!!(deck && deck.locked));
   const [lang, setLang] = useState((deck && deck.lang) || initialLang || "");
   /* Which courses are ticked, held here rather than read off the deck.
      Read off the deck it could not change: the deck handed in is the copy
@@ -3394,7 +3436,7 @@ function DeckEditor({
       action={
         <Button variant="primary" size="sm"
           disabled={!canSave || busy}
-          onClick={() => onSave(title.trim(), lang, [...picked])}
+          onClick={() => onSave(title.trim(), lang, [...picked], locked)}
           icon="save"
         >
           {busy ? "Saving…" : "Save"}
@@ -3432,6 +3474,33 @@ function DeckEditor({
               different things on one screen — and gave a student a deck
               before the teacher had finished deciding. Now it is a choice
               like the title, and the screen saves once. */}
+          {/* Locking is about which cards the deck holds, and nothing
+              else: the cards can still be corrected, and the deck renamed
+              and shared. */}
+          {deck && (
+            <>
+              <p className="at-eyebrow at-mt6">Lock</p>
+              <div className="at-cklist">
+                <button
+                  className={`at-ck${locked ? " on" : ""}`}
+                  aria-pressed={locked}
+                  disabled={busy}
+                  onClick={() => setLocked((v) => !v)}
+                >
+                  <span className="at-ckbox">{locked ? "✓" : ""}</span>
+                  <span className="at-cktext">
+                    <b>Lock this deck</b>
+                    <i>No cards can be added to it or taken out of it until it is unlocked.</i>
+                  </span>
+                </button>
+              </div>
+              <Help>
+                The cards in it can still be edited. Any teacher who can change this deck can
+                unlock it.
+              </Help>
+            </>
+          )}
+
           {deck && (
             <>
               <p className="at-eyebrow at-mt6">
@@ -4835,10 +4904,14 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
      be a function of what the call returned. */
   async function run(fn: () => Promise<any>, done?: string | ((out: any) => string)) {
     setBusy(true);
+    lockedHits.current.clear();
     try {
       const out = await fn();
       setError("");
-      if (done) snack(typeof done === "function" ? done(out) : done, "good");
+      /* A locked deck the server kept as it was outranks "done": the
+         teacher asked for a change that did not all happen. */
+      if (lockedHits.current.size) snack(lockedNote(lockedHits.current), "warn");
+      else if (done) snack(typeof done === "function" ? done(out) : done, "good");
     } catch (e) {
       setError(API.explain(e));
     } finally {
@@ -4923,6 +4996,29 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
    * decided, and sending it again would either change nothing or write it
    * twice.
    */
+  /* Decks a save asked to change and the server kept as they were,
+     because they are locked. Collected by absorbSaved, said once. */
+  const lockedHits = useRef<Set<string>>(new Set());
+
+  /* The locked decks holding any of these cards. Deleting a card takes it
+     out of every deck, locked or not, so the confirmation says which
+     locked decks will lose it. */
+  const lockedWarning = (ids: string[]) => {
+    const held = decks
+      .filter((d) => d.locked && (d.cardIds || []).some((x) => ids.includes(x)))
+      .map((d) => `"${d.title}"`);
+    if (!held.length) return null;
+    return (
+      <p>
+        <b>
+          {held.length === 1 ? `The deck ${held[0]} is locked` : `The decks ${held.join(", ")} are locked`}, but
+          deleting still takes {ids.length === 1 ? "this card" : "these cards"} out of{" "}
+          {held.length === 1 ? "it" : "them"}.
+        </b>
+      </p>
+    );
+  };
+
   const sendOrKeep = useCallback(async (card: Partial<Card>, decks: string[]) => {
     try {
       return await API.saveCard(card, decks);
@@ -4949,7 +5045,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       }
     });
     setKept(waitingToSend(CARD_OUTBOX));
-    if (sent) snack(`${plural(sent, "card")} sent`, "good");
+    if (lockedHits.current.size) {
+      snack(lockedNote(lockedHits.current), "warn");
+      lockedHits.current.clear();
+    } else if (sent) snack(`${plural(sent, "card")} sent`, "good");
   /* absorbSaved and snack are stable for this purpose: the first writes
      through a state setter, the second forwards to a memoised snackbar. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4970,6 +5069,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
   function absorbSaved(r: any) {
     const card = r && r.card;
     if (!card) return;
+    if (Array.isArray(r.locked)) for (const d of r.locked) lockedHits.current.add(d.title || "a deck");
     setCards((prev) => {
       const i = prev.findIndex((c) => c.id === card.id);
       const next = { ...card, decks: card.decks || [] };
@@ -5173,13 +5273,14 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         /* Everything the screen holds, written in one go. The courses used
            to be written on the tap, which is why the screen had both a Save
            button and changes that ignored it. */
-        onSave={(title, lang, picked) =>
+        onSave={(title, lang, picked, locked) =>
           run(
             async () => {
               if (!existing) {
                 await API.createDeck(title, "", lang || soleLangOn);
               } else {
                 if (title !== existing.title) await API.renameDeck(existing.id, title);
+                if (locked !== !!existing.locked) await API.lockDeck(existing.id, locked);
                 const was = (existing.courses || []).map((l: any) => l.courseId);
                 for (const id of picked) if (!was.includes(id)) await API.attachDeck(existing.id, id);
                 for (const id of was) if (!picked.includes(id)) await API.detachDeck(existing.id, id);
@@ -5450,10 +5551,13 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               confirmWord={leadOf(confirm.card).en || leadOf(confirm.card).ar}
               busy={busy}
               body={
-                <p>
-                  Gone from every deck, and from your students' apps. Recordings go too. This
-                  can't be undone.
-                </p>
+                <>
+                  <p>
+                    Gone from every deck, and from your students' apps. Recordings go too. This
+                    can't be undone.
+                  </p>
+                  {lockedWarning([confirm.card.id])}
+                </>
               }
               onCancel={() => setConfirm(null)}
               onConfirm={() =>
@@ -5626,7 +5730,12 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         options={(cardAction === "add" ? decksIn(new Set([...pickedLangs, newDeckLang])) : decks).filter((d) => d.id !== inDeck).map((d) => ({
           id: d.id,
           title: d.title,
-          note: `${plural(d.cardCount || 0, "card")}`,
+          /* A locked deck is shown, and cannot be ticked: its cards stay
+             as they are until someone unlocks it. */
+          note: d.locked
+            ? `${plural(d.cardCount || 0, "card")} · Locked`
+            : `${plural(d.cardCount || 0, "card")}`,
+          disabled: !!d.locked,
         }))}
         chosen={pickedDecks}
         onToggle={(id, on) =>
@@ -5707,9 +5816,17 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               {(langOfDeck(d) || {}).name} · {plural(held.length, "card")}
             </Help>
 
-            <Help>
-              Tap a card to see it. Tap Select to add several to another deck, take them out, or delete them.
-            </Help>
+            {d.locked ? (
+              <Help>
+                <Icon name="lock" size={14} /> This deck is locked: no cards can be added to it or taken
+                out of it. Tap a card to see or edit it. To change which cards it holds, unlock it in
+                its settings.
+              </Help>
+            ) : (
+              <Help>
+                Tap a card to see it. Tap Select to add several to another deck, take them out, or delete them.
+              </Help>
+            )}
 
             {/* The whole deck, whatever the list below is showing: what a
                 deck covers is a fact about the deck, not about the cards a
@@ -5751,7 +5868,8 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                  as a separate sort of thing to make — and meant the Cards
                  tab, with only the one button, could not make one at all.
                  Which kind is asked on the way in, before the editor. */
-              onNew={() => setMaking({ decks: [d.id], lang: (langOfDeck(d) || {}).id })}
+              /* Nothing new goes into a locked deck. */
+              onNew={d.locked ? undefined : () => setMaking({ decks: [d.id], lang: (langOfDeck(d) || {}).id })}
               selected={selCards}
               onSelectedChange={setSelCards}
               bulkActions={[
@@ -5760,9 +5878,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                    second, and had to go to the Cards tab and find them
                    again to put them there. */
                 { label: "Add to another deck", onClick: () => setCardAction("add") },
-                {
+                ...(d.locked ? [] : [{
                   label: "Remove from this deck",
-                  onClick: (picked) => {
+                  onClick: (picked: string[]) => {
                     const ids = pickedIds(picked);
                     return run(
                       async () => {
@@ -5778,7 +5896,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                       `${plural(ids.length, "card")} removed from ${d.title}`
                     );
                   },
-                },
+                }]),
                 {
                   label: "Delete",
                   danger: true,
@@ -5863,10 +5981,13 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
             confirmLabel="Delete them"
             busy={busy}
             body={
-              <p>
-                Removed from every deck, and from the apps of everyone studying them. This can't
-                be undone.
-              </p>
+              <>
+                <p>
+                  Removed from every deck, and from the apps of everyone studying them. This can't
+                  be undone.
+                </p>
+                {lockedWarning(confirm.ids || [])}
+              </>
             }
             onCancel={() => setConfirm(null)}
             onConfirm={() =>
@@ -5965,7 +6086,12 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   <Tile
                     key={d.id}
                     title={d.title}
-                    meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
+                    meta={
+                      <>
+                        <LockMark locked={d.locked} />
+                        {`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
+                      </>
+                    }
                     onOpen={() => setOpenDeck(d.id)}
                     actions={
                       <IconButton icon="edit" label="Deck settings" onClick={(e: React.MouseEvent) => {
@@ -6220,10 +6346,13 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   confirmLabel="Delete them"
                   busy={busy}
                   body={
-                    <p>
-                      Removed from every deck, and from the apps of everyone studying them.
-                      Recordings go too. This can't be undone.
-                    </p>
+                    <>
+                      <p>
+                        Removed from every deck, and from the apps of everyone studying them.
+                        Recordings go too. This can't be undone.
+                      </p>
+                      {lockedWarning(confirm.ids || [])}
+                    </>
                   }
                   onCancel={() => setConfirm(null)}
                   onConfirm={() =>
@@ -6584,6 +6713,12 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                     danger: true,
                     onClick: (ids) => {
                       const picked = decks.filter((d) => ids.includes(d.id));
+                      /* A locked deck is unlocked before it can go. */
+                      const held = picked.filter((d) => d.locked);
+                      if (held.length) {
+                        snack(lockedDeleteNote(held.map((d) => d.title)), "warn");
+                        return;
+                      }
                       const n = picked.reduce((t, d) => t + (d.cardCount || 0), 0);
                       setConfirm({
                         kind: "deck",
@@ -6612,7 +6747,12 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   return (
                     <Tile
                       title={d.title}
-                      meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
+                      meta={
+                        <>
+                          <LockMark locked={d.locked} />
+                          {`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
+                        </>
+                      }
                       onOpen={() => setOpenDeck(d.id)}
                       actions={
                         <>
@@ -6622,6 +6762,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                             }} />
                           <IconButton icon="delete" label="Delete deck" danger onClick={(e: React.MouseEvent) => {
                               e.stopPropagation();
+                              if (d.locked) {
+                                snack(lockedDeleteNote([d.title]), "warn");
+                                return;
+                              }
                               setConfirm({
                                 kind: "deck",
                                 title: `Delete ${d.title}?`,

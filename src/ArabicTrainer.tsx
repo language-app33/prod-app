@@ -211,7 +211,8 @@ import {
   passesMade,
   reachedLevel,
   roomForNew,
-  recognised,
+  restingNow,
+  throughDoor,
   familyMaturity,
   standing,
   standings as standingsOf,
@@ -257,6 +258,7 @@ import {
   answerForTurn,
   answerGiven,
   answersOf,
+  firstOfEach,
   meaningForTurn,
   packAnswers,
   withAnswer as oneAnswer,
@@ -2640,7 +2642,7 @@ function openTypes(it: Form, settings: Settings): string[] {
  * the deck in front of them: the deck is what they chose to look at, the
  * load is what they carry.
  *
- * The front door is words met and not yet recognisable. A word never
+ * The front door is words met and not yet recognised or cleared. A word never
  * touched is *not* in it — it is waiting outside, which is the whole point
  * — so a course of three hundred strangers does not fill the pool and
  * block itself.
@@ -2657,10 +2659,12 @@ export function handCounts(items: Item[], settings: Settings) {
     /* Never met: outside both pools. */
     if (stage === "new") continue;
     if (stage !== "mature") inHand += 1;
-    const known = drillableUnits(it, settings).every(({ unit }) =>
-      recognised(reachedTypes(unit, settings), (t: string) => stateOf(unit, t))
+    /* Over the whole ladder, not the levels reached: cleared is read up
+       all of it, which is what the learner is shown. */
+    const through = drillableUnits(it, settings).every(({ unit }) =>
+      throughDoor(laddered(unit, settings), (t: string) => stateOf(unit, t))
     );
-    if (!known) front += 1;
+    if (!through) front += 1;
   }
   return { front, inHand };
 }
@@ -3108,7 +3112,11 @@ export function buildSession({
     const isNew = units.every(({ unit }) =>
       askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
-    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent, lastSeen };
+    const soonest = dues.length ? Math.min(...dues) : 0;
+    /* Waiting only because it was asked a moment ago — see restingNow. A
+       card the learner asked for never rests. */
+    const resting = !urgent && restingNow(lastSeen, dues);
+    return { it, units, soonest, isNew, urgent, lastSeen, resting };
   });
 
   /* Ordered before anything is filtered, because the filter below keeps
@@ -3138,14 +3146,28 @@ export function buildSession({
    * would throw away the nearest-first reach that a practice session is
    * for.
    */
+  /*
+   * And a card asked in the last half hour rests, behind all of it.
+   *
+   * The rule above never reached the cards being learnt, because they are
+   * nearly always waiting: a retest a minute or ten after the last answer,
+   * or a level that opened with every question on it due at once. So
+   * those went first in every sitting, and a learner who came back three
+   * times in an hour was dealt the same words three times. A resting card
+   * is still dealt — last, and in the order it had — and backlog never
+   * rests: a question that was due before the card was last touched keeps
+   * the card in the first group. See restingNow.
+   */
+  const unrested = candidates.filter((c) => !c.resting);
   const waitingNow = (c: { urgent: boolean; soonest: number }) =>
     c.urgent || dueRank(c.soonest) === 0;
-  const ahead = candidates.filter((c) => !waitingNow(c));
-  candidates = candidates
+  const ahead = unrested.filter((c) => !waitingNow(c));
+  candidates = unrested
     .filter(waitingNow)
     .concat(
       ahead.filter((c) => !justPractised(c.lastSeen)),
-      ahead.filter((c) => justPractised(c.lastSeen))
+      ahead.filter((c) => justPractised(c.lastSeen)),
+      candidates.filter((c) => c.resting)
     );
 
   /*
@@ -6329,7 +6351,13 @@ function MatchGrid({
               aria-pressed={heldWord === w.id}
               onClick={() => tapWord(w.id)}
             >
-              {mine ? <span className="at-matchnum">{numberOf(w.id)}</span> : null}
+              {/* Always there, empty until paired: a number arriving in
+                  space nobody kept for it pushed the word along. */}
+              {mine ? (
+                <span className="at-matchnum">{numberOf(w.id)}</span>
+              ) : (
+                <span className="at-matchnum empty" aria-hidden="true" />
+              )}
               <span className="at-matchword">
                 <Arabic text={w.ar} kind="word" lang={lang} />
                 {/* Which form of its card this is, where another form of
@@ -6367,7 +6395,11 @@ function MatchGrid({
               aria-pressed={heldMeaning === at}
               onClick={() => tapMeaning(at)}
             >
-              {owner ? <span className="at-matchnum">{numberOf(owner.id)}</span> : null}
+              {owner ? (
+                <span className="at-matchnum">{numberOf(owner.id)}</span>
+              ) : (
+                <span className="at-matchnum empty" aria-hidden="true" />
+              )}
               {/* The meaning, and — only where two forms of one card are up
                   — which of them it belongs to. Said on this side as well
                   as on the words, because it is the meanings a learner
@@ -8778,7 +8810,7 @@ export default function ArabicTrainer() {
      would be the same conversation twice. */
   const answerRepeated =
     !!checked &&
-    (!answerRight || checked.reason === "bare") &&
+    (!answerRight || checked.reason === "bare" || checked.reason === "typo") &&
     !(spec && spec.answerMode === "part") &&
     /* Nor under a grid: every word paired wrong shows its meaning where
        it stands, and the first word's alone would say less. */
@@ -10411,6 +10443,12 @@ export default function ArabicTrainer() {
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
                         <Help data-el="verdict-reason">{verdictText(checked, qLang)}</Help>
+                      )}
+                      {/* Right, and the spelling it should have had is
+                          underneath: one letter out of the English is a
+                          slip, not a miss — see checkEn. */}
+                      {checked.ok && checked.reason === "typo" && (
+                        <Help data-el="verdict-typo">One letter out — counted as right. It is spelt:</Help>
                       )}
                       {/* Said rather than done quietly: the answer was
                           right and the spelling is theirs, but the word
@@ -13042,12 +13080,12 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
                           className={`at-minicard${picked.has(it.id) ? " on" : ""}`}
                           onClick={() => toggleOne(it.id)}
                         >
-                          {leadOf(it).ar && (
+                          {firstOfEach(leadOf(it)).ar && (
                             <span className="ar" lang={activeLang().id} dir={activeLang().direction}>
-                              {leadOf(it).ar}
+                              {firstOfEach(leadOf(it)).ar}
                             </span>
                           )}
-                          <span className="en">{leadOf(it).en}</span>
+                          <span className="en">{firstOfEach(leadOf(it)).en}</span>
                         </button>
                       ))}
                     </div>
@@ -13097,12 +13135,12 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
                   className={`at-minicard${picked.has(it.id) ? " on" : ""}`}
                   onClick={() => toggleOne(it.id)}
                 >
-                  {leadOf(it).ar && (
+                  {firstOfEach(leadOf(it)).ar && (
                     <span className="ar" lang={activeLang().id} dir={activeLang().direction}>
-                      {leadOf(it).ar}
+                      {firstOfEach(leadOf(it)).ar}
                     </span>
                   )}
-                  <span className="en">{leadOf(it).en}</span>
+                  <span className="en">{firstOfEach(leadOf(it)).en}</span>
                 </button>
               ))}
               {!searched.length && <Help>Nothing matches that.</Help>}

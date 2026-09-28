@@ -3675,3 +3675,81 @@ left.
 takes the feminine. Palestinian speech often says هدول الكتب instead. A
 teacher who wants that marks the noun as a person. If that becomes common,
 demonstratives want a table of their own.
+
+---
+
+## A locked deck fixes its membership, not its cards
+
+**27 September 2026** · `server/api/courses.js` (`lock-deck`, `save-card`, `delete-deck`), `src/spaces.tsx`
+
+A teacher can lock a deck so that which cards it holds cannot change. The
+lock is a flag on the deck (`locked: true`, absent when unlocked), set by
+anyone who may already edit the deck.
+
+**Enforced in `save-card`, not only hidden on screen.** Every way a card
+joins or leaves a deck — the editor's deck list, the bulk add and remove
+screens, a new card from inside a deck — ends in one `save-card` with the
+card's full list of decks. So the server compares that list against a
+locked deck's and leaves the locked deck as it was, the same way it treats
+a deck the person may not edit. The save itself still lands: a card's words
+are not locked, and a save queued offline before the lock would otherwise
+be thrown away whole. The answer carries `locked: [{ id, title }]`, and the
+client says which deck kept its cards.
+
+**Deleting a card is allowed; deleting the deck is not.** Deleting a card
+takes it out of every deck, locked or not — the owner chose a warning in
+the confirmation over a refusal, because a card that has to go should not
+need every deck unlocked first. Deleting a locked deck is refused
+(`deck-locked`, 409) until it is unlocked.
+
+**Deleting an account now takes its cards out of other people's decks.**
+`wipeAccount` deleted the account's old-style cards (`owncards:`) and left
+any deck holding them pointing at nothing. Those ids are now pulled from
+every remaining deck, locked or not, as a card deletion would. Library
+cards (`mycards:`) were never deleted with an account and still are not.
+
+---
+
+## A word leaves the front door recognised or cleared, and a card just asked rests
+
+**28 September 2026** · `src/scheduler.ts` (`throughDoor`, `restingNow`),
+`src/ArabicTrainer.tsx` (`handCounts`, `buildSession`)
+
+The complaint was the same cards in every practice session. Two things
+made it, and they compounded.
+
+**The front door drained on a clock.** A word held one of its ten places
+until its first level stood at a four-day gap, however many times it was
+answered right tonight. A learner who cleared ten words in an evening
+was holding exactly ten words for the next four days, and every session
+in between was dealt from them.
+
+**The rule meant to rotate them never reached them.** A card answered in
+the last two hours already went behind one that was not — but only among
+cards that were not due, and a card being learnt is almost never that: its
+learning steps bring it back in a minute and in ten, a miss in minutes,
+and every level it opens is a row of questions due the moment they exist.
+
+**What changed.** A word is now through the front door when it is
+cleared *or* recognised, whichever comes first. Cleared alone was built
+first and measured: it doubled what a keen learner met (26 to about 45
+words in ten days of thirty sittings) and *halved* what a once-a-day
+learner met in ninety days (44 to 22), because at two questions a card a
+sitting the top of the ladder comes long after the four-day gap on the
+first level. Either route lets a word through, so no pace got slower: the
+once-a-day learner in `tests/pace.test.mjs` now meets about 46 in ninety
+days and masters more of them sooner.
+
+And a card asked in the last half hour rests — dealt after everything
+else, not refused — when nothing on it was already due before that
+asking. That qualifier is what keeps backlog first: a question due since
+yesterday stays due however recently another question on the same card
+was answered, which an existing test already held the builder to.
+
+**What it costs.** A ten-minute learning step effectively becomes "ten
+minutes, or when you run out of other cards" for anyone holding more than
+one session's worth. That is the point, and a missed question is still
+retested inside the session it was missed in. The home screen's count of
+cards ready is unchanged: a resting card is still ready, only later in
+the order.
+

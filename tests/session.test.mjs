@@ -611,6 +611,31 @@ test("but anything actually due still comes first", () => {
   assert.equal(reached, 0, `${reached} cards ahead of schedule came before cards that were due`);
 });
 
+test("a card asked a moment ago gives way, even while it is waiting", () => {
+  /*
+   * Three sittings in an hour, in the small.
+   *
+   * These were asked ten minutes ago and their retests have come round, so
+   * all of them are waiting — and waiting used to put them first in every
+   * sitting, ahead of the rest of what the learner holds. Now they rest.
+   */
+  const justAsked = ["j1", "j2", "j3", "j4", "j5", "j6"].map((id) => settledWord(id, -1 / (24 * 60), 10));
+  const others = ["r1", "r2", "r3", "r4", "r5", "r6"].map((id) => settledWord(id, 20, 3 * 24 * 60));
+  const got = deal(justAsked.concat(others));
+  const dealt = new Set(got.exercises.map((/** @type {any} */ e) => e.id));
+  for (const it of others) {
+    assert.ok(dealt.has(it.id), `${it.id} was passed over for a word asked ten minutes ago`);
+  }
+});
+
+test("and a resting card is still dealt when there is nothing else", () => {
+  /* A rest, not a refusal: a learner holding only these gets them. */
+  const justAsked = ["j1", "j2", "j3"].map((id) => settledWord(id, -1 / (24 * 60), 10));
+  const got = deal(justAsked);
+  assert.equal(got.reason, null, `refused: ${got.reason}`);
+  assert.ok(got.exercises.length > 0, "nothing dealt");
+});
+
 /* ------------------------------------------------------------------
    The weak-skills session
 
@@ -1041,12 +1066,13 @@ test("and a session nobody has marked anything in is the size it always was", ()
   assert.ok(got.exercises.length <= 18, `${got.exercises.length} questions with nothing marked`);
 });
 
-/** A word met but not yet recognisable: a gap shorter than the bar. */
+/** A word met but not yet cleared: answered right once since the ladder
+    started counting, which is not twice. */
 const learningWord = (/** @type {string} */ id) => {
   const w = word(id, `كلمة${id}`, `word ${id}`);
   const state = { phase: "review", step: 0, ease: 2.5, interval: 1,
     due: Date.now() + DAY_MS, reps: 2, right: 2, wrong: 0, lapses: 0, skips: 0,
-    near: 0, hints: 0, updated: Date.now(), hist: [] };
+    near: 0, hints: 0, updated: Date.now(), hist: [1] };
   w.forms[0].s = Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, { ...state }]));
   return w;
 };
@@ -1067,10 +1093,10 @@ test("a full front door stops new words, and does not stop the held ones being p
   );
 });
 
-test("and a word leaves the front door as soon as it can be recognised", () => {
-  /* The release valve. These have a gap past the bar, so they are through
-     the door and no longer block a newcomer, even though they are nowhere
-     near finished with their ladder. */
+test("and a word leaves the front door as soon as it is cleared", () => {
+  /* The release valve. These are up every level, so they are through the
+     door and no longer block a newcomer, even though they have their
+     passes still to make. */
   const known = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => settled(`k${i + 1}`, 1));
   const got = deal(known.concat(deckOf(20)));
   const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));

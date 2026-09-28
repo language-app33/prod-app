@@ -1009,6 +1009,7 @@ export function formLabel(
   lang: Lang = activeLang(),
 ): string {
   const said = unit ? labelFor(unit, lang) : "";
+  if (!said && unit && card && isCell(unit)) return personWhereUnsaid(unit, card, lang);
   if (said || !unit || !card || isCell(unit)) return said;
   if (String(leadOf(card).id || "") !== String(unit.id || "")) return "";
   const spec = subFormsOf(card)
@@ -1016,6 +1017,32 @@ export function formLabel(
     .map((f) => shapeTable(f, lang))
     .find(Boolean);
   return (spec && spec.base) || "";
+}
+
+/*
+ * Who a verb's cell is about, where its English does not say.
+ *
+ * A verb's cells are meant to carry the person in their English — "you (f)
+ * understand" — which is why a verb table names nothing (see shapeTable).
+ * But a teacher who writes "You understand" on both the masculine and the
+ * feminine leaves two cells the question cannot tell apart: a learner was
+ * asked for the feminine, shown only "You understand", and had no way to
+ * know. So where another cell of the same card reads the same in English
+ * from a different column, the column's own name — "you (f)" — is the tag.
+ * A cell whose English is its own still names nothing.
+ */
+function personWhereUnsaid(unit: Record<string, any>, card: unknown, lang: Lang): string {
+  const spec = Object.values(tablesOf(lang)).find((t) => rowIdsOf(t).has(rowOf(unit)));
+  if (!spec || spec.base) return "";
+  const en = normEn(String(unit.en || ""));
+  if (!en) return "";
+  const col = colOf(unit);
+  const twin = subFormsOf(card)
+    .concat([leadOf(card)])
+    .some((f) => f && f.id !== unit.id && isCell(f) && colOf(f) !== col && normEn(String(f.en || "")) === en);
+  if (!twin) return "";
+  const person = personsOf(spec).find((p) => p.id === col);
+  return person ? person.label || person.id : "";
 }
 
 export const AR_KEY_ROWS = [
@@ -2991,11 +3018,26 @@ export function splitForms(expected: string, sep: RegExp) {
   return parts.length > 1 ? parts.concat([whole]) : parts;
 }
 
+/*
+ * One letter out of the English is a slip, not a wrong answer.
+ *
+ * A question asked in the language and answered in English is asking
+ * whether the learner knows what the word means, and "tiref" for "tired"
+ * says that they do. So one letter added, dropped or changed is right,
+ * and the answer screen shows how it is spelt. Not on words under four
+ * letters, where one letter is the difference between "cat" and "cut";
+ * and a swap of two letters is two changes, so "tried" is not "tired".
+ * Anything further out is still a near miss, as before.
+ */
+const EN_SLIP_MIN = 4;
+
 export function checkEn(given: string, expected: string) {
   const g = normEn(given);
   if (!g) return { ok: false, reason: "wrong" };
   const forms = splitForms(expected, /[/;,]/).map(normEn);
   if (forms.includes(g)) return { ok: true, reason: "exact" };
+  if (forms.some((e) => tight(e).length >= EN_SLIP_MIN && editDistance(g, e) === 1))
+    return { ok: true, reason: "typo" };
   const near = forms.some((e) => editDistance(g, e) <= Math.max(1, Math.round(e.length * 0.25)));
   return { ok: false, reason: near ? "near" : "wrong" };
 }

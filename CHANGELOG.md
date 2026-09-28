@@ -8,6 +8,89 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.273 — 28 September 2026
+
+**A one-letter slip in English counts as right, and a verb's "you" says
+who it is.** Both from learners' reports.
+
+- Answering in English, one letter added, missing or wrong — "Tiref" for
+  "Tired" — is now marked right. The answer screen says "One letter out —
+  counted as right" and shows the spelling. Words shorter than four
+  letters still need to be exact, since one letter there is often a
+  different word, and two letters swapped ("tried" for "tired") still
+  counts as a near miss.
+- Asked for one of a verb's forms, where the card gives two forms the same
+  English — "You understand" for both the masculine and the feminine — the
+  question now says which one it wants, with a tag such as "you (f)".
+  Because the question says so, writing the other form is now marked
+  wrong, with the right one shown. Where a form's English already says who
+  it is about, nothing changes.
+
+## 0.272 — 28 September 2026
+
+**Fewer of the same cards over and over, and new words sooner for anyone who puts the work in.**
+
+- A card you were asked in the last half hour now waits its turn behind
+  the rest of what you are learning, even when it is due for a quick
+  retest. Three sittings in an hour are no longer the same nine words
+  three times. It still comes up if there is nothing else to ask, and
+  anything genuinely overdue still comes first.
+- A new word now arrives as soon as you clear one: once a word is up
+  every level, it stops holding a place among the ten you are still
+  getting to know. It used to wait four days whatever you did. The
+  four-day route still works too, so a word frees its place by whichever
+  comes first, and nobody gets new words more slowly than before.
+
+## 0.271 — 28 September 2026
+
+**In matching, a tapped tile's circle fills straight away.**
+
+- Tapping a word or a meaning now fills its empty circle in the same
+  colour as the tile's highlight, so it is clear which tile is waiting for
+  its match. Once the pair is made, the circle shows their number, as
+  before. Tapping the tile again empties it.
+
+## 0.270 — 28 September 2026
+
+**Matching no longer shifts the words when you pair them.**
+
+- In the matching exercise, every word and every meaning now shows an
+  empty dashed circle where its number will go. Pairing two tiles fills
+  the circle with the number, so nothing in the tile moves to make room.
+
+## 0.269 — 27 September 2026
+
+**Card tiles show one answer, not all of them.**
+
+- In every list of cards, a card that accepts more than one answer —
+  كتاب or سفر, "office" or "desk" — now shows only the first of each on
+  its tile: one word in the language, its transliteration where shown,
+  and one meaning. A list reads as a list of cards again, not of slashes.
+- Every accepted answer is still on the card itself when you open it, and
+  still accepted in practice.
+
+## 0.268 — 27 September 2026
+
+**A deck can be locked, so its cards stay exactly the ones it has.**
+
+- In Teaching > Decks, open a deck's **Deck settings** and tick **Lock this
+  deck**. Any teacher who can change the deck can lock or unlock it there.
+- A locked deck shows a padlock and "Locked" on its tile. Inside it, **New
+  card** and **Remove from this deck** are gone.
+- In the card editor's deck list and on the screens for adding selected
+  cards to decks or taking them out, a locked deck is shown greyed out
+  with a padlock and can't be ticked.
+- The cards in a locked deck can still be edited, and the deck can still be
+  renamed and added to courses or taken out of them.
+- Deleting a card that sits in a locked deck is still allowed. The
+  confirmation warns that it will leave the locked deck too.
+- A locked deck can't be deleted. Unlock it first.
+- If a change can't be made because a deck is locked — for instance one
+  saved while offline and sent later — the rest of the change is kept and
+  a message says which deck stayed as it was.
+- Deleting an account now also takes its older cards out of other
+  teachers' decks, instead of leaving gaps where they were.
+
 ## 0.267 — 27 September 2026
 
 **Selecting cards is tidier, and forgets what it was doing when you leave.**

@@ -157,6 +157,15 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   the reach past the due line: anything genuinely due, and anything the
   learner marked, still comes first.
 
+  **And a card asked in the last half hour rests, even when it is
+  waiting.** A card being learnt is nearly always waiting — a retest a
+  minute or ten after its last answer, or a level that answer opened — so
+  the rule above never reached the cards a learner was actually holding.
+  One that was only made waiting by its last asking now goes behind
+  everything else, and is still dealt when there is nothing else. Backlog
+  never rests: a question that was due before the card was last touched
+  keeps its place. `JUST_ASKED` and `restingNow` in `src/scheduler.ts`.
+
   The numbers are `SESSION_SIZE`, `PER_UNIT` and `MAX_UNITS_PER_FAMILY` in
   `src/ArabicTrainer.tsx`, beside `buildSession` which is the only thing
   that reads them. How many *new* words a session may open is not among
@@ -216,11 +225,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   `src/types.ts`.
 
 - **A new word is earned by learning one.** Two pools decide it and
-  nothing else: at most ten words the learner cannot yet recognise, and at
-  most sixty in hand altogether. A word leaves the first as soon as it has
-  earned a four-day gap on its first rung — the same bar that opens the
-  level above it — and goes on climbing against the second without
-  blocking a newcomer behind it.
+  nothing else: at most ten words the learner is still getting to know,
+  and at most sixty in hand altogether. A word leaves the first as soon
+  as it is cleared *or* its first level has held at a four-day gap,
+  whichever comes first (`throughDoor`), and goes on climbing against the
+  second without blocking a newcomer behind it. Cleared is what a keen
+  evening reaches — clear three words and three new ones may come in —
+  and the gap is what a once-a-day learner reaches first, because two
+  questions a card a sitting take longer than four days to climb a whole
+  ladder. Either alone was slower for somebody; both together are slower
+  for nobody.
 
   Nothing is counted in sessions or in days, so ten short sittings in an
   evening and one long one meet the same words. That was the fault of what

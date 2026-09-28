@@ -1967,13 +1967,21 @@ function DeckSwitch({ decks, chosen, onToggle }: {
         {inThese.map((d) => (
           <span className="at-deckpill" key={d.id}>
             <span className="nm">{d.title}</span>
-            <button
-              className="at-deckdrop"
-              aria-label={`Take this card out of ${d.title}`}
-              onClick={() => onToggle(d.id, true)}
-            >
-              <Icon name="close" size={16} />
-            </button>
+            {/* A locked deck keeps its cards: a padlock where the way out
+                would be, saying why there isn't one. */}
+            {d.locked ? (
+              <span className="at-decklock" title={`${d.title} is locked`} aria-label={`${d.title} is locked`}>
+                <Icon name="lock" size={14} />
+              </span>
+            ) : (
+              <button
+                className="at-deckdrop"
+                aria-label={`Take this card out of ${d.title}`}
+                onClick={() => onToggle(d.id, true)}
+              >
+                <Icon name="close" size={16} />
+              </button>
+            )}
           </span>
         ))}
 
@@ -2011,18 +2019,22 @@ function DeckSwitch({ decks, chosen, onToggle }: {
               const on = chosen.includes(d.id);
               return (
                 <button
-                  className={`at-deckpick${on ? " on" : ""}`}
+                  className={`at-deckpick${on ? " on" : ""}${d.locked ? " locked" : ""}`}
                   key={d.id}
                   aria-pressed={on}
-                  onClick={() => onToggle(d.id, on)}
+                  disabled={!!d.locked}
+                  onClick={() => !d.locked && onToggle(d.id, on)}
                 >
                   <span className="at-tickbody">
                     <b>{d.title}</b>
-                    <i>{plural(d.cardCount || 0, "card")}</i>
+                    <i>{plural(d.cardCount || 0, "card")}{d.locked ? " · Locked" : ""}</i>
                   </span>
                   {/* What tapping it does, rather than a tick saying what
-                      is already true: the row is the verb. */}
-                  <span className="at-deckmark">{on ? "Added" : "Add"}</span>
+                      is already true: the row is the verb. A locked deck
+                      says so instead, since tapping it does nothing. */}
+                  <span className="at-deckmark">
+                    {d.locked ? <Icon name="lock" size={14} /> : on ? "Added" : "Add"}
+                  </span>
                 </button>
               );
             })}

@@ -156,6 +156,7 @@ const PLACES: Record<string, [string, string]> = {
   CoursesPage: [TEACH, "The Courses tab"],
   CourseSettings: [TEACH, "Course settings"],
   DeckEditor: [TEACH, "Deck settings"],
+  LockMark: [TEACH, "A locked deck's padlock"],
   DeckPicker: [TEACH, "Choosing which decks"],
   CardEditor: [TEACH, "Editing a card"],
   WordEditor: [TEACH, "Editing a card · a word or phrase"],
