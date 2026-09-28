@@ -8789,7 +8789,7 @@ export default function ArabicTrainer() {
      would be the same conversation twice. */
   const answerRepeated =
     !!checked &&
-    (!answerRight || checked.reason === "bare") &&
+    (!answerRight || checked.reason === "bare" || checked.reason === "typo") &&
     !(spec && spec.answerMode === "part") &&
     /* Nor under a grid: every word paired wrong shows its meaning where
        it stands, and the first word's alone would say less. */
@@ -10422,6 +10422,12 @@ export default function ArabicTrainer() {
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
                         <Help data-el="verdict-reason">{verdictText(checked, qLang)}</Help>
+                      )}
+                      {/* Right, and the spelling it should have had is
+                          underneath: one letter out of the English is a
+                          slip, not a miss — see checkEn. */}
+                      {checked.ok && checked.reason === "typo" && (
+                        <Help data-el="verdict-typo">One letter out — counted as right. It is spelt:</Help>
                       )}
                       {/* Said rather than done quietly: the answer was
                           right and the spelling is theirs, but the word

@@ -143,7 +143,20 @@ test("Vietnamese: tone marks behave like harakat; đ is its own letter", () => {
 test("English: leading articles and alternatives are forgiven", () => {
   assert.equal(checkEn("the book", "book").ok, true);
   assert.equal(checkEn("desk", "office / desk").ok, true);
-  assert.equal(checkEn("bok", "book").reason, "near");
+  assert.equal(checkEn("bok", "book").reason, "typo");
+  assert.equal(checkEn("bok", "book").ok, true);
+});
+
+test("English: one letter out is a slip and right; further out, or a short word, is not", () => {
+  assert.deepEqual(checkEn("Tiref", "Tired"), { ok: true, reason: "typo" });
+  assert.deepEqual(checkEn("tird", "tired"), { ok: true, reason: "typo" });
+  assert.deepEqual(checkEn("dsk", "office / desk"), { ok: true, reason: "typo" });
+  /* A swap is two changes, and a short word is one letter from another. */
+  assert.equal(checkEn("tried", "tired").ok, false);
+  assert.equal(checkEn("cut", "cat").ok, false);
+  assert.equal(checkEn("cut", "cat").reason, "near");
+  /* Two letters out of a long word is still only near. */
+  assert.deepEqual(checkEn("understnad", "understand"), { ok: false, reason: "near" });
 });
 
 test("dimValues carries every declared field, including a Vietnamese classifier", () => {
@@ -1049,4 +1062,20 @@ test("a blank that agrees with another takes a verb once per tense, and everythi
   const kept = { ...verb, forms: verb.forms.map((f) => (f.id === "p-i" ? { ...f, lend: false } : f)) };
   assert.equal(beside(kept, kept.forms[1], "verb"), false);
   assert.equal(beside(kept, kept.forms[2], "verb"), true);
+});
+
+test("a verb's cells that read alike in English say who they are about", () => {
+  /* Reported by a learner: "You understand" on both the masculine and the
+     feminine, and a question asking for the feminine said nothing else. */
+  const ar = LANGUAGES["ar-PS"];
+  const you = (/** @type {string} */ col, /** @type {string} */ word, en = "You understand") =>
+    ({ id: `u-${col}`, ar: word, en, lat: "", row: "present", col });
+  const card = { id: "u", ar: "", en: "", name: "to understand", category: "verb",
+    subs: [you("you-m", "بتِفهَم"), you("you-f", "بتِفهَمي"), you("he", "بيِفهَم", "He understands")] };
+  assert.equal(formLabel(you("you-f", "بتِفهَمي"), card, ar), "you (f)");
+  assert.equal(formLabel(you("you-m", "بتِفهَم"), card, ar), "you (m)");
+  /* A cell whose English is its own still names nothing. */
+  assert.equal(formLabel(you("he", "بيِفهَم", "He understands"), card, ar), "");
+  const said = { ...card, subs: [you("you-m", "بتِفهَم", "you (m) understand"), you("you-f", "بتِفهَمي", "you (f) understand")] };
+  assert.equal(formLabel(said.subs[1], said, ar), "");
 });

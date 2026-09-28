@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.272 — 28 September 2026
+
+**A one-letter slip in English counts as right, and a verb's "you" says
+who it is.** Both from learners' reports.
+
+- Answering in English, one letter added, missing or wrong — "Tiref" for
+  "Tired" — is now marked right. The answer screen says "One letter out —
+  counted as right" and shows the spelling. Words shorter than four
+  letters still need to be exact, since one letter there is often a
+  different word, and two letters swapped ("tried" for "tired") still
+  counts as a near miss.
+- Asked for one of a verb's forms, where the card gives two forms the same
+  English — "You understand" for both the masculine and the feminine — the
+  question now says which one it wants, with a tag such as "you (f)".
+  Because the question says so, writing the other form is now marked
+  wrong, with the right one shown. Where a form's English already says who
+  it is about, nothing changes.
+
 ## 0.271 — 28 September 2026
 
 **In matching, a tapped tile's circle fills straight away.**
