@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.276 — 28 September 2026
+
+**Only the Check button checks an answer.**
+
+- Pressing Enter in an answer box — or Go / Return on a phone's keyboard —
+  no longer checks the answer. It was too easy to hit by accident while
+  typing and send a half-written answer to be marked. Tap **Check** when
+  you're ready.
+
 ## 0.275 — 28 September 2026
 
 **Exercises name a form's grammar one way, whatever the card.**

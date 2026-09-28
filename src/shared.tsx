@@ -933,6 +933,9 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
   return (
     <div
       className={`at-minicard${className ? " " + className : ""}`}
+      /* Which card, for a test asking whether a question is about it: the
+         words on the tile are not always on the question. */
+      data-card={card.id || undefined}
       onClick={onClick}
       /*
        * A tile that opens something is something to press, and a keyboard

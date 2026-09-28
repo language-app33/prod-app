@@ -10097,7 +10097,7 @@ export default function ArabicTrainer() {
                     word, a blanked phrase or an audio player depending on
                     the exercise, and sizing that on the words would miss
                     two of the three. */}
-                <div className="at-exercise" data-el="card">
+                <div className="at-exercise" data-el="card" data-card={parentItem ? parentItem.id : undefined}>
                   <p className="at-instruction" data-el="question-instruction">
                     {/* A text is read, not listened in on: its two
                         questions say so in their own words. */}
@@ -10399,8 +10399,15 @@ export default function ArabicTrainer() {
                           readOnly={!!checked}
                           placeholder={spec.placeholder}
                           onChange={(e) => setTyped(e.target.value)}
+                          /* Only the Check button checks. Enter — and a
+                             phone keyboard's Go, which is the same key —
+                             used to, and a learner reaching for a letter
+                             on the keyboard's bottom row sent a half-typed
+                             answer to be marked. The key now does nothing,
+                             and says so: "done" rather than "go". */
+                          enterKeyHint="done"
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" && !checked && typed.trim()) submit();
+                            if (e.key === "Enter") e.preventDefault();
                           }}
                         />
                         )}

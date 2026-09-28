@@ -1073,6 +1073,26 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("a question that is typed into was reached", !!typedField,
     (document.body.textContent || "").slice(0, 90));
 
+  /* Enter does not check an answer: only the button does. A learner's
+     finger on the keyboard's bottom row sent half-typed answers off. */
+  if (typedField) {
+    const win = /** @type {any} */ (document.defaultView);
+    const setValue = (/** @type {string} */ v) => {
+      const setter = must(Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, "value"), "the value descriptor").set;
+      must(setter, "the value setter").call(typedField, v);
+      typedField.dispatchEvent(new win.Event("input", { bubbles: true }));
+    };
+    setValue("half");
+    await sleep(50);
+    typedField.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    await sleep(150);
+    check("pressing Enter in the answer box does not check the answer",
+      !document.querySelector('[data-el="verdict"]'),
+      ((document.querySelector('[data-el="verdict"]') || {}).textContent || "").trim());
+    setValue("");
+    await sleep(50);
+  }
+
   /* Names on the parts of a question and an answer. They are how a change
      gets asked for — "make question-prompt bigger" — so the thing worth
      testing is that they are there, that they mean one element each, and
@@ -3633,9 +3653,16 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const scriptOf = (/** @type {string} */ s) =>
     (s.match(/[؀-ۿݐ-ݿЀ-ӿ]+/) || [""])[0];
   const markedScript = scriptOf(marked);
+  /* By the card each is about, where both say: a listening question shows
+     no script, so the words alone failed this whenever the marked card's
+     first question happened to be heard rather than read. */
+  const markedId = priTile ? priTile.getAttribute("data-card") || "" : "";
+  const askedId = (document.querySelector(".at-exercise") || { getAttribute: () => "" }).getAttribute("data-card") || "";
   check("a marked card opens the very next session",
-    !!markedScript && `${asked} ${answers}`.includes(markedScript),
-    `marked ${markedScript || marked} · asked ${asked.slice(0, 40)} · ${answers.slice(0, 60)}`);
+    markedId && askedId
+      ? markedId === askedId
+      : !!markedScript && `${asked} ${answers}`.includes(markedScript),
+    `marked ${markedScript || marked} (${markedId || "no id"}) · asked ${asked.slice(0, 40)} (${askedId || "no id"}) · ${answers.slice(0, 60)}`);
 
   /* Take the mark off again and the card list agrees. Marked for ever is
      what the setting says it is, so the way out has to work. */
