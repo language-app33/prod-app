@@ -68,7 +68,7 @@ const ICON_NAMES = [
   "back", "save", "folder", "cards", "person", "group", "key", "download",
   "verify", "play", "pause", "view", "select", "school", "copy", "refresh",
   "mic", "remove", "chevronDown", "chevronUp", "menu", "help", "theme",
-  "language", "lock", "image", "camera",
+  "language", "lock", "unlock", "image", "camera",
 ];
 
 /* One list of forms, the card's own word first — a card as the app has

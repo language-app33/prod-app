@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.277 — 28 September 2026
+
+**Lock and unlock several decks at once.**
+
+- Select decks in Teaching > Decks, or in Admin's list of decks, and the
+  bulk actions now include **Lock** and **Unlock** beside **Delete**. The
+  message says how many decks actually changed, since any already locked
+  (or unlocked) are left as they are.
+
 ## 0.276 — 28 September 2026
 
 **Only the Check button checks an answer.**

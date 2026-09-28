@@ -2245,6 +2245,27 @@ export function AdminSpace({ account, languages, onClose }: {
                 bulkActions={[
                   { label: "Add to a course", onClick: () => setDeckAction("add") },
                   { label: "Remove from a course", onClick: () => setDeckAction("remove") },
+                  /* Only the decks that would change are touched, and the
+                     message counts those rather than the selection. */
+                  ...(["lock", "unlock"] as const).map((way) => ({
+                    label: way === "lock" ? "Lock" : "Unlock",
+                    icon: way,
+                    onClick: (ids: string[]) =>
+                      run(
+                        async () => {
+                          const locking = way === "lock";
+                          const change = decks.filter((d) => ids.includes(d.id) && !!d.locked !== locking);
+                          for (const d of change) await API.lockDeck(d.id, locking);
+                          setSelDecks(new Set());
+                          await refresh();
+                          return change.length;
+                        },
+                        (n: number) =>
+                          n
+                            ? `${plural(n, "deck")} ${way === "lock" ? "locked" : "unlocked"}`
+                            : `Nothing to change — they were already ${way === "lock" ? "locked" : "unlocked"}`
+                      ),
+                  })),
                   {
                     label: "Delete",
                     danger: true,
@@ -6715,6 +6736,27 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 bulkActions={[
                   { label: "Add to a course", onClick: () => setDeckAction("add") },
                   { label: "Remove from a course", onClick: () => setDeckAction("remove") },
+                  /* Only the decks that would change are touched, and the
+                     message counts those rather than the selection. */
+                  ...(["lock", "unlock"] as const).map((way) => ({
+                    label: way === "lock" ? "Lock" : "Unlock",
+                    icon: way,
+                    onClick: (ids: string[]) =>
+                      run(
+                        async () => {
+                          const locking = way === "lock";
+                          const change = decks.filter((d) => ids.includes(d.id) && !!d.locked !== locking);
+                          for (const d of change) await API.lockDeck(d.id, locking);
+                          setSelDecks(new Set());
+                          await refresh();
+                          return change.length;
+                        },
+                        (n: number) =>
+                          n
+                            ? `${plural(n, "deck")} ${way === "lock" ? "locked" : "unlocked"}`
+                            : `Nothing to change — they were already ${way === "lock" ? "locked" : "unlocked"}`
+                      ),
+                  })),
                   {
                     label: "Delete",
                     danger: true,
