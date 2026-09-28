@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.270 — 28 September 2026
+
+**Matching no longer shifts the words when you pair them.**
+
+- In the matching exercise, every word and every meaning now shows an
+  empty dashed circle where its number will go. Pairing two tiles fills
+  the circle with the number, so nothing in the tile moves to make room.
+
 ## 0.269 — 27 September 2026
 
 **Card tiles show one answer, not all of them.**

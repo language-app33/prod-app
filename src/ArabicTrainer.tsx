@@ -6330,7 +6330,13 @@ function MatchGrid({
               aria-pressed={heldWord === w.id}
               onClick={() => tapWord(w.id)}
             >
-              {mine ? <span className="at-matchnum">{numberOf(w.id)}</span> : null}
+              {/* Always there, empty until paired: a number arriving in
+                  space nobody kept for it pushed the word along. */}
+              {mine ? (
+                <span className="at-matchnum">{numberOf(w.id)}</span>
+              ) : (
+                <span className="at-matchnum empty" aria-hidden="true" />
+              )}
               <span className="at-matchword">
                 <Arabic text={w.ar} kind="word" lang={lang} />
                 {/* Which form of its card this is, where another form of
@@ -6368,7 +6374,11 @@ function MatchGrid({
               aria-pressed={heldMeaning === at}
               onClick={() => tapMeaning(at)}
             >
-              {owner ? <span className="at-matchnum">{numberOf(owner.id)}</span> : null}
+              {owner ? (
+                <span className="at-matchnum">{numberOf(owner.id)}</span>
+              ) : (
+                <span className="at-matchnum empty" aria-hidden="true" />
+              )}
               {/* The meaning, and — only where two forms of one card are up
                   — which of them it belongs to. Said on this side as well
                   as on the words, because it is the meanings a learner
