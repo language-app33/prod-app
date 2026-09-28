@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.274 — 28 September 2026
+
+**Deck tiles say less twice.**
+
+- A locked deck is marked by its padlock alone: deck tiles and the lists
+  for choosing decks no longer spell out "Locked" beside it. The padlock
+  still says "Locked" when you point at it or use a screen reader.
+- The green or grey dot at the foot of each deck tile is gone. The line
+  beside it already says whether students can see the deck.
+
 ## 0.273 — 28 September 2026
 
 **A one-letter slip in English counts as right, and a verb's "you" says

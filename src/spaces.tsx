@@ -3364,8 +3364,8 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }: {
 function LockMark({ locked }: { locked?: boolean }) {
   if (!locked) return null;
   return (
-    <span className="at-lockmark">
-      <Icon name="lock" size={12} /> Locked ·{" "}
+    <span className="at-lockmark" title="Locked" aria-label="Locked" role="img">
+      <Icon name="lock" size={12} />{" "}
     </span>
   );
 }
@@ -5732,9 +5732,16 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
           title: d.title,
           /* A locked deck is shown, and cannot be ticked: its cards stay
              as they are until someone unlocks it. */
-          note: d.locked
-            ? `${plural(d.cardCount || 0, "card")} · Locked`
-            : `${plural(d.cardCount || 0, "card")}`,
+          note: d.locked ? (
+            <>
+              <span className="at-lockmark" title="Locked" aria-label="Locked" role="img">
+                <Icon name="lock" size={12} />{" "}
+              </span>
+              {plural(d.cardCount || 0, "card")}
+            </>
+          ) : (
+            `${plural(d.cardCount || 0, "card")}`
+          ),
           disabled: !!d.locked,
         }))}
         chosen={pickedDecks}

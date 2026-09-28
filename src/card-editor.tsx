@@ -2027,13 +2027,15 @@ function DeckSwitch({ decks, chosen, onToggle }: {
                 >
                   <span className="at-tickbody">
                     <b>{d.title}</b>
-                    <i>{plural(d.cardCount || 0, "card")}{d.locked ? " · Locked" : ""}</i>
+                    <i>{plural(d.cardCount || 0, "card")}</i>
                   </span>
                   {/* What tapping it does, rather than a tick saying what
                       is already true: the row is the verb. A locked deck
                       says so instead, since tapping it does nothing. */}
                   <span className="at-deckmark">
-                    {d.locked ? <Icon name="lock" size={14} /> : on ? "Added" : "Add"}
+                    {d.locked ? (
+                      <span title="Locked" aria-label="Locked" role="img"><Icon name="lock" size={14} /></span>
+                    ) : on ? "Added" : "Add"}
                   </span>
                 </button>
               );

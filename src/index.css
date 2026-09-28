@@ -1257,9 +1257,6 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 /* Whether a deck is reaching anyone, at a glance. */
 .at-reach { display:flex; align-items:center; gap:8px; margin-top:10px;
   padding-top:10px; border-top:1px solid var(--line); flex-wrap:wrap; }
-.at-reachdot { width:9px; height:9px; border-radius:999px; flex:0 0 auto;
-  background: var(--muted); }
-.at-reachdot.live { background: var(--jade); }
 .at-reachtext { font-size:12px; color: var(--muted); min-width:0; }
 .at-reachtext b { color: var(--ink); font-weight:700; }
 /* A card shown rather than edited: label on the left, value on the right,

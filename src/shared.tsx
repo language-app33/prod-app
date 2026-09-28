@@ -1188,11 +1188,13 @@ export function Tile({ title, meta, onOpen, actions, footer }: {
   );
 }
 
-/* The line under a deck's rule: whether anyone can see it. */
+/* The line under a deck's rule: whether anyone can see it. Said in words
+   alone — a green or grey dot beside them repeated the sentence in a code
+   nobody had been told. `live` is kept on the element for anything that
+   wants to tell the two apart. */
 export function TileNote({ live, children }: { live?: boolean; children?: Node }) {
   return (
-    <div className="at-reach">
-      <span className={`at-reachdot${live ? " live" : ""}`} />
+    <div className={`at-reach${live ? " live" : ""}`}>
       <span className="at-reachtext">{children}</span>
     </div>
   );
