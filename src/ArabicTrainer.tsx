@@ -211,7 +211,8 @@ import {
   passesMade,
   reachedLevel,
   roomForNew,
-  recognised,
+  restingNow,
+  throughDoor,
   familyMaturity,
   standing,
   standings as standingsOf,
@@ -2641,7 +2642,7 @@ function openTypes(it: Form, settings: Settings): string[] {
  * the deck in front of them: the deck is what they chose to look at, the
  * load is what they carry.
  *
- * The front door is words met and not yet recognisable. A word never
+ * The front door is words met and not yet recognised or cleared. A word never
  * touched is *not* in it — it is waiting outside, which is the whole point
  * — so a course of three hundred strangers does not fill the pool and
  * block itself.
@@ -2658,10 +2659,12 @@ export function handCounts(items: Item[], settings: Settings) {
     /* Never met: outside both pools. */
     if (stage === "new") continue;
     if (stage !== "mature") inHand += 1;
-    const known = drillableUnits(it, settings).every(({ unit }) =>
-      recognised(reachedTypes(unit, settings), (t: string) => stateOf(unit, t))
+    /* Over the whole ladder, not the levels reached: cleared is read up
+       all of it, which is what the learner is shown. */
+    const through = drillableUnits(it, settings).every(({ unit }) =>
+      throughDoor(laddered(unit, settings), (t: string) => stateOf(unit, t))
     );
-    if (!known) front += 1;
+    if (!through) front += 1;
   }
   return { front, inHand };
 }
@@ -3109,7 +3112,11 @@ export function buildSession({
     const isNew = units.every(({ unit }) =>
       askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
-    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent, lastSeen };
+    const soonest = dues.length ? Math.min(...dues) : 0;
+    /* Waiting only because it was asked a moment ago — see restingNow. A
+       card the learner asked for never rests. */
+    const resting = !urgent && restingNow(lastSeen, dues);
+    return { it, units, soonest, isNew, urgent, lastSeen, resting };
   });
 
   /* Ordered before anything is filtered, because the filter below keeps
@@ -3139,14 +3146,28 @@ export function buildSession({
    * would throw away the nearest-first reach that a practice session is
    * for.
    */
+  /*
+   * And a card asked in the last half hour rests, behind all of it.
+   *
+   * The rule above never reached the cards being learnt, because they are
+   * nearly always waiting: a retest a minute or ten after the last answer,
+   * or a level that opened with every question on it due at once. So
+   * those went first in every sitting, and a learner who came back three
+   * times in an hour was dealt the same words three times. A resting card
+   * is still dealt — last, and in the order it had — and backlog never
+   * rests: a question that was due before the card was last touched keeps
+   * the card in the first group. See restingNow.
+   */
+  const unrested = candidates.filter((c) => !c.resting);
   const waitingNow = (c: { urgent: boolean; soonest: number }) =>
     c.urgent || dueRank(c.soonest) === 0;
-  const ahead = candidates.filter((c) => !waitingNow(c));
-  candidates = candidates
+  const ahead = unrested.filter((c) => !waitingNow(c));
+  candidates = unrested
     .filter(waitingNow)
     .concat(
       ahead.filter((c) => !justPractised(c.lastSeen)),
-      ahead.filter((c) => justPractised(c.lastSeen))
+      ahead.filter((c) => justPractised(c.lastSeen)),
+      candidates.filter((c) => c.resting)
     );
 
   /*

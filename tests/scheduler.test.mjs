@@ -23,7 +23,6 @@ import {
   MASTERED_DAYS,
   FRONT_DOOR_CAP,
   IN_HAND_CAP,
-  recognised,
   LEARN_STEPS,
   GRADUATE_DAYS,
   EASY_DAYS,
@@ -63,6 +62,10 @@ import {
   dueRank,
   justPractised,
   JUST_PRACTISED,
+  restingNow,
+  recognised,
+  throughDoor,
+  JUST_ASKED,
 } from "../src/scheduler.ts";
 import { EX, TYPES, levelOf } from "../src/languages.ts";
 import { must } from "./helpers.mjs";
@@ -825,6 +828,36 @@ test("a word is recognised when every rung of its first level is mastered", () =
   assert.equal(recognised(TYPES, mixed), true, "the climb does not hold the door");
 });
 
+test("and a word is through the door recognised or cleared, whichever comes first", () => {
+  /* Cleared alone halved what a once-a-day learner met; recognised alone
+     made an evening's clearing buy nothing for four days. */
+  const early = state({ phase: "review", interval: 1, hist: [1] });
+  const solidEarly = state({ phase: "review", interval: 1, hist: [1, 1] });
+  const firstHeld = (/** @type {string} */ t) =>
+    levelOf(t) === 1 ? state({ phase: "review", interval: MASTERED_DAYS, hist: [1] }) : early;
+  assert.equal(throughDoor(TYPES, () => early), false, "neither yet");
+  assert.equal(throughDoor(TYPES, () => solidEarly), true, "cleared tonight, no gap");
+  assert.equal(throughDoor(TYPES, firstHeld), true, "held four days, not cleared");
+  assert.equal(throughDoor([], () => early), true, "nothing to climb holds nothing");
+});
+
+test("a card asked a moment ago rests, even while it is waiting", () => {
+  /* What rotates a learner through what they hold. A card being learnt is
+     nearly always waiting — a retest set by the last answer, or a level
+     that last answer opened — and it used to go first in every sitting
+     for exactly that reason. */
+  assert.equal(restingNow(T - 11 * MIN, [T - MIN], still), true, "a retest the last answer set");
+  assert.equal(restingNow(T - 5 * MIN, [0, T + DAY], still), true, "a level the last answer opened");
+  assert.equal(restingNow(T - JUST_ASKED, [0], still), false, "the rest has an end");
+  assert.equal(restingNow(0, [0], still), false, "a card never asked has nothing to rest from");
+});
+
+test("but backlog never rests", () => {
+  /* A question due since yesterday is due whatever else on the card was
+     answered at breakfast: the schedule set it, not the last sitting. */
+  assert.equal(restingNow(T - 5 * MIN, [T - DAY, T + DAY], still), false);
+});
+
 test("a family is as hard as its hardest form", () => {
   const easy = state({ right: 10, wrong: 0, ease: 2.5 });
   const hard = state({ right: 1, wrong: 9, ease: 1.4, lapses: 4, skips: 3 });
@@ -1448,8 +1481,8 @@ test("and the date stands however many times it is answered early", () => {
      the next date to *now* plus the gap, so somebody practising every
      twenty minutes pushed the card ahead of themselves all day and it
      never once fell due. Its gap could then only ever grow from the floor
-     of one day, which tops out at three — under the four-day bar that says
-     a word is recognised, so no word ever left the front door and no new
+     of one day, which tops out at three — under the four-day bar that then
+     let a word out of the front door, so no word ever left it and no new
      word could arrive. */
   let s = waited(3, 0);
   const wasDue = s.due;

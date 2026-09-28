@@ -64,19 +64,22 @@ export const MASTERED_DAYS = 4;
  * meant ten short sittings were thirty new words and one long sitting was
  * three, for the same work.
  *
- * **The front door** is words the learner cannot yet recognise: met, and
- * short of a four-day gap on the first rung of the ladder. It is what
- * stops a new course arriving all at once, and it is small because these
- * are the words that cost the most to hold — nothing about them is known
- * yet, and every one of them is a stranger.
+ * **The front door** is words the learner has met and cannot yet
+ * recognise *or* has not yet cleared, whichever they reach first — see
+ * `throughDoor`. It is what stops a new course arriving all at once, and
+ * it is small because these are the words that cost the most to hold —
+ * nothing about them is settled yet, and most of them are strangers.
  *
  * **In hand** is everything not yet fully settled, at any height of the
  * ladder. It is the ceiling on total load, so a short session is never
  * spread so thin across half-learnt words that none of them moves.
  *
- * A word leaves the front door early, as soon as it is recognisable, and
- * goes on climbing against the second cap without blocking a newcomer
- * behind it. That is the difference between these two and the pair they
+ * A word leaves the front door early — at a four-day gap on its first
+ * level, or as soon as it is cleared, which effort buys and so a keen
+ * evening makes room — and goes on climbing against the second cap
+ * without blocking a newcomer behind it. It used to wait for the gap
+ * alone, and a learner who cleared ten words tonight was dealt those ten
+ * and nothing else until the calendar caught up. That is the difference between these two and the pair they
  * replace: the old ones both counted a word as "in learning" whenever any
  * exercise on it was unfinished — including one that had opened that
  * morning and never been asked — so a word held its place for its whole
@@ -234,6 +237,42 @@ export const JUST_PRACTISED = 120 * MIN;
  */
 export function justPractised(lastSeen: number, clock: Clock = REAL_CLOCK): boolean {
   return !!lastSeen && timeOf(clock) - lastSeen < JUST_PRACTISED;
+}
+
+/*
+ * How long a card rests after it was asked, even when it is waiting.
+ *
+ * The window above only orders what is *not* due, and a card being learnt
+ * is almost never that: a right answer early on brings it back in a minute
+ * and then ten, a wrong one in minutes, and every level it opens is a row
+ * of questions waiting from the moment they open. So the rule meant to
+ * rotate a learner through what they hold passed over exactly the cards
+ * they were holding, and three sittings in an hour were the same nine
+ * words three times.
+ *
+ * Half an hour, and it is a *rest* rather than a demotion: the card still
+ * comes, behind everything else that could be asked, and on a collection
+ * of ten words it comes anyway. What it never holds back is backlog —
+ * see `restingNow`.
+ */
+export const JUST_ASKED = 30 * MIN;
+
+/**
+ * Whether a card is waiting only because it was asked a moment ago.
+ *
+ * Asked inside the window, and nothing on it was due before that asking —
+ * so what makes it waiting is a retest the asking set, or a level the
+ * asking opened, whose questions are due the instant they exist. A
+ * question that was already due when the card was last touched, and still
+ * is, is work the schedule set on its own, and it keeps its place however
+ * recently some other question on the card was answered.
+ *
+ * `dues` is every open question's due time — nought for one never asked.
+ */
+export function restingNow(lastSeen: number, dues: number[], clock: Clock = REAL_CLOCK): boolean {
+  const at = timeOf(clock);
+  if (!lastSeen || at - lastSeen >= JUST_ASKED) return false;
+  return !dues.some((d) => d > 0 && d <= at && d <= lastSeen);
 }
 
 /* ------------------------------------------------------------------
@@ -526,8 +565,8 @@ export function missedTwice(s: ExerciseState): boolean {
  * under it ran end to end, so the fastest a card could be learnt was
  * eight days however hard anybody tried. The gap has not gone anywhere —
  * it is what `passes` below now asks, after the climb rather than during
- * it, and it is still what lets a new word out of the front door. See
- * `recognised`.
+ * it, and it is one of the two ways out of the front door; the other is
+ * this rule, run up the whole ladder. See `throughDoor`.
  */
 export function solid(s: ExerciseState): boolean {
   const h = s.hist || [];
@@ -836,10 +875,14 @@ export function learnt(
 /**
  * Whether the learner can recognise this word yet.
  *
- * Every rung of its first level mastered — a four-day gap, which is the
- * same bar that opens the level above it, so "learnt" means one thing in
- * this app rather than two. A word that carries no first-level material at
- * all has nothing to recognise and is through the door by definition.
+ * Every rung of its first level mastered — a four-day gap. It is one of
+ * the two ways out of the front door, and the one a learner who sits down
+ * once a day mostly takes: at two questions a card a sitting, clearing a
+ * whole ladder takes them longer than four days. The other way out is
+ * `cleared`, which is bought with effort, and is the one a keen evening
+ * takes. Whichever comes first. A word that carries no first-level
+ * material at all has nothing to recognise and is through the door by
+ * definition.
  */
 export function recognised(
   types: string[],
@@ -854,12 +897,35 @@ export function recognised(
 }
 
 /**
+ * Whether a word is through the front door: recognised or cleared,
+ * whichever came first.
+ *
+ * Cleared alone was tried and measured, and it halved what a once-a-day
+ * learner met in ninety days, because for them the four-day gap on the
+ * first level comes long before the top of the ladder. Recognised alone
+ * was what stood here before, and a learner who cleared ten words in an
+ * evening met nothing new for four days, with every session in between
+ * dealt the same ten. Either one lets a word through, so nobody is paced
+ * slower than they were and effort is no longer wasted.
+ *
+ * `types` is the form's whole ladder, not just the levels it has reached,
+ * because cleared is read over all of it.
+ */
+export function throughDoor(
+  types: string[],
+  stateOf: (type: string) => ExerciseState | null | undefined,
+): boolean {
+  if (!types.length) return true;
+  return cleared(types, stateOf) || recognised(types, stateOf);
+}
+
+/**
  * How many new words there is room for.
  *
  * The smaller of the two remainders, and nothing else: no per-session
  * allowance, no per-day allowance. See the caps above for why.
  *
- * `front` is words met and not yet recognisable; `inHand` is everything
+ * `front` is words met and not yet through the door; `inHand` is everything
  * not yet fully settled. Both are counted over everything the learner
  * holds in this language, not over the deck in front of them — the deck is
  * what they chose to look at, the load is what they carry.

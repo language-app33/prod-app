@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.272 — 28 September 2026
+## 0.273 — 28 September 2026
 
 **A one-letter slip in English counts as right, and a verb's "you" says
 who it is.** Both from learners' reports.
@@ -25,6 +25,21 @@ who it is.** Both from learners' reports.
   Because the question says so, writing the other form is now marked
   wrong, with the right one shown. Where a form's English already says who
   it is about, nothing changes.
+
+## 0.272 — 28 September 2026
+
+**Fewer of the same cards over and over, and new words sooner for anyone who puts the work in.**
+
+- A card you were asked in the last half hour now waits its turn behind
+  the rest of what you are learning, even when it is due for a quick
+  retest. Three sittings in an hour are no longer the same nine words
+  three times. It still comes up if there is nothing else to ask, and
+  anything genuinely overdue still comes first.
+- A new word now arrives as soon as you clear one: once a word is up
+  every level, it stops holding a place among the ten you are still
+  getting to know. It used to wait four days whatever you did. The
+  four-day route still works too, so a word frees its place by whichever
+  comes first, and nobody gets new words more slowly than before.
 
 ## 0.271 — 28 September 2026
 
