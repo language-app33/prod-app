@@ -3261,6 +3261,10 @@ body.at-screening .at-chromebar { display:none; }
 /* The same circle before a pairing, empty and dashed, so pairing fills a
    place already kept rather than moving the word over to make one. */
 .at-matchnum.empty { background:none; border-style:dashed; }
+/* And filled the moment its tile is tapped, in the colour of a tile held:
+   the circle says "this one is waiting for its other half" before there
+   is a number to put in it. */
+.at-matchtile.on .at-matchnum.empty { background: var(--brass); border-color: var(--brass); border-style:solid; }
 .at-matchtile.right .at-matchnum { border-color: var(--jade-soft); color: var(--jade); }
 .at-matchtile.wrong .at-matchnum { border-color: var(--rose-soft); color: var(--rose); }
 /* What a tile stacks: the word, whichever of its form's grammar is worth

@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.271 — 28 September 2026
+
+**In matching, a tapped tile's circle fills straight away.**
+
+- Tapping a word or a meaning now fills its empty circle in the same
+  colour as the tile's highlight, so it is clear which tile is waiting for
+  its match. Once the pair is made, the circle shows their number, as
+  before. Tapping the tile again empties it.
+
 ## 0.270 — 28 September 2026
 
 **Matching no longer shifts the words when you pair them.**
