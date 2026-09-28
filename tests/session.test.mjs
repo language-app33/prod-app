@@ -1368,11 +1368,17 @@ test("a deck with pictures deals the picture exercises, from the first level up"
     ...it,
     forms: [{ ...it.forms[0], recs: [{ id: `rec${i}` }], images: [String(i).repeat(64)] }],
   }));
-  const got = deal(items);
-  const types = got.exercises.map((/** @type {any} */ x) => String(x.type).split("@")[0]);
-  assert.ok(types.includes("rec2img"), `dealt: ${types.join(" ")}`);
+  /* Over several sessions, not one. Which of a new card's first-level
+     exercises it is dealt is shuffled, so a single session of five cards
+     leaves the picture out about one time in thirty-six — which made this
+     fail now and then with nothing wrong. Twenty sessions all missing it
+     would be a real fault; the harder two must be absent from every one. */
+  const sessions = Array.from({ length: 20 }, () =>
+    deal(items).exercises.map((/** @type {any} */ x) => String(x.type).split("@")[0]));
+  assert.ok(sessions.some((types) => types.includes("rec2img")),
+    `dealt: ${sessions.slice(0, 3).map((t) => t.join(" ")).join(" | ")}`);
   /* Not the harder two yet: nothing below them is known. */
-  assert.ok(!types.includes("img2ar"), "writing from a picture waits for its level");
+  assert.ok(sessions.every((types) => !types.includes("img2ar")), "writing from a picture waits for its level");
 });
 
 test("a card without a picture is never dealt one of the picture exercises", () => {

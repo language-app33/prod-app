@@ -254,9 +254,14 @@ test("and the front door bounds a day however many sittings it holds", () => {
   const once = live({ cards: courseOf(300), days: 1, sessionsPerDay: 1 });
   const often = live({ cards: courseOf(300), days: 1, sessionsPerDay: 10 });
   console.log(`    in one day: one sitting met ${once.met}, ten sittings met ${often.met}`);
+  /* Plus whatever was cleared that day: since 0.272 a word cleared leaves
+     the front door at once and lets the next one in, so a keen first day
+     can meet an eleventh. What may never happen is more than the front
+     door's worth being learnt at once — see the test after this one. */
   assert.ok(
-    often.met <= FRONT_DOOR_CAP,
-    `ten sittings met ${often.met} words, past a front door of ${FRONT_DOOR_CAP}`,
+    often.met <= FRONT_DOOR_CAP + often.cleared,
+    `ten sittings met ${often.met} words, past a front door of ${FRONT_DOOR_CAP} ` +
+      `and the ${often.cleared} cleared`,
   );
 });
 
@@ -275,7 +280,9 @@ test("neither pool is ever exceeded, however hard the learner goes", () => {
 
 test("a course arrives gradually rather than all at once", () => {
   const first = live({ cards: courseOf(300), days: 1, sessionsPerDay: 10, budget: 20 });
-  assert.ok(first.met <= FRONT_DOOR_CAP, `${first.met} words on the first day`);
+  /* A cleared word lets the next in the same day; see the test above. */
+  assert.ok(first.met <= FRONT_DOOR_CAP + first.cleared,
+    `${first.met} words on the first day, ${first.cleared} of them cleared`);
   assert.ok(first.met >= 5, `only ${first.met} words on a whole first day`);
 });
 
