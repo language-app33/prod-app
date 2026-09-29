@@ -99,6 +99,59 @@ test("a card with nothing to alternate with is still dealt", () => {
   );
 });
 
+/** Any two questions side by side of the same exercise. */
+const sameTypeRunning = (/** @type {any[]} */ list) =>
+  list.some((/** @type {any} */ x, /** @type {number} */ i) => i > 0 && x.type === list[i - 1].type);
+
+test("a card with more questions than the rest is not left piled at the end", () => {
+  /*
+   * The fault the greedy pass had. A verb bringing two of its forms has
+   * four questions to everybody else's two; taking the first question that
+   * differed spent the other cards early and left the verb's last two
+   * standing together at the end. Planned as a whole it fits.
+   */
+  const list = [
+    q("a", "en2ar"), q("v", "tr2ar"), q("v", "listen"), q("c", "listen"),
+    q("a", "ar2en"), q("v", "ar2en"), q("v", "en2ar"), q("c", "tr2ar"),
+  ];
+  const got = varyTypes(list);
+  assert.equal(got.length, list.length, "nothing is lost or invented");
+  assert.equal(backToBack(got), false, `same card twice running: ${ids(got)}`);
+  assert.equal(sameTypeRunning(got), false, `same exercise twice running: ${got.map((/** @type {any} */ x) => x.type)}`);
+});
+
+test("no two questions running are the same exercise, where the material allows it", () => {
+  /* Taking the first question that differed put the two en2ar together. */
+  const list = [q("a", "ar2en"), q("b", "en2ar"), q("a", "en2ar"), q("b", "listen")];
+  const got = varyTypes(list);
+  assert.equal(sameTypeRunning(got), false, `same exercise twice running: ${got.map((/** @type {any} */ x) => x.type)}`);
+  assert.equal(backToBack(got), false, `same card twice running: ${ids(got)}`);
+});
+
+test("a grid counts as a question about every word standing in it", () => {
+  const grid = { id: "a", type: "match", subId: null, mates: [{ id: "b", subId: null }] };
+  const list = [grid, q("b", "ar2en"), q("c", "en2ar"), q("d", "tr2ar")];
+  const got = varyTypes(list);
+  const at = got.indexOf(grid);
+  assert.notEqual(got[at + 1]?.id, "b", `a word in the grid asked straight after it: ${ids(got)}`);
+  assert.notEqual(got[at - 1]?.id, "b", `a word in the grid asked straight before it: ${ids(got)}`);
+});
+
+test("the queue's own order is kept wherever the rules allow", () => {
+  /* Easiest first, and a card the learner asked for ahead of it all: the
+     order only turns aside where it has to. */
+  const list = [q("a", "ar2en"), q("b", "en2ar"), q("c", "tr2ar"), q("d", "listen")];
+  assert.deepEqual(ids(varyTypes(list)), "a b c d");
+});
+
+test("a retry does not land beside a question of its own exercise", () => {
+  const list = [q("a", "en2ar"), q("b", "ar2en"), q("c", "tr2ar"), q("d", "en2ar"), q("e", "listen")];
+  const got = requeueMissed(list, 1, list[0]);
+  assert.equal(got.length, 6);
+  assert.equal(sameTypeRunning(got.slice(1)), false, `same exercise twice running: ${got.map((/** @type {any} */ x) => x.type)}`);
+  assert.equal(backToBack(got), false, `same card twice running: ${ids(got)}`);
+});
+
 test("an empty queue comes back empty", () => {
   assert.deepEqual(varyTypes([]), []);
 });

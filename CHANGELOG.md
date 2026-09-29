@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.279 — 29 September 2026
+
+**No more of the same card, or the same exercise, twice in a row.**
+
+- A session is now put in order as a whole, so two questions in a row are
+  never about the same card — including two different forms of one word, or
+  a word you just matched in a grid. Before, a card with more questions than
+  the rest often ended up with two of them back to back near the end.
+- New rule: two questions in a row are never the same kind of exercise.
+- Both rules also hold when a missed question comes back, and when questions
+  are swapped out mid-session (for example after switching sound off).
+- The only exception is when a session's material makes it impossible — say,
+  a single card, or weak-skills practice on just one kind of exercise. Then
+  the order bends as little as it can, keeping cards apart first. No question
+  is ever dropped to keep a rule.
+
 ## 0.278 — 28 September 2026
 
 **Approve or strike many sentences at once.**

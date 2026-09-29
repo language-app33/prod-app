@@ -132,7 +132,15 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   picture, and the counts behind it live a tab away.
 - **The shape of a session is the app's to decide, not the learner's.**
   Eighteen questions; each form asked two ways where its data allows; at
-  most two forms of any one card; easiest first. Cards are taken in the order they fell due, with chance between
+  most two forms of any one card; easiest first; and never two questions
+  running about the same card or of the same exercise. That order is
+  planned as a whole, by a search that keeps to easiest-first wherever it
+  can — a greedy pass left a card with more questions than the rest piled
+  at the end, beside itself — and bends, card rule last, only where the
+  material allows no clean order. `varyTypes` and `mayFollow`; a grid
+  counts as a question about every word in it, and the retry and the
+  mid-session swap in `requeueMissed` and `requeueUnaskable` keep the same
+  two rules. Cards are taken in the order they fell due, with chance between
   everything the due list calls equal, and nothing gathers similar words
   together.
 

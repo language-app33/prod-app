@@ -2414,6 +2414,7 @@ export function requeueUnaskable(exercises: Question[], from: number, items: Ite
   for (const ex of exercises) note(ex, ex.type);
 
   const tail: Question[] = [];
+  let swapped = false;
   for (const ex of exercises.slice(from)) {
     const resolved = resolveUnit(items, ex);
     /* A card that has gone from under the queue — withdrawn mid-session —
@@ -2450,8 +2451,18 @@ export function requeueUnaskable(exercises: Question[], from: number, items: Ite
     const ctx = specOf(pick).needs.includes("contexts") ? pickContext(resolved.unit, pick) : null;
     const { ctx: _dropped, ...rest } = ex;
     tail.push({ ...rest, type: pick, ...(ctx ? { ctx: ctx.id } : null) });
+    swapped = true;
   }
-  return exercises.slice(0, from).concat(tail);
+  /* A swap can stand a question beside one of its own exercise, or a card
+     that went take away what stood between two about another — so what is
+     left is put back in order against the last question asked. Only when
+     something changed: the common case leaves the queue exactly as it was. */
+  const changed = swapped || tail.length !== exercises.length - from;
+  if (!changed) return exercises.slice(0, from).concat(tail);
+  /* The question on screen stays where it is if it survived untouched. */
+  const keep = tail[0] === exercises[from] ? 1 : 0;
+  const settled = exercises.slice(0, from).concat(tail.slice(0, keep));
+  return settled.concat(varyTypes(tail.slice(keep), settled[settled.length - 1] || null));
 }
 
 /* Which exercise types this card's data can support.
@@ -2883,14 +2894,18 @@ const MAX_DIALOG_LINES = 2;
  * something to stand between.
  */
 export function requeueMissed(list: Question[], from: number, ex: Question): Question[] {
-  const clashes = (q: Question | undefined) => !!q && q.id === ex.id;
   const put = (at: number) => list.slice(0, at).concat([{ ...ex }], list.slice(at));
-  /* The back of the queue, then forward off any neighbour about the same
-     card — both sides, because stopping in front of one is as bad as
-     stopping behind it. Never as far as `from`: the question there is the
-     miss itself, still on the screen. */
-  for (let at = list.length; at > from; at -= 1) {
-    if (!clashes(list[at - 1]) && !clashes(list[at])) return put(at);
+  /* The back of the queue, then forward off any neighbour it may not stand
+     beside — about the same card, or the same exercise — on both sides,
+     because stopping in front of one is as bad as stopping behind it. Never
+     as far as `from`: the question there is the miss itself, still on the
+     screen. The exercise is the rule that gives way first, as it does when
+     the queue is built. */
+  const clean = (at: number) => mayFollow(list[at - 1], ex) && mayFollow(ex, list[at]);
+  const apart = (at: number) =>
+    [list[at - 1], list[at]].every((q) => !q || !cardsIn(q).some((id) => cardsIn(ex).includes(id)));
+  for (const ok of [clean, apart]) {
+    for (let at = list.length; at > from; at -= 1) if (ok(at)) return put(at);
   }
   /* Nowhere clean — what is left is the card's own questions, or there is
      nothing left at all. The end, which is where it used to go. */
@@ -2936,34 +2951,107 @@ function hasRecentMistake(unit: Form, settings: Settings) {
   return false;
 }
 
+/* Every card a question is about: its own, and in a grid every word
+   standing in it too, since each of those is asked there as well. */
+function cardsIn(q: Question): string[] {
+  return q.mates ? [q.id, ...q.mates.map((m) => m.id)] : [q.id];
+}
+
+/* May `b` be asked straight after `a`? Not about any card `a` was about,
+   and not the same exercise. */
+export function mayFollow(a: Question | null | undefined, b: Question | null | undefined): boolean {
+  if (!a || !b) return true;
+  if (a.type === b.type) return false;
+  const was = cardsIn(a);
+  return !cardsIn(b).some((id) => was.includes(id));
+}
+
 /*
- * Keep consecutive questions from being about the same card, and from
- * sharing an exercise type, where the material allows both.
+ * Two rules for the order of a session: no two questions running about the
+ * same card, and no two running of the same exercise.
  *
- * A greedy pass, and the order of its fallbacks is the whole of it. It used
- * to ask for a different type first and a different card only as a bonus,
- * so where it could not have both it took another angle on the word just
- * asked over a different word asked the same way — and "the same card twice
- * running" is the thing a learner notices and complains about, while "two
- * translations in a row" is barely a texture. The card comes first now, and
- * the type is what gives way.
+ * It used to be a greedy pass — take the first question that differs from
+ * the one before — and that is exactly what broke the first rule. A greedy
+ * pass spends the other cards early and leaves whatever card has the most
+ * questions (a verb bringing two of its forms, say) piled at the end, where
+ * they can only stand next to each other: in a simulation of ordinary
+ * sessions about four in ten ended with one card twice running when an
+ * order without it existed. So the whole order is planned instead: a search
+ * that tries the queue's own order first (easiest first, a card the learner
+ * asked for ahead of all of it) and turns aside only where following it
+ * would leave the rest with no way to be kept apart. `prev` is a question
+ * already asked, for when only the tail of a session is being put in order.
+ *
+ * Where the material cannot keep both rules — one card and nothing else, a
+ * weak-skills session all of one exercise — the search gives up on a
+ * budget and the old greedy pass deals it, bending as little as it can,
+ * the card first: a question is never dropped to keep a rule.
  */
-export function varyTypes(list: Question[]): Question[] {
+export function varyTypes(list: Question[], prev: Question | null = null): Question[] {
+  const n = list.length;
+  if (n < 2 && !prev) return list.slice();
+
+  /* How many of each card and each exercise are left, for the pruning: a
+     kind that holds more than half of what is left, rounded up, cannot be
+     kept apart — and none of it may come first after one of its own. */
+  const cardLeft: Map<string, number> = new Map();
+  const typeLeft: Map<string, number> = new Map();
+  const bump = (m: Map<string, number>, k: string, by: number) => m.set(k, (m.get(k) || 0) + by);
+  for (const q of list) {
+    bump(cardLeft, q.id, 1);
+    bump(typeLeft, q.type, 1);
+  }
+  const fits = (left: number, last: Question | null) => {
+    for (const [k, c] of cardLeft) {
+      if (c > Math.ceil(left / 2)) return false;
+      if (last && c > Math.floor(left / 2) && cardsIn(last).includes(k)) return false;
+    }
+    for (const [k, c] of typeLeft) {
+      if (c > Math.ceil(left / 2)) return false;
+      if (last && c > Math.floor(left / 2) && last.type === k) return false;
+    }
+    return true;
+  };
+
+  const used = new Array(n).fill(false);
   const out: Question[] = [];
+  let budget = 200 * n + 1000;
+  const search = (last: Question | null): boolean => {
+    if (out.length === n) return true;
+    if (budget-- <= 0) return false;
+    for (let i = 0; i < n; i++) {
+      if (used[i] || !mayFollow(last, list[i])) continue;
+      const q = list[i];
+      used[i] = true;
+      out.push(q);
+      bump(cardLeft, q.id, -1);
+      bump(typeLeft, q.type, -1);
+      if (fits(n - out.length, q) && search(q)) return true;
+      bump(cardLeft, q.id, 1);
+      bump(typeLeft, q.type, 1);
+      out.pop();
+      used[i] = false;
+      if (budget <= 0) return false;
+    }
+    return false;
+  };
+  if (fits(n, prev) && search(prev)) return out;
+
+  /* No clean order, or none found in time. */
+  const dealt: Question[] = [];
   const rest = list.slice();
-  let prevType: string | null = null;
-  let prevId: string | null = null;
+  let last = prev;
+  const sameCard = (a: Question | null, b: Question) => !!a && cardsIn(b).some((id) => cardsIn(a).includes(id));
   while (rest.length) {
-    let pick = rest.findIndex((e) => e.id !== prevId && e.type !== prevType);
-    if (pick === -1) pick = rest.findIndex((e) => e.id !== prevId);
-    if (pick === -1) pick = rest.findIndex((e) => e.type !== prevType);
+    let pick = rest.findIndex((e) => mayFollow(last, e));
+    if (pick === -1) pick = rest.findIndex((e) => !sameCard(last, e));
+    if (pick === -1) pick = rest.findIndex((e) => !last || e.type !== last.type);
     if (pick === -1) pick = 0;
     const [e] = rest.splice(pick, 1);
-    out.push(e);
-    prevType = e.type;
-    prevId = e.id;
+    dealt.push(e);
+    last = e;
   }
-  return out;
+  return dealt;
 }
 
 /*
