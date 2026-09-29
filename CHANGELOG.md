@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.280 — 29 September 2026
+
+**If you practise a lot, you can now hold more words at once.**
+
+- The app used to let you work on at most 60 words that were not yet fully
+  learnt, however much you practised. That suits one session a day. At ten
+  or twenty sessions a day it meant the same 60 words came round two or
+  three times a day, and once you reached 60, new words stopped for about
+  two weeks.
+- That limit now grows with how much you actually practise, averaged over
+  the last week — about one word in hand for every word a day of yours
+  reaches, up to 200. Practise less and it shrinks back on its own.
+- For someone doing fifteen sessions a day, new words now keep arriving
+  (the longest gap with nothing new went from about eleven days to two),
+  and about a fifth more words are met in the first two months.
+- If you practise once or twice a day, nothing changes: your limit stays
+  at 60.
+
 ## 0.279 — 29 September 2026
 
 **No more of the same card, or the same exercise, twice in a row.**

@@ -253,7 +253,20 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   whole climb and the pool never drained. The measured rate was about one
   new word every four days.
 
-  The numbers are `FRONT_DOOR_CAP` and `IN_HAND_CAP` in
+  **The second pool grows with how much the learner practises.** Sixty
+  suits somebody who sits down once a day, whose day reaches about nine
+  words; somebody sitting down fifteen times reaches well over a hundred,
+  and out of a fixed sixty that was every word two or three times a day
+  and then a fortnight with nothing new while the first ones matured. So
+  the pool is one word for every word a typical day reaches — questions a
+  day, averaged over the last week off the activity log, over the two
+  ways a form is asked — never under sixty and never over two hundred.
+  `inHandCap` and `typicalDay` in `src/scheduler.ts`, `inHandFor` in
+  `src/ArabicTrainer.tsx`. The front door does not grow with it, and for
+  that same learner it is now what holds the dealing near two a word a
+  day; widening it is a separate decision.
+
+  The numbers are `FRONT_DOOR_CAP`, `IN_HAND_CAP` and `IN_HAND_MAX` in
   `src/scheduler.ts`, and they were measured rather than chosen:
   `tests/pace.test.mjs` plays out a simulated learner and reports what a
   course costs in days. Change one and run it.

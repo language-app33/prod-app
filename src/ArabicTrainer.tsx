@@ -212,6 +212,8 @@ import {
   passesMade,
   reachedLevel,
   roomForNew,
+  inHandCap,
+  typicalDay,
   restingNow,
   throughDoor,
   familyMaturity,
@@ -2851,6 +2853,20 @@ const SESSION_SIZE = 18;
 const PER_UNIT = 2;
 
 /*
+ * How many words may be in hand for somebody whose typical day answers
+ * `perDay` questions.
+ *
+ * A form is asked PER_UNIT ways a sitting, so a day of `perDay` questions
+ * reaches about `perDay / PER_UNIT` words, and the pool is sized to that:
+ * each word a day's practice holds is met about once, rather than the same
+ * sixty two or three times over. Nobody is given less than the fixed
+ * sixty — see `inHandCap`. Exported for the pace simulation.
+ */
+export function inHandFor(perDay?: number): number {
+  return inHandCap((perDay || 0) / PER_UNIT);
+}
+
+/*
  * How many forms of one card a session will take.
  *
  * Two, and it is the other half of the repetition fix. A verb lays out
@@ -3136,6 +3152,7 @@ export function buildSession({
   practice,
   includeAll,
   budget: budgetIn,
+  perDay,
   systems,
 }: {
   items: Item[];
@@ -3144,6 +3161,13 @@ export function buildSession({
   practice?: boolean;
   includeAll?: boolean;
   budget?: number;
+  /**
+   * Questions this learner answers on a typical day — `typicalDay` over
+   * the activity log. It sizes how many words may be in hand at once (see
+   * `inHandFor`); left out, it is the fixed sixty that suits somebody who
+   * sits down once a day.
+   */
+  perDay?: number;
   /**
    * The teachers' number systems, for the skills among the cards.
    *
@@ -3307,7 +3331,7 @@ export function buildSession({
      * words hold their place and nothing new arrives, which is the same
      * protection without a rule of its own to keep in step.
      */
-    const room = roomForNew(handCounts(items, settings));
+    const room = roomForNew(handCounts(items, settings), inHandFor(perDay));
     let newSeen = 0;
     candidates = candidates.filter((c) => {
       /* Except one the learner asked for by name. Both rules above are the
@@ -7685,6 +7709,10 @@ export default function ArabicTrainer() {
      pressed the button on, and the screen they were looking at it from. */
   const [trialBack, setTrialBack] = useState<any>(null);
   const items = data.items;
+  /* Questions answered on a typical recent day, which sizes how many words
+     may be in hand — see inHandFor. Read off the log every answer already
+     writes, so it follows the learner without anything new to store. */
+  const perDay = useMemo(() => typicalDay(data.log), [data.log]);
   /* What the question machinery reads: the device's cards, plus anything
      borrowed. Everything else in the app reads `items`, because nothing
      else should see a card that is not really here. */
@@ -7848,9 +7876,9 @@ export default function ArabicTrainer() {
          of them — the same reckoning buildSession does, so the two cannot
          come to disagree. */
       const fresh = pool.filter((it) => !waiting(it, false) && waiting(it, true)).length;
-      return met + Math.min(fresh, roomForNew(handCounts(items, settings)));
+      return met + Math.min(fresh, roomForNew(handCounts(items, settings), inHandFor(perDay)));
     },
-    [settings, items]
+    [settings, items, perDay]
   );
 
   /*
@@ -8328,7 +8356,7 @@ export default function ArabicTrainer() {
   }
 
   function begin(practice?: boolean) {
-    const built = buildSession({ items: shown, settings, inDeck, practice, systems });
+    const built = buildSession({ items: shown, settings, inDeck, practice, perDay, systems });
     if (!built.exercises.length) {
       /* This used to return in silence, which reads as a broken button. It
          mattered little when the only way to get here was a card list that

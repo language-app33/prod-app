@@ -3779,3 +3779,56 @@ without a list of default values to maintain.
 same form can read "plural" on one card and "feminine plural" on another.
 That is the point — it is the answer to "which of these is wanted?" — but
 it means a label cannot be computed from a form alone.
+
+---
+
+## Words in hand grow with how much the learner practises
+
+**29 September 2026** · `src/scheduler.ts` (`inHandCap`, `typicalDay`,
+`roomForNew`, `IN_HAND_MAX`, `PRACTICE_WINDOW_DAYS`), `src/ArabicTrainer.tsx`
+(`inHandFor`, `buildSession`, `countReady`), `tests/pace.test.mjs`
+
+The owner practises ten to twenty times a day and kept seeing the same
+cards. The session builder was not the cause. The ceiling of sixty words
+in hand was: a word leaves it only on reaching a three-week gap, a gap
+grows only when a card is answered on the day it falls due, and an early
+answer is counted and moves nothing — deliberately. So the pool drains at
+calendar speed however much anybody practises, and a day of fifteen
+sittings, which deals about 135 cards, dealt them out of the same sixty.
+The pace simulation, run at fifteen sittings a day on a 400-word course,
+showed each card dealt 2.2 times a day once the pool had filled, and
+eleven days in a row with no new word.
+
+**The pool is sized to what a day of this learner's reaches.** Questions
+answered on a typical day — the last seven days of the activity log, idle
+days as nought, days before the first one logged not counted — over
+`PER_UNIT`, the two ways a form is asked in a sitting. One word in hand for
+each, never under the sixty that was measured for a once-a-day learner and
+never over `IN_HAND_MAX`, two hundred. The log was already written on every
+answer and already merged across devices, so nothing new is stored.
+
+**Measured, days 31 to 60 of fifteen sittings a day:** each card dealt 2.2
+times a day became 1.9 to 2.0; the longest run with nothing new went from
+eleven days to two; words met in sixty days went from 86 to about 103. A
+once-a-day learner's allowance is exactly sixty, as before, and every
+existing pace test passes unchanged.
+
+**What it does not fix.** Most of what a keen learner's day still repeats
+is the front door — the ten words still being got to know — which stays
+full for them and lets a newcomer in only as each one clears. About 85% of
+their deals are cards asked before they are due. Scaling the front door in
+the same proportion was tried: 1.6 a card a day and 138 words in sixty
+days. It is left out because it changes how many *strangers* a learner
+holds at once, which is a teaching decision rather than a load one.
+
+**The simulation now builds sessions at the simulated moment.** It used to
+build them against the real clock while dating the cards to its own
+calendar, so every card looked overdue and the resting rules never
+applied. Every figure it prints is now what a learner at that moment would
+be dealt; the existing tests' figures moved a little and all still pass.
+
+**What it costs.** A keen learner holds more half-learnt words, so each is
+met a little less often and takes a little longer to feel solid. The log
+is one count over every language, so somebody splitting their time between
+two is read slightly generously in each.
+
