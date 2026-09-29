@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.278 — 28 September 2026
+
+**Approve or strike many sentences at once.**
+
+- In **Review sentences**, each sentence now has a tick box, and above the
+  list is **Select all** for every sentence on the tab you're looking at.
+  With some ticked, **Approve** and **Strike** mark them all in one go —
+  untick the few you want to read more carefully first.
+- This replaces the button that could only approve the waiting ones.
+  Nothing is sent until you tap **Save review**, as before.
+
 ## 0.277 — 28 September 2026
 
 **Lock and unlock several decks at once.**

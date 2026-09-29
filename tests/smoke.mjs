@@ -8241,6 +8241,30 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("and Save review sends one approved and one struck",
     sent.length === 1 && sent[0].ok.length === 1 && sent[0].no.length === 1, JSON.stringify(sent));
 
+  /* Select all, let one go, strike the rest: the whole tab in two taps,
+     with the one worth a second look left waiting. */
+  r.render(React.createElement("div"));
+  await sleep(30);
+  drawReview([...three, frame], frame);
+  await sleep(200);
+  click(buttonIn(/^Select all 3$/));
+  await sleep(30);
+  const picks = [...up().querySelectorAll(".at-reviewlist .at-reviewpick")];
+  check("Select all ticks every sentence on the tab",
+    picks.length === 3 && picks.every((p) => /** @type {HTMLInputElement} */ (p).checked),
+    `${picks.filter((p) => /** @type {HTMLInputElement} */ (p).checked).length} of ${picks.length} ticked`);
+  click(picks[2]);
+  await sleep(30);
+  click(buttonIn(/^Strike 2 sentences$/));
+  await sleep(50);
+  check("and Strike marks the ticked ones, leaving the rest waiting",
+    up().querySelectorAll(".at-askedline.no").length === 2 && up().querySelectorAll(".at-askedline.wait").length === 1,
+    `${up().querySelectorAll(".at-askedline.no").length} struck, ${up().querySelectorAll(".at-askedline.wait").length} waiting`);
+  click(buttonIn(/^Save review$/));
+  await sleep(100);
+  check("and the save sends the two struck", sent.length === 2 && sent[1].no.length === 2 && sent[1].ok.length === 0,
+    JSON.stringify(sent[1] || null));
+
   const many = Array.from({ length: 320 }, (_, i) => name(i));
   drawReview([...many, frame], frame);
   await sleep(300);

@@ -3604,6 +3604,10 @@ body.at-screening .at-chromebar { display:none; }
 .at-reviewlist .at-askedline.no .at-askedsays { text-decoration: line-through;
   text-decoration-color: var(--rose); opacity:.7; }
 .at-reviewmarks { display:flex; gap:6px; flex:0 0 auto; margin-left:auto; }
+/* The tick that selects a sentence, beside its number. */
+.at-reviewpick { width:20px; height:20px; flex:0 0 auto; margin:0; align-self:center; cursor:pointer;
+  accent-color: var(--accent); }
+.at-reviewbulk { flex-wrap:wrap; gap:8px; }
 .at-reviewmark { font: inherit; font-size: var(--fs-xs); font-weight:800; min-height:36px;
   padding:6px 12px; border-radius:999px; border:1px solid var(--line);
   background: var(--surface); color: var(--text-soft); cursor:pointer; }
