@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.285 — 30 September 2026
+
+**A deck's "Earliest possible" now says how much practice it takes.**
+
+- It used to say "No amount of practice gets it learnt sooner" above the
+  date, which read as though nothing could be done. It now says how many
+  sessions a day would get the deck learnt by that date — for example
+  "About 16 sessions a day would get it learnt by Mon, 5 Oct" — and that
+  practising more than that won't bring it sooner.
+- The dates no longer shift slightly each time you open a deck: the same
+  cards at the same pace now always give the same answer.
+
 ## 0.284 — 30 September 2026
 
 **A deck's "At your pace" always says your sessions per day.**

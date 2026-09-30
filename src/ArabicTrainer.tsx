@@ -4260,22 +4260,41 @@ function allLearnt(cards: Item[], settings: Settings): boolean {
 }
 
 /*
- * Run something with the clock set to a moment of the simulation.
+ * Run something with the clock set to a moment of the simulation, and the
+ * dice set to the simulation's own.
  *
  * The app reads the time through Date.now — every default clock in the
  * scheduler does, and so does the session builder — so setting it is the
  * one way to put a sitting at a moment without threading a clock through
- * every function a sitting touches. Synchronous only: nothing else runs
- * between setting it and putting it back.
+ * every function a sitting touches. The dice go the same way: a forecast
+ * rolls its own, from a fixed seed, so the same cards at the same pace give
+ * the same date every time — which is what lets two paces be compared at
+ * all. Synchronous only: nothing else runs between setting them and putting
+ * them back.
  */
-function atMoment<T>(t: Millis, fn: () => T): T {
+function atMoment<T>(t: Millis, fn: () => T, dice?: () => number): T {
   const wall = Date.now;
+  const roll = Math.random;
   Date.now = () => t;
+  if (dice) Math.random = dice;
   try {
     return fn();
   } finally {
     Date.now = wall;
+    Math.random = roll;
   }
+}
+
+/** A seeded roll of the dice (mulberry32): the same seed, the same rolls. */
+function seededDice(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 /** The moments a learner at `perDayRate` sittings a day sits down on day `d`. */
@@ -4319,6 +4338,7 @@ export function deckForecast({
   from,
   restore,
   systems = [],
+  giveUpAfter,
 }: {
   collection: Item[];
   deckOf: (it: Item) => boolean;
@@ -4328,6 +4348,12 @@ export function deckForecast({
   restore: () => void;
   /** The teachers' number systems, as a session is handed them. */
   systems?: SystemSet[];
+  /**
+   * Stop, with no answer, once the simulation is past this moment — for a
+   * caller asking only whether a pace finishes by then, which is most of
+   * what finding the practice the earliest date needs is.
+   */
+  giveUpAfter?: Millis;
 }): DeckForecast {
   const others = collection.filter((it) => !deckOf(it));
   let deck = collection.filter(deckOf);
@@ -4339,6 +4365,7 @@ export function deckForecast({
   let day = 0;
   let answer: Millis | null = null;
   let finished = false;
+  const dice = seededDice(1);
 
   if (!sessionsPerDay || !(sessionsPerDay > 0)) finished = true;
   else if (atMoment(from, () => allLearnt(deck, settings))) {
@@ -4350,7 +4377,11 @@ export function deckForecast({
     installIndexes(others.concat(deck), settings);
     for (const at of sittingsOn(dayStart(day), day, sessionsPerDay)) {
       if (at < from) continue;
-      const clock = { now: () => at, random: Math.random };
+      if (giveUpAfter !== undefined && at > giveUpAfter) {
+        finished = true;
+        return false;
+      }
+      const clock = { now: () => at, random: dice };
       atMoment(at, () => {
         const built = buildSession({ items: deck, settings, inDeck: () => true, perDay, elsewhere, systems });
         for (const ex of built.exercises || []) {
@@ -4379,7 +4410,7 @@ export function deckForecast({
           const next = gradeInto(deck, marks, { ...gradingFor(ex, settings), clock, how: {} });
           if (next) deck = next;
         }
-      });
+      }, dice);
       if (atMoment(at, () => allLearnt(deck, settings))) {
         answer = at;
         return true;
@@ -4396,6 +4427,7 @@ export function deckForecast({
         while (!finished && Date.now() < until) {
           if (sitDay()) finished = true;
           else if (++day >= FORECAST_MAX_DAYS) finished = true;
+          else if (giveUpAfter !== undefined && dayStart(day) > giveUpAfter) finished = true;
         }
       } finally {
         restore();
@@ -4406,16 +4438,38 @@ export function deckForecast({
   };
 }
 
+export interface EarliestForecast extends DeckForecast {
+  /**
+   * The least practice, in sittings a day, that gets the deck learnt by
+   * the earliest day — or null where there is no earliest day to reach.
+   */
+  rate: () => number | null;
+}
+
+/** Midnight at the start of the day a moment falls on. */
+function dayOf(t: Millis): Millis {
+  const d = new Date(t);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
 /**
- * The same deck at the fastest pace there is: the date no amount of
- * practice beats.
+ * The same deck at the fastest pace there is — the day no amount of
+ * practice beats — and the least practice that reaches it.
  *
- * There is no number for that pace written down anywhere, on purpose. It
- * is found: the deck is played at sixteen sittings a day, then thirty-two,
- * then sixty-four, and so on, until doubling the practice no longer brings
- * the day any closer — which is where the rules themselves, and not the
- * learner, are what is left to wait for. A change to the rules that moves
- * that point moves it here too.
+ * There is no number for either written down anywhere, on purpose. Both
+ * are found, by playing the deck forward:
+ *
+ * **The day.** Sixteen sittings a day, then thirty-two, sixty-four, and so
+ * on, until doubling the practice no longer brings the day any closer —
+ * which is where the rules themselves, and not the learner, are what is
+ * left to wait for.
+ *
+ * **The practice.** Then the least that still gets there, found by halving
+ * the gap between a pace that does and one that does not, to within a
+ * sitting a day (a tenth of one under two a day). Each of those runs gives
+ * up as soon as it is past the day, so a pace that falls short costs only
+ * as long as the day is away. A change to the rules that moves either
+ * moves it here too.
  */
 export function earliestForecast(args: {
   collection: Item[];
@@ -4424,16 +4478,29 @@ export function earliestForecast(args: {
   from: Millis;
   restore: () => void;
   systems?: SystemSet[];
-}): DeckForecast {
+}): EarliestForecast {
+  /* The first half: doubling until the day stops moving. */
   let rate = 16;
-  let run = deckForecast({ ...args, sessionsPerDay: rate });
-  let best: Millis | null = null;
+  let run: DeckForecast = deckForecast({ ...args, sessionsPerDay: rate });
+  let best: { at: Millis; rate: number } | null = null;
+  /* The fastest pace known to fall short of the day, if any. */
+  let short = 0;
+  /* The second half, once the day is known. */
+  let searching = false;
+  let probe = 0;
   let answer: Millis | null = null;
+  let least: number | null = null;
   let finished = false;
-  const dayOf = (t: Millis) => {
-    const d = new Date(t);
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  };
+
+  const close = (lo: number, hi: number) => hi - lo <= (hi < 2 ? 0.1 : 1);
+  const nextProbe = (lo: number, hi: number) => (lo > 0 ? (lo + hi) / 2 : hi / 2);
+
+  function settle() {
+    answer = best ? best.at : null;
+    least = best ? best.rate : null;
+    finished = true;
+  }
+
   return {
     step(budgetMs: number) {
       if (finished) return true;
@@ -4441,22 +4508,42 @@ export function earliestForecast(args: {
       while (!finished && Date.now() < until) {
         if (!run.step(Math.max(1, until - Date.now()))) continue;
         const got = run.result();
-        /* Nothing to gain from more practice once a doubling does not move
-           the day — or once nothing finishes at all, or a cap on how often
-           anybody could sit down (every few minutes) is reached. */
-        const same = got !== null && best !== null && dayOf(got) >= dayOf(best);
-        if (got === null || same || rate >= 256) {
-          answer = best !== null && got !== null ? Math.min(best, got) : got ?? best;
-          finished = true;
+        if (!searching) {
+          const better = got !== null && (!best || dayOf(got) < dayOf(best.at));
+          if (better && rate < 256) {
+            if (best) short = best.rate;
+            best = { at: got as Millis, rate };
+            rate *= 2;
+            run = deckForecast({ ...args, sessionsPerDay: rate });
+            continue;
+          }
+          if (better) best = { at: got as Millis, rate };
+          /* Nothing ever finished, so there is no day to reach. */
+          if (!best) {
+            settle();
+            continue;
+          }
+          searching = true;
+        } else if (got !== null && best && dayOf(got) <= dayOf(best.at)) {
+          best = { at: got, rate: probe };
         } else {
-          best = got;
-          rate *= 2;
-          run = deckForecast({ ...args, sessionsPerDay: rate });
+          short = probe;
         }
+        if (!best || close(short, best.rate)) {
+          settle();
+          continue;
+        }
+        probe = nextProbe(short, best.rate);
+        run = deckForecast({
+          ...args,
+          sessionsPerDay: probe,
+          giveUpAfter: dayOf(best.at) + 86400000 - 1,
+        });
       }
       return finished;
     },
     result: () => answer,
+    rate: () => least,
   };
 }
 
@@ -14550,6 +14637,16 @@ export function paceWords(perDay: number): string {
   return `about ${Math.max(0.1, Math.round(sessions * 10) / 10)} sessions a day`;
 }
 
+/*
+ * The least practice that reaches the earliest date, said as sittings a
+ * day. Rounded up, never down: the pace named has to get there.
+ */
+export function leastWords(rate: number): string {
+  if (rate >= 2) return `About ${plural(Math.ceil(rate - 1e-9), "session")} a day`;
+  const tenths = Math.max(0.1, Math.ceil(rate * 10 - 1e-9) / 10);
+  return `About ${tenths === 1 ? "1 session" : `${tenths} sessions`} a day`;
+}
+
 /** When a forecast lands, as a date and how far off it is. */
 export function forecastWords(at: Millis | null, from: Millis = now()): string {
   if (at === null) return "more than two years away";
@@ -14570,8 +14667,8 @@ export function forecastWords(at: Millis | null, from: Millis = now()): string {
  * play it forward twice. `undefined` is still working; null is past the
  * two years a forecast looks ahead.
  */
-const forecastCache: WeakMap<Item[], Map<string, { pace?: Millis | null; floor?: Millis | null; perDay: number }>> =
-  new WeakMap();
+type ForecastEntry = { pace?: Millis | null; floor?: Millis | null; least?: number | null; perDay: number };
+const forecastCache: WeakMap<Item[], Map<string, ForecastEntry>> = new WeakMap();
 
 function useDeckForecast(
   name: string,
@@ -14585,6 +14682,7 @@ function useDeckForecast(
   const fresh = cached && cached.perDay === perDay ? cached : undefined;
   const [pace, setPace] = useState<Millis | null | undefined>(fresh ? fresh.pace : undefined);
   const [floor, setFloor] = useState<Millis | null | undefined>(fresh ? fresh.floor : undefined);
+  const [least, setLeast] = useState<number | null | undefined>(fresh ? fresh.least : undefined);
   useEffect(() => {
     const byDeck = forecastCache.get(collection) || new Map();
     forecastCache.set(collection, byDeck);
@@ -14592,12 +14690,14 @@ function useDeckForecast(
     if (kept && kept.perDay === perDay && kept.pace !== undefined && kept.floor !== undefined) {
       setPace(kept.pace);
       setFloor(kept.floor);
+      setLeast(kept.least);
       return;
     }
-    const entry: { pace?: Millis | null; floor?: Millis | null; perDay: number } = { perDay };
+    const entry: ForecastEntry = { perDay };
     byDeck.set(name, entry);
     setPace(undefined);
     setFloor(undefined);
+    setLeast(undefined);
     const from = now();
     const deckOf = (it: Item) => (it.tags || []).includes(name);
     const sessions = perDay / SESSION_SIZE;
@@ -14621,7 +14721,9 @@ function useDeckForecast(
           setPace(entry.pace);
         }
       } else if (floorRun.step(100)) {
+        entry.least = floorRun.rate();
         entry.floor = floorRun.result();
+        setLeast(entry.least);
         setFloor(entry.floor);
         return;
       }
@@ -14635,7 +14737,7 @@ function useDeckForecast(
       if (entry.pace === undefined || entry.floor === undefined) byDeck.delete(name);
     };
   }, [name, collection, settings, perDay, restore, systems]);
-  return { pace, floor };
+  return { pace, floor, least };
 }
 
 function DeckScreen({
@@ -14665,7 +14767,7 @@ function DeckScreen({
   const learnt = shown.filter((it) => progressOf.get(it.id)?.status === "done").length;
   const pct = shown.length ? Math.round((learnt / shown.length) * 100) : 0;
   const allDone = shown.length > 0 && learnt === shown.length;
-  const { pace, floor } = useDeckForecast(name, collection, settings, perDay, restore, systems);
+  const { pace, floor, least } = useDeckForecast(name, collection, settings, perDay, restore, systems);
   const when = (t: Millis | null | undefined) => (t === undefined ? "Working it out…" : `learnt by ${forecastWords(t)}`);
   return (
     <Screen title={name} onBack={onBack}>
@@ -14696,8 +14798,17 @@ function DeckScreen({
           </p>
           <p>
             <b>Earliest possible</b>
-            <span className="at-forecastpace">No amount of practice gets it learnt sooner</span>
-            <span className="at-forecastdate">{when(floor)}</span>
+            {floor === undefined ? (
+              <span className="at-forecastdate">Working it out…</span>
+            ) : floor === null || least == null ? (
+              <span className="at-forecastdate">more than two years away, however much you practise</span>
+            ) : (
+              <>
+                <span className="at-forecastpace">{leastWords(least)} would get it</span>
+                <span className="at-forecastdate">{when(floor)}</span>
+                <span className="at-forecastpace">Practising more than that won't bring it sooner.</span>
+              </>
+            )}
           </p>
           <p className="at-forecastnote">
             Both assume you practise only this deck and get every answer right, so the real date will be later.

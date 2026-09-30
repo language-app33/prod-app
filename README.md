@@ -289,7 +289,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   `gradeInto` — the very functions the question screen calls when an
   answer is given — until the Progress screen's own test calls every card
   learnt; `earliestForecast` doubles the pace until the
-  date stops moving. So a change to the scheduler, the session builder or
+  date stops moving, then halves the gap between a pace that gets there
+  and one that does not to name the least practice that does — which is
+  what the screen says, as "About 16 sessions a day would get it learnt
+  by …". A forecast rolls its own dice from a fixed seed, so two paces are
+  compared on the same shuffle and a deck gives the same date each time.
+  So a change to the scheduler, the session builder or
   the marking reaches the dates with nothing to keep in step. Only the
   deck is played — practising one deck is the fastest way to finish it —
   and the words the rest of the collection holds are counted once and

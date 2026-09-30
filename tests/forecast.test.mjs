@@ -43,6 +43,7 @@ const {
   setAudibleClips,
   paceWords,
   forecastWords,
+  leastWords,
   marksForAnswer,
 } = await import(path.join(out, "trainer.js"));
 const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
@@ -96,6 +97,40 @@ test("more practice is never a later date", () => {
   assert.ok(often <= thrice, "twelve sittings a day finished later than three");
   assert.ok(once > FROM, "a deck of strangers was learnt at once");
   assert.ok(restores > 1, "the indexes were never put back");
+});
+
+/** Midnight at the start of a moment's day. */
+const dayOf = (/** @type {number} */ t) => {
+  const d = new Date(t);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+};
+
+test("the same deck at the same pace gives the same date every time", () => {
+  /* A forecast rolls its own dice from a fixed seed. Without that, two
+     paces could not be compared — a slower one could win on a lucky shuffle
+     — and the date would move each time the screen was opened. */
+  const restore = () => installIndexes(collection, settings);
+  restore();
+  const once = () => answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: 3, from: FROM, restore })).at;
+  assert.equal(once(), once());
+});
+
+test("the earliest date names the least practice that reaches it, and that practice does", () => {
+  const restore = () => installIndexes(collection, settings);
+  restore();
+  const run = earliestForecast({ collection, deckOf, settings, from: FROM, restore });
+  const floor = answer(run).at;
+  const least = run.rate();
+  console.log(`    earliest: ${((floor - FROM) / DAY).toFixed(1)} days out, at ${leastWords(least)}`);
+  assert.ok(floor !== null && least !== null, "no earliest date or no practice named");
+  /* Rounded up as it is said, the practice named gets there. */
+  const said = least >= 2 ? Math.ceil(least) : Math.ceil(least * 10) / 10;
+  const at = answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: said, from: FROM, restore })).at;
+  assert.ok(at !== null && dayOf(at) <= dayOf(floor), `${said} a day finished ${at && (at - FROM) / DAY} days out`);
+  /* And markedly less does not: the practice named is not a round number
+     picked from the top of the search. */
+  const less = answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: least / 2, from: FROM, restore })).at;
+  assert.ok(less === null || dayOf(less) > dayOf(floor), `half of ${least} a day still finished by the earliest day`);
 });
 
 test("the earliest date is a floor under every pace", () => {
@@ -158,6 +193,14 @@ test("the pace is said as sittings a day, to a decimal under one", () => {
   assert.equal(paceWords(18), "about 1 session a day");
   assert.equal(paceWords(9), "about 0.5 sessions a day");
   assert.equal(paceWords(1), "about 0.1 sessions a day");
+});
+
+test("the least practice is said rounded up, so the pace named gets there", () => {
+  assert.equal(leastWords(19.2), "About 20 sessions a day");
+  assert.equal(leastWords(2), "About 2 sessions a day");
+  assert.equal(leastWords(1), "About 1 session a day");
+  assert.equal(leastWords(0.43), "About 0.5 sessions a day");
+  assert.equal(leastWords(0.01), "About 0.1 sessions a day");
 });
 
 test("a forecast date says how far off it is", () => {

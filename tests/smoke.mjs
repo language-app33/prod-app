@@ -2090,10 +2090,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       /* Worked out a slice at a time, so it is waited for rather than
          read on arrival. */
       for (let i = 0; i < 120 && /Working it out/.test(text()); i++) await sleep(250);
-      check("and the earliest date the rules allow, once worked out",
-        /Earliest possible.*learnt by .+\((today|tomorrow|in \d+ days)\)/.test(text()) ||
-          /more than two years away/.test(text()),
-        (text().match(/Earliest possible.{0,90}/) || ["(no earliest line)"])[0]);
+      check("and the earliest date the rules allow, with the practice it takes",
+        /Earliest possible\s*About [\d.]+ sessions? a day would get it\s*learnt by .+\((today|tomorrow|in \d+ days)\)/.test(text()) ||
+          /more than two years away, however much you practise/.test(text()),
+        (text().match(/Earliest possible.{0,120}/) || ["(no earliest line)"])[0]);
       check("with every card listed, least advanced first",
         (deckScreen() || document).querySelectorAll(".at-cardtile, [class*=cardtile]").length > 0 ||
           /Not started|Learnt|Cleared/.test(text()),

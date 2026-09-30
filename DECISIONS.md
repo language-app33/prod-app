@@ -3987,3 +3987,30 @@ the entry above were measured under the old clock.
 laptop and several on a phone, most of it the daily index refresh. It is
 done in slices of a tenth of a second, the pace date first, and kept until
 the cards change.
+
+---
+
+## The earliest date names the practice that reaches it
+
+**30 September 2026** · `src/ArabicTrainer.tsx` (`earliestForecast`,
+`deckForecast`'s `giveUpAfter`, `seededDice`, `leastWords`)
+
+"No amount of practice gets it learnt sooner", printed above a date, read
+to the owner as a mistake: a dead end followed by an answer. They asked
+for the line to say how much practice the date takes instead.
+
+**Found, as the date is.** Doubling from sixteen sittings a day finds the
+day and brackets the practice: one pace that reaches it and one that
+falls short. The gap is then halved until it is under a sitting a day (a
+tenth of one below two a day), and the least pace that got there is what
+is said, rounded up so the pace named really does. A run that is only
+asking whether a pace gets there by that day gives up once it is past it
+(`giveUpAfter`), so the search costs little more than the doubling did.
+
+**A forecast rolls its own dice.** The session builder shuffles what its
+ranking calls equal, and two runs of the same pace could finish a day
+apart on the shuffle alone — which would make "the least pace that gets
+there" a matter of luck, and a deck's date move each time it was opened.
+Each forecast now sets `Math.random` to a seeded roll for the length of
+each sitting, as it sets the clock, and puts it back.
+
