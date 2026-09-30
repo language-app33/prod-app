@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.281 — 30 September 2026
+
+**If you practise several times a day, new words now arrive much faster.**
+
+- Words you are still getting to know now come first in each session, for
+  anyone who practises more than about two sessions' worth a day. Before,
+  they were shuffled in with every review that was waiting, so a new word
+  came up in only about a third of your sessions, took about six days to
+  clear, and blocked a new one from coming in behind it. Now it usually
+  clears in about a day.
+- For the same learners, the limit on words not yet fully learnt is
+  doubled, so the faster pace is not simply stopped by it.
+- In our simulation of fifteen sessions a day, words met in the first two
+  months went from about 110 to about 255, nearly all of them learnt, and
+  the same card comes round less often.
+- After about a month at that pace the larger limit fills up too, and new
+  words slow down until your earliest words are fully settled.
+- If you practise once or twice a day, nothing changes.
+
 ## 0.280 — 29 September 2026
 
 **If you practise a lot, you can now hold more words at once.**

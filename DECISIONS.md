@@ -3832,3 +3832,62 @@ met a little less often and takes a little longer to feel solid. The log
 is one count over every language, so somebody splitting their time between
 two is read slightly generously in each.
 
+
+---
+
+## A keen learner's climbing words go first, and their pool doubles
+
+**30 September 2026** · `src/ArabicTrainer.tsx` (`KEEN_DAY`, `KEEN_POOL`,
+`inHandFor`, `buildSession`), `src/scheduler.ts` (`IN_HAND_MAX`),
+`tests/pace.test.mjs`, `tests/session.test.mjs`
+
+0.280 let the pool of words in hand grow with practice, and the owner found
+what it bought too little: about 110 words met in two months at fifteen
+sittings a day. The pool was no longer what held it. The front door was,
+and not because it is ten wide: because a word took six days to get
+through it. Everything waiting ranks together and is shuffled, so the ten
+words still climbing drew lots for nine places a sitting with twenty-odd
+reviews that had come due, and a new word was dealt in about a third of
+the sittings of somebody sitting down fifteen times a day.
+
+**The climbing words go first among what is waiting — for the keen.** A
+word then clears in about a day, and the front door turns over five or six
+times as fast without holding more than ten strangers at once. Widening the
+front door was measured as the alternative and was worse on both counts:
+twenty or thirty wide met about 140 words and cost a once-a-day learner
+most of what they learnt, because they were holding strangers they could
+not get round to.
+
+**Only past `KEEN_DAY`, two full sittings' worth of questions on a typical
+day.** Applied to everybody, the rule took a once-a-day learner's nine
+places for the climbing words every day, and the reviews that turn a
+cleared word into a learnt one were never reached: in sixty days they
+learnt none, against about a dozen. The keen learner's reviews passed over
+now are reached later the same day. Alternating climbers and reviews was
+tried and failed the once-a-day learner the same way. A rule read off
+whether reviews are keeping up would be better founded than one read off
+volume; the one tried — a day's practice against the reviews waiting —
+barely switched on for anybody, because a word answered right comes back a
+day later and so there is always more waiting than a day covers. Volume is
+what was asked for, and it is what the simulation bears out.
+
+**The pool doubles with it (`KEEN_POOL`).** At one word in hand per word a
+day reaches, a word clearing in a day meant the pool filled at about 130
+and stopped the front door instead. At two, fifteen sittings a day meet
+about 255 words in sixty days and learn nearly all of them. Nothing changes
+under about three sittings a day, where the pool was already the floor of
+sixty; `IN_HAND_MAX` went from 200 to 400 so the doubled figure is not cut
+off.
+
+**The simulation now marks every word in a grid**, as the app does. It
+marked only the first, so every other word in a grid climbed as if unasked;
+0.280's figures re-measured this way read about 110 met rather than 103.
+
+**What it costs, and what is still true.** A keen learner's reviews wait
+behind their climbing words, so a review may be answered a few hours later
+than it fell due; the simulation shows no cost to what is learnt. And the
+larger pool fills too: about eight new words a day for the first month,
+then around day thirty-two new words slow to a trickle until the earliest
+words stand at three-week gaps everywhere. A word counting against the pool
+until it is that settled is the next thing to question if new words matter
+more.

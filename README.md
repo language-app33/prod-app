@@ -262,9 +262,21 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   day, averaged over the last week off the activity log, over the two
   ways a form is asked — never under sixty and never over two hundred.
   `inHandCap` and `typicalDay` in `src/scheduler.ts`, `inHandFor` in
-  `src/ArabicTrainer.tsx`. The front door does not grow with it, and for
-  that same learner it is now what holds the dealing near two a word a
-  day; widening it is a separate decision.
+  `src/ArabicTrainer.tsx`. Since 0.281 it is *two* words for every word a
+  day reaches, which changes nothing under about three sittings a day.
+
+  **For the same learner, the words still climbing come first.** Everything
+  waiting used to rank together and be shuffled, so the ten words in the
+  front door drew lots for a session's nine places with every review that
+  had come due: a new word was dealt in a third of a keen learner's
+  sittings and took six days to clear, holding its place the whole time.
+  Past `KEEN_DAY` — more than two sittings' worth of questions on a
+  typical day — the waiting cards that are still climbing go first, and a
+  word clears in about a day. Not below it: a once-a-day learner's reviews
+  passed over are not reached later that day, and in the pace simulation
+  they learnt nothing in two months with the rule applied to them.
+  `KEEN_DAY` and `KEEN_POOL` in `src/ArabicTrainer.tsx`. The front door
+  itself does not grow: nobody holds more than ten strangers at once.
 
   The numbers are `FRONT_DOOR_CAP`, `IN_HAND_CAP` and `IN_HAND_MAX` in
   `src/scheduler.ts`, and they were measured rather than chosen:

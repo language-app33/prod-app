@@ -109,14 +109,16 @@ export const IN_HAND_CAP = 60;
  * reaches — see `inHandCap` — and never smaller than sixty, so nobody who
  * practises less is paced any differently. `IN_HAND_MAX` is the ceiling on
  * the ceiling: a hundred sittings on one day should not open the door to
- * a whole course, and past two hundred words half-learnt nobody is keeping
- * up with anything.
+ * a whole course. It was two hundred, and went to four hundred when the
+ * app began allowing two words in hand for each word a keen learner's day
+ * reaches (see `inHandFor` in the app); fifteen sittings a day now asks
+ * for about 270.
  *
  * `PRACTICE_WINDOW_DAYS` is how far back "a typical day" looks: long
  * enough that one idle day does not shut the door, short enough that a
  * learner who eases off is carrying a smaller load within a week.
  */
-export const IN_HAND_MAX = 200;
+export const IN_HAND_MAX = 400;
 export const PRACTICE_WINDOW_DAYS = 7;
 
 /*
@@ -968,13 +970,12 @@ export function roomForNew(
 }
 
 /**
- * How many words may be in hand for a learner whose typical day reaches
- * `wordsPerDay` of them.
+ * How many words may be in hand, given how many the learner's typical day
+ * can hold.
  *
- * One word in hand for every word a day reaches, so that a day's practice
- * meets each word it holds about once rather than the same few over and
- * over — and never fewer than `IN_HAND_CAP` nor more than `IN_HAND_MAX`.
- * See those for why.
+ * The caller says how many that is — the app allows two for every word a
+ * day of theirs reaches (see `inHandFor`) — and this keeps it between
+ * `IN_HAND_CAP` and `IN_HAND_MAX`. See those for why.
  */
 export function inHandCap(wordsPerDay: number): number {
   const reach = Math.round(Number.isFinite(wordsPerDay) ? wordsPerDay : 0);

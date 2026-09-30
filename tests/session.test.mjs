@@ -1146,6 +1146,47 @@ test("a full front door stops new words, and does not stop the held ones being p
   );
 });
 
+/** A word still climbing, with a question waiting: right once, a retest
+    due, and last answered long enough ago that it is not resting. */
+const climbingWord = (/** @type {string} */ id) => {
+  const w = word(id, `كلمة${id}`, `word ${id}`);
+  const state = { phase: "learning", step: 1, ease: 2.5, interval: 0,
+    due: Date.now() - 60000, reps: 1, right: 1, wrong: 0, lapses: 0, skips: 0,
+    near: 0, hints: 0, updated: Date.now() - 3 * 3600000, hist: [1] };
+  w.forms[0].s = Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, { ...state }]));
+  return w;
+};
+
+test("for somebody who practises a lot, the words still climbing come first", () => {
+  /* Three words in the front door, each with a question waiting, among
+     thirty reviews that are just as due. Shuffled together, a session's
+     nine places reach all three about one time in seventy; a keen learner
+     is dealt all three every time, because a new word asked in a third of
+     their sittings took six days to clear and held its place all along. */
+  const items = ["c1", "c2", "c3"].map(climbingWord)
+    .concat(Array.from({ length: 30 }, (_, i) => settled(`r${i + 1}`, -1)));
+  for (let i = 0; i < 5; i += 1) {
+    const dealt = new Set(deal(items, { perDay: 300 }).exercises.map((/** @type {any} */ x) => x.id));
+    for (const id of ["c1", "c2", "c3"]) {
+      assert.ok(dealt.has(id), `a keen learner's climbing word ${id} was left out: ${[...dealt].join(" ")}`);
+    }
+  }
+});
+
+test("and for somebody who sits down once a day, they wait their turn as before", () => {
+  /* Their reviews passed over now are not reached later today, so the
+     order stays the shuffle it was. Five sessions all dealing every one of
+     the three would happen about once in a billion. */
+  const items = ["c1", "c2", "c3"].map(climbingWord)
+    .concat(Array.from({ length: 30 }, (_, i) => settled(`r${i + 1}`, -1)));
+  let everyTime = true;
+  for (let i = 0; i < 5; i += 1) {
+    const dealt = new Set(deal(items, { perDay: 18 }).exercises.map((/** @type {any} */ x) => x.id));
+    if (!["c1", "c2", "c3"].every((id) => dealt.has(id))) everyTime = false;
+  }
+  assert.ok(!everyTime, "a once-a-day learner's climbing words jumped the queue");
+});
+
 test("and a word leaves the front door as soon as it is cleared", () => {
   /* The release valve. These are up every level, so they are through the
      door and no longer block a newcomer, even though they have their

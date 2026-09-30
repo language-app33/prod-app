@@ -2863,8 +2863,30 @@ const PER_UNIT = 2;
  * sixty — see `inHandCap`. Exported for the pace simulation.
  */
 export function inHandFor(perDay?: number): number {
-  return inHandCap((perDay || 0) / PER_UNIT);
+  return inHandCap(((perDay || 0) / PER_UNIT) * KEEN_POOL);
 }
+
+/*
+ * Two words in hand for every word a day reaches, not one.
+ *
+ * One was the first answer, and it was enough while a new word took six
+ * days to clear. Once the words still climbing come first for a keen
+ * learner (see KEEN_DAY) they clear in about a day, and the pool, not the
+ * front door, became what stopped new words: about 130 met in two months
+ * at fifteen sittings a day. At two it is about 255, and nearly all of them
+ * learnt. It changes nothing below sixty — which is where anybody doing
+ * fewer than about three sittings a day already sits — so only the keen
+ * are affected.
+ */
+const KEEN_POOL = 2;
+
+/*
+ * More than two full sittings' worth of questions on a typical day: the
+ * learner who comes back later the same day, so a review passed over now
+ * is still reached before it goes stale. It decides one thing — whether
+ * the words still climbing jump the queue. See buildSession.
+ */
+const KEEN_DAY = 2 * SESSION_SIZE;
 
 /*
  * How many forms of one card a session will take.
@@ -3229,7 +3251,12 @@ export function buildSession({
     /* Waiting only because it was asked a moment ago — see restingNow. A
        card the learner asked for never rests. */
     const resting = !urgent && restingNow(lastSeen, dues);
-    return { it, units, soonest, isNew, urgent, lastSeen, resting };
+    /* Met and still climbing: one of the words in the front door, which
+       holds its place there until it is cleared — see KEEN_DAY. */
+    const climbing =
+      !isNew &&
+      units.some(({ unit }) => !throughDoor(laddered(unit, settings), (t: string) => stateOf(unit, t)));
+    return { it, units, soonest, isNew, urgent, lastSeen, resting, climbing };
   });
 
   /* Ordered before anything is filtered, because the filter below keeps
@@ -3275,9 +3302,30 @@ export function buildSession({
   const waitingNow = (c: { urgent: boolean; soonest: number }) =>
     c.urgent || dueRank(c.soonest) === 0;
   const ahead = unrested.filter((c) => !waitingNow(c));
+  /*
+   * And for somebody who practises a lot, the words still climbing come
+   * first among what is waiting.
+   *
+   * Everything waiting ranks together and is shuffled, which for a keen
+   * learner meant the ten words in the front door drew lots for a session's
+   * nine places with twenty-odd reviews. A new word was dealt in about a
+   * third of their sittings, took about six days to clear, and held its
+   * place in the front door all that time, so nothing new came in behind
+   * it. First in line, it is asked in nearly every sitting and clears in
+   * about a day.
+   *
+   * Only past `KEEN_DAY`, because for somebody who sits down once a day the
+   * reviews passed over are not reached later that day: in the pace
+   * simulation their words learnt in two months fell from about a dozen to
+   * none. Below the line the order is exactly what it was. A card the
+   * learner asked for still comes ahead of all of it.
+   */
+  const keen = (perDay || 0) > KEEN_DAY;
+  const first = (c: { urgent: boolean; climbing: boolean }) => c.urgent || (keen && c.climbing);
   candidates = unrested
-    .filter(waitingNow)
+    .filter((c) => waitingNow(c) && first(c))
     .concat(
+      unrested.filter((c) => waitingNow(c) && !first(c)),
       ahead.filter((c) => !justPractised(c.lastSeen)),
       ahead.filter((c) => justPractised(c.lastSeen)),
       candidates.filter((c) => c.resting)
