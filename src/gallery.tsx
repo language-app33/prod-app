@@ -144,6 +144,8 @@ const PLACES: Record<string, [string, string]> = {
   CardLadder: [LEARN, "Opening a card from a tile · where it is on the ladder"],
   ProgressTab: [LEARN, "The Progress tab"],
   DeckScreen: [LEARN, "The Progress tab · one deck, with when it could be learnt"],
+  PrepScreen: [LEARN, "The Progress tab · Prep mode, getting decks learnt by a date"],
+  PrepLine: [LEARN, "The home screen · how long is left to prep, and whether your pace gets you there"],
   ReviewItem: [LEARN, "The Progress tab · one card"],
   StudentCourses: [LEARN, "The Courses tab"],
   ArabicField: [LEARN, "Writing in the language you are learning"],

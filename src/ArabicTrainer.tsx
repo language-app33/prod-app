@@ -11,6 +11,7 @@ import {
   Button,
   CardReadout,
   CardTile,
+  CheckList,
   ClipList,
   ConfirmModal,
   Empty,
@@ -4547,6 +4548,97 @@ export function earliestForecast(args: {
   };
 }
 
+export interface ReadyForecast {
+  step: (budgetMs: number) => boolean;
+  /**
+   * What getting there by `by` takes: the least practice, in sittings a
+   * day, that does it — or, where no amount does, the earliest moment the
+   * cards could be learnt instead. `already` where they are learnt now.
+   */
+  result: () =>
+    | { kind: "already" }
+    | { kind: "rate"; rate: number }
+    | { kind: "late"; earliest: Millis | null };
+}
+
+/**
+ * Whether some cards can be learnt by a moment, and how much practice that
+ * takes — what a prep is told when it is set, and on the home screen.
+ *
+ * The earliest the cards could be learnt first (see earliestForecast). If
+ * that is after `by`, no pace gets there and that is the answer. If it is
+ * not, the least pace that finishes by `by` is found the same way the
+ * earliest's own practice is: halving the gap between a pace that gets
+ * there and one that does not, each run giving up as soon as it is past
+ * `by`. Everything it knows about the rules it learns by playing them.
+ */
+export function readyForecast(args: {
+  collection: Item[];
+  deckOf: (it: Item) => boolean;
+  settings: Settings;
+  from: Millis;
+  by: Millis;
+  restore: () => void;
+  systems?: SystemSet[];
+}): ReadyForecast {
+  const { by, ...rest } = args;
+  const earliest = earliestForecast(rest);
+  let phase: "earliest" | "search" | "done" = "earliest";
+  let run: DeckForecast | null = null;
+  let lo = 0;
+  let hi = 0;
+  let probe = 0;
+  let answer: ReturnType<ReadyForecast["result"]> = { kind: "late", earliest: null };
+  const close = () => hi - lo <= (hi < 2 ? 0.1 : 1);
+  const next = () => {
+    probe = lo > 0 ? (lo + hi) / 2 : hi / 2;
+    run = deckForecast({ ...rest, sessionsPerDay: probe, giveUpAfter: by - 1 });
+  };
+  return {
+    step(budgetMs: number) {
+      if (phase === "done") return true;
+      const until = Date.now() + budgetMs;
+      while (phase !== "done" && Date.now() < until) {
+        if (phase === "earliest") {
+          if (!earliest.step(Math.max(1, until - Date.now()))) continue;
+          const floor = earliest.result();
+          const least = earliest.rate();
+          if (floor !== null && floor <= args.from) {
+            answer = { kind: "already" };
+            phase = "done";
+          } else if (floor === null || least === null || floor >= by) {
+            answer = { kind: "late", earliest: floor };
+            phase = "done";
+          } else {
+            /* The earliest's own practice gets there by `by`, since it
+               gets there sooner still; the least that does is below it. */
+            hi = least;
+            lo = 0;
+            if (close()) {
+              answer = { kind: "rate", rate: hi };
+              phase = "done";
+            } else {
+              phase = "search";
+              next();
+            }
+          }
+          continue;
+        }
+        if (!run || !(run as DeckForecast).step(Math.max(1, until - Date.now()))) continue;
+        const got = (run as DeckForecast).result();
+        if (got !== null && got < by) hi = probe;
+        else lo = probe;
+        if (close()) {
+          answer = { kind: "rate", rate: hi };
+          phase = "done";
+        } else next();
+      }
+      return phase === "done";
+    },
+    result: () => answer,
+  };
+}
+
 /**
  * Has this card anything going wrong on it right now?
  *
@@ -8602,6 +8694,13 @@ export default function ArabicTrainer() {
      on the home screen, and what decides whether there is a session to
      start at all. */
   const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
+  /* The prep the home screen offers a session for: one still to come, with
+     cards in it not yet learnt. Past its day, or finished, it is Progress's
+     to report and the learner's to clear. */
+  const homePrep = useMemo(() => {
+    const p = prepOf(settings);
+    return p && prepStatus(p, shown, settings) === "active" ? p : null;
+  }, [settings, shown]);
 
   /* And how much is going wrong, which is what the Weak skills button is
      offered on. The same test the session itself picks with — see isWeak —
@@ -9002,8 +9101,10 @@ export default function ArabicTrainer() {
     setTab("home");
   }
 
-  function begin(practice?: boolean) {
-    const built = buildSession({ items: shown, settings, inDeck, practice, perDay, systems });
+  function begin(practice?: boolean, only?: (it: Item) => boolean) {
+    /* `only` narrows the session to some cards — a prep's decks — in place
+       of the deck chosen on the home screen. */
+    const built = buildSession({ items: shown, settings, inDeck: only || inDeck, practice, perDay, systems });
     if (!built.exercises.length) {
       /* This used to return in silence, which reads as a broken button. It
          mattered little when the only way to get here was a card list that
@@ -10228,6 +10329,12 @@ export default function ArabicTrainer() {
     });
   }
 
+  /* The one prep, set, changed or cleared from Prep mode — see Prep. */
+  const savePrep = (p: Prep | null) => {
+    setSetting("prep", p);
+    flash(p ? `Prepping for ${p.name}` : "Prep cleared");
+  };
+
   const setSetting: (k: string, v: any) => void = (k, v) =>
     persist({
       ...data,
@@ -10562,6 +10669,27 @@ export default function ArabicTrainer() {
                       {readyCount ? "Start session" : "Practise anyway"}
                     </Button>
                   </div>
+                  {/* A session for the prep, while there is one to prepare
+                      for — see Prep. Drawn from its decks alone, and said
+                      with how long is left and whether the learner's pace
+                      gets them there. */}
+                  {homePrep && (
+                    <>
+                      <div className="at-row at-mt3">
+                        <Button onClick={() => begin(false, prepDeckOf(homePrep.decks))}>
+                          Prep for {homePrep.name}
+                        </Button>
+                      </div>
+                      <PrepLine
+                        prep={homePrep}
+                        collection={shown}
+                        settings={settings}
+                        perDay={perDay}
+                        restore={restoreIndexes}
+                        systems={systems}
+                      />
+                    </>
+                  )}
                   {/* And the other kind of session there is a one-tap case
                       for: everything going wrong, worst first. It sits
                       directly under Start session because it is the same
@@ -11438,6 +11566,8 @@ export default function ArabicTrainer() {
             perDay={perDay}
             restoreIndexes={restoreIndexes}
             systems={systems}
+            prep={prepOf(settings)}
+            onPrep={savePrep}
           />
         )}
 
@@ -14592,6 +14722,296 @@ function Lately({ moves }: { moves?: Record<string, DayMoves> }) {
 }
 
 /* ------------------------------------------------------------------
+   Prep mode
+
+   A learner preparing for something on a date — the start of a class, an
+   exam — names it, sets the date and picks the decks that have to be
+   learnt by then. The home screen then offers a session drawn from those
+   decks alone, which is the fastest way to finish them, and says how many
+   days are left and whether their pace gets them there. The one prep is
+   kept in the settings, so it follows the learner to their other devices
+   the way the rest of their settings do, and it is theirs to edit or clear.
+
+   Being ready means every card in the chosen decks learnt before the day
+   itself starts: on the morning of an exam is too late to be learning.
+   ------------------------------------------------------------------ */
+
+export interface Prep {
+  /** What it is for, in the learner's own words — "Start of class". */
+  name: string;
+  /** The day of it, as a date input writes one: YYYY-MM-DD. */
+  date: string;
+  /** The decks to have learnt by then. */
+  decks: string[];
+}
+
+/** The prep in the settings, if there is a whole one. */
+export function prepOf(settings: Settings | null | undefined): Prep | null {
+  const p = settings && (settings as Record<string, any>).prep;
+  if (!p || typeof p !== "object") return null;
+  const name = String(p.name || "").trim();
+  const date = String(p.date || "");
+  const decks = Array.isArray(p.decks) ? p.decks.map((d: unknown) => String(d)).filter(Boolean) : [];
+  if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !decks.length) return null;
+  return { name, date, decks };
+}
+
+/** The first moment of the prep's day: the deadline for being ready. */
+export function prepStart(date: string): Millis {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d).getTime();
+}
+
+/** Whether a card is in any of the prep's decks. */
+export const prepDeckOf = (decks: string[]) => (it: Item) => (it.tags || []).some((t) => decks.includes(t));
+
+/** Whole days from today to the prep's day: 1 is tomorrow. */
+export function prepDaysLeft(date: string, at: Millis = now()): number {
+  return Math.round((prepStart(date) - dayOf(at)) / 86400000);
+}
+
+/**
+ * Where a prep stands: still to come, its day come, every card in it
+ * learnt already, or nothing in its decks to learn in this language.
+ */
+export function prepStatus(
+  prep: Prep,
+  items: Item[],
+  settings: Settings,
+  at: Millis = now(),
+): "active" | "past" | "done" | "empty" {
+  if (at >= prepStart(prep.date)) return "past";
+  const cards = items.filter(prepDeckOf(prep.decks)).filter((it) => standing(cardStandings(it, settings)));
+  if (!cards.length) return "empty";
+  return allLearnt(cards, settings) ? "done" : "active";
+}
+
+/* One number for each list of cards, so a forecast keyed on the cards can
+   tell a new list from the old one without comparing them. */
+const listIds: WeakMap<object, number> = new WeakMap();
+let nextListId = 1;
+function listId(list: object): number {
+  let id = listIds.get(list);
+  if (!id) {
+    id = nextListId++;
+    listIds.set(list, id);
+  }
+  return id;
+}
+
+/*
+ * A forecast run a slice at a time, for as long as `key` stays the same.
+ *
+ * A changed key starts it again — after a short wait, which is also what
+ * stops a date being typed from starting a forecast per keystroke. The
+ * answer is `undefined` while it works.
+ */
+function useStepped<R>(make: (() => { step: (ms: number) => boolean; result: () => R }) | null, key: string): R | undefined {
+  const [out, setOut] = useState<{ key: string; value: R } | null>(null);
+  useEffect(() => {
+    if (!make) return;
+    let stopped = false;
+    let timer = 0;
+    let run: { step: (ms: number) => boolean; result: () => R } | null = null;
+    const tick = () => {
+      if (stopped) return;
+      if (!run) run = make();
+      if (run.step(100)) {
+        setOut({ key, value: run.result() });
+        return;
+      }
+      timer = window.setTimeout(tick, 16);
+    };
+    timer = window.setTimeout(tick, 300);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return out && out.key === key ? out.value : undefined;
+}
+
+/** What a prep's forecast says, in a sentence. */
+export function readyWords(
+  answer: ReturnType<ReadyForecast["result"]> | undefined,
+  date: string,
+  perDay: number,
+): string {
+  const day = new Date(prepStart(date)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  if (answer === undefined) return "Working out how much practice it takes…";
+  if (answer.kind === "already") return "Every card in these decks is already learnt.";
+  if (answer.kind === "late") {
+    return answer.earliest === null
+      ? `You can't be ready before ${day}: however much you practise, it would take more than two years.`
+      : `You can't be fully ready before ${day}. However much you practise, the earliest is ${forecastWords(answer.earliest)}.`;
+  }
+  const needed = leastWords(answer.rate);
+  const now_ = perDay > 0 ? ` You're doing ${paceWords(perDay)} at the moment.` : "";
+  return `${needed} will get you ready before ${day}.${now_}`;
+}
+
+function PrepScreen({
+  prep,
+  decks,
+  collection,
+  settings,
+  perDay,
+  restore,
+  systems,
+  onSave,
+  onBack,
+}: {
+  prep: Prep | null;
+  decks: { name: string; n: number; learnt: number }[];
+  collection: Item[];
+  settings: Settings;
+  perDay: number;
+  restore: () => void;
+  systems: SystemSet[];
+  onSave: (prep: Prep | null) => void;
+  onBack: () => void;
+}) {
+  const [name, setName] = useState(prep ? prep.name : "");
+  const [date, setDate] = useState(prep ? prep.date : "");
+  const [chosen, setChosen] = useState<string[]>(prep ? prep.decks.filter((d) => decks.some((x) => x.name === d)) : []);
+  const tomorrow = dayKey(now() + 86400000);
+  const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= tomorrow;
+  const ready = name.trim() !== "" && dateOk && chosen.length > 0;
+  /* How much practice the choice takes, worked out as it is made. */
+  const answer = useStepped(
+    dateOk && chosen.length
+      ? () =>
+          readyForecast({
+            collection,
+            deckOf: prepDeckOf(chosen),
+            settings,
+            from: now(),
+            by: prepStart(date),
+            restore,
+            systems,
+          })
+      : null,
+    `${chosen.slice().sort().join("\u0001")}|${date}|${listId(collection)}`,
+  );
+  return (
+    <Screen title="Prep mode" onBack={onBack}>
+      <Lede>
+        Preparing for something on a set date? Pick the decks you need fully learnt by then. The home screen will
+        offer sessions drawn only from those decks, and tell you whether you're on track.
+      </Lede>
+      <FormField label="What are you preparing for?" htmlFor="at-prep-name">
+        <input
+          id="at-prep-name"
+          className="at-input"
+          type="text"
+          value={name}
+          placeholder="Start of class"
+          maxLength={60}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </FormField>
+      <FormField
+        label="When is it?"
+        htmlFor="at-prep-date"
+        hint={date && !dateOk ? "Pick a day from tomorrow on." : "You'll need to be ready before this day starts."}
+      >
+        <input
+          id="at-prep-date"
+          className="at-input"
+          type="date"
+          value={date}
+          min={tomorrow}
+          onChange={(e) => setDate(e.target.value)}
+        />
+      </FormField>
+      <FormField label="Decks to have fully learnt by then">
+        <CheckList
+          options={decks.map((d) => ({ id: d.name, title: d.name, note: `${d.learnt} of ${plural(d.n, "card")} learnt` }))}
+          chosen={chosen}
+          onToggle={(id, wasOn) => setChosen((c) => (wasOn ? c.filter((x) => x !== id) : c.concat([id])))}
+          empty="No decks to prepare yet."
+        />
+      </FormField>
+      {dateOk && chosen.length > 0 && (
+        <div className="at-forecast at-prepready" aria-live="polite">
+          <p>
+            <span className="at-forecastpace">{readyWords(answer, date, perDay)}</span>
+          </p>
+          <p className="at-forecastnote">This assumes you get every answer right, so allow a little more.</p>
+        </div>
+      )}
+      <div className="at-row">
+        <Button
+          variant="primary"
+          disabled={!ready}
+          onClick={() => ready && onSave({ name: name.trim(), date, decks: chosen })}
+        >
+          {prep ? "Save changes" : "Start prepping"}
+        </Button>
+      </div>
+      {prep && (
+        <div className="at-row at-mt3">
+          <Button variant="ghost" onClick={() => onSave(null)}>
+            Stop prepping
+          </Button>
+        </div>
+      )}
+    </Screen>
+  );
+}
+
+/*
+ * The line under the home screen's prep button: days left, and whether the
+ * learner's own pace gets them there — the deck forecast at their pace,
+ * stopped at the prep's day.
+ */
+function PrepLine({
+  prep,
+  collection,
+  settings,
+  perDay,
+  restore,
+  systems,
+}: {
+  prep: Prep;
+  collection: Item[];
+  settings: Settings;
+  perDay: number;
+  restore: () => void;
+  systems: SystemSet[];
+}) {
+  const left = prepDaysLeft(prep.date);
+  const by = prepStart(prep.date);
+  const onPace = useStepped(
+    perDay > 0
+      ? () =>
+          deckForecast({
+            collection,
+            deckOf: prepDeckOf(prep.decks),
+            settings,
+            sessionsPerDay: perDay / SESSION_SIZE,
+            from: now(),
+            restore,
+            systems,
+            giveUpAfter: by - 1,
+          })
+      : null,
+    `${prep.decks.slice().sort().join("\u0001")}|${prep.date}|${perDay}|${listId(collection)}`,
+  );
+  const days = left === 1 ? "1 day left" : `${left} days left`;
+  const pace =
+    perDay <= 0
+      ? ""
+      : onPace === undefined
+      ? ""
+      : onPace !== null && onPace < by
+      ? " · on track at your pace"
+      : " · you'll need more practice to be ready — Prep mode in Progress says how much";
+  return <Help className="at-prepline">{days + pace}</Help>;
+}
+
+/* ------------------------------------------------------------------
    One deck, on a screen of its own
 
    Opened from a deck's tile under Progress: how far the deck has got, two
@@ -14842,7 +15262,17 @@ function DeckScreen({
   );
 }
 
-function ProgressTab({ items, myCourses = [], settings, moves, perDay = 0, restoreIndexes, systems = NO_SYSTEMS }: {
+function ProgressTab({
+  items,
+  myCourses = [],
+  settings,
+  moves,
+  perDay = 0,
+  restoreIndexes,
+  systems = NO_SYSTEMS,
+  prep = null,
+  onPrep,
+}: {
   items: Item[];
   myCourses?: Course[];
   settings: Settings;
@@ -14854,8 +15284,14 @@ function ProgressTab({ items, myCourses = [], settings, moves, perDay = 0, resto
   restoreIndexes?: () => void;
   /** The teachers' number systems, which a forecast deals with as a session does. */
   systems?: SystemSet[];
+  /** The learner's prep, if they have one — see Prep. */
+  prep?: Prep | null;
+  /** Sets, changes or clears it. */
+  onPrep?: (prep: Prep | null) => void;
 }) {
   const [viewing, setViewing] = useState<any | null>(null);
+  /* Whether Prep mode is open. */
+  const [prepOpen, setPrepOpen] = useState(false);
   /* The deck open on its own screen, or none. */
   const [deckOpen, setDeckOpen] = useState<string>("");
   const noRestore = useCallback(() => {}, []);
@@ -14980,9 +15416,29 @@ function ProgressTab({ items, myCourses = [], settings, moves, perDay = 0, resto
       .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
   }, [items, progressOf, progress]);
 
+  /* Where the prep stands, for the line beside the button. */
+  const prepNow = prep ? prepStatus(prep, items, settings) : null;
   return (
     <>
       <Lately moves={moves} />
+      {/* Prep mode: getting a set of decks learnt by a date. The button
+          says what is being prepped for, once something is. */}
+      <div className="at-prepbar">
+        <Button variant="ghost" onClick={() => setPrepOpen(true)} aria-haspopup="dialog">
+          Prep mode
+        </Button>
+        {prep && (
+          <Help className="at-prepnote">
+            {prepNow === "past"
+              ? `${prep.name} has come — edit the prep or clear it.`
+              : prepNow === "done"
+              ? `Ready for ${prep.name}: every card is learnt.`
+              : `Prepping for ${prep.name} · ${
+                  prepDaysLeft(prep.date) === 1 ? "1 day left" : `${prepDaysLeft(prep.date)} days left`
+                }`}
+          </Help>
+        )}
+      </div>
       <Section
         title="The ladder"
         lede="Where your cards are on the learning ladder. A card moves up a level once you have answered everything below it right twice running — and counts as learnt once it has come back twice since and you were right."
@@ -15173,6 +15629,23 @@ function ProgressTab({ items, myCourses = [], settings, moves, perDay = 0, resto
 
       {items.length === 0 && (
         <Empty title="Nothing to show yet">{noCardsYet(myCourses.length)}</Empty>
+      )}
+
+      {prepOpen && (
+        <PrepScreen
+          prep={prep}
+          decks={deckRows}
+          collection={items}
+          settings={settings}
+          perDay={perDay}
+          restore={restoreIndexes || noRestore}
+          systems={systems}
+          onSave={(p) => {
+            if (onPrep) onPrep(p);
+            setPrepOpen(false);
+          }}
+          onBack={() => setPrepOpen(false)}
+        />
       )}
 
       {deckOpen && (

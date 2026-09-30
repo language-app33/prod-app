@@ -4014,3 +4014,50 @@ there" a matter of luck, and a deck's date move each time it was opened.
 Each forecast now sets `Math.random` to a seeded roll for the length of
 each sitting, as it sets the clock, and puts it back.
 
+---
+
+## Prep mode: decks to have learnt by a date
+
+**30 September 2026** · `src/ArabicTrainer.tsx` (`Prep`, `prepOf`,
+`prepStatus`, `readyForecast`, `PrepScreen`, `PrepLine`, `begin`'s `only`)
+
+The owner asked for a way to prepare for a set date — a name, a day, the
+decks that must be fully learnt by then — with a home-screen button that
+opens a session to prepare, and for the prep to be editable.
+
+**One prep, in the settings.** Several at once would compete for the same
+practice, and "about six sessions a day gets you ready" would stop
+meaning anything. The settings already sync across devices, last change
+winning, which is the right rule for something the learner edits; a
+malformed or half-written prep reads as none (`prepOf`).
+
+**Ready means before the day starts.** An exam at nine is not something to
+be learning for on its morning, so the deadline is midnight at the start
+of the prep's day, and the screen says "before".
+
+**A prep session is an ordinary session over fewer cards.** `begin` takes
+the prep's decks in place of the deck chosen on the home screen, so the
+front door, the pool, the keen ordering and the spacing all hold — the
+prep chooses which cards, never how learning works. Practising only those
+decks is also exactly what the forecast assumes.
+
+**The advice is the rules played forward.** `readyForecast` finds the
+earliest the decks could be learnt (`earliestForecast`); if that is after
+the day, that date is the answer, and otherwise the least pace that
+finishes before the day is found by halving, each run giving up once past
+the deadline. The home screen's "on track" line is one run at the
+learner's own pace, stopped at the day.
+
+**What it costs.** Working out the advice takes a few seconds on a phone,
+done a slice at a time; the prep screen waits a moment after each change
+before starting, so a date being typed does not start one per keystroke.
+
+
+**And a smoke check that failed on the shuffle.** The walk through
+pictured words tapped a tile by position and then expected the answer
+screen to show the picture that was wanted, which it only does after a
+wrong answer. Whether any tapped tile was wrong depended on the order the
+session dealt its cards in, so the check failed about one run in three
+while prep mode was being tested, on this change and the one before it.
+The first picture question is now answered "I don't know", which is wrong
+whatever the order.

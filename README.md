@@ -278,6 +278,18 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   `KEEN_DAY` and `KEEN_POOL` in `src/ArabicTrainer.tsx`. The front door
   itself does not grow: nobody holds more than ten strangers at once.
 
+- **A learner can prepare for a date.** Prep mode, under Progress, takes
+  a name ("Start of class"), a day and the decks to have learnt by then,
+  and keeps the one prep in the settings (`prep`, read through `prepOf`),
+  so it syncs as they do and the learner can change or clear it. Being
+  ready means every card in those decks learnt before the day starts. As
+  it is set, `readyForecast` says what that takes: the least sittings a
+  day that finish by then, found by playing the decks forward as the deck
+  forecast does, or the earliest they could be finished if no pace gets
+  there. The home screen offers "Prep for …" while the prep is still to
+  come and not yet learnt; it is `begin` with the prep's decks in place of
+  the chosen deck, so every rule of an ordinary session holds. Under it,
+  the days left and whether the learner's own pace gets them there.
 - **A deck says when it could all be learnt, and the rules say it.** A
   deck's tile under Progress opens the deck on a screen of its own: how
   far it has got, every card in it by where it stands, and two dates —

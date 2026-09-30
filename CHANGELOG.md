@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.286 — 30 September 2026
+
+**Prep mode: get a set of decks learnt by a date.**
+
+- Under **Progress**, tap **Prep mode**. Say what you're preparing for
+  (for example "Start of class"), pick the date, and tick the decks you
+  need fully learnt by then.
+- As you choose, it tells you how much practice that takes — for example
+  "About 6 sessions a day will get you ready before Tue, 14 Oct" — or, if
+  the date is too soon, the earliest you could be ready.
+- The home screen then shows **Prep for Start of class**. It starts a
+  session drawn only from those decks, which is the quickest way to learn
+  them. Underneath, it says how many days are left and whether your usual
+  pace gets you there.
+- Open Prep mode again to change the name, the date or the decks, or to
+  stop prepping. Once the day arrives, or every card is learnt, the home
+  button goes away.
+- Your prep follows you to your other devices, like your settings.
+
 ## 0.285 — 30 September 2026
 
 **A deck's "Earliest possible" now says how much practice it takes.**

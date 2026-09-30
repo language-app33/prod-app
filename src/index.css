@@ -2594,6 +2594,9 @@ button.at-deckstat { width:100%; font:inherit; color:inherit; text-align:start; 
   button.at-deckstat:hover { border-color: var(--ink); }
 }
 button.at-deckstat:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+/* Prep mode, above the ladder: the button, and what is being prepped for. */
+.at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:16px; }
+.at-prepbar .at-prepnote { margin:0; }
 /* The deck's own screen: how far it has got, then the two dates. */
 .at-deckhead { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
 .at-forecast { border:2px solid var(--line); border-radius: var(--r); background: var(--surface);

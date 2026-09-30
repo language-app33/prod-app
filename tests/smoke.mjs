@@ -2177,6 +2177,102 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   click(levelTile);
   await sleep(200);
 
+  /* ---- prep mode: decks to have learnt by a date ----
+     Set up from Progress, offered on the home screen as a session of its
+     own, edited, and cleared. */
+  {
+    const setValue = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    const typeIn = (/** @type {any} */ box, /** @type {string} */ v) => {
+      must(setValue, "the input's value setter").call(box, v);
+      box.dispatchEvent(new w.Event("input", { bubbles: true }));
+      box.dispatchEvent(new w.Event("change", { bubbles: true }));
+    };
+    const top = () => [...document.querySelectorAll(".at-screen.over")].pop();
+    const inMonth = new Date(Date.now() + 30 * 86400000);
+    const pad = (/** @type {number} */ n) => String(n).padStart(2, "0");
+    const day = `${inMonth.getFullYear()}-${pad(inMonth.getMonth() + 1)}-${pad(inMonth.getDate())}`;
+
+    click(buttonNamed(/^Prep mode$/));
+    await sleep(250);
+    check("Progress opens Prep mode on a screen of its own",
+      /Prep mode/.test(((top() || {}).textContent || "")), ((top() || {}).textContent || "").slice(0, 60));
+    const nameBox = document.getElementById("at-prep-name");
+    const dateBox = document.getElementById("at-prep-date");
+    check("asking what it is for and when", !!nameBox && !!dateBox);
+    if (nameBox) typeIn(nameBox, "Start of class");
+    if (dateBox) typeIn(dateBox, day);
+    await sleep(80);
+    const lessonRow = [...((top() || document).querySelectorAll("label.at-tickrow"))]
+      .find((l) => /Lesson 1/.test(l.textContent || ""));
+    check("and which decks to have learnt by then", !!lessonRow);
+    click(lessonRow && lessonRow.querySelector("input"));
+    await sleep(80);
+    const readyText = () => ((document.querySelector(".at-prepready") || {}).textContent || "");
+    for (let i = 0; i < 160 && (!readyText() || /Working out/.test(readyText())); i++) await sleep(250);
+    check("saying how much practice being ready takes, or when it could be",
+      /sessions? a day will get you ready before|can't be fully ready|already learnt/.test(readyText()),
+      readyText().slice(0, 160));
+    click(buttonNamed(/^Start prepping$/));
+    await sleep(300);
+    const note = () => ((document.querySelector(".at-prepnote") || {}).textContent || "");
+    check("once started, Progress says what is being prepped for and how long is left",
+      /Prepping for Start of class · (\d+ days|1 day) left/.test(note()) || /Ready for Start of class/.test(note()),
+      note() || "(no note)");
+
+    click(buttonNamed(/^Home$/));
+    await sleep(300);
+    const prepButton = () => buttonNamed(/^Prep for /);
+    check("the home screen offers a session for it",
+      !!prepButton() && /^Prep for Start of class$/.test((prepButton() || {}).textContent || ""),
+      (prepButton() || {}).textContent || "(no prep button)");
+    const line = () => ((document.querySelector(".at-prepline") || {}).textContent || "");
+    check("with how many days are left", /^\d+ days? left/.test(line()), line() || "(no line)");
+    click(prepButton());
+    await sleep(300);
+    check("and the button starts a session",
+      !!document.querySelector('[data-el="leave-session"]'), (document.body.textContent || "").slice(0, 80));
+    click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Leave session"));
+    await sleep(120);
+    click(buttonNamed(/^Leave$/));
+    await sleep(250);
+
+    /* Edited: the same screen, holding what was set. */
+    click(buttonNamed(/^Progress$/));
+    await sleep(300);
+    click(buttonNamed(/^Prep mode$/));
+    await sleep(250);
+    const again = /** @type {any} */ (document.getElementById("at-prep-name"));
+    check("opening it again holds the prep as it was set",
+      !!again && again.value === "Start of class" && !!buttonNamed(/^Save changes$/),
+      again ? again.value : "(no name box)");
+    if (again) typeIn(again, "Exam");
+    await sleep(80);
+    click(buttonNamed(/^Save changes$/));
+    await sleep(300);
+    check("and a change is saved", /Exam/.test(note()), note() || "(no note)");
+    click(buttonNamed(/^Home$/));
+    await sleep(300);
+    check("and reaches the home screen's button",
+      /^Prep for Exam$/.test((prepButton() || {}).textContent || ""), (prepButton() || {}).textContent || "(none)");
+
+    /* Cleared. */
+    click(buttonNamed(/^Progress$/));
+    await sleep(300);
+    click(buttonNamed(/^Prep mode$/));
+    await sleep(250);
+    click(buttonNamed(/^Stop prepping$/));
+    await sleep(300);
+    check("stopping clears it from Progress", !document.querySelector(".at-prepnote"), note());
+    click(buttonNamed(/^Home$/));
+    await sleep(300);
+    check("and from the home screen", !prepButton(), (prepButton() || {}).textContent || "");
+    click(buttonNamed(/^Progress$/));
+    await sleep(300);
+  }
+
   click(buttonNamed(/^Home$/));
   await sleep(300);
 }
@@ -8155,9 +8251,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       if (pics) {
         met.chooseImage += 1;
         met.tiles = Math.max(met.tiles, pics.querySelectorAll("button img").length);
-        /* A different tile each time, so some of them are wrong — the
-           right picture is only shown back after a wrong one. */
-        click(pics.querySelectorAll("button")[n % 4]);
+        /* The right picture is only shown back after a wrong answer, so the
+           first picture question is answered "I don't know" — which is
+           wrong whatever order the tiles came in. A different tile each
+           time after that. Picking by position alone used to leave it to
+           the shuffle: a session that happened to put the answer at every
+           position tried had nothing wrong in it, and the check below
+           failed about one run in three. */
+        const giveUp = host.querySelector('[data-el="dont-know-button"]');
+        if (giveUp && met.chooseImage === 1) click(giveUp);
+        else click(pics.querySelectorAll("button")[n % 4]);
       } else if (choices) {
         if (promptPic) met.promptPicked += 1;
         click(choices.querySelector("button"));

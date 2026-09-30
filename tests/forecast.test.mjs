@@ -45,6 +45,14 @@ const {
   forecastWords,
   leastWords,
   marksForAnswer,
+  readyForecast,
+  readyWords,
+  prepOf,
+  prepStart,
+  prepDaysLeft,
+  prepStatus,
+  prepDeckOf,
+  buildSession,
 } = await import(path.join(out, "trainer.js"));
 const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
 
@@ -230,4 +238,73 @@ test("an answer is marked by the one function the question screen uses", () => {
   });
   assert.deepEqual(marks.map((/** @type {any} */ m) => m.id).sort(), [a.id, b.id, c.id].sort());
   assert.ok(marks.every((/** @type {any} */ m) => m.correct), "a right grid marked a word wrong");
+});
+
+/* ------------------------------------------------------------------
+   Prep mode
+   ------------------------------------------------------------------ */
+
+test("a prep is read only when it is whole", () => {
+  assert.equal(prepOf({}), null);
+  assert.equal(prepOf({ prep: { name: "", date: "2026-10-20", decks: ["deck"] } }), null, "no name");
+  assert.equal(prepOf({ prep: { name: "Exam", date: "20/10/2026", decks: ["deck"] } }), null, "a date not from a date input");
+  assert.equal(prepOf({ prep: { name: "Exam", date: "2026-10-20", decks: [] } }), null, "no decks");
+  assert.deepEqual(prepOf({ prep: { name: " Exam ", date: "2026-10-20", decks: ["deck"] } }), {
+    name: "Exam",
+    date: "2026-10-20",
+    decks: ["deck"],
+  });
+});
+
+test("a prep's deadline is the start of its day, and its days are counted to it", () => {
+  assert.equal(prepStart("2026-10-20"), new Date(2026, 9, 20).getTime());
+  assert.equal(prepDaysLeft("2026-10-02", FROM), 1, "tomorrow is a day away");
+  assert.equal(prepDaysLeft("2026-10-11", FROM), 10);
+});
+
+test("a prep is active until its day, done once its decks are learnt", () => {
+  const prep = { name: "Exam", date: "2026-10-20", decks: ["deck"] };
+  installIndexes(collection, settings);
+  assert.equal(prepStatus(prep, collection, settings, FROM), "active");
+  assert.equal(prepStatus(prep, collection, settings, prepStart("2026-10-20")), "past", "its day has come");
+  assert.equal(prepStatus({ ...prep, decks: ["nowhere"] }, collection, settings, FROM), "empty");
+});
+
+test("a prep session is dealt from the prep's decks alone", () => {
+  installIndexes(collection, settings);
+  const built = buildSession({ items: collection, settings, inDeck: prepDeckOf(["deck"]) });
+  assert.ok(built.exercises.length > 0, "nothing dealt");
+  for (const ex of built.exercises) {
+    assert.ok(deckOf(collection.find((/** @type {any} */ c) => c.id === ex.id)), `${ex.id} is not in the prep's decks`);
+  }
+});
+
+test("being ready by a date says how much practice it takes, or that it cannot be done", () => {
+  const restore = () => installIndexes(collection, settings);
+  restore();
+  const take = (/** @type {number} */ days) => {
+    const run = readyForecast({ collection, deckOf, settings, from: FROM, by: FROM + days * DAY, restore });
+    while (!run.step(200));
+    return run.result();
+  };
+  const roomy = take(40);
+  const tight = take(2);
+  console.log(`    twelve-card deck: in 40 days ${JSON.stringify(roomy)}, in 2 days ${JSON.stringify(tight)}`);
+  assert.equal(roomy.kind, "rate", "forty days was not enough");
+  assert.equal(tight.kind, "late", "two days was enough for a deck of strangers");
+  /* And what forty days takes, practised, gets there. */
+  if (roomy.kind === "rate") {
+    const said = roomy.rate >= 2 ? Math.ceil(roomy.rate) : Math.ceil(roomy.rate * 10) / 10;
+    const at = answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: said, from: FROM, restore })).at;
+    assert.ok(at !== null && at < FROM + 40 * DAY, `${said} a day was not ready in forty days`);
+  }
+});
+
+test("what a prep's forecast says", () => {
+  const date = "2026-10-20";
+  assert.match(readyWords(undefined, date, 0), /Working out/);
+  assert.match(readyWords({ kind: "already" }, date, 0), /already learnt/);
+  assert.match(readyWords({ kind: "rate", rate: 5.2 }, date, 36), /^About 6 sessions a day will get you ready before .+\. You're doing about 2 sessions a day at the moment\.$/);
+  assert.match(readyWords({ kind: "rate", rate: 5.2 }, date, 0), /^About 6 sessions a day will get you ready before [^.]+\.$/);
+  assert.match(readyWords({ kind: "late", earliest: FROM + 30 * DAY }, date, 0), /can't be fully ready before .+ the earliest is/);
 });
