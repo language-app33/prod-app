@@ -2586,6 +2586,23 @@ button.at-stat:disabled { cursor:default; opacity:.55; }
 .at-deckstat.done { background: var(--jade-bg); border-color: var(--jade-soft); }
 .at-deckstat.done b { color: var(--jade); }
 .at-deckstat.done .at-deckbar > span { background: var(--jade); }
+/* Each tile opens its deck's own screen, so it is a button, and says so the
+   way the level tiles above it do. */
+button.at-deckstat { width:100%; font:inherit; color:inherit; text-align:start; cursor:pointer; }
+@media (hover:hover) {
+  button.at-deckstat { transition: border-color 140ms ease; }
+  button.at-deckstat:hover { border-color: var(--ink); }
+}
+button.at-deckstat:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+/* The deck's own screen: how far it has got, then the two dates. */
+.at-deckhead { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.at-forecast { border:2px solid var(--line); border-radius: var(--r); background: var(--surface);
+  padding:14px; margin-bottom:18px; display:flex; flex-direction:column; gap:12px; }
+.at-forecast p { margin:0; display:flex; flex-direction:column; gap:2px; font-family: var(--ui); }
+.at-forecast b { font-size:13px; font-weight:800; color: var(--text); }
+.at-forecastpace { font-size:12px; color: var(--muted); }
+.at-forecastdate { font-size:17px; font-weight:800; color: var(--brass); font-variant-numeric: tabular-nums; }
+.at-forecast .at-forecastnote { font-size:11px; color: var(--faint); }
 .at-stats.tight { grid-template-columns:repeat(6,1fr); gap:6px; margin-bottom:16px; }
 .at-stats.tight .at-stat { padding:9px 5px; border-width:2px; border-radius: var(--r-sm); text-align:center; }
 .at-stats.tight .at-stat b { font-size:19px; }

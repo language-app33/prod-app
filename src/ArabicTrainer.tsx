@@ -3175,6 +3175,7 @@ export function buildSession({
   includeAll,
   budget: budgetIn,
   perDay,
+  elsewhere,
   systems,
 }: {
   items: Item[];
@@ -3190,6 +3191,15 @@ export function buildSession({
    * sits down once a day.
    */
   perDay?: number;
+  /**
+   * Words held in cards that are not in `items`, counted the way
+   * `handCounts` counts them, for a caller that deals from part of the
+   * collection while the rest stands still — the deck forecast, which
+   * plays one deck forward and leaves every other deck where it is. Those
+   * words still fill the front door and the pool, so they are added to
+   * what `items` holds before the room for new words is worked out.
+   */
+  elsewhere?: { front: number; inHand: number };
   /**
    * The teachers' number systems, for the skills among the cards.
    *
@@ -3379,7 +3389,14 @@ export function buildSession({
      * words hold their place and nothing new arrives, which is the same
      * protection without a rule of its own to keep in step.
      */
-    const room = roomForNew(handCounts(items, settings), inHandFor(perDay));
+    const held = handCounts(items, settings);
+    const room = roomForNew(
+      {
+        front: held.front + ((elsewhere && elsewhere.front) || 0),
+        inHand: held.inHand + ((elsewhere && elsewhere.inHand) || 0),
+      },
+      inHandFor(perDay),
+    );
     let newSeen = 0;
     candidates = candidates.filter((c) => {
       /* Except one the learner asked for by name. Both rules above are the
@@ -3950,6 +3967,470 @@ export function weakness(s: ExerciseState | null | undefined): number {
   if (!s) return 0;
   if (missedTwice(s)) return 2;
   return (s.hist || []).slice(-2).some((x) => !x) ? 1 : 0;
+}
+
+/*
+ * The words a matching grid puts up, and the meanings beside them — see
+ * the grid in the question screen, which is where this is read, and the
+ * deck forecast, which marks the same words the screen would.
+ */
+export function gridFor(item: Form, exercise: Question, asking: Item[], settings: Settings, qLang: Lang) {
+  /* Two units a learner would read as one tile: the same word, or the
+     same meaning, after both have been narrowed to the one the question
+     shows. matchSet is the gate that refuses them; this is the same
+     question asked while the company is being chosen, so a trial does
+     not spend its four places filling up with them. */
+  const sameTile = (a: Form, b: Form) =>
+    String(a.ar || "").trim() === String(b.ar || "").trim() ||
+    String(a.en || "").trim().toLowerCase() === String(b.en || "").trim().toLowerCase();
+  const ownerOf = new Map<string, string>();
+  for (const card of asking) {
+    for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card.id);
+  }
+  const familyOf = (u: Form) => ownerOf.get(u.id) || u.id;
+  const answers: Form[] = [item];
+  for (const mate of exercise.mates || []) {
+    const r = resolveUnit(asking, { ...mate, type: exercise.type });
+    /* Narrowed here rather than at the tile, because the grid is marked
+       against the word's own `en` — a tile showing one meaning and a
+       mark expecting two would call every right answer wrong. */
+    if (r && r.unit.ar && r.unit.en) answers.push(oneOf(r.unit, exercise.type));
+  }
+  const pool = wordPool(asking, settings, qLang.id, item)
+    .filter((u) => u.ar && u.en)
+    .map((u) => oneOf(u, exercise.type));
+  const reps = (statesOf(item)[exercise.type] || {}).reps || 0;
+  const likeness = (u: Form) => Math.max(...answers.map((a) => wordLikeness(a.ar, u.ar, qLang)));
+  const ranked = [...pool].sort((x, y) => likeness(y) - likeness(x));
+  /* A question dealt no mates — a teacher trying the exercise on one
+     card — is given its company from the pool, the most alike first, so
+     the grid they see is the grid a learner gets. Nothing is marked on a
+     trial, so nothing is marked on them. */
+  if (!exercise.mates) {
+    for (const u of ranked) {
+      if (answers.length >= PAIR_WORDS) break;
+      if (answers.some((a) => a.id === u.id)) continue;
+      /* And nothing that reads the same as what is already there. Two
+         tiles a learner cannot tell apart make the pairing a guess —
+         matchSet refuses them below, and a trial that handed it four
+         collisions would be a grid of one word and a lot of spares. */
+      if (answers.some((a) => sameTile(a, u) || familyOf(a) === familyOf(u))) continue;
+      answers.push(u);
+    }
+  }
+  return matchSet({
+    answers,
+    pool: ranked,
+    seed: `${item.id} ${reps}`,
+    textOf: (u) => u.ar,
+    meaningOf: (u) => u.en,
+    familyOf,
+  });
+}
+
+/**
+ * What one answer marks.
+ *
+ * Read by the question screen when an answer is given, and by the deck
+ * forecast for every answer it plays forward — one function, so what an
+ * answer counts for is decided in one place and a forecast never marks
+ * less, or more, than a real answer would.
+ *
+ * `grid` is each word a matching grid put up and whether its pair was
+ * right, or null for any other question; `item` is the question as it was
+ * shown, blanks filled — see `resolveQuestion`.
+ */
+export function marksForAnswer({
+  exercise,
+  item,
+  parentItem,
+  asking,
+  settings,
+  systems,
+  correct,
+  rating,
+  practice,
+  grid,
+}: {
+  exercise: Question;
+  item: Form;
+  parentItem: Item;
+  asking: Item[];
+  settings: Settings;
+  systems: SystemSet[];
+  correct: boolean;
+  rating: string;
+  practice: boolean;
+  grid: { unit: Form; right: boolean }[] | null;
+}): Mark[] {
+  /*
+   * One question marks one form — except the grid, where every word up
+   * is a question of its own and is marked on the pair put to it,
+   * whatever the rest of the grid did.
+   *
+   * A word dealt in to fill a grid out may not have been due. A success
+   * on it counts — it is a right answer — but does not move its
+   * schedule, the way practice does not; a miss is a miss wherever it
+   * happens. The first word is marked as any question is.
+   */
+  const marks: Mark[] = [];
+  if (grid) {
+    const placeOf = (w: Form) => {
+      if (w.id === item.id) return { id: parentItem.id, subId: exercise.subId || null };
+      for (const mate of exercise.mates || []) {
+        const r = resolveUnit(asking, { ...mate, type: exercise.type });
+        if (r && r.unit.id === w.id) return mate;
+      }
+      return null;
+    };
+    for (const m of grid) {
+      const place = placeOf(m.unit);
+      if (!place) continue;
+      const lead = m.unit.id === item.id;
+      marks.push({
+        ...place,
+        rating: m.right ? "good" : "again",
+        correct: m.right,
+        advance: !practice && (lead || stateReady(statesOf(m.unit)[exercise.type])),
+      });
+    }
+  } else {
+    marks.push({
+      id: parentItem.id,
+      subId: exercise.subId || null,
+      rating,
+      correct: !!correct,
+      advance: !practice,
+      /* What this question was filled with, where it had blanks — carried
+         on the mark, because the words it borrowed are marked too and
+         none of them was filled with anything. */
+      filled: (item as Record<string, any>).filled as Record<string, string> | undefined,
+    });
+    /*
+     * And the words that stood in those blanks.
+     *
+     * A sentence is a card made of blanks and the vocabulary fills them,
+     * so answering one is answering about the words in it: writing *the
+     * book is big* in the script is writing each of those two words in
+     * the script. Only the sentence used to be marked, so a learner
+     * could write a noun correctly a dozen times inside sentences and
+     * the app went on believing they had never produced it. The rule — a
+     * right answer only, the schedule moving only where that word's own
+     * was due, and only exercises the word itself climbs — is
+     * fillerMarks.
+     */
+    marks.push(...fillerMarks(fillersIn(item, exercise.type, settings), { correct: !!correct }, practice));
+  }
+  /*
+   * A range is marked on itself *and* on the words that stood in it.
+   *
+   * The answer says two things, so both are filed. It says the learner
+   * is getting better at counting to a hundred, which is the skill's own
+   * key; and it says they read the word for forty and knew what it
+   * meant, which is the ordinary key each component card climbs. The
+   * second goes through `under`, because no card climbs a ladder called
+   * "num2fig" and writing one would be a schedule nothing ever reads.
+   */
+  if (item.tokens) {
+    const set = systemFor(parentItem, systems);
+    const under = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
+    const from = set ? set.numbers.id : "";
+    const said = new Set(
+      ((item.tokens as { slot?: string; override?: string }[]) || [])
+        .map((t) => (t.override ? overrideId(from, t.override) : t.slot ? componentId(from, t.slot) : ""))
+        .filter(Boolean),
+    );
+    marks.push(
+      ...fillerMarks(
+        [...said]
+          .map((id) => asking.find((i) => i.id === id))
+          .filter(Boolean)
+          .map((card) => {
+            const form = leadOf(card);
+            return {
+              id: (card as Item).id,
+              subId: null,
+              asked: laddered(form, settings).includes(under),
+              ready: (() => {
+                const st = statesOf(form)[under];
+                return !!st && st.phase !== "new" && stateReady(st);
+              })(),
+            };
+          }),
+        { correct: !!correct },
+        practice,
+      ).map((mark) => ({ ...mark, under })),
+    );
+  }
+  return marks;
+}
+
+/**
+ * The card, narrowed to the question being asked of it: its variables
+ * filled in, one accepted answer where the question is about how a word
+ * sounds, one meaning where the meaning is the question, a range drawn.
+ * Read by the question screen and by the deck forecast, which marks the
+ * question as the screen would have shown it.
+ */
+export function resolveQuestion(asking: Item[], exercise: Question, trial: boolean, systems: SystemSet[]) {
+  return castRange(
+    castMeaning(castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type), exercise.type),
+    exercise,
+    systems,
+  );
+}
+
+/**
+ * How an answer to this question is graded, beyond what it marks — shared
+ * by the question screen and the deck forecast, as `marksForAnswer` is.
+ */
+export function gradingFor(exercise: Question, settings: Settings) {
+  return {
+    type: exercise.type,
+    level: levelOf(exercise.type),
+    keepMet: needsMetRecord,
+    /* The ladder each marked form climbs, so a right answer given to a
+       cleared card's top question, when that question came round of its
+       own accord, counts towards the two passes that make it learnt. Per
+       form and not per card, because one answer marks several: a word
+       standing in somebody else's sentence is credited on its own ladder. */
+    keysOf: (unit: Form) => laddered(unit, settings),
+  };
+}
+
+/* ------------------------------------------------------------------
+   How soon a deck could be learnt
+
+   Not a formula. A deck's forecast is the app's own rules played forward:
+   the learner's actual cards, sat down with at a given pace, dealt by
+   buildSession and marked by gradeInto exactly as a real sitting is, every
+   answer right, until every card in the deck is learnt by the same test
+   the Progress screen uses. So whatever the scheduler, the session builder
+   or the marking come to do, the forecast does too, with nothing here to
+   keep in step — a rule added to any of them is a rule the forecast obeys
+   the next time it runs.
+
+   Two things are the forecast's own, and they are about the learner rather
+   than the rules: how often they sit down, and the hours they do it in.
+   Everything else is read off the app.
+   ------------------------------------------------------------------ */
+
+/* The waking day sittings are spread across: from eight in the morning,
+   for sixteen hours. */
+const FORECAST_DAY_START_H = 8;
+const FORECAST_DAY_HOURS = 16;
+/* How far ahead a forecast looks before it says "more than two years". */
+export const FORECAST_MAX_DAYS = 730;
+
+/** Whether every card in a list that can be asked about at all is learnt. */
+function allLearnt(cards: Item[], settings: Settings): boolean {
+  return cards.every((it) => {
+    const at = standing(cardStandings(it, settings));
+    /* A card nothing can be asked of stands on no level, and Progress
+       leaves it out of every count; so does this. */
+    return !at || at.status === "done";
+  });
+}
+
+/*
+ * Run something with the clock set to a moment of the simulation.
+ *
+ * The app reads the time through Date.now — every default clock in the
+ * scheduler does, and so does the session builder — so setting it is the
+ * one way to put a sitting at a moment without threading a clock through
+ * every function a sitting touches. Synchronous only: nothing else runs
+ * between setting it and putting it back.
+ */
+function atMoment<T>(t: Millis, fn: () => T): T {
+  const wall = Date.now;
+  Date.now = () => t;
+  try {
+    return fn();
+  } finally {
+    Date.now = wall;
+  }
+}
+
+/** The moments a learner at `perDayRate` sittings a day sits down on day `d`. */
+function sittingsOn(dayStart: Millis, d: number, perDayRate: number): Millis[] {
+  const count = Math.floor((d + 1) * perDayRate + 1e-9) - Math.floor(d * perDayRate + 1e-9);
+  const out: Millis[] = [];
+  const open = dayStart + FORECAST_DAY_START_H * 3600000;
+  const span = FORECAST_DAY_HOURS * 3600000;
+  for (let k = 0; k < count; k += 1) out.push(open + Math.round(((k + 0.5) * span) / count));
+  return out;
+}
+
+export interface DeckForecast {
+  /** Advance for about this long; true once there is an answer. */
+  step: (budgetMs: number) => boolean;
+  /** The moment the deck is first all learnt, or null past FORECAST_MAX_DAYS. */
+  result: () => Millis | null;
+}
+
+/**
+ * The deck, played forward at `sessionsPerDay` sittings a day.
+ *
+ * `collection` is what a session is dealt from — the cards the learner
+ * holds in this language — and `deckOf` picks this deck's cards out of it.
+ * Only the deck is played: practising one deck is the fastest way to
+ * finish it, and every other card stands still, so the words they hold are
+ * counted once and handed to buildSession as `elsewhere` rather than
+ * walked again at every sitting.
+ *
+ * `restore` puts the app's indexes back. Some of what a question may ask
+ * depends on how far the cards have climbed — a sentence's blanks, a
+ * verb's rows — so each simulated day installs the indexes of the
+ * simulated cards, and every step puts the real ones back before it
+ * returns.
+ */
+export function deckForecast({
+  collection,
+  deckOf,
+  settings,
+  sessionsPerDay,
+  from,
+  restore,
+  systems = [],
+}: {
+  collection: Item[];
+  deckOf: (it: Item) => boolean;
+  settings: Settings;
+  sessionsPerDay: number;
+  from: Millis;
+  restore: () => void;
+  /** The teachers' number systems, as a session is handed them. */
+  systems?: SystemSet[];
+}): DeckForecast {
+  const others = collection.filter((it) => !deckOf(it));
+  let deck = collection.filter(deckOf);
+  const elsewhere = handCounts(others, settings);
+  const perDay = sessionsPerDay * SESSION_SIZE;
+  const start = new Date(from);
+  const dayStart = (d: number) =>
+    new Date(start.getFullYear(), start.getMonth(), start.getDate() + d).getTime();
+  let day = 0;
+  let answer: Millis | null = null;
+  let finished = false;
+
+  if (!sessionsPerDay || !(sessionsPerDay > 0)) finished = true;
+  else if (atMoment(from, () => allLearnt(deck, settings))) {
+    answer = from;
+    finished = true;
+  }
+
+  function sitDay() {
+    installIndexes(others.concat(deck), settings);
+    for (const at of sittingsOn(dayStart(day), day, sessionsPerDay)) {
+      if (at < from) continue;
+      const clock = { now: () => at, random: Math.random };
+      atMoment(at, () => {
+        const built = buildSession({ items: deck, settings, inDeck: () => true, perDay, elsewhere, systems });
+        for (const ex of built.exercises || []) {
+          /* Shown, and marked, exactly as the question screen shows and
+             marks it — the same three functions — with every answer right. */
+          const asked = others.concat(deck);
+          const shown = resolveQuestion(asked, ex, false, systems);
+          if (!shown) continue;
+          const qLang = langOf(settingsFor(settings, shown.unit || shown.parent));
+          const spec = exOf(ex.type, qLang);
+          const marks = marksForAnswer({
+            exercise: ex,
+            item: shown.unit,
+            parentItem: shown.parent,
+            asking: asked,
+            settings,
+            systems,
+            correct: true,
+            rating: "good",
+            practice: false,
+            grid:
+              spec && spec.picks === "pair"
+                ? gridFor(shown.unit, ex, asked, settings, qLang).words.map((unit: Form) => ({ unit, right: true }))
+                : null,
+          });
+          const next = gradeInto(deck, marks, { ...gradingFor(ex, settings), clock, how: {} });
+          if (next) deck = next;
+        }
+      });
+      if (atMoment(at, () => allLearnt(deck, settings))) {
+        answer = at;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return {
+    step(budgetMs: number) {
+      if (finished) return true;
+      const until = Date.now() + budgetMs;
+      try {
+        while (!finished && Date.now() < until) {
+          if (sitDay()) finished = true;
+          else if (++day >= FORECAST_MAX_DAYS) finished = true;
+        }
+      } finally {
+        restore();
+      }
+      return finished;
+    },
+    result: () => answer,
+  };
+}
+
+/**
+ * The same deck at the fastest pace there is: the date no amount of
+ * practice beats.
+ *
+ * There is no number for that pace written down anywhere, on purpose. It
+ * is found: the deck is played at sixteen sittings a day, then thirty-two,
+ * then sixty-four, and so on, until doubling the practice no longer brings
+ * the day any closer — which is where the rules themselves, and not the
+ * learner, are what is left to wait for. A change to the rules that moves
+ * that point moves it here too.
+ */
+export function earliestForecast(args: {
+  collection: Item[];
+  deckOf: (it: Item) => boolean;
+  settings: Settings;
+  from: Millis;
+  restore: () => void;
+  systems?: SystemSet[];
+}): DeckForecast {
+  let rate = 16;
+  let run = deckForecast({ ...args, sessionsPerDay: rate });
+  let best: Millis | null = null;
+  let answer: Millis | null = null;
+  let finished = false;
+  const dayOf = (t: Millis) => {
+    const d = new Date(t);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  return {
+    step(budgetMs: number) {
+      if (finished) return true;
+      const until = Date.now() + budgetMs;
+      while (!finished && Date.now() < until) {
+        if (!run.step(Math.max(1, until - Date.now()))) continue;
+        const got = run.result();
+        /* Nothing to gain from more practice once a doubling does not move
+           the day — or once nothing finishes at all, or a cap on how often
+           anybody could sit down (every few minutes) is reached. */
+        const same = got !== null && best !== null && dayOf(got) >= dayOf(best);
+        if (got === null || same || rate >= 256) {
+          answer = best !== null && got !== null ? Math.min(best, got) : got ?? best;
+          finished = true;
+        } else {
+          best = got;
+          rate *= 2;
+          run = deckForecast({ ...args, sessionsPerDay: rate });
+        }
+      }
+      return finished;
+    },
+    result: () => answer,
+  };
 }
 
 /**
@@ -7769,6 +8250,10 @@ export default function ArabicTrainer() {
     [items, preview]
   );
   const settings = data.settings;
+  /* Puts the question indexes back as this render built them, for the deck
+     forecast, which installs its own while it plays a deck forward — see
+     deckForecast. */
+  const restoreIndexes = useCallback(() => installIndexes(asking, settings), [asking, settings]);
   /* The on-screen keys, opened from the button inside the answer field.
      Below `settings`, which it reads, and above every early return, which
      is where a hook has to be. */
@@ -8520,17 +9005,7 @@ export default function ArabicTrainer() {
    */
   const trial = !!(session && session.trial);
   const resolved = useMemo(
-    () =>
-      exercise
-        ? castRange(
-            castMeaning(
-              castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type),
-              exercise.type
-            ),
-            exercise,
-            systems,
-          )
-        : null,
+    () => (exercise ? resolveQuestion(asking, exercise, trial, systems) : null),
     [asking, exercise, trial, systems]
   );
   const item = resolved ? resolved.unit : null; // the form being drilled
@@ -8652,57 +9127,7 @@ export default function ArabicTrainer() {
     if (!item || !spec || !exercise || spec.picks !== "pair") {
       return { words: [] as Form[], meanings: [] as string[], said: [] as Form[] };
     }
-    /* Two units a learner would read as one tile: the same word, or the
-       same meaning, after both have been narrowed to the one the question
-       shows. matchSet is the gate that refuses them; this is the same
-       question asked while the company is being chosen, so a trial does
-       not spend its four places filling up with them. */
-    const sameTile = (a: Form, b: Form) =>
-      String(a.ar || "").trim() === String(b.ar || "").trim() ||
-      String(a.en || "").trim().toLowerCase() === String(b.en || "").trim().toLowerCase();
-    const ownerOf = new Map<string, string>();
-    for (const card of asking) {
-      for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card.id);
-    }
-    const familyOf = (u: Form) => ownerOf.get(u.id) || u.id;
-    const answers: Form[] = [item];
-    for (const mate of exercise.mates || []) {
-      const r = resolveUnit(asking, { ...mate, type: exercise.type });
-      /* Narrowed here rather than at the tile, because the grid is marked
-         against the word's own `en` — a tile showing one meaning and a
-         mark expecting two would call every right answer wrong. */
-      if (r && r.unit.ar && r.unit.en) answers.push(oneOf(r.unit, exercise.type));
-    }
-    const pool = wordPool(asking, settings, qLang.id, item)
-      .filter((u) => u.ar && u.en)
-      .map((u) => oneOf(u, exercise.type));
-    const reps = (statesOf(item)[exercise.type] || {}).reps || 0;
-    const likeness = (u: Form) => Math.max(...answers.map((a) => wordLikeness(a.ar, u.ar, qLang)));
-    const ranked = [...pool].sort((x, y) => likeness(y) - likeness(x));
-    /* A question dealt no mates — a teacher trying the exercise on one
-       card — is given its company from the pool, the most alike first, so
-       the grid they see is the grid a learner gets. Nothing is marked on a
-       trial, so nothing is marked on them. */
-    if (!exercise.mates) {
-      for (const u of ranked) {
-        if (answers.length >= PAIR_WORDS) break;
-        if (answers.some((a) => a.id === u.id)) continue;
-        /* And nothing that reads the same as what is already there. Two
-           tiles a learner cannot tell apart make the pairing a guess —
-           matchSet refuses them below, and a trial that handed it four
-           collisions would be a grid of one word and a lot of spares. */
-        if (answers.some((a) => sameTile(a, u) || familyOf(a) === familyOf(u))) continue;
-        answers.push(u);
-      }
-    }
-    return matchSet({
-      answers,
-      pool: ranked,
-      seed: `${item.id} ${reps}`,
-      textOf: (u) => u.ar,
-      meaningOf: (u) => u.en,
-      familyOf,
-    });
+    return gridFor(item, exercise, asking, settings, qLang);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item && item.id, exercise && exercise.type, exercise && exercise.mates, asking, qLang.id]);
 
@@ -9432,121 +9857,25 @@ export default function ArabicTrainer() {
      */
     const how = { checked, toldAnswer, overridden, skipped, hintAtAnswer };
     const { correct, rating } = verdictOf(how);
-    /*
-     * One question marks one form — except the grid, where every word up
-     * is a question of its own and is marked on the pair put to it,
-     * whatever the rest of the grid did.
-     *
-     * A word dealt in to fill a grid out may not have been due. A success
-     * on it counts — it is a right answer — but does not move its
-     * schedule, the way practice does not; a miss is a miss wherever it
-     * happens. The first word is marked as any question is.
-     */
-    const marks: Mark[] = [];
-    if (spec && spec.picks === "pair") {
-      const placeOf = (w: Form) => {
-        if (w.id === item.id) return { id: parentItem.id, subId: exercise.subId || null };
-        for (const mate of exercise.mates || []) {
-          const r = resolveUnit(asking, { ...mate, type: exercise.type });
-          if (r && r.unit.id === w.id) return mate;
-        }
-        return null;
-      };
-      for (const m of gridMarks()) {
-        const place = placeOf(m.unit);
-        if (!place) continue;
-        const lead = m.unit.id === item.id;
-        marks.push({
-          ...place,
-          rating: m.right ? "good" : "again",
-          correct: m.right,
-          advance: !practice && (lead || stateReady(statesOf(m.unit)[exercise.type])),
-        });
-      }
-    } else {
-      marks.push({
-        id: parentItem.id,
-        subId: exercise.subId || null,
-        rating,
-        correct: !!correct,
-        advance: !practice,
-        /* What this question was filled with, where it had blanks — carried
-           on the mark, because the words it borrowed are marked too and
-           none of them was filled with anything. */
-        filled: (item as Record<string, any>).filled as Record<string, string> | undefined,
-      });
-      /*
-       * And the words that stood in those blanks.
-       *
-       * A sentence is a card made of blanks and the vocabulary fills them,
-       * so answering one is answering about the words in it: writing *the
-       * book is big* in the script is writing each of those two words in
-       * the script. Only the sentence used to be marked, so a learner
-       * could write a noun correctly a dozen times inside sentences and
-       * the app went on believing they had never produced it. The rule — a
-       * right answer only, the schedule moving only where that word's own
-       * was due, and only exercises the word itself climbs — is
-       * fillerMarks.
-       */
-      marks.push(...fillerMarks(fillersIn(item, exercise.type, settings), { correct: !!correct }, practice));
-    }
-    /*
-     * A range is marked on itself *and* on the words that stood in it.
-     *
-     * The answer says two things, so both are filed. It says the learner
-     * is getting better at counting to a hundred, which is the skill's own
-     * key; and it says they read the word for forty and knew what it
-     * meant, which is the ordinary key each component card climbs. The
-     * second goes through `under`, because no card climbs a ladder called
-     * "num2fig" and writing one would be a schedule nothing ever reads.
-     */
-    if (item.tokens) {
-      const set = systemFor(parentItem, systems);
-      const under = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
-      const from = set ? set.numbers.id : "";
-      const said = new Set(
-        ((item.tokens as { slot?: string; override?: string }[]) || [])
-          .map((t) => (t.override ? overrideId(from, t.override) : t.slot ? componentId(from, t.slot) : ""))
-          .filter(Boolean),
-      );
-      marks.push(
-        ...fillerMarks(
-          [...said]
-            .map((id) => asking.find((i) => i.id === id))
-            .filter(Boolean)
-            .map((card) => {
-              const form = leadOf(card);
-              return {
-                id: (card as Item).id,
-                subId: null,
-                asked: laddered(form, settings).includes(under),
-                ready: (() => {
-                  const st = statesOf(form)[under];
-                  return !!st && st.phase !== "new" && stateReady(st);
-                })(),
-              };
-            }),
-          { correct: !!correct },
-          practice,
-        ).map((mark) => ({ ...mark, under })),
-      );
-    }
+    const marks = marksForAnswer({
+      exercise,
+      item,
+      parentItem,
+      asking,
+      settings,
+      systems,
+      correct: !!correct,
+      rating,
+      practice: !!practice,
+      grid: spec && spec.picks === "pair" ? gridMarks() : null,
+    });
     /* Filled in by the write below and read after it. `persist` calls its
        function there and then rather than queuing it, so by the time this
        is read it holds what this answer actually moved. */
     let moving: { id: string; move: Move }[] = [];
     persist((cur) => {
       const graded = gradeInto(cur.items, marks, {
-        type: exercise.type,
-        level: levelOf(exercise.type),
-        keepMet: needsMetRecord,
-        /* The ladder each marked form climbs, so a right answer given to
-           a cleared card's top question, when that question came round of
-           its own accord, counts towards the two passes that make it
-           learnt. Per form and not per card, because one answer marks
-           several: a word standing in somebody else's sentence is credited
-           on its own ladder. */
-        keysOf: (unit: Form) => laddered(unit, settings),
+        ...gradingFor(exercise, settings),
         /* The question a lift has already moved up its ladder: answered,
            and neither rewarded nor lapsed. */
         spare: eased ? { id: parentItem.id, subId: exercise.subId || null } : null,
@@ -10957,7 +11286,15 @@ export default function ArabicTrainer() {
 
         {/* ============ PROGRESS ============ */}
         {tab === "progress" && (
-          <ProgressTab items={shown} myCourses={myCourses} settings={settings} moves={data.moves} />
+          <ProgressTab
+            items={shown}
+            myCourses={myCourses}
+            settings={settings}
+            moves={data.moves}
+            perDay={perDay}
+            restoreIndexes={restoreIndexes}
+            systems={systems}
+          />
         )}
 
         {/* ============ SETTINGS ============ */}
@@ -14110,14 +14447,250 @@ function Lately({ moves }: { moves?: Record<string, DayMoves> }) {
   );
 }
 
-function ProgressTab({ items, myCourses = [], settings, moves }: {
+/* ------------------------------------------------------------------
+   One deck, on a screen of its own
+
+   Opened from a deck's tile under Progress: how far the deck has got, two
+   dates for when it could all be learnt, and every card in it by where it
+   stands. The dates are the deck played forward by the app's own rules —
+   see deckForecast — so they follow any change to the rules by themselves.
+   ------------------------------------------------------------------ */
+
+/* No number systems, as one list for every render. */
+const NO_SYSTEMS: SystemSet[] = [];
+
+/* The runs a deck's cards are listed in, least advanced first. */
+const DECK_RUNS = [
+  { key: "new", label: "Not started" },
+  { key: "l1", label: LEVEL_NAME[1] },
+  { key: "l2", label: LEVEL_NAME[2] },
+  { key: "l3", label: LEVEL_NAME[3] },
+  { key: "l4", label: LEVEL_NAME[4] },
+  { key: "cleared", label: "Cleared" },
+  { key: "done", label: "Learnt" },
+];
+
+/** Which of DECK_RUNS a card goes under. */
+function deckRunOf(at: Standing | null | undefined): string {
+  if (!at) return "new";
+  if (at.status === "done") return "done";
+  if (at.status === "cleared") return "cleared";
+  if (at.level === 1 && at.status === "none") return "new";
+  return `l${at.level}`;
+}
+
+/*
+ * A typical day's practice, said as sittings.
+ *
+ * The activity log counts questions, so this is questions over the length
+ * of a session — "about 12 sessions a day" — and under one a day it is
+ * said per week, because "0.3 sessions a day" is not how anybody
+ * describes their week.
+ */
+export function paceWords(perDay: number): string {
+  const sessions = perDay / SESSION_SIZE;
+  if (sessions >= 0.95) return `about ${plural(Math.max(1, Math.round(sessions)), "session")} a day`;
+  return `about ${plural(Math.max(1, Math.round(sessions * 7)), "session")} a week`;
+}
+
+/** When a forecast lands, as a date and how far off it is. */
+export function forecastWords(at: Millis | null, from: Millis = now()): string {
+  if (at === null) return "more than two years away";
+  const day = (t: Millis) => {
+    const d = new Date(t);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const days = Math.round((day(at) - day(from)) / 86400000);
+  const date = new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  const off = days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+  return `${date} (${off})`;
+}
+
+/*
+ * The two forecasts for a deck, worked out a slice at a time.
+ *
+ * Kept per deck until the cards change, so opening a deck twice does not
+ * play it forward twice. `undefined` is still working; null is past the
+ * two years a forecast looks ahead.
+ */
+const forecastCache: WeakMap<Item[], Map<string, { pace?: Millis | null; floor?: Millis | null; perDay: number }>> =
+  new WeakMap();
+
+function useDeckForecast(
+  name: string,
+  collection: Item[],
+  settings: Settings,
+  perDay: number,
+  restore: () => void,
+  systems: SystemSet[],
+) {
+  const cached = forecastCache.get(collection)?.get(name);
+  const fresh = cached && cached.perDay === perDay ? cached : undefined;
+  const [pace, setPace] = useState<Millis | null | undefined>(fresh ? fresh.pace : undefined);
+  const [floor, setFloor] = useState<Millis | null | undefined>(fresh ? fresh.floor : undefined);
+  useEffect(() => {
+    const byDeck = forecastCache.get(collection) || new Map();
+    forecastCache.set(collection, byDeck);
+    const kept = byDeck.get(name);
+    if (kept && kept.perDay === perDay && kept.pace !== undefined && kept.floor !== undefined) {
+      setPace(kept.pace);
+      setFloor(kept.floor);
+      return;
+    }
+    const entry: { pace?: Millis | null; floor?: Millis | null; perDay: number } = { perDay };
+    byDeck.set(name, entry);
+    setPace(undefined);
+    setFloor(undefined);
+    const from = now();
+    const deckOf = (it: Item) => (it.tags || []).includes(name);
+    const sessions = perDay / SESSION_SIZE;
+    /* Nothing to play forward at a pace of nothing. */
+    const paceRun =
+      sessions > 0 ? deckForecast({ collection, deckOf, settings, sessionsPerDay: sessions, from, restore, systems }) : null;
+    if (!paceRun) {
+      entry.pace = null;
+      setPace(null);
+    }
+    const floorRun = earliestForecast({ collection, deckOf, settings, from, restore, systems });
+    let stopped = false;
+    let timer = 0;
+    /* A slice at a time, so the screen answers a tap while the deck is
+       played forward: about a tenth of a second of work, then a breath. */
+    const tick = () => {
+      if (stopped) return;
+      if (paceRun && entry.pace === undefined) {
+        if (paceRun.step(100)) {
+          entry.pace = paceRun.result();
+          setPace(entry.pace);
+        }
+      } else if (floorRun.step(100)) {
+        entry.floor = floorRun.result();
+        setFloor(entry.floor);
+        return;
+      }
+      timer = window.setTimeout(tick, 16);
+    };
+    timer = window.setTimeout(tick, 60);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+      /* Half a forecast is not an answer; the next opening starts again. */
+      if (entry.pace === undefined || entry.floor === undefined) byDeck.delete(name);
+    };
+  }, [name, collection, settings, perDay, restore, systems]);
+  return { pace, floor };
+}
+
+function DeckScreen({
+  name,
+  cards,
+  collection,
+  progressOf,
+  settings,
+  perDay,
+  restore,
+  systems,
+  onBack,
+  onCard,
+}: {
+  name: string;
+  cards: Item[];
+  collection: Item[];
+  progressOf: Map<string, Standing | null>;
+  settings: Settings;
+  perDay: number;
+  restore: () => void;
+  systems: SystemSet[];
+  onBack: () => void;
+  onCard: (it: Item) => void;
+}) {
+  const shown = cards.filter((it) => progressOf.get(it.id));
+  const learnt = shown.filter((it) => progressOf.get(it.id)?.status === "done").length;
+  const pct = shown.length ? Math.round((learnt / shown.length) * 100) : 0;
+  const allDone = shown.length > 0 && learnt === shown.length;
+  const { pace, floor } = useDeckForecast(name, collection, settings, perDay, restore, systems);
+  const when = (t: Millis | null | undefined) => (t === undefined ? "Working it out…" : `learnt by ${forecastWords(t)}`);
+  return (
+    <Screen title={name} onBack={onBack}>
+      <div className="at-deckhead">
+        <p className="at-deckstatnote">
+          {learnt} of {plural(shown.length, "card")} fully learnt
+        </p>
+        <span className="at-deckbar" aria-hidden="true">
+          <span style={{ width: `${pct}%` }} />
+        </span>
+      </div>
+      {allDone ? (
+        <Lede>Every card in this deck is learnt.</Lede>
+      ) : (
+        <div className="at-forecast" aria-live="polite">
+          <p>
+            <b>At your pace</b>
+            {perDay > 0 ? (
+              <>
+                <span className="at-forecastpace">{paceWords(perDay)}, your average over the past week</span>
+                <span className="at-forecastdate">{when(pace)}</span>
+              </>
+            ) : (
+              <span className="at-forecastpace">
+                You haven't practised in the past week, so there is no pace to go on yet.
+              </span>
+            )}
+          </p>
+          <p>
+            <b>Earliest possible</b>
+            <span className="at-forecastpace">No amount of practice gets it learnt sooner</span>
+            <span className="at-forecastdate">{when(floor)}</span>
+          </p>
+          <p className="at-forecastnote">
+            Both assume you practise only this deck and get every answer right, so the real date will be later.
+          </p>
+        </div>
+      )}
+      <ItemList
+        noun="card"
+        items={shown}
+        itemKey={(it: Item) => it.id}
+        size="small"
+        empty="No cards match."
+        groups={DECK_RUNS}
+        groupOf={(it: Item) => deckRunOf(progressOf.get(it.id))}
+        match={(it: Item, needle: string) =>
+          (leadOf(it).ar || "").includes(needle) ||
+          (leadOf(it).lat || "").toLowerCase().includes(needle) ||
+          (leadOf(it).en || "").toLowerCase().includes(needle)
+        }
+        renderItem={(it: Item) => (
+          <CardTile
+            card={it}
+            lang={langOf(settingsFor(settings, it))}
+            meta={standingShort(progressOf.get(it.id) || null)}
+            className="whole"
+            onClick={() => onCard(it)}
+          />
+        )}
+      />
+    </Screen>
+  );
+}
+
+function ProgressTab({ items, myCourses = [], settings, moves, perDay = 0, restoreIndexes, systems = NO_SYSTEMS }: {
   items: Item[];
   myCourses?: Course[];
   settings: Settings;
   /** What the ladder did each day — see `moves` on the document. */
   moves?: Record<string, DayMoves>;
+  /** Questions answered on a typical recent day — see `typicalDay`. */
+  perDay?: number;
+  /** Puts the question indexes back after a deck forecast — see deckForecast. */
+  restoreIndexes?: () => void;
+  /** The teachers' number systems, which a forecast deals with as a session does. */
+  systems?: SystemSet[];
 }) {
   const [viewing, setViewing] = useState<any | null>(null);
+  /* The deck open on its own screen, or none. */
+  const [deckOpen, setDeckOpen] = useState<string>("");
+  const noRestore = useCallback(() => {}, []);
 
   /*
    * Where each card stands, and how far up it has got.
@@ -14397,8 +14970,15 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
         <Section title="Decks" lede="How you're doing on each deck you're studying.">
           <div className="at-deckprog">
             {deckRows.map((d) => (
-              <div className={`at-deckstat${d.pct === 100 ? " done" : ""}`} key={d.name}>
-                <p className="at-deckstatname">{d.name}</p>
+              /* A button: the whole tile opens the deck's own screen. */
+              <button
+                type="button"
+                className={`at-deckstat${d.pct === 100 ? " done" : ""}`}
+                key={d.name}
+                aria-haspopup="dialog"
+                onClick={() => setDeckOpen(d.name)}
+              >
+                <span className="at-deckstatname">{d.name}</span>
                 <b>
                   {d.pct}
                   <i>%</i>
@@ -14414,10 +14994,10 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
                     deck has got, the other how much of it is behind you for
                     good. "Fully" because they were the same number until
                     the figure learnt to count the levels in between. */}
-                <p className="at-deckstatnote">
+                <span className="at-deckstatnote">
                   {d.learnt} of {plural(d.n, "card")} fully learnt
-                </p>
-              </div>
+                </span>
+              </button>
             ))}
           </div>
         </Section>
@@ -14425,6 +15005,21 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
 
       {items.length === 0 && (
         <Empty title="Nothing to show yet">{noCardsYet(myCourses.length)}</Empty>
+      )}
+
+      {deckOpen && (
+        <DeckScreen
+          name={deckOpen}
+          cards={items.filter((it) => (it.tags || []).includes(deckOpen))}
+          collection={items}
+          progressOf={progressOf}
+          settings={settings}
+          perDay={perDay}
+          restore={restoreIndexes || noRestore}
+          systems={systems}
+          onBack={() => setDeckOpen("")}
+          onCard={(it) => setViewing(it)}
+        />
       )}
 
       {viewing && (

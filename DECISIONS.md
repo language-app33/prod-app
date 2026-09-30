@@ -3891,3 +3891,75 @@ then around day thirty-two new words slow to a trickle until the earliest
 words stand at three-week gaps everywhere. A word counting against the pool
 until it is that settled is the next thing to question if new words matter
 more.
+
+---
+
+## A deck's forecast is the rules played forward, and the simulation's clock moves
+
+**30 September 2026** · `src/ArabicTrainer.tsx` (`deckForecast`,
+`earliestForecast`, `DeckScreen`, `buildSession`'s `elsewhere`),
+`src/scheduler.ts` (`REAL_CLOCK`), `tests/forecast.test.mjs`,
+`tests/pace.test.mjs`
+
+The owner asked for each deck to say how soon it could all be learnt — at
+their own pace, named in sittings, and at the fastest possible — and then
+asked that the two dates stay right whatever the scheduling comes to do.
+
+**Played forward, not worked out.** A formula would have to restate the
+ladder, the front door, the pool, the keen ordering and the passes, and
+would be wrong the day any of them changed. The forecast instead sits the
+learner down at a pace, deals with `buildSession`, and asks the Progress
+screen's own `standing` when every card is learnt. There is nothing in it
+that knows a rule.
+
+**What an answer marks is decided in one place.** It used to be written
+inside the question screen's answer handler — the grid's other words, the
+words standing in a sentence's blanks, the words a number is made of, and
+the options handed to `gradeInto` — where a forecast could only have
+copied it. It is now four functions both of them call: `resolveQuestion`
+(the question as shown), `gridFor` (the words a grid puts up),
+`marksForAnswer` and `gradingFor`. A change to any of them reaches the
+answer and the forecast together, and a test holds the forecast to
+`marksForAnswer`. Its own assumptions are only about the learner: every
+answer right, practising this deck alone, sittings spread over a sixteen-
+hour day.
+
+**The earliest date is searched for.** No pace is written down as "the
+most anybody could do": the deck is played at 16 sittings a day, then 32,
+64, up to 256, until doubling stops bringing the day closer. Whatever the
+rules come to allow, the search finds where practice stops helping.
+
+**Only the deck is played, and the rest is counted once.** Practising one
+deck is the fastest way to finish it, and every other card then stands
+still, so what they hold in the front door and the pool is counted once
+and handed to `buildSession` as `elsewhere`. That made a forecast about ten
+times cheaper without changing what it deals.
+
+**The indexes are the app's, every simulated day.** What a question may
+ask depends partly on progress — a sentence's blanks, a verb's rows — so
+each simulated day installs the full indexes (`installIndexes`) over the
+simulated cards and the rest of the collection. A narrower refresh would
+be faster and would silently go wrong the first time somebody adds a
+progress-dependent index. After every slice of work the real indexes are
+put back, and a test holds that.
+
+**The clock could not be moved, and the pace figures were off.** The
+scheduler's default clock captured `Date.now` when the module loaded, so
+setting the time for a simulated sitting reached the session builder's own
+readings but not the scheduler's — what is due, what rests. Every figure
+the pace simulation printed since it began stubbing the clock was measured
+with half the app reading today's date. `REAL_CLOCK` now reads `Date.now`
+at each call. Re-measured at fifteen sittings a day over sixty days: 120
+words learnt under 0.279, 248 under 0.280, about 275 under 0.281, and a
+card dealt 5.4, 3.8 and 2.5 times a day. Those are larger gains than first
+reported. But three sittings a day, just past the keen line, learns about
+60 under 0.281 against 78 before: the climbers-first rule admits words
+faster than the pool of sixty can settle them, and new words then stop for
+about a month. That is reported to the owner rather than changed here,
+because where the keen line sits is theirs to decide. The 0.281 figures in
+the entry above were measured under the old clock.
+
+**What it costs.** A forecast takes about a second for a small deck on a
+laptop and several on a phone, most of it the daily index refresh. It is
+done in slices of a tenth of a second, the pace date first, and kept until
+the cards change.

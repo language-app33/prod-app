@@ -2066,6 +2066,42 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("and beside it, how many of its cards are finished outright",
       decks.every((d) => /\d+ of \d+ cards? fully learnt/.test((d.textContent || "").replace(/\s+/g, " "))),
       said.join(" · "));
+
+    /* ---- and a deck opens on a screen of its own ----
+       How far it has got, two dates for when it could all be learnt —
+       at the learner's own pace, which it names, and the earliest the
+       rules allow — and every card in it by where it stands. */
+    const lesson = named("Lesson 1");
+    check("a deck's tile is a button that opens it",
+      !!lesson && lesson.tagName === "BUTTON", lesson ? lesson.tagName : "(no Lesson 1 tile)");
+    if (lesson) {
+      click(lesson);
+      await sleep(250);
+      const deckScreen = () => [...document.querySelectorAll(".at-screen.over")].pop();
+      const text = () => ((deckScreen() || {}).textContent || "").replace(/\s+/g, " ");
+      check("on a screen named after the deck", /Lesson 1/.test(text()), text().slice(0, 80));
+      check("saying how many of its cards are learnt", /\d+ of 7 cards fully learnt/.test(text()),
+        (text().match(/\d+ of \d+ cards? fully learnt/) || ["(none)"])[0]);
+      check("with the learner's pace named, or said to be missing",
+        /At your pace/.test(text()) &&
+          (/about \d+ sessions? a (day|week), your average over the past week/.test(text()) ||
+            /haven't practised in the past week/.test(text())),
+        (text().match(/At your pace.{0,90}/) || ["(no pace line)"])[0]);
+      /* Worked out a slice at a time, so it is waited for rather than
+         read on arrival. */
+      for (let i = 0; i < 120 && /Working it out/.test(text()); i++) await sleep(250);
+      check("and the earliest date the rules allow, once worked out",
+        /Earliest possible.*learnt by .+\((today|tomorrow|in \d+ days)\)/.test(text()) ||
+          /more than two years away/.test(text()),
+        (text().match(/Earliest possible.{0,90}/) || ["(no earliest line)"])[0]);
+      check("with every card listed, least advanced first",
+        (deckScreen() || document).querySelectorAll(".at-cardtile, [class*=cardtile]").length > 0 ||
+          /Not started|Learnt|Cleared/.test(text()),
+        text().slice(0, 200));
+      click([...((deckScreen() || document).querySelectorAll("button"))]
+        .find((b) => b.getAttribute("aria-label") === "Back"));
+      await sleep(250);
+    }
   }
 
   /* ---- and a level's cards come out grouped by how they are going ----

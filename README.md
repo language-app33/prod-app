@@ -278,6 +278,26 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   `KEEN_DAY` and `KEEN_POOL` in `src/ArabicTrainer.tsx`. The front door
   itself does not grow: nobody holds more than ten strangers at once.
 
+- **A deck says when it could all be learnt, and the rules say it.** A
+  deck's tile under Progress opens the deck on a screen of its own: how
+  far it has got, every card in it by where it stands, and two dates —
+  at the learner's own pace, which it names in sittings, and the earliest
+  possible. Neither is a formula. `deckForecast` plays the deck forward at
+  a given pace, every answer right: it deals with `buildSession`, shows
+  each question with `resolveQuestion` and `gridFor`, decides what the
+  answer marks with `marksForAnswer` and grades it with `gradingFor` and
+  `gradeInto` — the very functions the question screen calls when an
+  answer is given — until the Progress screen's own test calls every card
+  learnt; `earliestForecast` doubles the pace until the
+  date stops moving. So a change to the scheduler, the session builder or
+  the marking reaches the dates with nothing to keep in step. Only the
+  deck is played — practising one deck is the fastest way to finish it —
+  and the words the rest of the collection holds are counted once and
+  handed to the builder as `elsewhere`. The indexes a question reads are
+  installed for the simulated cards each simulated day and put back after
+  every slice of work, and the work is done a slice at a time so the
+  screen keeps answering.
+
   The numbers are `FRONT_DOOR_CAP`, `IN_HAND_CAP` and `IN_HAND_MAX` in
   `src/scheduler.ts`, and they were measured rather than chosen:
   `tests/pace.test.mjs` plays out a simulated learner and reports what a

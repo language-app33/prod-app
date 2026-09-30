@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.282 — 30 September 2026
+
+**Each deck now has its own screen, with when it could all be learnt.**
+
+- Under **Progress**, tap a deck to open it. It shows how many of its
+  cards are learnt, and every card in the deck grouped by where it stands,
+  from not started to learnt. Tap a card to open it.
+- It also gives two dates for when the whole deck could be learnt:
+  - **At your pace** — how many sessions you have been doing on average
+    over the past week, and when the deck would be learnt if you kept that
+    up.
+  - **Earliest possible** — the date no amount of practice could beat,
+    because the rest is waiting for reviews on later days.
+- Both assume you practise only that deck and get every answer right, so
+  the real date will be a little later.
+- The dates are worked out by running the app's own learning rules
+  forward on your actual cards, so they stay right whenever those rules
+  change. They take a moment to appear.
+
 ## 0.281 — 30 September 2026
 
 **If you practise several times a day, new words now arrive much faster.**

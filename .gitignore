@@ -12,6 +12,7 @@ tests/.session-build/
 data/
 tests/.offline-build/
 tests/.pace-build/
+tests/.forecast-build/
 tests/.facts-build/
 tests/.readout-build/
 .sweep-tmp/

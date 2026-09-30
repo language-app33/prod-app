@@ -125,8 +125,15 @@ export const PRACTICE_WINDOW_DAYS = 7;
  * The clock and the jitter. Defaulted here rather than at each call site,
  * so a caller that says nothing gets the real world and a test that passes
  * one object gets a world that holds still.
+ *
+ * `Date.now` is looked up at each reading rather than captured when this
+ * module loads. Captured, it could never be moved: the deck forecast and the
+ * pace simulation both play a learner's future forward by setting the
+ * clock to each simulated sitting, and every reader that fell back to this
+ * default went on reading today — so to them every card was due, or none
+ * was, whatever the simulated calendar said.
  */
-export const REAL_CLOCK = { now: Date.now, random: Math.random };
+export const REAL_CLOCK = { now: () => Date.now(), random: () => Math.random() };
 
 const timeOf = (clock?: Clock) => (clock && clock.now ? clock.now() : Date.now());
 
