@@ -491,7 +491,7 @@ test("and no amount of practice shortens the passes that follow", () => {
    with nothing new for a fortnight — and every test here stayed green.
 
    Measured on a 400-word course over sixty days, every answer right, with
-   the simulation's clock fixed in 0.282 (before it, much of the app read
+   the simulation's clock fixed in 0.283 (before it, much of the app read
    today's date instead of the simulated one, and every figure printed
    here was off):
 

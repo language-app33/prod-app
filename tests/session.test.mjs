@@ -39,10 +39,11 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
+const { lentTags, varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
   fillersIn, buildWeakSession, weakness, isWeak, movesAmong, mergeMoves,
   saidMoves, sumMoves } = await import(path.join(out, "trainer.js"));
-const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
+const langs = await import(path.join(here, "..", "src", "languages.ts"));
+const { TYPES } = langs;
 const { FRONT_DOOR_CAP } = await import(path.join(here, "..", "src", "scheduler.ts"));
 
 /** @param {string} id @param {string} type */
@@ -1480,4 +1481,27 @@ test("a card without a picture is never dealt one of the picture exercises", () 
   const got = deal(items);
   const types = got.exercises.map((/** @type {any} */ x) => String(x.type).split("@")[0]);
   assert.ok(!types.some((/** @type {string} */ t) => ["rec2img", "img2pick", "img2ar"].includes(t)), types.join(" "));
+});
+
+test("a sentence names the word in its blank where that word's English is shared", () => {
+  /* Reported twice by one learner on "{{whose-name}} is {{person}}": the
+     plural *your name* read "Your name is Shams", and nothing said it was
+     the plural. */
+  const { LANGUAGES } = langs;
+  const names = {
+    id: "n", lang: "ar-PS", fills: ["whose-name"], drill: false, updated: 1, tags: [],
+    forms: [
+      { id: "n", ar: "اسمي", en: "My name", lat: "ismi", number: "singular", gender: "masculine", s: {} },
+      { id: "n2", ar: "اسمك", en: "Your name", lat: "ismak", number: "singular", gender: "masculine", s: {} },
+      { id: "n3", ar: "اسمكم", en: "Your name", lat: "ismkum", number: "plural", gender: "masculine", s: {} },
+    ],
+  };
+  installIndexes([names], { language: "ar-PS" });
+  const ar = LANGUAGES["ar-PS"];
+  assert.deepEqual(lentTags({ id: "f", filled: { "whose-name": "n3" } }, ar), ["Your name: plural"]);
+  assert.deepEqual(lentTags({ id: "f", filled: { "whose-name": "n2" } }, ar), ["Your name: singular"]);
+  /* "My name" says what it is already. */
+  assert.deepEqual(lentTags({ id: "f", filled: { "whose-name": "n" } }, ar), []);
+  /* And an ordinary card, with nothing filled, says nothing. */
+  assert.deepEqual(lentTags({ id: "f" }, ar), []);
 });

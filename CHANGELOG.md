@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.282 — 30 September 2026
+## 0.283 — 30 September 2026
 
 **Each deck now has its own screen, with when it could all be learnt.**
 
@@ -26,6 +26,24 @@ and moves once per batch of work you would notice, not once per commit.
 - The dates are worked out by running the app's own learning rules
   forward on your actual cards, so they stay right whenever those rules
   change. They take a moment to appear.
+
+## 0.282 — 30 September 2026
+
+**Sentences with a word dropped in now say which "you" they mean.**
+
+- English uses "your" for one man, one woman and several people, where
+  Arabic uses a different word for each. A sentence like "Your name is
+  Shams" gave no way to tell which was meant. Now, when the word dropped
+  into a sentence reads the same in English as another form of it, the
+  question and the answer both say which one it is — for example "Your
+  name: plural". This needs the teacher to have marked the forms as
+  singular, plural, masculine or feminine; most sentences show nothing
+  extra.
+- Writing a different word in English is no longer marked "nearly right".
+  "Their name is Shams" for "Your name is Shams" used to be called the
+  right word, not quite spelt, because the rest of the sentence was right.
+  It is now marked wrong. A misspelt word, like "tried" for "tired", is
+  still nearly right, and one letter out is still counted as right.
 
 ## 0.281 — 30 September 2026
 

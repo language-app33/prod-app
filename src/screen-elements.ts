@@ -32,6 +32,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
   [QUESTION, [
     ["question-instruction", "The line telling you what to do. The same shape in every exercise.", "Write in English"],
     ["question-form-tag", "Which form is being asked, when the card has more than one: only what tells it from the others, in whole words.", "feminine plural"],
+    ["question-fill-tag", "What a word dropped into a sentence is, where its English could be more than one form of it. Only then; nothing on most sentences.", "Your name: plural"],
     ["question-prompt", "The block being asked about. A word, a phrase with a gap in it, a play button, or a conversation, depending on the exercise.", ""],
     ["question-prompt-text", "The words inside it, when it is words. One size in every exercise.", "كِتاب"],
     ["scene", "The conversation, on a dialog question: as much of it as the question shows.", ""],
@@ -88,6 +89,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
     ["related-words", "Words related to this one — sharing a root, or told apart only by tone.", ""],
     ["related-words-label", "What the language calls that relation.", "Built on the same root"],
     ["related-word", "One of those words, with what it means.", "كُتُب — books"],
+    ["answer-fill-tag", "The same, beside the answer: what the word dropped into the sentence was, where its English could be more than one form of it.", "Your name: plural"],
     ["answer-grammar", "Which of the accepted answers they wrote, where the card takes more than one and they differ in something the language names.", "You wrote the feminine one."],
     ["bare-note", "A nudge when a right answer was typed without its marks.", "The harakat are above — worth a look."],
     ["card-note", "The teacher's own note on the card, if there is one.", ""],
