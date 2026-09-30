@@ -14537,17 +14537,17 @@ function deckRunOf(at: Standing | null | undefined): string {
 }
 
 /*
- * A typical day's practice, said as sittings.
+ * A typical day's practice, said as sittings a day.
  *
  * The activity log counts questions, so this is questions over the length
- * of a session — "about 12 sessions a day" — and under one a day it is
- * said per week, because "0.3 sessions a day" is not how anybody
- * describes their week.
+ * of a session — "about 12 sessions a day". Always per day, as the owner
+ * asked, and to one decimal under one a day ("about 0.4 sessions a day")
+ * rather than rounded to a whole session nobody did.
  */
 export function paceWords(perDay: number): string {
   const sessions = perDay / SESSION_SIZE;
   if (sessions >= 0.95) return `about ${plural(Math.max(1, Math.round(sessions)), "session")} a day`;
-  return `about ${plural(Math.max(1, Math.round(sessions * 7)), "session")} a week`;
+  return `about ${Math.max(0.1, Math.round(sessions * 10) / 10)} sessions a day`;
 }
 
 /** When a forecast lands, as a date and how far off it is. */

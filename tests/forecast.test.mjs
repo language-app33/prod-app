@@ -153,11 +153,11 @@ test("no practice at all is no pace, rather than a date", () => {
   assert.equal(got.at, null);
 });
 
-test("the pace is said as sittings, a week at a time under one a day", () => {
+test("the pace is said as sittings a day, to a decimal under one", () => {
   assert.equal(paceWords(18 * 12), "about 12 sessions a day");
   assert.equal(paceWords(18), "about 1 session a day");
-  assert.equal(paceWords(9), "about 4 sessions a week");
-  assert.equal(paceWords(1), "about 1 session a week");
+  assert.equal(paceWords(9), "about 0.5 sessions a day");
+  assert.equal(paceWords(1), "about 0.1 sessions a day");
 });
 
 test("a forecast date says how far off it is", () => {

@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.284 — 30 September 2026
+
+**A deck's "At your pace" always says your sessions per day.**
+
+- It used to switch to sessions a week when you averaged fewer than one a
+  day. It now always says how many sessions a day you average over the
+  past week — for example "about 0.4 sessions a day".
+
 ## 0.283 — 30 September 2026
 
 **Each deck now has its own screen, with when it could all be learnt.**
@@ -16,9 +24,9 @@ and moves once per batch of work you would notice, not once per commit.
   cards are learnt, and every card in the deck grouped by where it stands,
   from not started to learnt. Tap a card to open it.
 - It also gives two dates for when the whole deck could be learnt:
-  - **At your pace** — how many sessions you have been doing on average
-    over the past week, and when the deck would be learnt if you kept that
-    up.
+  - **At your pace** — how many sessions a day you have been doing on
+    average over the past week, and when the deck would be learnt if you
+    kept that up.
   - **Earliest possible** — the date no amount of practice could beat,
     because the rest is waiting for reviews on later days.
 - Both assume you practise only that deck and get every answer right, so

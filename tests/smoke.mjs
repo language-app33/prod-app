@@ -2084,7 +2084,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
         (text().match(/\d+ of \d+ cards? fully learnt/) || ["(none)"])[0]);
       check("with the learner's pace named, or said to be missing",
         /At your pace/.test(text()) &&
-          (/about \d+ sessions? a (day|week), your average over the past week/.test(text()) ||
+          (/about [\d.]+ sessions? a day, your average over the past week/.test(text()) ||
             /haven't practised in the past week/.test(text())),
         (text().match(/At your pace.{0,90}/) || ["(no pace line)"])[0]);
       /* Worked out a slice at a time, so it is waited for rather than
