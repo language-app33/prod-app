@@ -3891,3 +3891,26 @@ then around day thirty-two new words slow to a trickle until the earliest
 words stand at three-week gaps everywhere. A word counting against the pool
 until it is that settled is the next thing to question if new words matter
 more.
+
+## An English near miss has to be the same words, and a lent word is named only where its English is shared
+
+**30 September 2026** · `src/languages.ts` (`checkEn`, `lentLabel`), `src/ArabicTrainer.tsx` (`lentTags`)
+
+A learner reported "Their name is Zatar" marked *nearly right — the right
+word, not quite spelt* for "Your name is Zaʿtar". The English near-miss band
+is a quarter of the whole answer's letters, and in a sentence the words that
+are right pay for the one that is not. So where the answer and the expected
+English have the same number of words, each differing word must now be
+close to its counterpart (one letter up to three letters, two up to six, a
+third beyond). The cost: a short function word swapped for another — *he*
+for *it* — is now wrong rather than near, which is the point, and an answer
+with a word dropped or added is still judged on the whole-answer measure,
+because there is nothing to line up.
+
+The same report asked which *your* the sentence meant. The frame's own
+grammar says nothing about that; the word lent into the blank does. It is
+named — through the same whole-word grammar as `askLabel` — only when
+another form of its card reads the same in English, so that "My name is
+Shams" carries no tag and "Your name is Shams" says *plural*. It depends on
+the teacher having marked the forms; forms marked alike get no tag rather
+than a guess.

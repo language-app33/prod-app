@@ -1212,6 +1212,43 @@ export function askLabel(
 }
 
 /**
+ * What a word lent to a sentence is, where its English does not say.
+ *
+ * A card that fills a blank may have several forms reading alike in
+ * English — *your name* to one man, to one woman, and to several people
+ * are three words in Arabic and one in English. Dropped into "{{whose-name}}
+ * is {{person}}", the sentence read "Your name is Shams" whichever was
+ * used, and a learner reported that nothing on the screen said which it
+ * was: they read the plural as *their* twice.
+ *
+ * So the form is named — in the words askLabel uses — by what tells it
+ * from those of its card's forms whose English it shares, and from those
+ * only: a form whose English is its own has already said what it is, and
+ * naming it would be a tag on every sentence. Empty where nothing is
+ * shared, or where the teacher has given the form nothing to be told
+ * apart by.
+ */
+export function lentLabel(
+  form: Record<string, any> | null | undefined,
+  card: unknown,
+  lang: Lang = activeLang(),
+): string {
+  if (!form || !card) return "";
+  const said = (f: Record<string, any>) =>
+    String(f.en || "")
+      .split(/[/;,]/)
+      .map(normEn)
+      .filter(Boolean);
+  const mine = said(form);
+  if (!mine.length) return "";
+  const forms = [leadOf(card)].concat(subFormsOf(card)).filter(Boolean) as Record<string, any>[];
+  const twins = forms.filter((f) => f !== form && !(f.id && f.id === form.id) && said(f).some((en) => mine.includes(en)));
+  if (!twins.length) return "";
+  if (isCell(form)) return askLabel(form, card, lang);
+  return spelledGrammar(form, twins, lang);
+}
+
+/**
  * Which of a form's accepted answers the learner wrote, in the same words:
  * "You wrote the feminine one." Told apart from the form's other answers
  * only, since those are what could have been written instead.
@@ -3219,8 +3256,39 @@ export function checkEn(given: string, expected: string) {
   if (forms.includes(g)) return { ok: true, reason: "exact" };
   if (forms.some((e) => tight(e).length >= EN_SLIP_MIN && editDistance(g, e) === 1))
     return { ok: true, reason: "typo" };
-  const near = forms.some((e) => editDistance(g, e) <= Math.max(1, Math.round(e.length * 0.25)));
+  const near = forms.some((e) => editDistance(g, e) <= Math.max(1, Math.round(e.length * 0.25)) && sameWords(g, e));
   return { ok: false, reason: near ? "near" : "wrong" };
+}
+
+/*
+ * Whether an English answer close to the expected one is the same words,
+ * misspelt, rather than a different word in one place.
+ *
+ * "Nearly right" says *the right word, not quite spelt*, and it was being
+ * said of "Their name is Zatar" for "Your name is Zaʿtar": the letters
+ * were within a quarter of the sentence, because the rest of it was right,
+ * but *their* is not a misspelling of *your* — it is another person. A
+ * learner reported being told they had it nearly right when they had
+ * misread who was being spoken to.
+ *
+ * So where the answer and the expected one have the same number of words,
+ * each word that differs has to be close to the word it stands for: one
+ * letter on a word of three or fewer, two on a word up to six, and a third
+ * of anything longer. *tried* for *tired* is still near; *their* for
+ * *your*, and *he* for *it*, are not. Where the counts differ — a word
+ * dropped, or two run together — there is nothing to line up, and the
+ * whole-answer measure above stands on its own, as before.
+ */
+function sameWords(given: string, expected: string): boolean {
+  const mine = given.split(" ");
+  const theirs = expected.split(" ");
+  if (mine.length !== theirs.length) return true;
+  return mine.every((word, i) => {
+    const want = theirs[i];
+    if (word === want) return true;
+    const room = want.length <= 3 ? 1 : want.length <= 6 ? 2 : Math.round(want.length / 3);
+    return editDistance(word, want) <= room;
+  });
 }
 
 export function checkTr(given: string, expected: string) {

@@ -18,6 +18,7 @@ import {
   labelFor,
   answerLabel,
   askLabel,
+  lentLabel,
   formLabel,
   normDimValue,
   arRootKey,
@@ -159,6 +160,43 @@ test("English: one letter out is a slip and right; further out, or a short word,
   assert.equal(checkEn("cut", "cat").reason, "near");
   /* Two letters out of a long word is still only near. */
   assert.deepEqual(checkEn("understnad", "understand"), { ok: false, reason: "near" });
+});
+
+test("English: a different word in one place is wrong, not a near miss", () => {
+  /* Reported by a learner, twice: "their" for "your" was marked as the
+     right word, not quite spelt. */
+  assert.deepEqual(checkEn("Their name is Zatar", "Your name is Zaʿtar"), { ok: false, reason: "wrong" });
+  assert.deepEqual(checkEn("They name is Shams ", "Your name is Shams"), { ok: false, reason: "wrong" });
+  assert.deepEqual(checkEn("he is tired", "it is tired"), { ok: false, reason: "wrong" });
+  /* A misspelt word in a sentence is still near, and one letter still right. */
+  assert.deepEqual(checkEn("your nmae is shams", "Your name is Shams"), { ok: false, reason: "near" });
+  assert.deepEqual(checkEn("Your name is Zatar", "Your name is Zaʿtar"), { ok: true, reason: "typo" });
+  assert.deepEqual(checkEn("I am tried", "I am tired"), { ok: false, reason: "near" });
+});
+
+test("a word lent to a sentence is named only where its English is shared", () => {
+  const ar = LANGUAGES["ar-PS"];
+  /* The card behind "{{whose-name}} is {{person}}": three forms reading
+     "Your name" and one reading "My name". */
+  const card = { id: "n", ar: "اسمي", en: "My name", number: "singular", gender: "masculine",
+    subs: [
+      { id: "n2", ar: "اسمك", en: "Your name", number: "singular", gender: "masculine" },
+      { id: "n3", ar: "اسمك", en: "Your name", number: "singular", gender: "feminine" },
+      { id: "n4", ar: "اسمكم", en: "Your name", number: "plural", gender: "masculine" },
+    ] };
+  assert.equal(lentLabel(card.subs[2], card, ar), "plural");
+  assert.equal(lentLabel(card.subs[1], card, ar), "feminine");
+  assert.equal(lentLabel(card.subs[0], card, ar), "masculine singular");
+  /* Its English is its own: nothing to say. */
+  assert.equal(lentLabel(card, card, ar), "");
+  /* Alike in English and in everything the teacher wrote: nothing either. */
+  const bare = { id: "b", ar: "اسمك", en: "Your name", subs: [{ id: "b2", ar: "اسمكم", en: "Your name" }] };
+  assert.equal(lentLabel(bare.subs[0], bare, ar), "");
+  /* A verb's cells say who, as askLabel does. */
+  const cell = (/** @type {string} */ col, /** @type {string} */ word) =>
+    ({ id: `u-${col}`, ar: word, en: "You understand", lat: "", row: "present", col });
+  const verb = { id: "u", ar: "", en: "", category: "verb", subs: [cell("you-m", "بتِفهَم"), cell("you-f", "بتِفهَمي")] };
+  assert.equal(lentLabel(verb.subs[1], verb, ar), "you (feminine)");
 });
 
 test("dimValues carries every declared field, including a Vietnamese classifier", () => {

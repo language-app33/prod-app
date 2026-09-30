@@ -136,6 +136,7 @@ import {
   groupAttrOf,
   answerLabel,
   askLabel,
+  lentLabel,
   labelFor,
   langOf,
   quizAttrOf,
@@ -1055,6 +1056,32 @@ export function fillersIn(unit: Form, key: string, settings: Settings): Filler[]
         return !!s && s.phase !== "new" && stateReady(s);
       })(),
     });
+  }
+  return out;
+}
+
+/**
+ * What the words standing in this question's blanks are, where their
+ * English does not say — "Your name: plural" in "Your name is Shams".
+ *
+ * Read off what the question was filled with, as fillersIn is, and named
+ * by lentLabel: only a word sharing its English with another form of its
+ * own card is tagged, since only then could the sentence be read two ways.
+ * One line per blank that needs one, in the order the blanks were filled;
+ * nothing, which is almost always, where none does.
+ */
+export function lentTags(unit: Form | null | undefined, lang: Lang): string[] {
+  const filled = unit ? ((unit as Record<string, any>).filled as Record<string, string> | undefined) : undefined;
+  if (!filled) return [];
+  const out: string[] = [];
+  for (const ref of Object.values(filled)) {
+    const found = ref ? VALUE_OWNER.get(ref) : null;
+    if (!found) continue;
+    const label = lentLabel(found.form, found.card, LANGUAGES[String(found.card.lang || "")] || lang);
+    if (!label) continue;
+    const en = String(found.form.en || "").split("/")[0].trim();
+    const line = en ? `${en}: ${label}` : label;
+    if (!out.includes(line)) out.push(line);
   }
   return out;
 }
@@ -8884,6 +8911,15 @@ export default function ArabicTrainer() {
     );
   }, [spec, item]);
 
+  /* What the words in this sentence's blanks are, where their English
+     leaves it open — see lentTags. Said under the prompt and again beside
+     the answer, which is where a learner reported looking for it. */
+  const lentLines = useMemo(
+    () => (item && spec && spec.promptField !== "pairs" && spec.promptField !== "scene" ? lentTags(item, qLang) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [item, spec, qLang.id],
+  );
+
   const tellForm = useMemo(() => {
     if (!item || !parentItem || !spec) return false;
     const kin = unitsOf(parentItem)
@@ -10395,6 +10431,16 @@ export default function ArabicTrainer() {
                         {askLabel(item, parentItem, qLang)}
                       </p>
                     )}
+                    {/* And what the words in a sentence's blanks are,
+                        where English says "your" for three Arabic words —
+                        see lentTags. Without it a question asking for the
+                        Arabic of "Your name is Shams" could not say which
+                        of them it wanted. */}
+                    {lentLines.length > 0 && (
+                      <p className="at-asktag" data-el="question-fill-tag">
+                        {lentLines.join(" · ")}
+                      </p>
+                    )}
                     {/* What the phrase means, where the phrase is on the
                         screen with its gap: the learner works out which
                         word is missing from the sentence around it. It was
@@ -10690,6 +10736,17 @@ export default function ArabicTrainer() {
                             />
                           )}
                         </div>
+                      )}
+                      {/* What the words in the sentence's blanks were, where
+                          their English leaves it open: "Your name: plural".
+                          A learner answered *their* twice and reported that
+                          the answer never said who was being spoken to —
+                          see lentTags. Shown whatever the verdict, since a
+                          right answer in English was no less ambiguous. */}
+                      {lentLines.length > 0 && (
+                        <p className="at-asktag" data-el="answer-fill-tag">
+                          {lentLines.join(" · ")}
+                        </p>
                       )}
                       {/* Which of the accepted answers they wrote, where the
                           card accepts more than one and they differ in
