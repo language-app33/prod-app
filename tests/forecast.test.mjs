@@ -246,12 +246,18 @@ test("the home screen's prep tile says whether the pace gets you there", () => {
   assert.deepEqual([on.days, on.tone, on.status, on.detail], [12, "good", "On track", ""]);
   const more = prepGlance(12, { kind: "rate", rate: 5.2 }, 36, 0);
   assert.deepEqual([more.tone, more.status], ["push", ""]);
-  assert.equal(more.detail, "About 6 sessions a day will get you ready — you're doing about 2 sessions a day");
+  assert.equal(more.detail, "About 6 sessions a day will get you ready");
   assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).detail, "About 0.4 sessions a day will get you ready");
   const late = prepGlance(3, { kind: "late", earliest: FROM + 6 * DAY }, 36, 0);
   assert.deepEqual([late.tone, late.status], ["late", "Too soon"]);
   assert.match(late.detail, /^Too soon to learn it all — the earliest you could be ready is .+\(in \d+ days\)$/);
   assert.match(prepGlance(3, { kind: "late", earliest: null }, 0, 0).detail, /more than two years$/);
+  /* The line says the same figure as today's goal, made this morning: 13
+     sessions done of 30 days' worth leave the live rate at 13, and both
+     say 14 — the rate before today's work, rounded up. */
+  const midday = prepGlance(30, { kind: "rate", rate: 13 }, 0, 13 * 18);
+  assert.deepEqual([midday.done, midday.goal], [13, 14]);
+  assert.match(midday.detail, /^About 14 sessions a day will get you ready/);
   const all = prepGlance(5, { kind: "already" }, 36, 0);
   assert.deepEqual([all.days, all.tone, all.status, all.detail], [5, "good", "All learnt", ""]);
 });
