@@ -2784,7 +2784,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
      * these packs have always stated, read the wrong way round by the
      * code that enforced it. `ignoreHamza` accepts ا for أ إ آ, و for ؤ, ي for ى and
      * ئ, and a dropped ء, because those distinctions are learnt later than
-     * the words that carry them. ة and ه are not among them: since 0.294
+     * the words that carry them. ة and ه are not among them: since 0.295
      * one written for the other, either way round, is a misspelling.
      */
     marking: { tashkeel: "either", ignoreHamza: true },
@@ -3189,7 +3189,7 @@ export function sortMarks(s: string) {
 /*
  * `foldTaMarbuta` writes ة as ه. Marking never asks for it: ة and ه are two
  * letters, and a learner who writes one for the other — عندة for عنده, or
- * شوبانه for شوبانة — has misspelt the word. Until 0.294 the fold rode on
+ * شوبانه for شوبانة — has misspelt the word. Until 0.295 the fold rode on
  * `ignoreHamza`, so it was forgiven in both directions. Finding a word in a
  * phrase or gathering a family still folds, because there the question is
  * whether two spellings are the same word, not whether one was spelt right.

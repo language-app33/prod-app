@@ -259,20 +259,20 @@ test("the home screen's prep tile says whether the pace gets you there", () => {
 test("the home screen counts today's sessions against what today needs", () => {
   /* 18 questions to a session. Nothing done: the rate, rounded up. */
   assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.3 }, 0), { done: 0, goal: 3 });
-  assert.equal(prepGlance(10, { kind: "rate", rate: 2.3 }, 0, 0).today, "3 more to go");
+  assert.equal(prepGlance(10, { kind: "rate", rate: 2.3 }, 0, 0).today, "Sessions");
   /* Two sessions done, and the rate read afterwards has fallen by about
      what they did: the goal stays where it was this morning. */
   assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.1 }, 36), { done: 2, goal: 3 });
-  assert.equal(prepGlance(10, { kind: "rate", rate: 2.1 }, 0, 36).today, "1 more to go");
+  assert.equal(prepGlance(10, { kind: "rate", rate: 2.1 }, 0, 36).today, "Sessions");
   /* A session half done is not counted yet. */
   assert.equal(prepToday(10, { kind: "rate", rate: 2.1 }, 45).done, 2);
   assert.deepEqual(
     (({ done, goal, today, todayDone }) => ({ done, goal, today, todayDone }))(prepGlance(10, { kind: "rate", rate: 1.8 }, 0, 54)),
-    { done: 3, goal: 3, today: "on track for today", todayDone: true },
+    { done: 3, goal: 3, today: "Sessions", todayDone: true },
   );
   /* Under a session a day still asks for one today. */
-  assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).today, "1 more to go");
+  assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).today, "Session");
   /* No rate to keep to: just what was done. */
-  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 0).today, "no sessions yet");
-  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 18).today, "session done");
+  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 0).today, "Sessions");
+  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 18).today, "Session");
 });
