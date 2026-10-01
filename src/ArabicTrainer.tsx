@@ -160,6 +160,7 @@ import {
   blankAdmits,
   lendsForm,
   NUMBER_EQUIVALENT,
+  normEn,
 } from "./languages.ts";
 import {
   agreedCell,
@@ -10382,10 +10383,33 @@ export default function ArabicTrainer() {
                     runtime, and it is here so the walk through the app can
                     still check that the right cards are being counted after
                     the number came off the screen. */}
+                {/* While there is a prep, it has the top of the screen to
+                    itself: how far along its decks are, the button that
+                    takes them further, and today's sessions against what
+                    today needs — see PrepLine. The climb over everything is
+                    left off, so the one number on the screen is the one the
+                    learner set themselves. */}
+                {homePrep && (
+                  <div className="at-card at-preptile at-mb3">
+                    <Climb items={shown.filter(prepDeckOf(homePrep.decks))} settings={settings} />
+                    <div className="at-row">
+                      <Button variant="primary" onClick={() => begin(false, prepDeckOf(homePrep.decks))}>
+                        Prep for {homePrep.name}
+                      </Button>
+                    </div>
+                    <PrepLine
+                      prep={homePrep}
+                      collection={shown}
+                      settings={settings}
+                      perDay={perDay}
+                      today={(data.log || {})[dayKey()] || 0}
+                    />
+                  </div>
+                )}
                 <div className="at-card" data-ready={readyCount}>
                   {/* How far along the learner is, above the button that
-                      takes them further. */}
-                  <Climb items={shown} settings={settings} />
+                      takes them further — unless a prep has the top tile. */}
+                  {!homePrep && <Climb items={shown} settings={settings} />}
 
                   <div className="at-row">
                     {/* Always live while there is anything to drill. Being
@@ -10394,34 +10418,15 @@ export default function ArabicTrainer() {
                         partway through the app's own pacing of new cards,
                         is offered more of what they hold rather than a
                         greyed-out button and silence. */}
-                    <Button variant="primary"
+                    {/* One primary button on the screen: under a prep it is
+                        the prep's, and this is the next thing along. */}
+                    <Button variant={homePrep ? undefined : "primary"}
                       onClick={() => begin(false)}
                       disabled={!drillable.length}
                     >
                       {readyCount ? "Start session" : "Practise anyway"}
                     </Button>
                   </div>
-                  {/* A session for the prep, while there is one to prepare
-                      for — see Prep. Drawn from its decks alone, and said
-                      with today's sessions against today's goal, how long
-                      is left and whether the learner's pace gets them
-                      there. */}
-                  {homePrep && (
-                    <>
-                      <div className="at-row at-mt3">
-                        <Button onClick={() => begin(false, prepDeckOf(homePrep.decks))}>
-                          Prep for {homePrep.name}
-                        </Button>
-                      </div>
-                      <PrepLine
-                        prep={homePrep}
-                        collection={shown}
-                        settings={settings}
-                        perDay={perDay}
-                        today={(data.log || {})[dayKey()] || 0}
-                      />
-                    </>
-                  )}
                   {/* And the other kind of session there is a one-tap case
                       for: everything going wrong, worst first. It sits
                       directly under Start session because it is the same
@@ -14094,13 +14099,36 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
   const ids = new Set((shown || []).map((s) => s && s.id).filter(Boolean));
   if (!PROMPT_SHOWS_FORM.includes(promptField) && kin.some((k) => k && ids.has(k.id))) return true;
   if (!PROMPT_FIELDS.includes(promptField)) return false;
-  /* Compared as the learner reads it rather than as it is stored: a
-     difference of case or a stray space is not a difference they could
-     answer by. */
-  const said = (x: Record<string, any> | null | undefined) =>
-    String((x && x[promptField]) || "").trim().toLowerCase();
-  const asked = said(unit);
-  return !!asked && kin.some((k) => said(k) === asked);
+  return kin.some((k) => readAlike(unit, k, promptField));
+}
+
+/**
+ * Whether two forms read the same in the field a prompt is read from.
+ *
+ * Compared as the learner reads it rather than as it is stored: a
+ * difference of case or a stray space is not a difference they could
+ * answer by. And in English, by meaning rather than by the whole line: a
+ * masculine written "I am hot / I feel hot" beside a feminine
+ * written "I am hot" are both *I am hot*, and asked that, a learner has no
+ * way to know which was wanted. Exact lines let that pass with no tag, and
+ * a learner reported it — the second report of a missing tag. The
+ * meanings are split as lentLabel splits them, on a slash or a semicolon;
+ * not on a comma, which sits inside a phrase as often as between two.
+ */
+function readAlike(
+  a: Record<string, any> | null | undefined,
+  b: Record<string, any> | null | undefined,
+  field: string,
+): boolean {
+  const raw = (x: Record<string, any> | null | undefined) => String((x && x[field]) || "");
+  if (field !== "en") {
+    const said = (x: Record<string, any> | null | undefined) => raw(x).trim().toLowerCase();
+    return !!said(a) && said(a) === said(b);
+  }
+  const meanings = (x: Record<string, any> | null | undefined) =>
+    raw(x).split(/[/;]/).map(normEn).filter(Boolean);
+  const mine = meanings(a);
+  return meanings(b).some((m) => mine.includes(m));
 }
 
 /**
@@ -14178,11 +14206,7 @@ export function twinsOf({ unit, kin, promptField, told }: {
   told: boolean;
 }): Record<string, any>[] {
   if (!unit || told || !PROMPT_FIELDS.includes(promptField)) return [];
-  const said = (x: Record<string, any> | null | undefined) =>
-    String((x && x[promptField]) || "").trim().toLowerCase();
-  const asked = said(unit);
-  if (!asked) return [];
-  return kin.filter((k) => k && k.id !== unit.id && said(k) === asked);
+  return kin.filter((k) => k && k.id !== unit.id && readAlike(unit, k, promptField));
 }
 
 /**
@@ -14694,10 +14718,17 @@ function PrepScreen({
 }
 
 /*
- * The lines under the home screen's prep button: today's sessions against
- * what today needs, then days left and whether the learner's own pace gets
- * them there — the practice a day the prep needs (see readyFor) against
- * what they have been doing.
+ * What sits under the home screen's prep button: today and the days left,
+ * side by side, rather than two sentences one under the other.
+ *
+ * Each panel is a label and a number. Today's sessions is the sessions
+ * done over the day's goal, with a row of dots, one per session, filling as
+ * they are done — a goal you can see the end of. The days left carries a
+ * coloured word under it where there is one to say: jade when the
+ * learner's pace gets them there, rose when no amount of practice makes the
+ * day. Where it takes more practice there is no word, and the line under
+ * both says how much. What the more is, or when the earliest day is,
+ * goes on one short line under both. See prepGlance for the words.
  */
 function PrepLine({
   prep,
@@ -14717,13 +14748,36 @@ function PrepLine({
     () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings), prepStart(prep.date)),
     [collection, settings, prep],
   );
+  const g = prepGlance(left, answer, perDay, today);
+  /* Dots while they can be counted at a glance; past that, the number. */
+  const dots = g.goal !== null && g.goal <= PREP_DOTS ? g.goal : 0;
   return (
     <>
-      <Help className="at-preptoday">{prepTodayWords(left, answer, today)}</Help>
-      <Help className="at-prepline">{prepLineWords(left, answer, perDay)}</Help>
+      <div className="at-prepglance">
+        <div className="at-prepstat at-preptoday">
+          <span className="at-preplabel">Today&apos;s sessions</span>
+          <b className="at-prepnum">
+            {g.goal === null ? g.done : <>{g.done}<small>/{g.goal}</small></>}
+          </b>
+          {dots > 0 && (
+            <span className="at-preppips" aria-hidden="true">
+              {Array.from({ length: dots }, (_, i) => <i key={i} className={i < g.done ? "on" : ""} />)}
+            </span>
+          )}
+        </div>
+        <div className="at-prepstat at-prepline">
+          <span className="at-preplabel">{g.days === 1 ? "Day left" : "Days left"}</span>
+          <b className="at-prepnum">{g.days}</b>
+          {g.status && <span className={`at-preppill ${g.tone}`}>{g.status}</span>}
+        </div>
+      </div>
+      {g.detail && <Help className="at-prepdetail">{g.detail}</Help>}
     </>
   );
 }
+
+/* How many of today's sessions are drawn as dots before it is a number. */
+const PREP_DOTS = 8;
 
 /**
  * Today's sessions for the prep, and the sessions today that keep it on
@@ -14743,33 +14797,48 @@ export function prepToday(left: number, answer: ReadyAnswer, questionsToday: num
   return { done, goal: Math.max(1, Math.ceil(answer.rate + sessions / left - 1e-9)) };
 }
 
-/** The home screen's daily counter, under the prep button. */
-export function prepTodayWords(left: number, answer: ReadyAnswer, questionsToday: number): string {
-  const { done, goal } = prepToday(left, answer, questionsToday);
-  if (goal === null) return done ? `Today: ${plural(done, "session")} done` : "Today: no sessions done yet";
-  const of = `Today: ${done} of ${plural(goal, "session")} done`;
-  return done >= goal ? `${of} · on track for today` : `${of} · ${goal - done} more to stay on track`;
-}
-
 /**
- * The home screen's prep line: the days left, then the practice that gets
- * the learner there — said as on track when their own pace already does,
- * as the sessions a day it takes when it does not, and as the earliest
- * they could be ready when no amount of practice makes the day.
+ * The pieces of the home screen's prep tile, in words: today's sessions
+ * against what today needs, the days left, and whether the learner's own
+ * pace gets them there — said as on track when it does, as the sessions a
+ * day it takes when it does not, and as the earliest they could be ready
+ * when no amount of practice makes the day.
  */
-export function prepLineWords(left: number, answer: ReadyAnswer, perDay: number): string {
-  const days = left === 1 ? "1 day left" : `${left} days left`;
-  if (answer.kind === "already") return days;
+export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, questionsToday: number): {
+  done: number;
+  goal: number | null;
+  days: number;
+  tone: "good" | "push" | "late";
+  /** The coloured word under the days left, or empty. */
+  status: string;
+  /** The one line under both, or empty. */
+  detail: string;
+} {
+  const { done, goal } = prepToday(left, answer, questionsToday);
+  const base = { done, goal, days: Math.max(0, left) };
+  if (answer.kind === "already") return { ...base, tone: "good", status: "All learnt", detail: "" };
   if (answer.kind === "late") {
-    return answer.earliest === null
-      ? `${days} · too soon to learn it all — it would take more than two years`
-      : `${days} · too soon to learn it all — the earliest you could be ready is ${forecastWords(answer.earliest)}`;
+    return {
+      ...base,
+      tone: "late",
+      status: "Too soon",
+      detail: answer.earliest === null
+        ? "Too soon to learn it all — it would take more than two years"
+        : `Too soon to learn it all — the earliest you could be ready is ${forecastWords(answer.earliest)}`,
+    };
   }
-  if (perDay > 0 && perDay / SESSION_SIZE >= answer.rate) return `${days} · on track at your pace`;
-  const needed = leastWords(answer.rate).replace(/^About/, "about");
-  return perDay > 0
-    ? `${days} · ${needed} will get you ready — you're doing ${paceWords(perDay)}`
-    : `${days} · ${needed} will get you ready`;
+  if (perDay > 0 && perDay / SESSION_SIZE >= answer.rate) {
+    return { ...base, tone: "good", status: "On track", detail: "" };
+  }
+  const needed = leastWords(answer.rate);
+  return {
+    ...base,
+    /* No word under the days left: "Needs more" said less than the line
+       under both, which says how much more. */
+    tone: "push",
+    status: "",
+    detail: perDay > 0 ? `${needed} will get you ready — you're doing ${paceWords(perDay)}` : `${needed} will get you ready`,
+  };
 }
 
 /* ------------------------------------------------------------------

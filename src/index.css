@@ -2626,6 +2626,26 @@ button.at-stat { transition: border-color 140ms ease; }
 /* No margin of its own underneath: the row of buttons below carries the
    gap, the way every row on that card does. */
 .at-climb { display:flex; align-items:center; gap:16px; }
+/* ---- the prep tile's glance, under its button ----
+   Today and the days left side by side in two wells, each a small label, a
+   big number and a word under it. Today's dots fill as sessions are done;
+   the days left carries a coloured word saying whether the pace gets there. */
+.at-prepglance { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top: var(--s3); }
+.at-prepstat { background: var(--well); border-radius: var(--r); padding:12px 10px 14px;
+  display:flex; flex-direction:column; align-items:center; gap:6px; min-width:0; }
+.at-preplabel { font-size: var(--fs-xs); font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+  color: var(--muted); }
+.at-prepnum { font-family: var(--ui); font-size:30px; line-height:1; font-weight:800; letter-spacing:-.03em;
+  color: var(--text); font-variant-numeric: tabular-nums; }
+.at-prepnum small { font-size:18px; font-weight:800; color: var(--muted); }
+.at-preppips { display:flex; flex-wrap:wrap; justify-content:center; gap:5px; }
+.at-preppips i { width:10px; height:10px; border-radius:50%; border:2px solid var(--jade-soft); box-sizing:border-box; }
+.at-preppips i.on { background: var(--jade); border-color: var(--jade); }
+.at-preppill { font-size: var(--fs-sm); font-weight:800; line-height:1; padding:5px 10px; border-radius:999px; }
+.at-preppill.good { color: var(--jade); background: var(--jade-bg); }
+.at-preppill.late { color: var(--rose); background: var(--well-deep); box-shadow: inset 0 0 0 1px var(--rose-soft); }
+.at-prepdetail { margin-top:10px; }
+
 .at-climbring { position:relative; flex-shrink:0; width:72px; height:72px; }
 .at-climbring svg { display:block; width:72px; height:72px; }
 .at-climbring circle { fill:none; stroke-width:7; }

@@ -91,7 +91,7 @@ const { leadSpeed, deckPercent, levelPercent, nextReviewAt, reviewLine, nextPass
   drillableUnits, askedUnits, agreeTook, laddered, liftStates, merge,
   setValueIndex, valueKey, setMateCounts } =
   await import(path.join(out, "trainer.js"));
-const { TYPES, LANGUAGES, verbOf, attachedOf, specOf, levelOf } = await import(path.join(here, "..", "src", "languages.ts"));
+const { TYPES, LANGUAGES, verbOf, attachedOf, specOf, levelOf, askLabel } = await import(path.join(here, "..", "src", "languages.ts"));
 const { leadsOf } = await import(path.join(here, "..", "src", "review.ts"));
 
 /** @param {Record<string, any>} [over] */
@@ -809,6 +809,33 @@ test("a prompt two forms of one card answer has to say which", () => {
     formIsAmbiguous({ unit: masc, kin: [fem], shown: [], promptField: "ar" }),
     false
   );
+});
+
+test("two forms sharing one meaning between their English answer the same prompt", () => {
+  /* Reported from k59562641e79c: asked "I am hot / I feel hot", a learner
+     wrote the feminine and nothing had said the masculine was wanted. The
+     feminine is "I am hot" — one of the masculine's meanings — so the two
+     lines differ while the question is the same. */
+  const shape = { id: "k59562641e79c-f0", ar: "شَوْبانة", en: "I am hot", lat: "shawbaane", row: "agreement", col: "feminine" };
+  const hot = { id: "k59562641e79c", ar: "شَوْبان", en: "I am hot / I feel hot", lat: "shawbaan", category: "adjective", subs: [shape] };
+  const ar = LANGUAGES["ar-PS"];
+  assert.equal(formIsAmbiguous({ unit: hot, kin: [shape], shown: [], promptField: "en" }), true);
+  assert.equal(formIsAmbiguous({ unit: shape, kin: [hot], shown: [], promptField: "en" }), true);
+  /* And the tag that then goes under each says which one. */
+  assert.equal(askLabel(hot, hot, ar), "masculine");
+  assert.equal(askLabel(shape, hot, ar), "feminine");
+  /* Where no tag can be put up, each counts as right for the other. */
+  assert.deepEqual(
+    twinsOf({ unit: hot, kin: [shape], promptField: "en", told: false }).map((/** @type {any} */ f) => f.id),
+    ["k59562641e79c-f0"],
+  );
+  /* A semicolon separates meanings as a slash does; a comma does not, as
+     it sits inside a phrase as often as between two. */
+  const one = (/** @type {string} */ id, /** @type {string} */ en) => form({ id, en });
+  assert.equal(formIsAmbiguous({ unit: one("a", "big; large"), kin: [one("a-f0", "Large")], shown: [], promptField: "en" }), true);
+  assert.equal(formIsAmbiguous({ unit: one("a", "Not good, thanks"), kin: [one("a-f0", "Not good")], shown: [], promptField: "en" }), false);
+  /* Meanings with nothing in common still need no tag. */
+  assert.equal(formIsAmbiguous({ unit: one("a", "I am hot / I feel hot"), kin: [one("a-f0", "I am cold")], shown: [], promptField: "en" }), false);
 });
 
 test("where the question cannot say which form, the forms it cannot tell apart all count", () => {

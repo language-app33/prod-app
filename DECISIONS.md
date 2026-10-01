@@ -4144,3 +4144,17 @@ shown it is, under exactly the prompts where twins could arise.
 
 The report that "Their name is…" was marked nearly right (0.273) was
 already fixed in 0.282 (`sameWords`).
+
+## Forms that share one meaning answer the same prompt
+
+A learner asked "I am hot / I feel hot" (k59562641e79c, شَوْبان) wrote the
+feminine شَوْبانة, "I am hot", and reported — the second time for a missing
+tag — that nothing had said the masculine was wanted. `formIsAmbiguous` and
+`twinsOf` compared the prompt field as whole lines, so two forms whose
+English differed only by an extra meaning were treated as told apart.
+
+**Now.** Both go through `readAlike`: in English, forms read alike when
+any one meaning is shared, split on a slash or semicolon and compared by
+`normEn`, as `lentLabel` already did for sentence blanks. Not on a comma,
+which sits inside a phrase as often as between meanings. The script and
+transliteration are still compared as whole lines.

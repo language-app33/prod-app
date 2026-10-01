@@ -2228,14 +2228,30 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the home screen offers a session for it",
       !!prepButton() && /^Prep for Start of class$/.test((prepButton() || {}).textContent || ""),
       (prepButton() || {}).textContent || "(no prep button)");
+    const prepTile = () => document.querySelector(".at-preptile");
+    check("in a tile of its own at the top, with the prep's own climb and its button the primary one",
+      !!prepTile() && prepTile()?.contains(prepButton() || null) && !!prepTile()?.querySelector(".at-climb") &&
+        !!prepButton()?.classList.contains("primary") &&
+        !!homeCard() && !!((prepTile()?.compareDocumentPosition(/** @type {Node} */ (homeCard())) || 0) & 4),
+      prepTile() ? (prepTile()?.textContent || "").replace(/\s+/g, " ").slice(0, 120) : "(no prep tile)");
+    check("the climb over everything is left off, and the sessions tile below has no primary button",
+      !homeCard()?.querySelector(".at-climb") && !homeCard()?.querySelector(".at-btn.primary") &&
+        !!buttonNamed(/^(Start session|Practise anyway)$/) && homeCard()?.contains(buttonNamed(/^Weak skills$/) || null),
+      (homeCard()?.textContent || "").replace(/\s+/g, " ").slice(0, 120));
     const counter = () => ((document.querySelector(".at-preptoday") || {}).textContent || "");
-    check("under it, today's sessions against what today needs",
-      /^Today: (\d+ of \d+ sessions? done · (\d+ more to stay on track|on track for today)|no sessions done yet|\d+ sessions? done)$/.test(counter()),
+    check("under it, today's sessions against what today needs, as a count and a row of dots",
+      /^Today's sessions\d+(\/\d+)?$/.test(counter()) &&
+        (!/\//.test(counter()) || !!document.querySelector(".at-preptoday .at-preppips i")),
       counter() || "(no counter)");
     const line = () => ((document.querySelector(".at-prepline") || {}).textContent || "");
-    check("with how many days are left, and the practice that gets you there",
-      /^\d+ days? left( · (on track at your pace|about [\d.]+ sessions? a day will get you ready.*|too soon to learn it all — .+))?$/.test(line()),
+    check("beside it, the days left and whether the pace gets you there",
+      /^Days? left\d+(On track|Too soon|All learnt)?$/.test(line()) &&
+        (/\d$/.test(line()) ? !document.querySelector(".at-prepline .at-preppill") : !!document.querySelector(".at-prepline .at-preppill.good, .at-prepline .at-preppill.late")),
       line() || "(no line)");
+    const detail = () => ((document.querySelector(".at-prepdetail") || {}).textContent || "");
+    check("and, where the pace falls short, what it takes on one line under both",
+      /On track|All learnt$/.test(line()) ? !detail() : /will get you ready|Too soon to learn it all/.test(detail()),
+      detail() || "(no detail)");
     click(prepButton());
     await sleep(300);
     check("and the button starts a session",
@@ -2274,7 +2290,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("stopping clears it from Progress", !document.querySelector(".at-prepnote"), note());
     click(buttonNamed(/^Home$/));
     await sleep(300);
-    check("and from the home screen", !prepButton(), (prepButton() || {}).textContent || "");
+    check("and from the home screen, which has its climb back",
+      !prepButton() && !prepTile() && !!homeCard()?.querySelector(".at-climb"),
+      (prepButton() || {}).textContent || "");
     click(buttonNamed(/^Progress$/));
     await sleep(300);
   }

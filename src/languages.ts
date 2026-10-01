@@ -1581,7 +1581,7 @@ export function arWordStems(token: string, depth = 2) {
 }
 
 export function arTokenIsWord(token: string, word: string) {
-  const opts = { stripTashkeel: true, ignoreHamza: true };
+  const opts = { stripTashkeel: true, ignoreHamza: true, foldTaMarbuta: true };
   const w = normAr(word, opts);
   if (!w) return false;
   const t = normAr(token, opts);
@@ -2361,7 +2361,7 @@ export const WEAK_LETTERS = /[\u0627\u0648\u064A\u0649\u0621\u0623\u0625\u0622\s
 /* Rough consonant skeleton. Two words sharing three of these usually share a
    root, which is the similarity that matters most in Arabic. */
 export function arSimilarityKey(ar: string) {
-  return normAr(ar, { stripTashkeel: true, ignoreHamza: true }).replace(WEAK_LETTERS, "");
+  return normAr(ar, { stripTashkeel: true, ignoreHamza: true, foldTaMarbuta: true }).replace(WEAK_LETTERS, "");
 }
 
 /*
@@ -2389,7 +2389,7 @@ export function arSimilarityKey(ar: string) {
  * because similarity still reads it.
  */
 export function arRootKey(text: string) {
-  let x = normAr(text, { stripTashkeel: true, ignoreHamza: true }).replace(WEAK_LETTERS, "");
+  let x = normAr(text, { stripTashkeel: true, ignoreHamza: true, foldTaMarbuta: true }).replace(WEAK_LETTERS, "");
   if (x.startsWith("\u0645") && x.length >= 4) x = x.slice(1);
   if (x.endsWith("\u0647") && x.length >= 4) x = x.slice(0, -1);
   return x.length >= 3 ? x : "";
@@ -2783,14 +2783,15 @@ export const LANGUAGES: Record<LangId, Lang> = {
      * them was accepted and typing one correctly was refused — the rule
      * these packs have always stated, read the wrong way round by the
      * code that enforced it. `ignoreHamza` accepts ا for أ إ آ, و for ؤ, ي for ى and
-     * ئ, ه for ة, and a dropped ء, because those distinctions are learnt
-     * later than the words that carry them.
+     * ئ, and a dropped ء, because those distinctions are learnt later than
+     * the words that carry them. ة and ه are not among them: since 0.295
+     * one written for the other, either way round, is a misspelling.
      */
     marking: { tashkeel: "either", ignoreHamza: true },
     rules: [
       "Cards hold the Arabic script, an English meaning, and a transliteration. Any two of the three are enough to practice it.",
       "A student may type the bare consonants or the fully vocalised spelling and both are accepted — but harakat that are typed must be correct. A wrong vowel is marked wrong; a missing one is not.",
-      "ا is accepted for أ إ آ, و for ؤ, ي for ى and ئ, and ه for ة, because those distinctions are learnt later than the words themselves.",
+      "ا is accepted for أ إ آ, و for ؤ, ي for ى and ئ, because those distinctions are learnt later than the words themselves. ة and ه are different letters: writing one for the other is marked as a misspelling.",
       "Transliteration is marked most leniently of all: macrons, dots under letters, ʿayn marks, apostrophes and where the hyphens fall are all ignored, since schemes vary between textbooks.",
       "Invisible characters that Arabic keyboards insert — right-to-left marks and zero-width joiners — are stripped before comparing, so an answer that looks correct is treated as correct.",
       "Words with several forms — plurals, feminines — are held on one card as separate forms. Each is learnt in its own right, and the card is not counted as learnt until all of them are.",
@@ -3185,18 +3186,29 @@ export function sortMarks(s: string) {
   );
 }
 
-export function normAr(s: string, { stripTashkeel, ignoreHamza }: { stripTashkeel?: boolean; ignoreHamza?: boolean }) {
+/*
+ * `foldTaMarbuta` writes ة as ه. Marking never asks for it: ة and ه are two
+ * letters, and a learner who writes one for the other — عندة for عنده, or
+ * شوبانه for شوبانة — has misspelt the word. Until 0.295 the fold rode on
+ * `ignoreHamza`, so it was forgiven in both directions. Finding a word in a
+ * phrase or gathering a family still folds, because there the question is
+ * whether two spellings are the same word, not whether one was spelt right.
+ */
+export function normAr(
+  s: string,
+  { stripTashkeel, ignoreHamza, foldTaMarbuta }: { stripTashkeel?: boolean; ignoreHamza?: boolean; foldTaMarbuta?: boolean }
+) {
   let x = stripInvisible(s).trim().replace(TATWEEL, "");
   x = stripTashkeel ? x.replace(TASHKEEL, "") : sortMarks(x);
   if (ignoreHamza) {
     x = x
       .replace(/[\u0623\u0625\u0622\u0671]/g, "\u0627")
       .replace(/\u0649/g, "\u064A")
-      .replace(/\u0629/g, "\u0647")
       .replace(/\u0624/g, "\u0648")
       .replace(/\u0626/g, "\u064A")
       .replace(/\u0621/g, "");
   }
+  if (foldTaMarbuta) x = x.replace(/\u0629/g, "\u0647");
   return x.replace(AR_PUNCT, "").replace(/\s+/g, " ").trim();
 }
 

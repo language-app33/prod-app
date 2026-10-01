@@ -8,6 +8,80 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.296 — 1 October 2026
+
+**The prep tile's two panels are a label and a number each.**
+
+- The left panel is now headed "Today's sessions", with the count and
+  its dots under it, and no word underneath.
+- The "Needs more" badge under the days left is gone: the line under
+  both panels already says how much practice it takes. "On track" and
+  "Too soon" still show when they apply.
+- The note at the top of Progress that says what you're prepping for
+  is back to its own look — the home screen's styling had leaked onto it.
+
+## 0.295 — 1 October 2026
+
+**In Arabic, ة and ه are marked as two different letters.**
+
+- Writing "عندة" for "عندُه" (*he has*) was marked right. The app forgave
+  ه written for ة, and by accident forgave ة written for ه as well.
+- Neither is forgiven now. Writing one for the other, either way round,
+  is marked "nearly right — not quite spelt", like any other one-letter
+  slip. So "شوبانه" for "شَوْبانة" is nearly right too, where it used to be
+  right.
+- The other allowances for beginners are unchanged: plain ا for أ إ آ,
+  و for ؤ, ي for ى and ئ, and a missing ء are still accepted. The marking
+  rules shown for Arabic say so.
+
+## 0.294 — 1 October 2026
+
+**The prep tile's Today panel says "Sessions" under the count.**
+
+- "0/13" with "13 more to go" under it said the same thing twice. It now
+  reads "0/13 Sessions", turning green once today's goal is met.
+
+## 0.293 — 1 October 2026
+
+**The prep tile shows your day at a glance instead of two long sentences.**
+
+- Under the "Prep for …" button there are now two small panels. **Today**
+  shows the sessions you've done against today's goal, with a dot for
+  each session that fills as you go, and "2 more to go" or "on track for
+  today" underneath.
+- **Days left** shows the number big, with a coloured word under it:
+  green "On track" when your pace gets you there, gold "Needs more" when
+  it takes more practice, red "Too soon" when the date can't be made.
+- Where it needs more, one short line underneath says how much — "About
+  3 sessions a day will get you ready" — or the earliest you could be
+  ready.
+
+## 0.292 — 1 October 2026
+
+**While you're prepping, the prep has the top of the home screen.**
+
+- The prep gets a tile of its own at the top: how much of the prep's
+  decks you've learnt, as a percentage and a count of cards, then the
+  "Prep for …" button — now the main button — and today's sessions and
+  days left underneath.
+- The percentage and count over all your cards are hidden while you
+  prep, so the one number on the screen is the one you're working to.
+- Start session, Weak skills, Build a session and Saved sessions sit
+  in their own tile underneath. When you stop prepping, the home
+  screen goes back to how it was.
+
+## 0.291 — 1 October 2026
+
+**A question says "masculine" or "feminine" whenever both forms would answer it.**
+
+- Asked to write "I am hot / I feel hot" in Arabic, nothing said whether
+  the masculine or the feminine was wanted — the feminine is "I am hot"
+  too, but because the two meanings weren't written identically the app
+  thought the question was clear. Forms now count as answering the same
+  question when they share any one meaning, so the label appears.
+- Where a card has no label to show, writing either of two such forms
+  is marked right.
+
 ## 0.290 — 1 October 2026
 
 **Questions no longer give away which form is wanted; the answer says it instead.**
