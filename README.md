@@ -500,6 +500,25 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   choosing it turns to the three readings, which is what put that picker
   on a screen rather than a sheet.
 
+  **And an adjective can say who, with the pronoun left out.** تعبان
+  answers "how are you?" by itself, and تعبانة اليوم is *I am tired today*
+  with no word for *I*. `{{adjective-is}}` is that blank: every adjective
+  fills it once for each form it takes about a person — the persons of
+  the verb table, read through `asSubject` and the agreement table exactly
+  as a pronoun beside the adjective would be — and the English of each is
+  every person that form fits, as alternatives: *I am (m) tired / you are
+  (m) tired / he is tired*. `aboutPersons` in `src/languages.ts` makes
+  those values and `lendsInto` hands them to all three readers of a blank;
+  `fillEnglish` in `src/variables.ts` puts each alternative into the whole
+  sentence before joining them, so a learner turning تعبان اليوم into
+  English is right with any person it fits, and one asked to write it is
+  shown one person at a time. The value is already agreed, so `agreeTook`
+  leaves it alone and the Blanks section asks it nothing. Offered as the
+  second step of choosing an adjective blank, where the language's verbs
+  say who each person is (`saysAboutPersons`). Marking English accepts the
+  person note left off — *you are tired* for *you are (m) tired* — and no
+  other bracket (`PERSON_NOTE` in `checkEn`).
+
   **And a list of cards shows a language's pronouns as one entry.** The
   Pronouns screen writes a card per person, because each is practised,
   recorded and lent on its own — but a teacher wrote them as one set, on

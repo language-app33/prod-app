@@ -37,13 +37,14 @@ import {
   verbOf,
   BARE_ROW,
   endRowsOf,
+  saysAboutPersons,
 } from "./languages.ts";
 import { CONVERSATION, MAX_SPEAKERS, TEXT, isDialog, isText, namedPart, pickedFrom, pickedLine, proseOf, sceneKindOf, sideOf } from "./dialogs.ts";
 import type { SceneKind } from "./dialogs.ts";
 import { castFill, castOf, castReport, filledScene, memberBase, memberLabel, newMember, recast, roleIn } from "./cast.ts";
 import { reviewPool, sentencesOf } from "./review.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, IS_PRONOUN_SLOT, MAX_FILLS, movedSlot, PRONOUN_IS_SLOT, PRONOUN_SLOT, READING_SLOTS, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
+import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, IS_PRONOUN_SLOT, MAX_FILLS, movedSlot, PRONOUN_IS_SLOT, PRONOUN_SLOT, READING_SLOTS, refClash, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
 import { agreeingBlanks, combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
@@ -2446,6 +2447,21 @@ const PRONOUN_READINGS: Reading[] = [
 ];
 
 /*
+ * The two ways an adjective blank reads: the word as it is — *a tired
+ * man*, *the house is big* — and the word said about a person with no
+ * pronoun, which goes through every person and puts in the form each one
+ * calls for. See ADJECTIVE_IS_SLOT in variables.ts.
+ */
+const ADJECTIVE_READINGS: Reading[] = [
+  { name: ADJECTIVE_SLOT, label: "Tired", note: "The adjective itself \u2014 a tired man, the house is big" },
+  {
+    name: ADJECTIVE_IS_SLOT,
+    label: "I am tired",
+    note: "I am tired, you are tired, she is tired \u2026 \u2014 with no pronoun in the sentence",
+  },
+];
+
+/*
  * The screen a blank is chosen in.
  *
  * Every name that means something in this language, each saying what would
@@ -3460,7 +3476,8 @@ export interface Blank {
   /** Cards that named it in `fills`: whether anybody wrote this blank by hand. */
   wrote: number;
   /* `reading` is a pronoun read with *to be* — `{{pronoun-is}}` and
-     `{{is-pronoun}}`, which the same cards fill as `{{pronoun}}`. */
+     `{{is-pronoun}}`, which the same cards fill as `{{pronoun}}` — or an
+     adjective said about a person, `{{adjective-is}}`. */
   built?: "any" | "category" | "reading";
 }
 
@@ -4160,6 +4177,15 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         wrote: named.get(name) || 0,
         built: "reading" as const,
       })),
+      /* And an adjective said about a person, where the language's verbs
+         say which person is which — see saysAboutPersons. */
+      ...(saysAboutPersons(lang) ? [ADJECTIVE_IS_SLOT] : []).map((name) => ({
+        name,
+        words: behind.get(name) || 0,
+        used: used.get(name) || 0,
+        wrote: named.get(name) || 0,
+        built: "reading" as const,
+      })),
     ];
     const names = [...new Set([...named.keys(), ...used.keys()])]
       .filter((n) => !builtIn.some((b) => b.name === n))
@@ -4236,7 +4262,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
        it is, and they are listed under Default tags. A sentence with a
        {{name}} blank is asking for Names, not for a custom tag. */
     const kinds = new Set(categoriesOf(lang).map((c) => c.id));
-    const custom = (name: string) => name !== WORD_SLOT && !kinds.has(name) && !READING_SLOTS.includes(name);
+    const custom = (name: string) => name !== WORD_SLOT && !kinds.has(name) && !RESERVED_READINGS.includes(name);
     const written = blanksAround.filter(
       (b) => custom(b.name) && (b.used > 0 || b.wrote > 0),
     );
@@ -4280,15 +4306,27 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
            same cards, read as *I*, *I am* or *am I*. Which is asked once it
            is chosen — see BlankScreen — rather than laid out here as three
            rows a teacher has to tell apart before they know why. */
-        const reads = b.name === PRONOUN_SLOT && blanksAround.some((r) => r.built === "reading");
+        const reads = b.name === PRONOUN_SLOT && blanksAround.some((r) => r.built === "reading" && r.name !== ADJECTIVE_IS_SLOT);
+        /* And an adjective is one blank too, asked once chosen whether it
+           is the word or the word said about a person. */
+        const about = b.name === ADJECTIVE_SLOT && blanksAround.find((r) => r.name === ADJECTIVE_IS_SLOT);
         rows.push({
           name: b.name,
           kind: "category",
           words,
           note: reads
             ? "Any pronoun \u2014 then choose how it reads in English"
-            : `Any ${named(b.name).toLowerCase()}`,
+            : about
+              ? "Any adjective \u2014 then choose whether it says who"
+              : `Any ${named(b.name).toLowerCase()}`,
           ...(reads ? { readings: PRONOUN_READINGS } : null),
+          ...(about
+            ? {
+              readings: ADJECTIVE_READINGS.map((r) => (r.name === ADJECTIVE_IS_SLOT ? { ...r, words: about.words } : r)),
+              readingsHint:
+                "Choose what it reads as. \u201cI am tired\u201d goes through every person \u2014 I, you, she, we and the rest \u2014 with the adjective in the form each one calls for and no pronoun said. Turning it into English, any person that fits is right.",
+            }
+            : null),
         });
       } else if (b.built === "reading") {
         /* Offered under the pronoun, above. */

@@ -5288,6 +5288,31 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         readField(enNow()) === "My name is {{pronoun-is}}" && !sheet(),
         `${readField(enNow())} · ${sheet() ? "still open" : "closed"}`);
 
+      /* ---- one adjective, then whether it says who ----
+
+         An adjective is the word itself, or the word said about a person
+         with no pronoun — تعبان, *I am tired* — so it too is one blank on
+         the list and asks which once chosen. Looked at and left: nothing
+         is put in. */
+      click(addIn(/into English$/));
+      await sleep(300);
+      check("the adjective is one blank on the list, not two",
+        names().includes("adjective") && !names().includes("adjective-is"),
+        names().join(" ") || "(nothing offered)");
+      click(rowFor(/^adjective$/));
+      await sleep(300);
+      check("and choosing it asks whether it is the word or the word said about a person",
+        title() === "How the adjective reads" &&
+          JSON.stringify(names()) === JSON.stringify(["adjective", "adjective-is"]),
+        `${title()} · ${names().join(" ")}`);
+      click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the blanks"));
+      await sleep(300);
+      click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the card"));
+      await sleep(300);
+      check("and leaving puts nothing in",
+        readField(enNow()) === "My name is {{pronoun-is}}" && !sheet(),
+        `${readField(enNow())} · ${sheet() ? "still open" : "closed"}`);
+
       /* ---- a word with a pronoun on the end, or without ----
 
          The pen in this collection has "my pen" written out, and it is a

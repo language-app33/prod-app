@@ -33,7 +33,7 @@
  * answers.ts are: it decides what a card says, so it is somewhere a test
  * can reach and somewhere nothing can reach back into.
  */
-import { splitAlternatives } from "./answers.ts";
+import { ALT_SEP, splitAlternatives } from "./answers.ts";
 import { formsOf, leadOf } from "./cards.ts";
 
 /*
@@ -103,6 +103,32 @@ export const PRONOUN_SLOT = "pronoun";
 export const PRONOUN_IS_SLOT = "pronoun-is";
 export const IS_PRONOUN_SLOT = "is-pronoun";
 export const READING_SLOTS = [PRONOUN_IS_SLOT, IS_PRONOUN_SLOT];
+
+/*
+ * An adjective, said about somebody with the pronoun left out.
+ *
+ * Palestinian Arabic answers "how are you?" with تعبان — *I am tired* —
+ * and says تعبانة اليوم for *I am tired today* without any word for *I*.
+ * `{{pronoun-is}} {{adjective}}` already makes أنا تعبان; what it cannot
+ * make is the sentence with no pronoun in it, because then nothing in the
+ * sentence says who is tired.
+ *
+ * So `{{adjective-is}}` takes the person from the adjective itself: every
+ * adjective fills it once for each form it takes about a person — تعبان,
+ * تعبانة, تعبانين — and the English is every person that form can be
+ * about, as alternatives: *I am (m) tired / you are (m) tired / he is
+ * tired*. A learner turning تعبان اليوم into English is right with any of
+ * them, and one asked to write it is shown one at a time. Which forms and
+ * which persons are the language's answer — see aboutPersons in
+ * languages.ts — and this module only knows the name.
+ *
+ * Filled by every adjective, as `{{adjective}}` is, and reserved the way
+ * the pronoun's readings are.
+ */
+export const ADJECTIVE_SLOT = "adjective";
+export const ADJECTIVE_IS_SLOT = "adjective-is";
+/** Every blank name that reads a kind of word some other way. */
+export const RESERVED_READINGS = [...READING_SLOTS, ADJECTIVE_IS_SLOT];
 
 /**
  * The two readings of a pronoun's English, worked out from the English.
@@ -210,6 +236,9 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
   /* And a pronoun fills the two blanks that read it with *to be* — the
      same cards, with a different English. See READING_SLOTS. */
   if (said === PRONOUN_SLOT) for (const slot of READING_SLOTS) if (!out.includes(slot)) out.push(slot);
+  /* And an adjective the blank that says it about a person — see
+     ADJECTIVE_IS_SLOT. */
+  if (said === ADJECTIVE_SLOT && !out.includes(ADJECTIVE_IS_SLOT)) out.push(ADJECTIVE_IS_SLOT);
   return out;
 }
 
@@ -274,8 +303,9 @@ export function refClash(
   if (!want) return null;
   if (want === WORD_SLOT) return { kind: "group" };
   /* The two ways of reading a pronoun are spoken for as `{{word}}` is:
-     every pronoun fills them already. */
-  if (READING_SLOTS.includes(want)) return { kind: "category" };
+     every pronoun fills them already. And an adjective's, by every
+     adjective. */
+  if (RESERVED_READINGS.includes(want)) return { kind: "category" };
   if (kinds.includes(want)) return { kind: "category" };
   for (const card of pool || []) {
     if (String((card && card.id) || "") === self) continue;
@@ -822,6 +852,13 @@ export function valuesFor(
    * so it is passed in; this module knows none.
    */
   admits?: (card: WithSlots, form: WithSlots, slot: string) => boolean,
+  /**
+   * And what one lent value stands in one blank as, where that is not
+   * simply itself — an adjective in `{{adjective-is}}` is one value for
+   * each form it takes about a person. A language's answer, so passed in;
+   * see aboutPersons. Without it, every value is itself.
+   */
+  into?: (card: WithSlots, value: Value, slot: string) => Value[],
 ): Record<string, Value[]> {
   const wanted = slotsOf(form);
   const out: Record<string, Value[]> = {};
@@ -842,7 +879,7 @@ export function valuesFor(
       for (const slot of slots) {
         if (!out[slot]) continue;
         if (admits && !admits(card, lent.form, slot)) continue;
-        out[slot].push(lent.value);
+        out[slot].push(...(into ? into(card, lent.value, slot) : [lent.value]));
       }
     }
   }
@@ -1168,6 +1205,46 @@ export function fillText(
   });
 }
 
+/*
+ * The English of a sentence whose blank reads more than one way.
+ *
+ * تعبان اليوم is *I am tired today*, *you are tired today* and *he is
+ * tired today* at once — see ADJECTIVE_IS_SLOT — so the value standing in
+ * `{{adjective-is}}` carries all three as alternatives. Dropped into the
+ * frame whole they would read "I am tired / you are tired / he is tired
+ * today", which splits into two half-sentences and one whole one. So each
+ * alternative is put into the whole sentence, and the sentences are what
+ * are joined: "I am tired today / You are tired today / He is tired today",
+ * which every reader of a meaning already splits correctly.
+ *
+ * A sentence no blank of which reads more than one way is filled exactly
+ * as fillText always filled it.
+ */
+function fillEnglish(written: string, values: Record<string, Value>, cased: boolean): string {
+  const several = Object.keys(values).filter((slot) => {
+    const read = values[slot] && values[slot].readings ? values[slot].readings![slot] : "";
+    return splitAlternatives(read).filter(Boolean).length > 1;
+  });
+  if (!several.length) return fillText(written, values, "en", cased);
+  let each: Record<string, Value>[] = [values];
+  for (const slot of several) {
+    each = each.flatMap((vs) =>
+      splitAlternatives(vs[slot].readings![slot]).filter(Boolean).map((one) => ({
+        ...vs,
+        [slot]: { ...vs[slot], readings: { ...vs[slot].readings, [slot]: one } },
+      })),
+    );
+  }
+  const out: string[] = [];
+  for (const frame of splitAlternatives(written).filter(Boolean)) {
+    for (const vs of each) {
+      const said = fillText(frame, vs, "en", cased);
+      if (!out.includes(said)) out.push(said);
+    }
+  }
+  return out.join(ALT_SEP);
+}
+
 /* The kinds of word that are names, and keep their capital mid-sentence:
    a person, a place, and the retired Name that meant either — which a
    card written before subtypes said by filling `{{name}}` by hand. */
@@ -1224,7 +1301,8 @@ export function fillForm<T extends WithSlots>(
   const out: Record<string, unknown> = { ...form };
   for (const field of FILLED_FIELDS) {
     const written = text(form, field);
-    if (written) out[field] = fillText(written, values, field, cased);
+    if (!written) continue;
+    out[field] = field === "en" ? fillEnglish(written, values, cased) : fillText(written, values, field, cased);
   }
   /* The answers array is written from `ar` and would otherwise still hold
      the frame — see answersOf, which prefers it where the two agree. Filled

@@ -159,6 +159,7 @@ import {
   verbOf,
   blankAdmits,
   lendsForm,
+  lendsInto,
   NUMBER_EQUIVALENT,
   normEn,
 } from "./languages.ts";
@@ -1552,10 +1553,11 @@ export function valueIndexOf(items: Item[], settings: Settings): Map<string, Val
     const slots = fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings)));
     if (!slots.length) continue;
     const lends = lendsForm(LANGUAGES[langId] || langOf(settings), it);
+    const into = lendsInto(LANGUAGES[langId] || langOf(settings));
     for (const value of valuesOf(it, grammarFields(), lends)) {
       for (const slot of slots) {
         const key = valueKey(langId, slot);
-        map.set(key, (map.get(key) || []).concat([value]));
+        map.set(key, (map.get(key) || []).concat(into(it, value, slot)));
       }
     }
   }

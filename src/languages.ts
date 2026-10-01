@@ -31,13 +31,14 @@ import type {
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
-import { answersOf } from "./answers.ts";
+import { ALT_SEP, answersOf } from "./answers.ts";
 import { leadOf, subFormsOf } from "./cards.ts";
 /* And what a row is, for the one rule below that reads one: verbs.ts
    knows what a table is made of and no language at all, which is the
    same direction every other import here goes. */
-import { citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows, tensesOf } from "./verbs.ts";
-import { isLent } from "./variables.ts";
+import { agreedValue, asSubject, citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows, tensesOf } from "./verbs.ts";
+import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, beReadings, isLent } from "./variables.ts";
+import type { Value } from "./variables.ts";
 /*
  * How each language builds its numbers and tells the time.
  *
@@ -2188,6 +2189,79 @@ export const takesAttached = (lang: Lang | null | undefined): boolean => !!attac
 export const teachesVerbs = (lang: Lang | null | undefined): boolean => !!verbOf(lang);
 
 /**
+ * The persons a sentence can say something about with the pronoun left
+ * out: the verb table's columns that say what they are — *I (f)* a
+ * feminine singular, *we* a plural of people — which is what lets an
+ * adjective pick its form from one. Empty in a language whose verbs have
+ * no persons to speak of, which is a language with no `{{adjective-is}}`.
+ */
+export const subjectPersonsOf = (lang: Lang | null | undefined) =>
+  personsOf(verbOf(lang)).filter((p) => p.is && Object.keys(p.is).length);
+
+/** Whether a sentence in this language can say an adjective about a person
+    with no pronoun — see ADJECTIVE_IS_SLOT. */
+export const saysAboutPersons = (lang: Lang | null | undefined): boolean =>
+  categoriesOf(lang).some((c) => c.id === ADJECTIVE_SLOT) && subjectPersonsOf(lang).length > 0;
+
+/**
+ * An adjective as it stands in `{{adjective-is}}`: once for each form it
+ * takes about a person, each reading in English as every person that form
+ * can be about.
+ *
+ * Each person is read the way a pronoun beside the adjective would be —
+ * asSubject, then the agreement table — so تعبان is *I (m)*, *you (m)* and
+ * *he*, تعبانة is *I (f)*, *you (f)* and *she*, and تعبانين the three
+ * plurals. Persons whose cell the teacher left blank are left out, as a
+ * sentence beside them would be; two persons whose forms are spelt alike
+ * are one value. The English is *to be* worked out from the person's label
+ * — the same beReadings the pronoun uses — with the adjective's own English
+ * after it.
+ *
+ * The value keeps the adjective's own id, which is what the blank is gated
+ * on and what goes back to the card, as it does in `{{adjective}}` before
+ * agreement swaps it. Nothing else agrees it afterwards: see agreeTook.
+ */
+export function aboutPersons(
+  lang: Lang | null | undefined,
+  card: { category?: unknown } | null | undefined,
+  value: Value,
+): Value[] {
+  const persons = subjectPersonsOf(lang);
+  const en = String(value.en || "").trim();
+  if (!persons.length || !en) return [];
+  const spec = agreementOf(lang, String((card && card.category) || ""));
+  const verb = verbOf(lang);
+  const groups: { ar: string; lat: string; reads: string[] }[] = [];
+  for (const person of persons) {
+    const grammar = asSubject(verb, {}, person.id);
+    const form = spec ? agreedValue(card, spec, value, { grammar }) : value;
+    if (!form || !String(form.ar || "").trim()) continue;
+    const read = `${beReadings(person.label).is} ${en}`;
+    const had = groups.find((g) => g.ar === form.ar);
+    if (had) {
+      if (!had.reads.includes(read)) had.reads.push(read);
+    } else groups.push({ ar: form.ar, lat: form.lat || "", reads: [read] });
+  }
+  return groups.map((g) => ({
+    ...value,
+    ar: g.ar,
+    lat: g.lat,
+    readings: { ...(value.readings || {}), [ADJECTIVE_IS_SLOT]: g.reads.join(ALT_SEP) },
+  }));
+}
+
+/**
+ * What one value a card lends stands in one blank as: itself, except an
+ * adjective in `{{adjective-is}}` — see aboutPersons. One answer for the
+ * session, the teacher's preview and the review list, so the three count
+ * the same sentences.
+ */
+export const lendsInto = (
+  lang: Lang | null | undefined,
+): ((card: { category?: unknown } | null | undefined, value: Value, slot: string) => Value[]) =>
+  (card, value, slot) => (slot === ADJECTIVE_IS_SLOT ? aboutPersons(lang, card, value) : [value]);
+
+/**
  * The table a word of this kind agrees out of, where it has one: one row,
  * and a column that picks. That is what a sentence reads to put كبيرة
  * beside سيارة — the pronouns on the end of a word pick nothing, and a
@@ -3278,10 +3352,21 @@ export function splitForms(expected: string, sep: RegExp) {
  */
 const EN_SLIP_MIN = 4;
 
+/*
+ * A note saying which person or which number — "you (m)", "I am (f)
+ * tired", "you (pl)" — tells a learner writing the language which form to
+ * write. Turning it into English, nobody types it: "you are tired" is the
+ * whole answer. So the expected English is also accepted without such a
+ * note, and only such a note: "close (the door)" is a different matter.
+ */
+const PERSON_NOTE = /\s*\((?:m|f|pl|sg|masc|fem|masculine|feminine|plural|singular)\.?\)/gi;
+
 export function checkEn(given: string, expected: string) {
   const g = normEn(given);
   if (!g) return { ok: false, reason: "wrong" };
-  const forms = splitForms(expected, /[/;,]/).map(normEn);
+  const split = splitForms(expected, /[/;,]/);
+  const bare = split.map((e) => e.replace(PERSON_NOTE, "")).filter((e, i) => e !== split[i]);
+  const forms = split.concat(bare).map(normEn);
   if (forms.includes(g)) return { ok: true, reason: "exact" };
   if (forms.some((e) => tight(e).length >= EN_SLIP_MIN && editDistance(g, e) === 1))
     return { ok: true, reason: "typo" };

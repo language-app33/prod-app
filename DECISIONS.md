@@ -4158,3 +4158,37 @@ any one meaning is shared, split on a slash or semicolon and compared by
 `normEn`, as `lentLabel` already did for sentence blanks. Not on a comma,
 which sits inside a phrase as often as between meanings. The script and
 transliteration are still compared as whole lines.
+
+## An adjective said about a person is one sentence per form, not per person
+
+The owner asked for adjective cards to carry *I am tired* as well as
+*tired*, so a sentence could say تعبان اليوم — *I am tired today* — with no
+pronoun. `{{pronoun-is}} {{adjective}}` already made أنا تعبان اليوم; what
+was missing was the sentence with nothing in it saying who.
+
+**Not written on the card.** Nine *I am tired*, *you are tired*… on every
+adjective would be typing the same English rule into every card. The
+English is worked out instead, from the person's label and the adjective's
+own English — the same `beReadings` the pronoun's readings use — and the
+form from the agreement table, so nothing on an adjective changes.
+
+**One value per form, with every person it fits as alternatives**, rather
+than one value per person. Without the pronoun, تعبان is *I (m)*, *you
+(m)* and *he* at once; nine values would have made three Arabic sentences
+three times each, listed three times for the teacher to approve and
+marked as wrong whenever a learner gave a different person from the one
+drawn. The owner chose "accept any person that fits". As alternatives,
+the existing machinery does the rest: `checkEn` accepts any of them,
+`castMeaning` shows one at a time where English is the prompt, and a
+review sees three sentences, which is what there are. The cost is that a
+verb in the same sentence cannot follow `{{adjective-is}}` — it carries no
+single person, so a verb beside it finds no column and that sentence is
+not asked, as beside a plain `{{adjective}}` before. The blank itself is
+asked nothing about agreement. A sentence that needs a verb too writes
+the pronoun.
+
+**A person note may be left off in English.** "I am (m) tired today" is
+how English → script says which form to write, and nobody types "(m)"
+going the other way. `checkEn` accepts the expected English with a gender
+or number note removed, and only such a note: "close (the door)" still
+wants the door.

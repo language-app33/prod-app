@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.300 — 1 October 2026
+
+**An adjective can say who is tired, with no pronoun.**
+
+- When you add an adjective blank to a sentence, you now choose between
+  "Tired" — the adjective itself, as before — and "I am tired".
+- "I am tired" goes through every person, with the adjective in the form
+  each one calls for: "{adjective-is} اليوم" is met as تعبان اليوم,
+  تعبانة اليوم and تعبانين اليوم — *I am tired today*, *you are tired
+  today*, *she is tired today*, *we are tired today* and the rest. Nothing
+  needs adding to your adjective cards.
+- Since تعبان could be *I*, *you* or *he*, turning it into English accepts
+  any person it fits. Writing it in Arabic, the English shows one person
+  at a time, with (m), (f) or (pl) where that decides the form.
+- Typing English, "you are tired" now counts for "you are (m) tired": a
+  note saying which person or number never has to be typed.
+
 ## 0.299 — 1 October 2026
 
 **A blank in a sentence can be told which other blank to agree with.**

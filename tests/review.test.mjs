@@ -31,7 +31,8 @@ import {
   sentencesOf,
   toReview,
 } from "../src/review.ts";
-import { LANGUAGES } from "../src/languages.ts";
+import { aboutPersons, checkEn, LANGUAGES } from "../src/languages.ts";
+import { refClash } from "../src/variables.ts";
 
 const ar = LANGUAGES["ar-PS"];
 
@@ -430,4 +431,67 @@ test("a picked turn is shown only in sentences its sentence card approved", () =
   assert.equal(reply.ar, "كيفك رامي", "walked on to the casting the sentence's review allows");
   const other = must(castQuestion(items, { id: "D", subId: "L1", type: "dlgpick" }), "the first line");
   assert.equal(other.ar, "مرحبا رامي", "and the typed line follows the same person");
+});
+
+/*
+ * An adjective said about a person with the pronoun left out: تعبان اليوم
+ * is *I am tired today*, and *you are* and *he is* as well. Each form the
+ * adjective takes about a person is one sentence, and its English is every
+ * person that form fits — see ADJECTIVE_IS_SLOT.
+ */
+const tiredCard = (/** @type {Record<string, any>} */ over = {}) => ({
+  id: "tired", lang: "ar-PS", kind: "word", tags: [], created: 2, category: "adjective",
+  forms: [
+    { id: "tired", ar: "تعبان", en: "tired", lat: "taʿbān", lang: "ar-PS", s: {} },
+    { id: "tired-f", ar: "تعبانة", en: "tired", lat: "taʿbāne", lang: "ar-PS", row: "agreement", col: "feminine", s: {} },
+    { id: "tired-pl", ar: "تعبانين", en: "tired", lat: "taʿbānīn", lang: "ar-PS", row: "agreement", col: "plural", s: {} },
+  ],
+  ...over,
+});
+const todayFrame = { id: "T", ar: "{{adjective-is}} اليوم", en: "{{adjective-is}} today", lat: "{{adjective-is}} il-yōm", lang: "ar-PS", s: {} };
+const todayCard = { id: "T", lang: "ar-PS", kind: "phrase", tags: [], created: 1, sentence: true, forms: [todayFrame] };
+
+test("an adjective said about a person is one sentence per form, read as every person it fits", () => {
+  const made = sentencesOf(todayCard, todayFrame, [todayCard, tiredCard()], ar);
+  assert.equal(made.combos, 3);
+  assert.deepEqual(made.list.map((s) => s.ar), ["تعبان اليوم", "تعبانة اليوم", "تعبانين اليوم"]);
+  assert.equal(made.list[0].lat, "taʿbān il-yōm");
+  assert.equal(made.list[0].en, "I am (m) tired today / You are (m) tired today / He is tired today");
+  assert.equal(made.list[1].en, "I am (f) tired today / You are (f) tired today / She is tired today");
+  assert.equal(made.list[2].en, "We are tired today / You are (pl) tired today / They are tired today");
+  assert.equal(made.list[0].took["adjective-is"].card, "tired", "and the review list knows whose word it was");
+
+  /* Turning it into English, any of the persons is right, with or without
+     the note saying which. */
+  for (const said of ["I am tired today", "you are tired today", "he is tired today", "I am (m) tired today"]) {
+    assert.ok(checkEn(said, made.list[0].en).ok, said);
+  }
+  assert.ok(!checkEn("we are tired today", made.list[0].en).ok, "but not a person that form does not fit");
+});
+
+test("a person whose form was left blank is left out, and nothing is said where there are no persons", () => {
+  const noPlural = tiredCard({ forms: tiredCard().forms.slice(0, 2) });
+  const made = sentencesOf(todayCard, todayFrame, [todayCard, noPlural], ar);
+  assert.deepEqual(made.list.map((s) => s.ar), ["تعبان اليوم", "تعبانة اليوم"]);
+  /* Vietnamese verbs have no persons, so there is nobody to say it about. */
+  assert.deepEqual(aboutPersons(LANGUAGES.vi, { category: "adjective" }, { id: "x", ar: "mệt", en: "tired", lat: "" }), []);
+});
+
+test("the adjective with a pronoun is unchanged, and the new name is reserved", () => {
+  const frame = { id: "P", ar: "{{pronoun-is}} {{adjective}} اليوم", en: "{{pronoun-is}} {{adjective}} today", lat: "", lang: "ar-PS", s: {} };
+  const card = { ...todayCard, id: "P", forms: [frame] };
+  const hiya = { id: "p-she", lang: "ar-PS", category: "pronoun", person: "she", created: 3, forms: [{ ar: "هي", en: "she", lat: "hiye" }] };
+  const made = sentencesOf(card, frame, [card, tiredCard(), hiya], ar);
+  assert.deepEqual(made.list.map((s) => `${s.ar} · ${s.en}`), ["هي تعبانة اليوم · She is tired today"]);
+  assert.equal((refClash("adjective-is", []) || {}).kind, "category");
+  /* And a note the English does not end on is still asked for. */
+  assert.ok(!checkEn("close", "close (the door)").ok);
+});
+
+test("a student is asked it the way the teacher's list shows it", () => {
+  const items = [todayCard, tiredCard()];
+  installIndexes(items, settings);
+  const unit = must(castQuestion(items, { id: "T", subId: null, type: "ar2en" }, true), "the question");
+  assert.equal(unit.ar, "تعبان اليوم");
+  assert.equal(unit.en, "I am (m) tired today / You are (m) tired today / He is tired today");
 });

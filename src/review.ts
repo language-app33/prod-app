@@ -44,10 +44,10 @@
 import type { Form, Lang } from "./types.ts";
 import { formsOf } from "./cards.ts";
 import { linesOf, pickedFrom } from "./dialogs.ts";
-import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, tensedOf, verbOf } from "./languages.ts";
+import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, lendsInto, tensedOf, verbOf } from "./languages.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
-import { fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
+import { ADJECTIVE_IS_SLOT, fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
 import {
   agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, ownSlot, partnerOf, personsOf,
   rowIdsOf, rowOf, slotLinks, slotRows, subjectSlot,
@@ -281,6 +281,9 @@ export function agreeTook(
     const value = took[slot];
     const owner = value ? ownerOf(value) : null;
     if (!owner) return true;
+    /* An adjective said about a person came in already in the form that
+       person calls for — see aboutPersons — and follows nothing. */
+    if (slot === ADJECTIVE_IS_SLOT) return true;
     const lang = langFor(owner.card);
     const beside = partnerSlot(slot);
     if (beside && !fill(beside)) return false;
@@ -404,6 +407,7 @@ export function reviewPool(
     (a, b) => (a.created || 0) - (b.created || 0) || String(a.id).localeCompare(String(b.id)),
   );
   const fields = grammarFields();
+  const into = lendsInto(lang);
   for (const card of byAge) {
     if (!card) continue;
     if (langId && card.lang && card.lang !== langId) continue;
@@ -415,7 +419,7 @@ export function reviewPool(
       for (const slot of slots) {
         if (!values[slot]) continue;
         if (!admits(card, form, slot)) continue;
-        values[slot].push(value);
+        values[slot].push(...into(card, value, slot));
       }
     }
     for (const form of formsOf(card) as Held[]) {

@@ -51,13 +51,13 @@
 
 import type { Form, GrammarDim, Lang, VerbSpec } from "./types.ts";
 import { answersOf, splitAlternatives } from "./answers.ts";
-import { agreementOf, answerFields, BARE_ROW, blankAdmits, categoryLabel, endRowsOf, GRAMMAR, kindOf, LANGUAGES, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
+import { agreementOf, answerFields, BARE_ROW, blankAdmits, categoryLabel, endRowsOf, GRAMMAR, kindOf, LANGUAGES, lendsForm, lendsInto, tablesOf, tensedOf, verbOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { sentencesOf } from "./review.ts";
-import { cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
+import { ADJECTIVE_IS_SLOT, cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
 import { citationOf, colOf, isCell, NO_PARTNER, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
 
 /* A card, a form of one, a turn of one, or a half-written draft — open for
@@ -375,6 +375,9 @@ export function fillersFor(
       (slot) => slotRows(form, slot),
       (slot) => !!partnerOf(form, slotsOf(form), slot),
     ),
+    /* And an adjective said about a person, once per form — see
+       aboutPersons. */
+    lendsInto(lang),
   );
 }
 
@@ -433,7 +436,9 @@ export function agreeingBlanks(
     const tensed = tensedOf(lang, category);
     if (!agreementOf(lang, category) && !(tensed && personsOf(tensed).length > 1)) continue;
     const names = fillsOf(card, kindOf(card, lang));
-    for (const slot of holes) if (names.includes(slot)) out.add(slot);
+    /* Not an adjective said about a person: it carries its own person,
+       and has nothing to follow. */
+    for (const slot of holes) if (names.includes(slot) && slot !== ADJECTIVE_IS_SLOT) out.add(slot);
     if (out.size === holes.length) break;
   }
   return out;
