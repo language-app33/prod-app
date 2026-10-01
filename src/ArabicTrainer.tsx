@@ -14721,8 +14721,8 @@ function PrepScreen({
  * What sits under the home screen's prep button: today and the days left,
  * side by side, rather than two sentences one under the other.
  *
- * Today is a row of dots, one per session today needs, filling as they are
- * done — a goal you can see the end of. The days left is a number with a
+ * Today is the sessions done over the day's goal, with a row of dots, one
+ * per session, filling as they are done — a goal you can see the end of. The days left is a number with a
  * coloured word under it saying whether the learner's pace gets them there:
  * jade when it does, brass when it takes more, rose when no amount of
  * practice makes the day. What the more is, or when the earliest day is,
@@ -14818,10 +14818,9 @@ export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, qu
 } {
   const { done, goal } = prepToday(left, answer, questionsToday);
   const todayDone = goal !== null && done >= goal;
-  const today =
-    goal === null
-      ? done ? (done === 1 ? "session done" : "sessions done") : "no sessions yet"
-      : todayDone ? "on track for today" : `${goal - done} more to go`;
+  /* What the count is of, and nothing more: "0/13" with "13 more to go"
+     under it said the same thing twice. Green once the goal is met. */
+  const today = (goal === null ? done : goal) === 1 ? "Session" : "Sessions";
   const base = { done, goal, today, todayDone, days: Math.max(0, left) };
   if (answer.kind === "already") return { ...base, tone: "good", status: "All learnt", detail: "" };
   if (answer.kind === "late") {

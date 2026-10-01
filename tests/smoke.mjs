@@ -2240,7 +2240,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       (homeCard()?.textContent || "").replace(/\s+/g, " ").slice(0, 120));
     const counter = () => ((document.querySelector(".at-preptoday") || {}).textContent || "");
     check("under it, today's sessions against what today needs, as a count and a row of dots",
-      /^Today(\d+\/\d+(\d+ more to go|on track for today)|\d+(no sessions yet|sessions? done))$/.test(counter()) &&
+      /^Today\d+(\/\d+)?Sessions?$/.test(counter()) &&
         (!/\//.test(counter()) || !!document.querySelector(".at-preptoday .at-preppips i")),
       counter() || "(no counter)");
     const line = () => ((document.querySelector(".at-prepline") || {}).textContent || "");

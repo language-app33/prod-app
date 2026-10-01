@@ -8,6 +8,13 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.294 — 1 October 2026
+
+**The prep tile's Today panel says "Sessions" under the count.**
+
+- "0/13" with "13 more to go" under it said the same thing twice. It now
+  reads "0/13 Sessions", turning green once today's goal is met.
+
 ## 0.293 — 1 October 2026
 
 **The prep tile shows your day at a glance instead of two long sentences.**
