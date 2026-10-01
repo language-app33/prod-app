@@ -86,7 +86,7 @@ await build({
   },
 });
 const { leadSpeed, deckPercent, levelPercent, nextReviewAt, reviewLine, nextPassAt, passLine,
-  formIsAmbiguous, kinTags, twinsOf,
+  formIsAmbiguous, formTagsAt, kinTags, twinsOf,
   onePerLevel, quietUnits, easedUnits,
   drillableUnits, askedUnits, agreeTook, laddered, liftStates, merge,
   setValueIndex, valueKey, setMateCounts } =
@@ -880,6 +880,55 @@ test("and nothing is said where the question already settles it", () => {
   );
   /* And nothing at all on nothing, which is a question still being cast. */
   assert.equal(formIsAmbiguous({ unit: null, kin: [many], shown: [], promptField: "en" }), false);
+  /* The word in the script, with its plural's meaning among the tiles:
+     كتب is not كتاب, and the word on screen is what says so. */
+  assert.equal(formIsAmbiguous({ unit: one, kin: [many], shown: [many], promptField: "ar" }), false);
+  assert.equal(formIsAmbiguous({ unit: one, kin: [many], shown: [many], promptField: "audio" }), false);
+});
+
+/*
+ * Where the form is said: under the prompt only where the learner could
+ * not otherwise know which is wanted, and beside the answer always.
+ *
+ * عندَك shown with "you · masculine" under it, and كلبة with "feminine",
+ * were the grammar handed over with the word that already showed it — a
+ * learner reported both, and asked for it with the answer instead. And
+ * "Your name: plural" under اسمكم شمس was the English answer itself.
+ */
+test("a form is named under the prompt only where it has to be, and always beside the answer", () => {
+  const base = { label: "you · masculine", kin: 6, lent: false };
+  /* Shown the word, or its transliteration: the answer says it, the
+     question does not. */
+  for (const promptField of ["ar", "lat", "audio"]) {
+    assert.deepEqual(
+      formTagsAt({ ...base, ambiguous: false, promptField }),
+      { question: false, answer: true, lentQuestion: false, lentAnswer: false },
+      promptField,
+    );
+  }
+  /* Writing "You have" in the script, which three cells read alike: the
+     question must say which, or it has no one right answer. */
+  assert.deepEqual(
+    formTagsAt({ ...base, ambiguous: true, promptField: "en" }),
+    { question: true, answer: true, lentQuestion: false, lentAnswer: false },
+  );
+  /* A card with one form has nothing to tell apart, and a form with no
+     grammar written on it has nothing to say. */
+  assert.equal(formTagsAt({ ...base, kin: 0, ambiguous: false, promptField: "ar" }).answer, false);
+  assert.equal(formTagsAt({ ...base, label: "", ambiguous: true, promptField: "en" }).question, false);
+  /* A sentence's blanks: under "Your name is Shams", which needs it to be
+     answered; never under اسمكم شمس, where it is the answer. */
+  const lent = { label: "", kin: 0, ambiguous: false, lent: true };
+  assert.equal(formTagsAt({ ...lent, promptField: "en" }).lentQuestion, true);
+  assert.equal(formTagsAt({ ...lent, promptField: "ar" }).lentQuestion, false);
+  assert.equal(formTagsAt({ ...lent, promptField: "ar" }).lentAnswer, true);
+  /* Nothing on a grid or a scene, where every word is asked. */
+  for (const promptField of ["pairs", "scene"]) {
+    assert.deepEqual(
+      formTagsAt({ label: "plural", kin: 1, ambiguous: true, lent: true, promptField }),
+      { question: false, answer: false, lentQuestion: false, lentAnswer: false },
+    );
+  }
 });
 
 /*

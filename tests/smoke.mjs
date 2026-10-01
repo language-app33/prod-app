@@ -6986,6 +6986,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     click(document.querySelector('[data-el="check-button"]'));
     await sleep(250);
   }
+  /* And the answer says it again, which is where it is said on every
+     question about a card with more than one form — see formTagsAt. */
+  const answerTag = ((document.querySelector('[data-el="answer-form-tag"]') || {}).textContent || "")
+    .replace(/\s+/g, " ").trim();
+  check("and the answer names the form too", /^masculine\b/.test(answerTag), answerTag || "(nothing said)");
   click(buttonNamed(/^Continue$/));
   await sleep(700);
 

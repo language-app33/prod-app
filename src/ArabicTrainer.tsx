@@ -8948,7 +8948,6 @@ export default function ArabicTrainer() {
   );
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
-  const isSub = !!(resolved && resolved.isSub);
   /*
    * The language of the question on screen, which is the card's rather than
    * the app's. In a session drawn from one language they are the same
@@ -9269,6 +9268,16 @@ export default function ArabicTrainer() {
     });
   }, [item, parentItem, spec, choices, grid]);
 
+  /* Where the form is named — under the prompt, beside the answer — and
+     what it is called. See formTagsAt. */
+  const formLabelText = item && parentItem ? askLabel(item, parentItem, qLang) : "";
+  const tagsAt = formTagsAt({
+    label: formLabelText,
+    ambiguous: tellForm,
+    kin: parentItem ? unitsOf(parentItem).length - 1 : 0,
+    lent: lentLines.length > 0,
+    promptField: (spec && spec.promptField) || "",
+  });
 
   /*
    * Which of the accepted answers the learner wrote.
@@ -10676,32 +10685,29 @@ export default function ArabicTrainer() {
                         name="question-prompt-text"
                       />
                     )}
-                    {/* Which form of the card is being asked, where that is
-                        not already settled — see formIsAmbiguous. A sub-form
-                        says so whatever else is up, because "the plural of"
-                        is worth knowing on its own; the rest is said only
-                        where two forms could answer the one question.
+                    {/* Which form of the card is being asked, only where
+                        the prompt does not already settle it — see
+                        formTagsAt. Anywhere else it is said beside the
+                        answer instead.
 
                         Under the word it is about, not after the
                         instruction: "feminine" is a fact about *big*, and a
-                        learner reported looking for it there. Not on a
-                        grid, where every word is asked and a tag on one of
-                        them would say which English is its.
+                        learner reported looking for it there.
 
                         And nothing at all where the language declares no
                         grammar to say it with: Huế has none. */}
-                    {(isSub || tellForm) && spec.promptField !== "pairs" && spec.promptField !== "scene" &&
-                      askLabel(item, parentItem, qLang) && (
+                    {tagsAt.question && (
                       <p className="at-asktag" data-el="question-form-tag">
-                        {askLabel(item, parentItem, qLang)}
+                        {formLabelText}
                       </p>
                     )}
                     {/* And what the words in a sentence's blanks are,
                         where English says "your" for three Arabic words —
                         see lentTags. Without it a question asking for the
                         Arabic of "Your name is Shams" could not say which
-                        of them it wanted. */}
-                    {lentLines.length > 0 && (
+                        of them it wanted. Not under the Arabic itself,
+                        where it is the English answer. */}
+                    {tagsAt.lentQuestion && (
                       <p className="at-asktag" data-el="question-fill-tag">
                         {lentLines.join(" · ")}
                       </p>
@@ -11008,7 +11014,17 @@ export default function ArabicTrainer() {
                           the answer never said who was being spoken to —
                           see lentTags. Shown whatever the verdict, since a
                           right answer in English was no less ambiguous. */}
-                      {lentLines.length > 0 && (
+                      {/* Which form of the card it was, on every question
+                          about a card with more than one: "feminine",
+                          "you · plural". The prompt says so only where it
+                          has to; this is where a learner looks for it —
+                          see formTagsAt. */}
+                      {tagsAt.answer && (
+                        <p className="at-asktag" data-el="answer-form-tag">
+                          {formLabelText}
+                        </p>
+                      )}
+                      {tagsAt.lentAnswer && (
                         <p className="at-asktag" data-el="answer-fill-tag">
                           {lentLines.join(" · ")}
                         </p>
@@ -14038,9 +14054,10 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
  * the two cases where the question does not already settle it:
  *
  *   * **another form of the same card is on screen**, as a tile or in the
- *     grid. Even where their meanings differ the pair invites the mistake,
- *     and the tag is what turns "which of these?" into a question with one
- *     answer.
+ *     grid, and the prompt does not show the word itself. Even where their
+ *     meanings differ the pair invites the mistake, and the tag is what
+ *     turns "which of these?" into a question with one answer. Under a
+ *     word in the script it would only name what is already shown.
  *   * **another form answers the same prompt**, which is the typed case and
  *     the worse one: nothing is on screen to compare, and the learner finds
  *     out only by being marked wrong.
@@ -14055,6 +14072,10 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
  */
 const PROMPT_FIELDS = ["ar", "en", "lat"];
 
+/* The prompts that show the form itself, so that which form is asked is
+   already on the screen — see formTagsAt. */
+const PROMPT_SHOWS_FORM = ["ar", "lat", "audio"];
+
 export function formIsAmbiguous({ unit, kin, shown, promptField }: {
   unit: Record<string, any> | null | undefined;
   /** The card's other forms. */
@@ -14064,8 +14085,12 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
   promptField: string;
 }): boolean {
   if (!unit || !kin.length) return false;
+  /* A prompt showing the word itself — in the script, its transliteration,
+     or heard — already says which form it is, kin among the tiles or not;
+     naming the form there names the answer. Only two forms reading the
+     same in that field leave it open. See formTagsAt. */
   const ids = new Set((shown || []).map((s) => s && s.id).filter(Boolean));
-  if (kin.some((k) => k && ids.has(k.id))) return true;
+  if (!PROMPT_SHOWS_FORM.includes(promptField) && kin.some((k) => k && ids.has(k.id))) return true;
   if (!PROMPT_FIELDS.includes(promptField)) return false;
   /* Compared as the learner reads it rather than as it is stored: a
      difference of case or a stray space is not a difference they could
@@ -14074,6 +14099,55 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
     String((x && x[promptField]) || "").trim().toLowerCase();
   const asked = said(unit);
   return !!asked && kin.some((k) => said(k) === asked);
+}
+
+/**
+ * Where a question says which form it is about: under the prompt, beside
+ * the answer, or both.
+ *
+ * The rule is the one formIsAmbiguous states, and it is the only reason a
+ * prompt names a form. A sub-form used to be named under the prompt
+ * whatever else was up, because "the plural of" seemed worth knowing on its
+ * own — and on a question that shows the word, that is the answer half
+ * given away. A learner shown *3indak*, in the script or in letters, with
+ * "you · masculine" under it was told what the word already said,
+ * and reported it twice: the grammar belongs in the answer, where it is
+ * something learnt rather than something handed over.
+ *
+ * So the prompt names the form only where the learner could not otherwise
+ * know which is wanted — writing "You have" in the script, where three
+ * cells read the same in English. The answer names it on every question
+ * about a card with more than one form, whatever the verdict, because
+ * that is where a learner reported looking for it.
+ *
+ * A sentence's blanks follow the same line. "Your name: plural" under
+ * "Your name is Shams" is what makes the English answerable in the
+ * script; under the same sentence in Arabic it is the English answer
+ * itself, which a learner reported as exactly that. A prompt in the script, its transliteration
+ * or a recording already shows which word was dropped in, so there it is
+ * said beside the answer alone.
+ *
+ * Nothing on a grid or a scene, where every word is asked and a tag on one
+ * would say which English is its — see kinTags.
+ */
+export function formTagsAt({ label, ambiguous, kin, lent, promptField }: {
+  /** What the form is called, from askLabel. Empty where nothing tells it apart. */
+  label: string;
+  /** Whether the prompt leaves which form open — formIsAmbiguous. */
+  ambiguous: boolean;
+  /** How many other forms the card has. */
+  kin: number;
+  /** Whether the sentence has blanks worth naming — lentTags. */
+  lent: boolean;
+  promptField: string;
+}): { question: boolean; answer: boolean; lentQuestion: boolean; lentAnswer: boolean } {
+  const none = promptField === "pairs" || promptField === "scene";
+  return {
+    question: !none && !!label && ambiguous,
+    answer: !none && !!label && kin > 0,
+    lentQuestion: !none && lent && !PROMPT_SHOWS_FORM.includes(promptField),
+    lentAnswer: !none && lent,
+  };
 }
 
 /**
