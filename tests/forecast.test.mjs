@@ -245,7 +245,7 @@ test("the home screen's prep tile says whether the pace gets you there", () => {
   const on = prepGlance(12, { kind: "rate", rate: 2 }, 54, 0);
   assert.deepEqual([on.days, on.tone, on.status, on.detail], [12, "good", "On track", ""]);
   const more = prepGlance(12, { kind: "rate", rate: 5.2 }, 36, 0);
-  assert.deepEqual([more.tone, more.status], ["push", "Needs more"]);
+  assert.deepEqual([more.tone, more.status], ["push", ""]);
   assert.equal(more.detail, "About 6 sessions a day will get you ready — you're doing about 2 sessions a day");
   assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).detail, "About 0.4 sessions a day will get you ready");
   const late = prepGlance(3, { kind: "late", earliest: FROM + 6 * DAY }, 36, 0);
@@ -259,20 +259,20 @@ test("the home screen's prep tile says whether the pace gets you there", () => {
 test("the home screen counts today's sessions against what today needs", () => {
   /* 18 questions to a session. Nothing done: the rate, rounded up. */
   assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.3 }, 0), { done: 0, goal: 3 });
-  assert.equal(prepGlance(10, { kind: "rate", rate: 2.3 }, 0, 0).today, "Sessions");
+  assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.3 }, 0), { done: 0, goal: 3 });
   /* Two sessions done, and the rate read afterwards has fallen by about
      what they did: the goal stays where it was this morning. */
   assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.1 }, 36), { done: 2, goal: 3 });
-  assert.equal(prepGlance(10, { kind: "rate", rate: 2.1 }, 0, 36).today, "Sessions");
+  assert.equal(prepGlance(10, { kind: "rate", rate: 2.1 }, 0, 36).goal, 3);
   /* A session half done is not counted yet. */
   assert.equal(prepToday(10, { kind: "rate", rate: 2.1 }, 45).done, 2);
   assert.deepEqual(
-    (({ done, goal, today, todayDone }) => ({ done, goal, today, todayDone }))(prepGlance(10, { kind: "rate", rate: 1.8 }, 0, 54)),
-    { done: 3, goal: 3, today: "Sessions", todayDone: true },
+    (({ done, goal }) => ({ done, goal }))(prepGlance(10, { kind: "rate", rate: 1.8 }, 0, 54)),
+    { done: 3, goal: 3 },
   );
   /* Under a session a day still asks for one today. */
-  assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).today, "Session");
+  assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).goal, 1);
   /* No rate to keep to: just what was done. */
-  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 0).today, "Sessions");
-  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 18).today, "Session");
+  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 0).goal, null);
+  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 18).done, 1);
 });

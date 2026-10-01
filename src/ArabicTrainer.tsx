@@ -14721,11 +14721,13 @@ function PrepScreen({
  * What sits under the home screen's prep button: today and the days left,
  * side by side, rather than two sentences one under the other.
  *
- * Today is the sessions done over the day's goal, with a row of dots, one
- * per session, filling as they are done — a goal you can see the end of. The days left is a number with a
- * coloured word under it saying whether the learner's pace gets them there:
- * jade when it does, brass when it takes more, rose when no amount of
- * practice makes the day. What the more is, or when the earliest day is,
+ * Each panel is a label and a number. Today's sessions is the sessions
+ * done over the day's goal, with a row of dots, one per session, filling as
+ * they are done — a goal you can see the end of. The days left carries a
+ * coloured word under it where there is one to say: jade when the
+ * learner's pace gets them there, rose when no amount of practice makes the
+ * day. Where it takes more practice there is no word, and the line under
+ * both says how much. What the more is, or when the earliest day is,
  * goes on one short line under both. See prepGlance for the words.
  */
 function PrepLine({
@@ -14753,7 +14755,7 @@ function PrepLine({
     <>
       <div className="at-prepglance">
         <div className="at-prepstat at-preptoday">
-          <span className="at-preplabel">Today</span>
+          <span className="at-preplabel">Today&apos;s sessions</span>
           <b className="at-prepnum">
             {g.goal === null ? g.done : <>{g.done}<small>/{g.goal}</small></>}
           </b>
@@ -14762,12 +14764,11 @@ function PrepLine({
               {Array.from({ length: dots }, (_, i) => <i key={i} className={i < g.done ? "on" : ""} />)}
             </span>
           )}
-          <span className={`at-prepnote${g.todayDone ? " good" : ""}`}>{g.today}</span>
         </div>
         <div className="at-prepstat at-prepline">
           <span className="at-preplabel">{g.days === 1 ? "Day left" : "Days left"}</span>
           <b className="at-prepnum">{g.days}</b>
-          <span className={`at-preppill ${g.tone}`}>{g.status}</span>
+          {g.status && <span className={`at-preppill ${g.tone}`}>{g.status}</span>}
         </div>
       </div>
       {g.detail && <Help className="at-prepdetail">{g.detail}</Help>}
@@ -14806,22 +14807,15 @@ export function prepToday(left: number, answer: ReadyAnswer, questionsToday: num
 export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, questionsToday: number): {
   done: number;
   goal: number | null;
-  /** Under today's count. */
-  today: string;
-  todayDone: boolean;
   days: number;
   tone: "good" | "push" | "late";
-  /** The coloured word under the days left. */
+  /** The coloured word under the days left, or empty. */
   status: string;
   /** The one line under both, or empty. */
   detail: string;
 } {
   const { done, goal } = prepToday(left, answer, questionsToday);
-  const todayDone = goal !== null && done >= goal;
-  /* What the count is of, and nothing more: "0/13" with "13 more to go"
-     under it said the same thing twice. Green once the goal is met. */
-  const today = (goal === null ? done : goal) === 1 ? "Session" : "Sessions";
-  const base = { done, goal, today, todayDone, days: Math.max(0, left) };
+  const base = { done, goal, days: Math.max(0, left) };
   if (answer.kind === "already") return { ...base, tone: "good", status: "All learnt", detail: "" };
   if (answer.kind === "late") {
     return {
@@ -14839,8 +14833,10 @@ export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, qu
   const needed = leastWords(answer.rate);
   return {
     ...base,
+    /* No word under the days left: "Needs more" said less than the line
+       under both, which says how much more. */
     tone: "push",
-    status: "Needs more",
+    status: "",
     detail: perDay > 0 ? `${needed} will get you ready — you're doing ${paceWords(perDay)}` : `${needed} will get you ready`,
   };
 }

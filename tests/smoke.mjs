@@ -2240,17 +2240,17 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       (homeCard()?.textContent || "").replace(/\s+/g, " ").slice(0, 120));
     const counter = () => ((document.querySelector(".at-preptoday") || {}).textContent || "");
     check("under it, today's sessions against what today needs, as a count and a row of dots",
-      /^Today\d+(\/\d+)?Sessions?$/.test(counter()) &&
+      /^Today's sessions\d+(\/\d+)?$/.test(counter()) &&
         (!/\//.test(counter()) || !!document.querySelector(".at-preptoday .at-preppips i")),
       counter() || "(no counter)");
     const line = () => ((document.querySelector(".at-prepline") || {}).textContent || "");
     check("beside it, the days left and whether the pace gets you there",
-      /^Days? left\d+(On track|Needs more|Too soon|All learnt)$/.test(line()) &&
-        !!document.querySelector(".at-prepline .at-preppill.good, .at-prepline .at-preppill.push, .at-prepline .at-preppill.late"),
+      /^Days? left\d+(On track|Too soon|All learnt)?$/.test(line()) &&
+        (/\d$/.test(line()) ? !document.querySelector(".at-prepline .at-preppill") : !!document.querySelector(".at-prepline .at-preppill.good, .at-prepline .at-preppill.late")),
       line() || "(no line)");
     const detail = () => ((document.querySelector(".at-prepdetail") || {}).textContent || "");
     check("and, where the pace falls short, what it takes on one line under both",
-      /On track|All learnt/.test(line()) ? !detail() : /will get you ready|Too soon to learn it all/.test(detail()),
+      /On track|All learnt$/.test(line()) ? !detail() : /will get you ready|Too soon to learn it all/.test(detail()),
       detail() || "(no detail)");
     click(prepButton());
     await sleep(300);

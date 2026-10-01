@@ -2641,11 +2641,8 @@ button.at-stat { transition: border-color 140ms ease; }
 .at-preppips { display:flex; flex-wrap:wrap; justify-content:center; gap:5px; }
 .at-preppips i { width:10px; height:10px; border-radius:50%; border:2px solid var(--jade-soft); box-sizing:border-box; }
 .at-preppips i.on { background: var(--jade); border-color: var(--jade); }
-.at-prepnote { font-size: var(--fs-sm); font-weight:600; color: var(--text-soft); line-height:1.3; }
-.at-prepnote.good { color: var(--jade); }
 .at-preppill { font-size: var(--fs-sm); font-weight:800; line-height:1; padding:5px 10px; border-radius:999px; }
 .at-preppill.good { color: var(--jade); background: var(--jade-bg); }
-.at-preppill.push { color: var(--brass); background: var(--tag-bg); }
 .at-preppill.late { color: var(--rose); background: var(--well-deep); box-shadow: inset 0 0 0 1px var(--rose-soft); }
 .at-prepdetail { margin-top:10px; }
 

@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.295 — 1 October 2026
+
+**The prep tile's two panels are a label and a number each.**
+
+- The left panel is now headed "Today's sessions", with the count and
+  its dots under it, and no word underneath.
+- The "Needs more" badge under the days left is gone: the line under
+  both panels already says how much practice it takes. "On track" and
+  "Too soon" still show when they apply.
+- The note at the top of Progress that says what you're prepping for
+  is back to its own look — the home screen's styling had leaked onto it.
+
 ## 0.294 — 1 October 2026
 
 **The prep tile's Today panel says "Sessions" under the count.**
