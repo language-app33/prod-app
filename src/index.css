@@ -1825,6 +1825,7 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-deckfilter .at-hint { margin:0; }
 .at-filterlabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+.at-filterclear { flex-basis: 100%; display: flex; justify-content: flex-end; }
 .at-filternote { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
 /* One filter, in the toolbar rather than under it: an icon until it is
    pressed, sized like the select button beside it so the row keeps its
