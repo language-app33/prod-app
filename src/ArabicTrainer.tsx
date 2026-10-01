@@ -10383,10 +10383,33 @@ export default function ArabicTrainer() {
                     runtime, and it is here so the walk through the app can
                     still check that the right cards are being counted after
                     the number came off the screen. */}
+                {/* While there is a prep, it has the top of the screen to
+                    itself: how far along its decks are, the button that
+                    takes them further, and today's sessions against what
+                    today needs — see PrepLine. The climb over everything is
+                    left off, so the one number on the screen is the one the
+                    learner set themselves. */}
+                {homePrep && (
+                  <div className="at-card at-preptile at-mb3">
+                    <Climb items={shown.filter(prepDeckOf(homePrep.decks))} settings={settings} />
+                    <div className="at-row">
+                      <Button variant="primary" onClick={() => begin(false, prepDeckOf(homePrep.decks))}>
+                        Prep for {homePrep.name}
+                      </Button>
+                    </div>
+                    <PrepLine
+                      prep={homePrep}
+                      collection={shown}
+                      settings={settings}
+                      perDay={perDay}
+                      today={(data.log || {})[dayKey()] || 0}
+                    />
+                  </div>
+                )}
                 <div className="at-card" data-ready={readyCount}>
                   {/* How far along the learner is, above the button that
-                      takes them further. */}
-                  <Climb items={shown} settings={settings} />
+                      takes them further — unless a prep has the top tile. */}
+                  {!homePrep && <Climb items={shown} settings={settings} />}
 
                   <div className="at-row">
                     {/* Always live while there is anything to drill. Being
@@ -10395,34 +10418,15 @@ export default function ArabicTrainer() {
                         partway through the app's own pacing of new cards,
                         is offered more of what they hold rather than a
                         greyed-out button and silence. */}
-                    <Button variant="primary"
+                    {/* One primary button on the screen: under a prep it is
+                        the prep's, and this is the next thing along. */}
+                    <Button variant={homePrep ? undefined : "primary"}
                       onClick={() => begin(false)}
                       disabled={!drillable.length}
                     >
                       {readyCount ? "Start session" : "Practise anyway"}
                     </Button>
                   </div>
-                  {/* A session for the prep, while there is one to prepare
-                      for — see Prep. Drawn from its decks alone, and said
-                      with today's sessions against today's goal, how long
-                      is left and whether the learner's pace gets them
-                      there. */}
-                  {homePrep && (
-                    <>
-                      <div className="at-row at-mt3">
-                        <Button onClick={() => begin(false, prepDeckOf(homePrep.decks))}>
-                          Prep for {homePrep.name}
-                        </Button>
-                      </div>
-                      <PrepLine
-                        prep={homePrep}
-                        collection={shown}
-                        settings={settings}
-                        perDay={perDay}
-                        today={(data.log || {})[dayKey()] || 0}
-                      />
-                    </>
-                  )}
                   {/* And the other kind of session there is a one-tap case
                       for: everything going wrong, worst first. It sits
                       directly under Start session because it is the same

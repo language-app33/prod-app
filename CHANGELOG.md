@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.292 — 1 October 2026
+
+**While you're prepping, the prep has the top of the home screen.**
+
+- The prep gets a tile of its own at the top: how much of the prep's
+  decks you've learnt, as a percentage and a count of cards, then the
+  "Prep for …" button — now the main button — and today's sessions and
+  days left underneath.
+- The percentage and count over all your cards are hidden while you
+  prep, so the one number on the screen is the one you're working to.
+- Start session, Weak skills, Build a session and Saved sessions sit
+  in their own tile underneath. When you stop prepping, the home
+  screen goes back to how it was.
+
 ## 0.291 — 1 October 2026
 
 **A question says "masculine" or "feminine" whenever both forms would answer it.**

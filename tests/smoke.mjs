@@ -2228,7 +2228,17 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the home screen offers a session for it",
       !!prepButton() && /^Prep for Start of class$/.test((prepButton() || {}).textContent || ""),
       (prepButton() || {}).textContent || "(no prep button)");
-    const counter = () => ((document.querySelector(".at-preptoday") || {}).textContent || "");
+    const prepTile = () => document.querySelector(".at-preptile");
+    check("in a tile of its own at the top, with the prep's own climb and its button the primary one",
+      !!prepTile() && prepTile()?.contains(prepButton() || null) && !!prepTile()?.querySelector(".at-climb") &&
+        !!prepButton()?.classList.contains("primary") &&
+        !!homeCard() && !!((prepTile()?.compareDocumentPosition(/** @type {Node} */ (homeCard())) || 0) & 4),
+      prepTile() ? (prepTile()?.textContent || "").replace(/\s+/g, " ").slice(0, 120) : "(no prep tile)");
+    check("the climb over everything is left off, and the sessions tile below has no primary button",
+      !homeCard()?.querySelector(".at-climb") && !homeCard()?.querySelector(".at-btn.primary") &&
+        !!buttonNamed(/^(Start session|Practise anyway)$/) && homeCard()?.contains(buttonNamed(/^Weak skills$/) || null),
+      (homeCard()?.textContent || "").replace(/\s+/g, " ").slice(0, 120));
+    const counter =() => ((document.querySelector(".at-preptoday") || {}).textContent || "");
     check("under it, today's sessions against what today needs",
       /^Today: (\d+ of \d+ sessions? done · (\d+ more to stay on track|on track for today)|no sessions done yet|\d+ sessions? done)$/.test(counter()),
       counter() || "(no counter)");
@@ -2274,7 +2284,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("stopping clears it from Progress", !document.querySelector(".at-prepnote"), note());
     click(buttonNamed(/^Home$/));
     await sleep(300);
-    check("and from the home screen", !prepButton(), (prepButton() || {}).textContent || "");
+    check("and from the home screen, which has its climb back",
+      !prepButton() && !prepTile() && !!homeCard()?.querySelector(".at-climb"),
+      (prepButton() || {}).textContent || "");
     click(buttonNamed(/^Progress$/));
     await sleep(300);
   }
