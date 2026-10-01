@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.293 — 1 October 2026
+
+**The prep tile shows your day at a glance instead of two long sentences.**
+
+- Under the "Prep for …" button there are now two small panels. **Today**
+  shows the sessions you've done against today's goal, with a dot for
+  each session that fills as you go, and "2 more to go" or "on track for
+  today" underneath.
+- **Days left** shows the number big, with a coloured word under it:
+  green "On track" when your pace gets you there, gold "Needs more" when
+  it takes more practice, red "Too soon" when the date can't be made.
+- Where it needs more, one short line underneath says how much — "About
+  3 sessions a day will get you ready" — or the earliest you could be
+  ready.
+
 ## 0.292 — 1 October 2026
 
 **While you're prepping, the prep has the top of the home screen.**

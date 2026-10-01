@@ -14718,10 +14718,15 @@ function PrepScreen({
 }
 
 /*
- * The lines under the home screen's prep button: today's sessions against
- * what today needs, then days left and whether the learner's own pace gets
- * them there — the practice a day the prep needs (see readyFor) against
- * what they have been doing.
+ * What sits under the home screen's prep button: today and the days left,
+ * side by side, rather than two sentences one under the other.
+ *
+ * Today is a row of dots, one per session today needs, filling as they are
+ * done — a goal you can see the end of. The days left is a number with a
+ * coloured word under it saying whether the learner's pace gets them there:
+ * jade when it does, brass when it takes more, rose when no amount of
+ * practice makes the day. What the more is, or when the earliest day is,
+ * goes on one short line under both. See prepGlance for the words.
  */
 function PrepLine({
   prep,
@@ -14741,13 +14746,37 @@ function PrepLine({
     () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings), prepStart(prep.date)),
     [collection, settings, prep],
   );
+  const g = prepGlance(left, answer, perDay, today);
+  /* Dots while they can be counted at a glance; past that, the number. */
+  const dots = g.goal !== null && g.goal <= PREP_DOTS ? g.goal : 0;
   return (
     <>
-      <Help className="at-preptoday">{prepTodayWords(left, answer, today)}</Help>
-      <Help className="at-prepline">{prepLineWords(left, answer, perDay)}</Help>
+      <div className="at-prepglance">
+        <div className="at-prepstat at-preptoday">
+          <span className="at-preplabel">Today</span>
+          <b className="at-prepnum">
+            {g.goal === null ? g.done : <>{g.done}<small>/{g.goal}</small></>}
+          </b>
+          {dots > 0 && (
+            <span className="at-preppips" aria-hidden="true">
+              {Array.from({ length: dots }, (_, i) => <i key={i} className={i < g.done ? "on" : ""} />)}
+            </span>
+          )}
+          <span className={`at-prepnote${g.todayDone ? " good" : ""}`}>{g.today}</span>
+        </div>
+        <div className="at-prepstat at-prepline">
+          <span className="at-preplabel">{g.days === 1 ? "Day left" : "Days left"}</span>
+          <b className="at-prepnum">{g.days}</b>
+          <span className={`at-preppill ${g.tone}`}>{g.status}</span>
+        </div>
+      </div>
+      {g.detail && <Help className="at-prepdetail">{g.detail}</Help>}
     </>
   );
 }
+
+/* How many of today's sessions are drawn as dots before it is a number. */
+const PREP_DOTS = 8;
 
 /**
  * Today's sessions for the prep, and the sessions today that keep it on
@@ -14767,33 +14796,54 @@ export function prepToday(left: number, answer: ReadyAnswer, questionsToday: num
   return { done, goal: Math.max(1, Math.ceil(answer.rate + sessions / left - 1e-9)) };
 }
 
-/** The home screen's daily counter, under the prep button. */
-export function prepTodayWords(left: number, answer: ReadyAnswer, questionsToday: number): string {
-  const { done, goal } = prepToday(left, answer, questionsToday);
-  if (goal === null) return done ? `Today: ${plural(done, "session")} done` : "Today: no sessions done yet";
-  const of = `Today: ${done} of ${plural(goal, "session")} done`;
-  return done >= goal ? `${of} · on track for today` : `${of} · ${goal - done} more to stay on track`;
-}
-
 /**
- * The home screen's prep line: the days left, then the practice that gets
- * the learner there — said as on track when their own pace already does,
- * as the sessions a day it takes when it does not, and as the earliest
- * they could be ready when no amount of practice makes the day.
+ * The pieces of the home screen's prep tile, in words: today's sessions
+ * against what today needs, the days left, and whether the learner's own
+ * pace gets them there — said as on track when it does, as the sessions a
+ * day it takes when it does not, and as the earliest they could be ready
+ * when no amount of practice makes the day.
  */
-export function prepLineWords(left: number, answer: ReadyAnswer, perDay: number): string {
-  const days = left === 1 ? "1 day left" : `${left} days left`;
-  if (answer.kind === "already") return days;
+export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, questionsToday: number): {
+  done: number;
+  goal: number | null;
+  /** Under today's count. */
+  today: string;
+  todayDone: boolean;
+  days: number;
+  tone: "good" | "push" | "late";
+  /** The coloured word under the days left. */
+  status: string;
+  /** The one line under both, or empty. */
+  detail: string;
+} {
+  const { done, goal } = prepToday(left, answer, questionsToday);
+  const todayDone = goal !== null && done >= goal;
+  const today =
+    goal === null
+      ? done ? (done === 1 ? "session done" : "sessions done") : "no sessions yet"
+      : todayDone ? "on track for today" : `${goal - done} more to go`;
+  const base = { done, goal, today, todayDone, days: Math.max(0, left) };
+  if (answer.kind === "already") return { ...base, tone: "good", status: "All learnt", detail: "" };
   if (answer.kind === "late") {
-    return answer.earliest === null
-      ? `${days} · too soon to learn it all — it would take more than two years`
-      : `${days} · too soon to learn it all — the earliest you could be ready is ${forecastWords(answer.earliest)}`;
+    return {
+      ...base,
+      tone: "late",
+      status: "Too soon",
+      detail: answer.earliest === null
+        ? "Too soon to learn it all — it would take more than two years"
+        : `Too soon to learn it all — the earliest you could be ready is ${forecastWords(answer.earliest)}`,
+    };
   }
-  if (perDay > 0 && perDay / SESSION_SIZE >= answer.rate) return `${days} · on track at your pace`;
-  const needed = leastWords(answer.rate).replace(/^About/, "about");
-  return perDay > 0
-    ? `${days} · ${needed} will get you ready — you're doing ${paceWords(perDay)}`
-    : `${days} · ${needed} will get you ready`;
+  if (perDay > 0 && perDay / SESSION_SIZE >= answer.rate) {
+    return { ...base, tone: "good", status: "On track", detail: "" };
+  }
+  const needed = leastWords(answer.rate);
+  return {
+    ...base,
+    tone: "push",
+    status: "Needs more",
+    detail: perDay > 0 ? `${needed} will get you ready — you're doing ${paceWords(perDay)}` : `${needed} will get you ready`,
+  };
 }
 
 /* ------------------------------------------------------------------

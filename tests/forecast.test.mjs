@@ -50,9 +50,8 @@ const {
   leastWords,
   marksForAnswer,
   readyWords,
-  prepLineWords,
   prepToday,
-  prepTodayWords,
+  prepGlance,
   prepOf,
   prepStart,
   prepDaysLeft,
@@ -242,34 +241,38 @@ test("what a prep's forecast says", () => {
   assert.match(readyWords({ kind: "late", earliest: FROM + 30 * DAY }, date, 0), /can't be fully ready before .+ the earliest is/);
 });
 
-test("the home screen's prep line says the practice that gets you there", () => {
-  assert.equal(prepLineWords(12, { kind: "rate", rate: 2 }, 54), "12 days left · on track at your pace");
-  assert.equal(
-    prepLineWords(12, { kind: "rate", rate: 5.2 }, 36),
-    "12 days left · about 6 sessions a day will get you ready — you're doing about 2 sessions a day",
-  );
-  assert.equal(prepLineWords(1, { kind: "rate", rate: 0.4 }, 0), "1 day left · about 0.4 sessions a day will get you ready");
-  assert.match(
-    prepLineWords(3, { kind: "late", earliest: FROM + 6 * DAY }, 36),
-    /^3 days left · too soon to learn it all — the earliest you could be ready is .+\(in \d+ days\)$/,
-  );
-  assert.equal(prepLineWords(5, { kind: "already" }, 36), "5 days left");
+test("the home screen's prep tile says whether the pace gets you there", () => {
+  const on = prepGlance(12, { kind: "rate", rate: 2 }, 54, 0);
+  assert.deepEqual([on.days, on.tone, on.status, on.detail], [12, "good", "On track", ""]);
+  const more = prepGlance(12, { kind: "rate", rate: 5.2 }, 36, 0);
+  assert.deepEqual([more.tone, more.status], ["push", "Needs more"]);
+  assert.equal(more.detail, "About 6 sessions a day will get you ready — you're doing about 2 sessions a day");
+  assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).detail, "About 0.4 sessions a day will get you ready");
+  const late = prepGlance(3, { kind: "late", earliest: FROM + 6 * DAY }, 36, 0);
+  assert.deepEqual([late.tone, late.status], ["late", "Too soon"]);
+  assert.match(late.detail, /^Too soon to learn it all — the earliest you could be ready is .+\(in \d+ days\)$/);
+  assert.match(prepGlance(3, { kind: "late", earliest: null }, 0, 0).detail, /more than two years$/);
+  const all = prepGlance(5, { kind: "already" }, 36, 0);
+  assert.deepEqual([all.days, all.tone, all.status, all.detail], [5, "good", "All learnt", ""]);
 });
 
 test("the home screen counts today's sessions against what today needs", () => {
   /* 18 questions to a session. Nothing done: the rate, rounded up. */
   assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.3 }, 0), { done: 0, goal: 3 });
-  assert.equal(prepTodayWords(10, { kind: "rate", rate: 2.3 }, 0), "Today: 0 of 3 sessions done · 3 more to stay on track");
+  assert.equal(prepGlance(10, { kind: "rate", rate: 2.3 }, 0, 0).today, "3 more to go");
   /* Two sessions done, and the rate read afterwards has fallen by about
      what they did: the goal stays where it was this morning. */
   assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.1 }, 36), { done: 2, goal: 3 });
-  assert.equal(prepTodayWords(10, { kind: "rate", rate: 2.1 }, 36), "Today: 2 of 3 sessions done · 1 more to stay on track");
+  assert.equal(prepGlance(10, { kind: "rate", rate: 2.1 }, 0, 36).today, "1 more to go");
   /* A session half done is not counted yet. */
   assert.equal(prepToday(10, { kind: "rate", rate: 2.1 }, 45).done, 2);
-  assert.equal(prepTodayWords(10, { kind: "rate", rate: 1.8 }, 54), "Today: 3 of 3 sessions done · on track for today");
+  assert.deepEqual(
+    (({ done, goal, today, todayDone }) => ({ done, goal, today, todayDone }))(prepGlance(10, { kind: "rate", rate: 1.8 }, 0, 54)),
+    { done: 3, goal: 3, today: "on track for today", todayDone: true },
+  );
   /* Under a session a day still asks for one today. */
-  assert.equal(prepTodayWords(1, { kind: "rate", rate: 0.4 }, 0), "Today: 0 of 1 session done · 1 more to stay on track");
+  assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).today, "1 more to go");
   /* No rate to keep to: just what was done. */
-  assert.equal(prepTodayWords(3, { kind: "late", earliest: null }, 0), "Today: no sessions done yet");
-  assert.equal(prepTodayWords(3, { kind: "late", earliest: null }, 18), "Today: 1 session done");
+  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 0).today, "no sessions yet");
+  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 18).today, "session done");
 });
