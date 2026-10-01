@@ -4192,3 +4192,24 @@ how English → script says which form to write, and nobody types "(m)"
 going the other way. `checkEn` accepts the expected English with a gender
 or number note removed, and only such a note: "close (the door)" still
 wants the door.
+
+## A Person is one person unless it says more, and always a person
+
+A Person card is asked its number and gender, and agreement needs both:
+the feminine adjective picks *feminine singular*, the verb's *she* the
+same. A teacher who answered the gender of ليلى and left the number blank
+got ليلى تعبان and no verb sentence at all, with nothing to say why. And a
+Person card is never asked whether it is a person or a thing — the answer
+is obvious — so one marked plural matched neither the plural adjective,
+which wants a plural of people, nor the feminine, which wants a plural of
+things, and fell to the masculine singular.
+
+**Now.** A kind of word may declare what it implies (`implies` on a
+category); Person implies *singular* and *a person*. Filled in where the
+card says nothing, when the word is lent to a sentence — `lendsInto`,
+which the session, the review list and the preview all go through — and
+never written to the card, so what a teacher answered always wins.
+Gender is not implied: a name says nothing reliable about it, and a
+sentence not asked is better than one asked wrong. Place is left alone
+for now; the owner asked about people.
+

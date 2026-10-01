@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.302 — 1 October 2026
+
+**Adjectives and verbs agree with a Person card that leaves its number blank.**
+
+- A Person card with only its gender answered — Layla, feminine — now
+  counts as one person, so sentences read ليلى تعبانة and ليلى بتحكي.
+  Before, the adjective came out masculine and the verb was left out.
+- A Person card marked plural — a family, a group — now takes the plural
+  adjective (تعبانين), as people do. Before, it took the masculine.
+- A Person card with no gender is still not guessed at.
+
 ## 0.301 — 1 October 2026
 
 **An adjective can say who is tired, with no pronoun.**

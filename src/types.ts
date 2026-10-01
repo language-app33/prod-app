@@ -285,6 +285,13 @@ export interface WordCategory {
    * this, so a value written before it existed is kept.
    */
   grammar?: string[];
+  /**
+   * What a word of this kind is, grammatically, wherever its card does not
+   * say otherwise — a person is a person, and one of them unless the card
+   * says more. Read when the word is lent to a sentence (see lendsInto), so
+   * an adjective or a verb beside it agrees; never written to the card.
+   */
+  implies?: Record<string, string>;
 }
 
 /** A grammatical axis a word varies along — number, gender, addressee. */

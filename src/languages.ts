@@ -2075,6 +2075,12 @@ const WORD_CATEGORIES: WordCategory[] = [
     label: "Person",
     note: "A particular person, or a named animal: Sarah, Abu Khaled.",
     grammar: ["number", "gender"],
+    /* One person unless the card says more, and always a person: an
+       adjective beside سارة with her number left blank took the masculine,
+       and beside a family marked plural it took the masculine too, since
+       only a plural of people takes تعبانين and a Person card is never
+       asked whether it is one. */
+    implies: { number: "singular", human: "person" },
   },
   {
     id: "place",
@@ -2259,7 +2265,30 @@ export function aboutPersons(
 export const lendsInto = (
   lang: Lang | null | undefined,
 ): ((card: { category?: unknown } | null | undefined, value: Value, slot: string) => Value[]) =>
-  (card, value, slot) => (slot === ADJECTIVE_IS_SLOT ? aboutPersons(lang, card, value) : [value]);
+  (card, value, slot) => {
+    const implied = impliedOf(lang, card, value);
+    return slot === ADJECTIVE_IS_SLOT ? aboutPersons(lang, card, implied) : [implied];
+  };
+
+/**
+ * A value with what its kind of word implies filled in where the card
+ * left it blank — see `implies` on a category. What the card says wins:
+ * a Person card marked plural stays plural, and only gains that it is
+ * people.
+ */
+function impliedOf(
+  lang: Lang | null | undefined,
+  card: { category?: unknown } | null | undefined,
+  value: Value,
+): Value {
+  const kind = categoryOf(lang, String((card && card.category) || ""));
+  const implies = kind && kind.implies;
+  if (!implies) return value;
+  const had = value.grammar || {};
+  const missing = Object.entries(implies).filter(([k]) => !String(had[k] || "").trim());
+  if (!missing.length) return value;
+  return { ...value, grammar: { ...had, ...Object.fromEntries(missing) } };
+}
 
 /**
  * The table a word of this kind agrees out of, where it has one: one row,
