@@ -14842,7 +14842,8 @@ export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, qu
        under both, which says how much more. */
     tone: "push",
     status: "",
-    detail: perDay > 0 ? `${needed} will get you ready — you're doing ${paceWords(perDay)}` : `${needed} will get you ready`,
+    /* What it takes, and not the learner's own pace beside it. */
+    detail: `${needed} will get you ready`,
   };
 }
 

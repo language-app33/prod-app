@@ -8,6 +8,13 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.298 — 1 October 2026
+
+**The prep tile's practice line is shorter.**
+
+- It now says only what gets you ready — "About 14 sessions a day will
+  get you ready" — without "you're doing about 9 sessions a day" after it.
+
 ## 0.297 — 1 October 2026
 
 **The prep tile's two numbers agree.**
