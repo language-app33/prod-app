@@ -132,7 +132,15 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   picture, and the counts behind it live a tab away.
 - **The shape of a session is the app's to decide, not the learner's.**
   Eighteen questions; each form asked two ways where its data allows; at
-  most two forms of any one card; easiest first. Cards are taken in the order they fell due, with chance between
+  most two forms of any one card; easiest first; and never two questions
+  running about the same card or of the same exercise. That order is
+  planned as a whole, by a search that keeps to easiest-first wherever it
+  can — a greedy pass left a card with more questions than the rest piled
+  at the end, beside itself — and bends, card rule last, only where the
+  material allows no clean order. `varyTypes` and `mayFollow`; a grid
+  counts as a question about every word in it, and the retry and the
+  mid-session swap in `requeueMissed` and `requeueUnaskable` keep the same
+  two rules. Cards are taken in the order they fell due, with chance between
   everything the due list calls equal, and nothing gathers similar words
   together.
 
@@ -245,7 +253,62 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   whole climb and the pool never drained. The measured rate was about one
   new word every four days.
 
-  The numbers are `FRONT_DOOR_CAP` and `IN_HAND_CAP` in
+  **The second pool grows with how much the learner practises.** Sixty
+  suits somebody who sits down once a day, whose day reaches about nine
+  words; somebody sitting down fifteen times reaches well over a hundred,
+  and out of a fixed sixty that was every word two or three times a day
+  and then a fortnight with nothing new while the first ones matured. So
+  the pool is one word for every word a typical day reaches — questions a
+  day, averaged over the last week off the activity log, over the two
+  ways a form is asked — never under sixty and never over two hundred.
+  `inHandCap` and `typicalDay` in `src/scheduler.ts`, `inHandFor` in
+  `src/ArabicTrainer.tsx`. Since 0.281 it is *two* words for every word a
+  day reaches, which changes nothing under about three sittings a day.
+
+  **For the same learner, the words still climbing come first.** Everything
+  waiting used to rank together and be shuffled, so the ten words in the
+  front door drew lots for a session's nine places with every review that
+  had come due: a new word was dealt in a third of a keen learner's
+  sittings and took six days to clear, holding its place the whole time.
+  Past `KEEN_DAY` — more than two sittings' worth of questions on a
+  typical day — the waiting cards that are still climbing go first, and a
+  word clears in about a day. Not below it: a once-a-day learner's reviews
+  passed over are not reached later that day, and in the pace simulation
+  they learnt nothing in two months with the rule applied to them.
+  `KEEN_DAY` and `KEEN_POOL` in `src/ArabicTrainer.tsx`. The front door
+  itself does not grow: nobody holds more than ten strangers at once.
+
+- **A learner can prepare for a date.** Prep mode, under Progress, takes
+  a name ("Start of class"), a day and the decks to have learnt by then,
+  and keeps the one prep in the settings (`prep`, read through `prepOf`),
+  so it syncs as they do and the learner can change or clear it. Being
+  ready means every card in those decks learnt before the day starts. As
+  it is set, `readyFor` says what that takes: the work spread over the
+  days left, or the earliest they could be finished if there are fewer
+  days than the cards can take. The home screen offers "Prep for …" while
+  the prep is still to come and not yet learnt; it is `begin` with the
+  prep's decks in place of the chosen deck, so every rule of an ordinary
+  session holds. Under it, the days left and whether the learner's own
+  pace gets them there.
+- **A deck says when it could all be learnt — an estimate, by
+  arithmetic.** A deck's tile under Progress opens the deck on a screen of
+  its own: how far it has got, every card in it by where it stands, and two
+  dates — at the learner's own pace, which it names in sittings, and the
+  earliest possible, with the practice a day that takes. `workloadOf`
+  counts what the cards still need off where they stand: per question on a
+  card's ladder, the right answers still owed to have it right twice
+  running, plus the passes still to make at the top. Sessions are those
+  questions over the length of a session times `PROGRESS_SHARE`, the part
+  of a session that moves cards forward. The earliest is a calendar floor
+  — `LEARN_DAYS` for a card not yet learnt, the wait for its passes for a
+  cleared one, and never-met cards coming in `FRONT_DOOR_CAP` at a time.
+  It is instant, and approximate. **It restates the rules rather than
+  running them, so a change to the ladder, the passes, the front door or
+  what a session deals has to be carried into it by hand** — nothing will
+  fail if it is not. It replaced, in 0.287, a forecast that played the
+  app's own rules forward and took most of a minute on a phone.
+
+  The numbers are `FRONT_DOOR_CAP`, `IN_HAND_CAP` and `IN_HAND_MAX` in
   `src/scheduler.ts`, and they were measured rather than chosen:
   `tests/pace.test.mjs` plays out a simulated learner and reports what a
   course costs in days. Change one and run it.

@@ -2245,6 +2245,27 @@ export function AdminSpace({ account, languages, onClose }: {
                 bulkActions={[
                   { label: "Add to a course", onClick: () => setDeckAction("add") },
                   { label: "Remove from a course", onClick: () => setDeckAction("remove") },
+                  /* Only the decks that would change are touched, and the
+                     message counts those rather than the selection. */
+                  ...(["lock", "unlock"] as const).map((way) => ({
+                    label: way === "lock" ? "Lock" : "Unlock",
+                    icon: way,
+                    onClick: (ids: string[]) =>
+                      run(
+                        async () => {
+                          const locking = way === "lock";
+                          const change = decks.filter((d) => ids.includes(d.id) && !!d.locked !== locking);
+                          for (const d of change) await API.lockDeck(d.id, locking);
+                          setSelDecks(new Set());
+                          await refresh();
+                          return change.length;
+                        },
+                        (n: number) =>
+                          n
+                            ? `${plural(n, "deck")} ${way === "lock" ? "locked" : "unlocked"}`
+                            : `Nothing to change — they were already ${way === "lock" ? "locked" : "unlocked"}`
+                      ),
+                  })),
                   {
                     label: "Delete",
                     danger: true,
@@ -3364,8 +3385,8 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }: {
 function LockMark({ locked }: { locked?: boolean }) {
   if (!locked) return null;
   return (
-    <span className="at-lockmark">
-      <Icon name="lock" size={12} /> Locked ·{" "}
+    <span className="at-lockmark" title="Locked" aria-label="Locked" role="img">
+      <Icon name="lock" size={12} />{" "}
     </span>
   );
 }
@@ -5732,9 +5753,16 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
           title: d.title,
           /* A locked deck is shown, and cannot be ticked: its cards stay
              as they are until someone unlocks it. */
-          note: d.locked
-            ? `${plural(d.cardCount || 0, "card")} · Locked`
-            : `${plural(d.cardCount || 0, "card")}`,
+          note: d.locked ? (
+            <>
+              <span className="at-lockmark" title="Locked" aria-label="Locked" role="img">
+                <Icon name="lock" size={12} />{" "}
+              </span>
+              {plural(d.cardCount || 0, "card")}
+            </>
+          ) : (
+            `${plural(d.cardCount || 0, "card")}`
+          ),
           disabled: !!d.locked,
         }))}
         chosen={pickedDecks}
@@ -6708,6 +6736,27 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 bulkActions={[
                   { label: "Add to a course", onClick: () => setDeckAction("add") },
                   { label: "Remove from a course", onClick: () => setDeckAction("remove") },
+                  /* Only the decks that would change are touched, and the
+                     message counts those rather than the selection. */
+                  ...(["lock", "unlock"] as const).map((way) => ({
+                    label: way === "lock" ? "Lock" : "Unlock",
+                    icon: way,
+                    onClick: (ids: string[]) =>
+                      run(
+                        async () => {
+                          const locking = way === "lock";
+                          const change = decks.filter((d) => ids.includes(d.id) && !!d.locked !== locking);
+                          for (const d of change) await API.lockDeck(d.id, locking);
+                          setSelDecks(new Set());
+                          await refresh();
+                          return change.length;
+                        },
+                        (n: number) =>
+                          n
+                            ? `${plural(n, "deck")} ${way === "lock" ? "locked" : "unlocked"}`
+                            : `Nothing to change — they were already ${way === "lock" ? "locked" : "unlocked"}`
+                      ),
+                  })),
                   {
                     label: "Delete",
                     danger: true,

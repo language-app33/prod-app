@@ -36,7 +36,7 @@ import { leadOf, subFormsOf } from "./cards.ts";
 /* And what a row is, for the one rule below that reads one: verbs.ts
    knows what a table is made of and no language at all, which is the
    same direction every other import here goes. */
-import { citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows } from "./verbs.ts";
+import { citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows, tensesOf } from "./verbs.ts";
 import { isLent } from "./variables.ts";
 /*
  * How each language builds its numbers and tells the time.
@@ -1009,7 +1009,6 @@ export function formLabel(
   lang: Lang = activeLang(),
 ): string {
   const said = unit ? labelFor(unit, lang) : "";
-  if (!said && unit && card && isCell(unit)) return personWhereUnsaid(unit, card, lang);
   if (said || !unit || !card || isCell(unit)) return said;
   if (String(leadOf(card).id || "") !== String(unit.id || "")) return "";
   const spec = subFormsOf(card)
@@ -1019,30 +1018,249 @@ export function formLabel(
   return (spec && spec.base) || "";
 }
 
+/* ------------------------------------------------------------------
+   Grammar, as an exercise says it
+
+   One way of saying it, whatever kind of card it is on. There were three:
+   "sg. f." on a noun, "feminine" on an adjective's feminine, "you (f)" on
+   a verb — and "You wrote the sg. f. one." as a sentence. An exercise has
+   room, and a learner is the reader least able to decode shorthand, so:
+
+   - Whole words, gender before number: "feminine plural".
+   - Only what tells this form from the card's others. A lone noun says
+     nothing; a card with both genders says "masculine" and "feminine";
+     "singular" appears only where a plural or dual stands beside it.
+   - A verb's cell names its person, spelt out — "you (feminine)" — and
+     its tense, "past · you (feminine)", where another cell of the card
+     reads the same in English and differs in that.
+
+   The editor keeps labelFor's abbreviations: its rows are narrow and its
+   reader is a teacher.
+   ------------------------------------------------------------------ */
+
+/* "you (f)" → "you (feminine)": the person tables' own labels, written
+   out. */
+const spelledPerson = (label: string): string =>
+  String(label || "")
+    .replace(/\(m\)/g, "(masculine)")
+    .replace(/\(f\)/g, "(feminine)")
+    .replace(/\(pl\)/g, "(plural)");
+
+/* Gender first, then number, then whatever else a language declares. */
+const SPOKEN_ORDER = ["gender", "number"];
+
+/* The grammar values a unit is named by: its own, or its first answer's —
+   the same reading labelFor makes. */
+function valuesOf(unit: Record<string, any> | null | undefined, lang: Lang): Record<string, any> {
+  if (!unit) return {};
+  const own = dimsOf(lang).some((dim) => unit[dim.field]);
+  return own ? unit : answersOf(unit, answerFields())[0] || {};
+}
+
+/**
+ * The grammar that tells one unit from others, in whole words.
+ *
+ * `others` are what it has to be told apart from — the card's other forms
+ * and answers. A value every one of them shares says nothing and is left
+ * out. Values a tag never names (a noun being a thing or a person, a
+ * number that does not apply) stay silent here too.
+ */
+export function spelledGrammar(
+  unit: Record<string, any> | null | undefined,
+  others: (Record<string, any> | null | undefined)[],
+  lang: Lang = activeLang(),
+): string {
+  const mine = valuesOf(unit, lang);
+  const theirs = others.map((o) => valuesOf(o, lang));
+  const dims = dimsOf(lang)
+    .filter((d) => !d.retired && !d.perCard)
+    .sort((a, b) => {
+      const at = (d: GrammarDim) => {
+        const i = SPOKEN_ORDER.indexOf(d.field);
+        return i < 0 ? SPOKEN_ORDER.length : i;
+      };
+      return at(a) - at(b);
+    });
+  const named = dims.filter((dim) => {
+    const value = mine[dim.field];
+    return value && value !== "na" && !(dim.short && dim.short[value] === "");
+  });
+  const picked = fewestTelling(
+    named.map((dim) => dim.field),
+    theirs.map((t) => (field: string) => (t[field] || "") !== mine[field]),
+  );
+  return picked
+    .map((f) => {
+      const dim = named.find((d) => d.field === f) as GrammarDim;
+      const opt = dim.options.find(([v]) => v === mine[f]);
+      return opt ? opt[1] : mine[f];
+    })
+    .join(" ");
+}
+
 /*
- * Who a verb's cell is about, where its English does not say.
+ * The fewest of these axes that tell a unit from every other, in the order
+ * given — so a plural beside a masculine and a feminine singular is
+ * "plural", not "masculine plural". Where no set tells it from them all
+ * (two forms alike in everything), every axis that tells it from any of
+ * them. Nothing at all where none does.
+ *
+ * `differs` is one test per other unit: whether it differs on an axis.
+ */
+function fewestTelling(axes: string[], differs: ((axis: string) => boolean)[]): string[] {
+  const useful = axes.filter((a) => differs.some((d) => d(a)));
+  if (!useful.length) return [];
+  const tells = (set: string[]) => differs.every((d) => set.some((a) => d(a)));
+  /* Smallest first, and in reading order within a size. A card has two or
+     three axes, so trying every set is a handful of checks. */
+  for (let size = 1; size <= useful.length; size++) {
+    const hit = subsetsOf(useful, size).find(tells);
+    if (hit) return hit;
+  }
+  return useful;
+}
+
+function subsetsOf<T>(list: T[], size: number): T[][] {
+  if (size === 0) return [[]];
+  const out: T[][] = [];
+  list.forEach((x, i) => {
+    for (const rest of subsetsOf(list.slice(i + 1), size - 1)) out.push([x, ...rest]);
+  });
+  return out;
+}
+
+/* Every form of a card and every answer of each, but the one asked. */
+function othersOnCard(unit: Record<string, any>, card: unknown): Record<string, any>[] {
+  const forms = [leadOf(card)].concat(subFormsOf(card)).filter(Boolean) as Record<string, any>[];
+  const asked = String((answersOf(unit, answerFields())[0] || {}).text || "");
+  const out: Record<string, any>[] = [];
+  for (const f of forms) {
+    const answers = answersOf(f, answerFields());
+    if (!answers.length) {
+      if (f.id !== unit.id) out.push(f);
+      continue;
+    }
+    for (const a of answers) {
+      if (f.id === unit.id && a.text === asked) continue;
+      out.push(a);
+    }
+  }
+  return out;
+}
+
+/*
+ * Which tense and which person a verb's cell is, where its English does
+ * not say.
  *
  * A verb's cells are meant to carry the person in their English — "you (f)
- * understand" — which is why a verb table names nothing (see shapeTable).
- * But a teacher who writes "You understand" on both the masculine and the
- * feminine leaves two cells the question cannot tell apart: a learner was
- * asked for the feminine, shown only "You understand", and had no way to
- * know. So where another cell of the same card reads the same in English
- * from a different column, the column's own name — "you (f)" — is the tag.
- * A cell whose English is its own still names nothing.
+ * understand" — which is why a verb table names nothing on its own (see
+ * shapeTable). A teacher who writes "You understand" on both the masculine
+ * and the feminine leaves two cells no question can tell apart: a learner
+ * was asked for the feminine and shown only "You understand". So where
+ * another cell of the card reads the same in English, whatever differs
+ * between them — the tense, the person, or both — is named.
  */
-function personWhereUnsaid(unit: Record<string, any>, card: unknown, lang: Lang): string {
+function cellWhereUnsaid(unit: Record<string, any>, card: unknown, lang: Lang): string {
   const spec = Object.values(tablesOf(lang)).find((t) => rowIdsOf(t).has(rowOf(unit)));
   if (!spec || spec.base) return "";
   const en = normEn(String(unit.en || ""));
   if (!en) return "";
-  const col = colOf(unit);
-  const twin = subFormsOf(card)
-    .concat([leadOf(card)])
-    .some((f) => f && f.id !== unit.id && isCell(f) && colOf(f) !== col && normEn(String(f.en || "")) === en);
-  if (!twin) return "";
-  const person = personsOf(spec).find((p) => p.id === col);
-  return person ? person.label || person.id : "";
+  const twins = [leadOf(card)]
+    .concat(subFormsOf(card))
+    .filter((f) => f && f.id !== unit.id && isCell(f) && normEn(String(f.en || "")) === en);
+  if (!twins.length) return "";
+  /* The fewest of the two that tell it from every twin: a tense beside
+     the same person in another tense is "present", not "present · he". */
+  const picked = fewestTelling(
+    ["row", "col"],
+    twins.map((f) => (axis: string) => (axis === "row" ? rowOf(f) !== rowOf(unit) : colOf(f) !== colOf(unit))),
+  );
+  const bits: string[] = [];
+  if (picked.includes("row")) {
+    const tense = tensesOf(spec).find((t) => t.id === rowOf(unit));
+    if (tense) bits.push(tense.label || tense.id);
+  }
+  if (picked.includes("col")) {
+    const person = personsOf(spec).find((p) => p.id === colOf(unit));
+    if (person) bits.push(spelledPerson(person.label || person.id));
+  }
+  return bits.join(" · ");
+}
+
+/**
+ * What an exercise says a form is: the one rule above, for every kind of
+ * card. Empty where nothing tells it from the card's other forms.
+ */
+export function askLabel(
+  unit: Record<string, any> | null | undefined,
+  card: unknown,
+  lang: Lang = activeLang(),
+): string {
+  if (!unit) return "";
+  if (isCell(unit)) {
+    /* An adjective's shapes are named by their column, already in words. */
+    const shape = shapeOf(unit, lang);
+    if (shape) return shape;
+    return card ? cellWhereUnsaid(unit, card, lang) : "";
+  }
+  const spelled = spelledGrammar(unit, card ? othersOnCard(unit, card) : [], lang);
+  if (spelled) return spelled;
+  /* The word of a card whose other shapes are an agreement table is the
+     masculine, which only the card can say — see formLabel. */
+  if (!card || labelFor(unit, lang)) return "";
+  return formLabel(unit, card, lang);
+}
+
+/**
+ * What a word lent to a sentence is, where its English does not say.
+ *
+ * A card that fills a blank may have several forms reading alike in
+ * English — *your name* to one man, to one woman, and to several people
+ * are three words in Arabic and one in English. Dropped into "{{whose-name}}
+ * is {{person}}", the sentence read "Your name is Shams" whichever was
+ * used, and a learner reported that nothing on the screen said which it
+ * was: they read the plural as *their* twice.
+ *
+ * So the form is named — in the words askLabel uses — by what tells it
+ * from those of its card's forms whose English it shares, and from those
+ * only: a form whose English is its own has already said what it is, and
+ * naming it would be a tag on every sentence. Empty where nothing is
+ * shared, or where the teacher has given the form nothing to be told
+ * apart by.
+ */
+export function lentLabel(
+  form: Record<string, any> | null | undefined,
+  card: unknown,
+  lang: Lang = activeLang(),
+): string {
+  if (!form || !card) return "";
+  const said = (f: Record<string, any>) =>
+    String(f.en || "")
+      .split(/[/;,]/)
+      .map(normEn)
+      .filter(Boolean);
+  const mine = said(form);
+  if (!mine.length) return "";
+  const forms = [leadOf(card)].concat(subFormsOf(card)).filter(Boolean) as Record<string, any>[];
+  const twins = forms.filter((f) => f !== form && !(f.id && f.id === form.id) && said(f).some((en) => mine.includes(en)));
+  if (!twins.length) return "";
+  if (isCell(form)) return askLabel(form, card, lang);
+  return spelledGrammar(form, twins, lang);
+}
+
+/**
+ * Which of a form's accepted answers the learner wrote, in the same words:
+ * "You wrote the feminine one." Told apart from the form's other answers
+ * only, since those are what could have been written instead.
+ */
+export function answerLabel(
+  answer: Record<string, any> | null | undefined,
+  form: Record<string, any> | null | undefined,
+  lang: Lang = activeLang(),
+): string {
+  if (!answer || !form) return "";
+  const others = answersOf(form, answerFields()).filter((a) => a.text !== answer.text);
+  return spelledGrammar(answer, others, lang);
 }
 
 export const AR_KEY_ROWS = [
@@ -3038,8 +3256,39 @@ export function checkEn(given: string, expected: string) {
   if (forms.includes(g)) return { ok: true, reason: "exact" };
   if (forms.some((e) => tight(e).length >= EN_SLIP_MIN && editDistance(g, e) === 1))
     return { ok: true, reason: "typo" };
-  const near = forms.some((e) => editDistance(g, e) <= Math.max(1, Math.round(e.length * 0.25)));
+  const near = forms.some((e) => editDistance(g, e) <= Math.max(1, Math.round(e.length * 0.25)) && sameWords(g, e));
   return { ok: false, reason: near ? "near" : "wrong" };
+}
+
+/*
+ * Whether an English answer close to the expected one is the same words,
+ * misspelt, rather than a different word in one place.
+ *
+ * "Nearly right" says *the right word, not quite spelt*, and it was being
+ * said of "Their name is Zatar" for "Your name is Zaʿtar": the letters
+ * were within a quarter of the sentence, because the rest of it was right,
+ * but *their* is not a misspelling of *your* — it is another person. A
+ * learner reported being told they had it nearly right when they had
+ * misread who was being spoken to.
+ *
+ * So where the answer and the expected one have the same number of words,
+ * each word that differs has to be close to the word it stands for: one
+ * letter on a word of three or fewer, two on a word up to six, and a third
+ * of anything longer. *tried* for *tired* is still near; *their* for
+ * *your*, and *he* for *it*, are not. Where the counts differ — a word
+ * dropped, or two run together — there is nothing to line up, and the
+ * whole-answer measure above stands on its own, as before.
+ */
+function sameWords(given: string, expected: string): boolean {
+  const mine = given.split(" ");
+  const theirs = expected.split(" ");
+  if (mine.length !== theirs.length) return true;
+  return mine.every((word, i) => {
+    const want = theirs[i];
+    if (word === want) return true;
+    const room = want.length <= 3 ? 1 : want.length <= 6 ? 2 : Math.round(want.length / 3);
+    return editDistance(word, want) <= room;
+  });
 }
 
 export function checkTr(given: string, expected: string) {

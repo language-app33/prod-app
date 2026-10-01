@@ -3753,3 +3753,363 @@ retested inside the session it was missed in. The home screen's count of
 cards ready is unchanged: a resting card is still ready, only later in
 the order.
 
+
+---
+
+## An exercise names grammar in whole words, and only what tells a form apart
+
+**28 September 2026** · `src/languages.ts` (`askLabel`, `answerLabel`, `spelledGrammar`)
+
+Exercises named a form three ways, by where the grammar was stored:
+`labelFor`'s abbreviations on a noun ("sg. f."), an agreement table's
+column on an adjective ("feminine"), a person label on a verb ("you (f)").
+The learner is the reader least able to decode shorthand, and the screen
+has room, so exercises now go through one function, `askLabel`, and
+`labelFor` is left to the editor, whose rows are narrow and whose reader
+is a teacher.
+
+**Fewest words that tell it apart.** The label names the smallest set of
+axes that separates the form from every other form and answer on its card
+(`fewestTelling`), gender before number. A plural beside two singulars is
+"plural"; only a card holding all four is "feminine plural". That is what
+drops "singular" and "masculine" wherever nothing on the card needs them,
+without a list of default values to maintain.
+
+**What it costs.** The tag now depends on the card's other forms, so the
+same form can read "plural" on one card and "feminine plural" on another.
+That is the point — it is the answer to "which of these is wanted?" — but
+it means a label cannot be computed from a form alone.
+
+---
+
+## Words in hand grow with how much the learner practises
+
+**29 September 2026** · `src/scheduler.ts` (`inHandCap`, `typicalDay`,
+`roomForNew`, `IN_HAND_MAX`, `PRACTICE_WINDOW_DAYS`), `src/ArabicTrainer.tsx`
+(`inHandFor`, `buildSession`, `countReady`), `tests/pace.test.mjs`
+
+The owner practises ten to twenty times a day and kept seeing the same
+cards. The session builder was not the cause. The ceiling of sixty words
+in hand was: a word leaves it only on reaching a three-week gap, a gap
+grows only when a card is answered on the day it falls due, and an early
+answer is counted and moves nothing — deliberately. So the pool drains at
+calendar speed however much anybody practises, and a day of fifteen
+sittings, which deals about 135 cards, dealt them out of the same sixty.
+The pace simulation, run at fifteen sittings a day on a 400-word course,
+showed each card dealt 2.2 times a day once the pool had filled, and
+eleven days in a row with no new word.
+
+**The pool is sized to what a day of this learner's reaches.** Questions
+answered on a typical day — the last seven days of the activity log, idle
+days as nought, days before the first one logged not counted — over
+`PER_UNIT`, the two ways a form is asked in a sitting. One word in hand for
+each, never under the sixty that was measured for a once-a-day learner and
+never over `IN_HAND_MAX`, two hundred. The log was already written on every
+answer and already merged across devices, so nothing new is stored.
+
+**Measured, days 31 to 60 of fifteen sittings a day:** each card dealt 2.2
+times a day became 1.9 to 2.0; the longest run with nothing new went from
+eleven days to two; words met in sixty days went from 86 to about 103. A
+once-a-day learner's allowance is exactly sixty, as before, and every
+existing pace test passes unchanged.
+
+**What it does not fix.** Most of what a keen learner's day still repeats
+is the front door — the ten words still being got to know — which stays
+full for them and lets a newcomer in only as each one clears. About 85% of
+their deals are cards asked before they are due. Scaling the front door in
+the same proportion was tried: 1.6 a card a day and 138 words in sixty
+days. It is left out because it changes how many *strangers* a learner
+holds at once, which is a teaching decision rather than a load one.
+
+**The simulation now builds sessions at the simulated moment.** It used to
+build them against the real clock while dating the cards to its own
+calendar, so every card looked overdue and the resting rules never
+applied. Every figure it prints is now what a learner at that moment would
+be dealt; the existing tests' figures moved a little and all still pass.
+
+**What it costs.** A keen learner holds more half-learnt words, so each is
+met a little less often and takes a little longer to feel solid. The log
+is one count over every language, so somebody splitting their time between
+two is read slightly generously in each.
+
+
+---
+
+## A keen learner's climbing words go first, and their pool doubles
+
+**30 September 2026** · `src/ArabicTrainer.tsx` (`KEEN_DAY`, `KEEN_POOL`,
+`inHandFor`, `buildSession`), `src/scheduler.ts` (`IN_HAND_MAX`),
+`tests/pace.test.mjs`, `tests/session.test.mjs`
+
+0.280 let the pool of words in hand grow with practice, and the owner found
+what it bought too little: about 110 words met in two months at fifteen
+sittings a day. The pool was no longer what held it. The front door was,
+and not because it is ten wide: because a word took six days to get
+through it. Everything waiting ranks together and is shuffled, so the ten
+words still climbing drew lots for nine places a sitting with twenty-odd
+reviews that had come due, and a new word was dealt in about a third of
+the sittings of somebody sitting down fifteen times a day.
+
+**The climbing words go first among what is waiting — for the keen.** A
+word then clears in about a day, and the front door turns over five or six
+times as fast without holding more than ten strangers at once. Widening the
+front door was measured as the alternative and was worse on both counts:
+twenty or thirty wide met about 140 words and cost a once-a-day learner
+most of what they learnt, because they were holding strangers they could
+not get round to.
+
+**Only past `KEEN_DAY`, two full sittings' worth of questions on a typical
+day.** Applied to everybody, the rule took a once-a-day learner's nine
+places for the climbing words every day, and the reviews that turn a
+cleared word into a learnt one were never reached: in sixty days they
+learnt none, against about a dozen. The keen learner's reviews passed over
+now are reached later the same day. Alternating climbers and reviews was
+tried and failed the once-a-day learner the same way. A rule read off
+whether reviews are keeping up would be better founded than one read off
+volume; the one tried — a day's practice against the reviews waiting —
+barely switched on for anybody, because a word answered right comes back a
+day later and so there is always more waiting than a day covers. Volume is
+what was asked for, and it is what the simulation bears out.
+
+**The pool doubles with it (`KEEN_POOL`).** At one word in hand per word a
+day reaches, a word clearing in a day meant the pool filled at about 130
+and stopped the front door instead. At two, fifteen sittings a day meet
+about 255 words in sixty days and learn nearly all of them. Nothing changes
+under about three sittings a day, where the pool was already the floor of
+sixty; `IN_HAND_MAX` went from 200 to 400 so the doubled figure is not cut
+off.
+
+**The simulation now marks every word in a grid**, as the app does. It
+marked only the first, so every other word in a grid climbed as if unasked;
+0.280's figures re-measured this way read about 110 met rather than 103.
+
+**What it costs, and what is still true.** A keen learner's reviews wait
+behind their climbing words, so a review may be answered a few hours later
+than it fell due; the simulation shows no cost to what is learnt. And the
+larger pool fills too: about eight new words a day for the first month,
+then around day thirty-two new words slow to a trickle until the earliest
+words stand at three-week gaps everywhere. A word counting against the pool
+until it is that settled is the next thing to question if new words matter
+more.
+
+---
+
+## An English near miss has to be the same words, and a lent word is named only where its English is shared
+
+**30 September 2026** · `src/languages.ts` (`checkEn`, `lentLabel`), `src/ArabicTrainer.tsx` (`lentTags`)
+
+A learner reported "Their name is Zatar" marked *nearly right — the right
+word, not quite spelt* for "Your name is Zaʿtar". The English near-miss band
+is a quarter of the whole answer's letters, and in a sentence the words that
+are right pay for the one that is not. So where the answer and the expected
+English have the same number of words, each differing word must now be
+close to its counterpart (one letter up to three letters, two up to six, a
+third beyond). The cost: a short function word swapped for another — *he*
+for *it* — is now wrong rather than near, which is the point, and an answer
+with a word dropped or added is still judged on the whole-answer measure,
+because there is nothing to line up.
+
+The same report asked which *your* the sentence meant. The frame's own
+grammar says nothing about that; the word lent into the blank does. It is
+named — through the same whole-word grammar as `askLabel` — only when
+another form of its card reads the same in English, so that "My name is
+Shams" carries no tag and "Your name is Shams" says *plural*. It depends on
+the teacher having marked the forms; forms marked alike get no tag rather
+than a guess.
+---
+
+## A deck's forecast is the rules played forward, and the simulation's clock moves
+
+**30 September 2026** · `src/ArabicTrainer.tsx` (`deckForecast`,
+`earliestForecast`, `DeckScreen`, `buildSession`'s `elsewhere`),
+`src/scheduler.ts` (`REAL_CLOCK`), `tests/forecast.test.mjs`,
+`tests/pace.test.mjs`
+
+The owner asked for each deck to say how soon it could all be learnt — at
+their own pace, named in sittings, and at the fastest possible — and then
+asked that the two dates stay right whatever the scheduling comes to do.
+
+**Played forward, not worked out.** A formula would have to restate the
+ladder, the front door, the pool, the keen ordering and the passes, and
+would be wrong the day any of them changed. The forecast instead sits the
+learner down at a pace, deals with `buildSession`, and asks the Progress
+screen's own `standing` when every card is learnt. There is nothing in it
+that knows a rule.
+
+**What an answer marks is decided in one place.** It used to be written
+inside the question screen's answer handler — the grid's other words, the
+words standing in a sentence's blanks, the words a number is made of, and
+the options handed to `gradeInto` — where a forecast could only have
+copied it. It is now four functions both of them call: `resolveQuestion`
+(the question as shown), `gridFor` (the words a grid puts up),
+`marksForAnswer` and `gradingFor`. A change to any of them reaches the
+answer and the forecast together, and a test holds the forecast to
+`marksForAnswer`. Its own assumptions are only about the learner: every
+answer right, practising this deck alone, sittings spread over a sixteen-
+hour day.
+
+**The earliest date is searched for.** No pace is written down as "the
+most anybody could do": the deck is played at 16 sittings a day, then 32,
+64, up to 256, until doubling stops bringing the day closer. Whatever the
+rules come to allow, the search finds where practice stops helping.
+
+**Only the deck is played, and the rest is counted once.** Practising one
+deck is the fastest way to finish it, and every other card then stands
+still, so what they hold in the front door and the pool is counted once
+and handed to `buildSession` as `elsewhere`. That made a forecast about ten
+times cheaper without changing what it deals.
+
+**The indexes are the app's, every simulated day.** What a question may
+ask depends partly on progress — a sentence's blanks, a verb's rows — so
+each simulated day installs the full indexes (`installIndexes`) over the
+simulated cards and the rest of the collection. A narrower refresh would
+be faster and would silently go wrong the first time somebody adds a
+progress-dependent index. After every slice of work the real indexes are
+put back, and a test holds that.
+
+**The clock could not be moved, and the pace figures were off.** The
+scheduler's default clock captured `Date.now` when the module loaded, so
+setting the time for a simulated sitting reached the session builder's own
+readings but not the scheduler's — what is due, what rests. Every figure
+the pace simulation printed since it began stubbing the clock was measured
+with half the app reading today's date. `REAL_CLOCK` now reads `Date.now`
+at each call. Re-measured at fifteen sittings a day over sixty days: 120
+words learnt under 0.279, 248 under 0.280, about 275 under 0.281, and a
+card dealt 5.4, 3.8 and 2.5 times a day. Those are larger gains than first
+reported. But three sittings a day, just past the keen line, learns about
+60 under 0.281 against 78 before: the climbers-first rule admits words
+faster than the pool of sixty can settle them, and new words then stop for
+about a month. That is reported to the owner rather than changed here,
+because where the keen line sits is theirs to decide. The 0.281 figures in
+the entry above were measured under the old clock.
+
+**What it costs.** A forecast takes about a second for a small deck on a
+laptop and several on a phone, most of it the daily index refresh. It is
+done in slices of a tenth of a second, the pace date first, and kept until
+the cards change.
+
+---
+
+## The earliest date names the practice that reaches it
+
+**30 September 2026** · `src/ArabicTrainer.tsx` (`earliestForecast`,
+`deckForecast`'s `giveUpAfter`, `seededDice`, `leastWords`)
+
+"No amount of practice gets it learnt sooner", printed above a date, read
+to the owner as a mistake: a dead end followed by an answer. They asked
+for the line to say how much practice the date takes instead.
+
+**Found, as the date is.** Doubling from sixteen sittings a day finds the
+day and brackets the practice: one pace that reaches it and one that
+falls short. The gap is then halved until it is under a sitting a day (a
+tenth of one below two a day), and the least pace that got there is what
+is said, rounded up so the pace named really does. A run that is only
+asking whether a pace gets there by that day gives up once it is past it
+(`giveUpAfter`), so the search costs little more than the doubling did.
+
+**A forecast rolls its own dice.** The session builder shuffles what its
+ranking calls equal, and two runs of the same pace could finish a day
+apart on the shuffle alone — which would make "the least pace that gets
+there" a matter of luck, and a deck's date move each time it was opened.
+Each forecast now sets `Math.random` to a seeded roll for the length of
+each sitting, as it sets the clock, and puts it back.
+
+---
+
+## Prep mode: decks to have learnt by a date
+
+**30 September 2026** · `src/ArabicTrainer.tsx` (`Prep`, `prepOf`,
+`prepStatus`, `readyForecast`, `PrepScreen`, `PrepLine`, `begin`'s `only`)
+
+The owner asked for a way to prepare for a set date — a name, a day, the
+decks that must be fully learnt by then — with a home-screen button that
+opens a session to prepare, and for the prep to be editable.
+
+**One prep, in the settings.** Several at once would compete for the same
+practice, and "about six sessions a day gets you ready" would stop
+meaning anything. The settings already sync across devices, last change
+winning, which is the right rule for something the learner edits; a
+malformed or half-written prep reads as none (`prepOf`).
+
+**Ready means before the day starts.** An exam at nine is not something to
+be learning for on its morning, so the deadline is midnight at the start
+of the prep's day, and the screen says "before".
+
+**A prep session is an ordinary session over fewer cards.** `begin` takes
+the prep's decks in place of the deck chosen on the home screen, so the
+front door, the pool, the keen ordering and the spacing all hold — the
+prep chooses which cards, never how learning works. Practising only those
+decks is also exactly what the forecast assumes.
+
+**The advice is the rules played forward.** `readyForecast` finds the
+earliest the decks could be learnt (`earliestForecast`); if that is after
+the day, that date is the answer, and otherwise the least pace that
+finishes before the day is found by halving, each run giving up once past
+the deadline. The home screen's "on track" line is one run at the
+learner's own pace, stopped at the day.
+
+**What it costs.** Working out the advice takes a few seconds on a phone,
+done a slice at a time; the prep screen waits a moment after each change
+before starting, so a date being typed does not start one per keystroke.
+
+
+**And a smoke check that failed on the shuffle.** The walk through
+pictured words tapped a tile by position and then expected the answer
+screen to show the picture that was wanted, which it only does after a
+wrong answer. Whether any tapped tile was wrong depended on the order the
+session dealt its cards in, so the check failed about one run in three
+while prep mode was being tested, on this change and the one before it.
+The first picture question is now answered "I don't know", which is wrong
+whatever the order.
+
+---
+
+## Deck dates and prep advice by arithmetic, not simulation
+
+**1 October 2026** · `src/ArabicTrainer.tsx` (`workloadOf`, `LEARN_DAYS`,
+`PROGRESS_SHARE`, `learntAtPace`, `earliestOf`, `readyFor`); removed
+`deckForecast`, `earliestForecast`, `readyForecast` and their slicing,
+caching and index swapping; `tests/forecast.test.mjs`
+
+**Why.** Prep mode said "Working out how much practice it takes…" for
+about forty seconds on a laptop for a 50-card deck, and a phone is two to
+four times slower. An audit found two causes: every simulated grid ranked
+the learner's whole vocabulary for spare meanings marking never reads
+(over half the time), and the search played the deck forward twelve times
+to produce one sentence. Fixes for both brought it to about five seconds.
+The owner judged the machinery too complicated for what it says and asked
+for simple arithmetic instead, and for all of the simulation to go.
+
+**What it is.** Per card not yet learnt, per question on its ladder: no
+right answers owed if it is already right twice running, one if its last
+answer was right, two if not; plus the passes still owed at the top of
+the ladder. Sessions are those questions over a session's eighteen,
+halved (`PROGRESS_SHARE`) because about half of a session goes on cards
+asked ahead of time and on reviews. The fewest days is a floor: four
+(`LEARN_DAYS`) for a card not yet learnt, the wait for its next pass and
+two days for each after for a cleared one, and cards never met coming in
+ten at a time (`FRONT_DOOR_CAP`), a day apart.
+
+**How close.** Against the simulation it replaces, on synthetic decks:
+twelve cards at one sitting a day, 19 days against 21; at three, 7 against
+9; earliest, 5 against about 4½. Fifty cards to be ready in thirty days,
+about 2.6 sittings a day against 2.9 (both said "About 3"); in ten days,
+7.8 against 8.6 ("About 8" against "About 9"). Close, and a little
+hopeful, which is why the screens now call them estimates.
+
+**What it costs.** This reverses the owner's earlier requirement that the
+estimates follow any change to the rules by themselves. They now restate
+the rules in three places — what a card owes, the four-day floor and the
+half-a-session share — and nothing fails when the rules move and they do
+not. The note over `workloadOf` says so to whoever changes the rules, and
+so does the README. The owner asked for no simulation at all, so there is
+no test comparing the arithmetic with the rules; the two constants were
+taken from the pace simulation's measurements before the forecasts were
+retired.
+
+**Kept.** The shared answer marking (`marksForAnswer`, `resolveQuestion`,
+`gridFor`, `gradingFor`) stays: the question screen uses it and nothing
+about it was a simulation. So do the scheduler clock that reads
+`Date.now` at each call, and `tests/pace.test.mjs`, which measures the
+scheduling rules themselves rather than any estimate the app shows.
+

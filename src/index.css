@@ -1257,9 +1257,6 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 /* Whether a deck is reaching anyone, at a glance. */
 .at-reach { display:flex; align-items:center; gap:8px; margin-top:10px;
   padding-top:10px; border-top:1px solid var(--line); flex-wrap:wrap; }
-.at-reachdot { width:9px; height:9px; border-radius:999px; flex:0 0 auto;
-  background: var(--muted); }
-.at-reachdot.live { background: var(--jade); }
 .at-reachtext { font-size:12px; color: var(--muted); min-width:0; }
 .at-reachtext b { color: var(--ink); font-weight:700; }
 /* A card shown rather than edited: label on the left, value on the right,
@@ -2589,6 +2586,26 @@ button.at-stat:disabled { cursor:default; opacity:.55; }
 .at-deckstat.done { background: var(--jade-bg); border-color: var(--jade-soft); }
 .at-deckstat.done b { color: var(--jade); }
 .at-deckstat.done .at-deckbar > span { background: var(--jade); }
+/* Each tile opens its deck's own screen, so it is a button, and says so the
+   way the level tiles above it do. */
+button.at-deckstat { width:100%; font:inherit; color:inherit; text-align:start; cursor:pointer; }
+@media (hover:hover) {
+  button.at-deckstat { transition: border-color 140ms ease; }
+  button.at-deckstat:hover { border-color: var(--ink); }
+}
+button.at-deckstat:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+/* Prep mode, above the ladder: the button, and what is being prepped for. */
+.at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:16px; }
+.at-prepbar .at-prepnote { margin:0; }
+/* The deck's own screen: how far it has got, then the two dates. */
+.at-deckhead { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.at-forecast { border:2px solid var(--line); border-radius: var(--r); background: var(--surface);
+  padding:14px; margin-bottom:18px; display:flex; flex-direction:column; gap:12px; }
+.at-forecast p { margin:0; display:flex; flex-direction:column; gap:2px; font-family: var(--ui); }
+.at-forecast b { font-size:13px; font-weight:800; color: var(--text); }
+.at-forecastpace { font-size:12px; color: var(--muted); }
+.at-forecastdate { font-size:17px; font-weight:800; color: var(--brass); font-variant-numeric: tabular-nums; }
+.at-forecast .at-forecastnote { font-size:11px; color: var(--faint); }
 .at-stats.tight { grid-template-columns:repeat(6,1fr); gap:6px; margin-bottom:16px; }
 .at-stats.tight .at-stat { padding:9px 5px; border-width:2px; border-radius: var(--r-sm); text-align:center; }
 .at-stats.tight .at-stat b { font-size:19px; }
@@ -3607,6 +3624,10 @@ body.at-screening .at-chromebar { display:none; }
 .at-reviewlist .at-askedline.no .at-askedsays { text-decoration: line-through;
   text-decoration-color: var(--rose); opacity:.7; }
 .at-reviewmarks { display:flex; gap:6px; flex:0 0 auto; margin-left:auto; }
+/* The tick that selects a sentence, beside its number. */
+.at-reviewpick { width:20px; height:20px; flex:0 0 auto; margin:0; align-self:center; cursor:pointer;
+  accent-color: var(--accent); }
+.at-reviewbulk { flex-wrap:wrap; gap:8px; }
 .at-reviewmark { font: inherit; font-size: var(--fs-xs); font-weight:800; min-height:36px;
   padding:6px 12px; border-radius:999px; border:1px solid var(--line);
   background: var(--surface); color: var(--text-soft); cursor:pointer; }

@@ -68,7 +68,7 @@ const ICON_NAMES = [
   "back", "save", "folder", "cards", "person", "group", "key", "download",
   "verify", "play", "pause", "view", "select", "school", "copy", "refresh",
   "mic", "remove", "chevronDown", "chevronUp", "menu", "help", "theme",
-  "language", "lock", "image", "camera",
+  "language", "lock", "unlock", "image", "camera",
 ];
 
 /* One list of forms, the card's own word first — a card as the app has
@@ -143,6 +143,9 @@ const PLACES: Record<string, [string, string]> = {
   CardScreen: [LEARN, "Opening a card from a tile"],
   CardLadder: [LEARN, "Opening a card from a tile · where it is on the ladder"],
   ProgressTab: [LEARN, "The Progress tab"],
+  DeckScreen: [LEARN, "The Progress tab · one deck, with when it could be learnt"],
+  PrepScreen: [LEARN, "The Progress tab · Prep mode, getting decks learnt by a date"],
+  PrepLine: [LEARN, "The home screen · how long is left to prep, and whether your pace gets you there"],
   ReviewItem: [LEARN, "The Progress tab · one card"],
   StudentCourses: [LEARN, "The Courses tab"],
   ArabicField: [LEARN, "Writing in the language you are learning"],

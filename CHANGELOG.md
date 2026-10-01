@@ -8,6 +8,221 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.288 — 1 October 2026
+
+**The home screen says how much practice your prep needs.**
+
+- Under **Prep for …**, the line used to say you'd need more practice and
+  send you to Prep mode to find out how much. It now says it — for example
+  "12 days left · about 6 sessions a day will get you ready — you're doing
+  about 2 sessions a day".
+- If there isn't enough time left to learn everything, it says the earliest
+  you could be ready instead. When your usual pace is enough, it still
+  says you're on track.
+
+## 0.287 — 1 October 2026
+
+**Prep mode and deck dates now appear instantly.**
+
+- The advice in **Prep mode** ("About 6 sessions a day will get you ready
+  before …") and the two dates on a deck's screen used to take anywhere
+  from several seconds to over a minute on a phone, while the screen said
+  "Working it out…". They now appear straight away.
+- They are now worked out with simple arithmetic: how many right answers
+  your cards still need, how many sessions that takes, and the days
+  available — with a minimum for the days a word needs between its
+  reviews, and for new words arriving ten at a time.
+- They are estimates, usually within about a fifth of what you'll
+  actually need, and a little on the hopeful side. Allow some extra.
+
+## 0.286 — 30 September 2026
+
+**Prep mode: get a set of decks learnt by a date.**
+
+- Under **Progress**, tap **Prep mode**. Say what you're preparing for
+  (for example "Start of class"), pick the date, and tick the decks you
+  need fully learnt by then.
+- As you choose, it tells you how much practice that takes — for example
+  "About 6 sessions a day will get you ready before Tue, 14 Oct" — or, if
+  the date is too soon, the earliest you could be ready.
+- The home screen then shows **Prep for Start of class**. It starts a
+  session drawn only from those decks, which is the quickest way to learn
+  them. Underneath, it says how many days are left and whether your usual
+  pace gets you there.
+- Open Prep mode again to change the name, the date or the decks, or to
+  stop prepping. Once the day arrives, or every card is learnt, the home
+  button goes away.
+- Your prep follows you to your other devices, like your settings.
+
+## 0.285 — 30 September 2026
+
+**A deck's "Earliest possible" now says how much practice it takes.**
+
+- It used to say "No amount of practice gets it learnt sooner" above the
+  date, which read as though nothing could be done. It now says how many
+  sessions a day would get the deck learnt by that date — for example
+  "About 16 sessions a day would get it learnt by Mon, 5 Oct" — and that
+  practising more than that won't bring it sooner.
+- The dates no longer shift slightly each time you open a deck: the same
+  cards at the same pace now always give the same answer.
+
+## 0.284 — 30 September 2026
+
+**A deck's "At your pace" always says your sessions per day.**
+
+- It used to switch to sessions a week when you averaged fewer than one a
+  day. It now always says how many sessions a day you average over the
+  past week — for example "about 0.4 sessions a day".
+
+## 0.283 — 30 September 2026
+
+**Each deck now has its own screen, with when it could all be learnt.**
+
+- Under **Progress**, tap a deck to open it. It shows how many of its
+  cards are learnt, and every card in the deck grouped by where it stands,
+  from not started to learnt. Tap a card to open it.
+- It also gives two dates for when the whole deck could be learnt:
+  - **At your pace** — how many sessions a day you have been doing on
+    average over the past week, and when the deck would be learnt if you
+    kept that up.
+  - **Earliest possible** — the date no amount of practice could beat,
+    because the rest is waiting for reviews on later days.
+- Both assume you practise only that deck and get every answer right, so
+  the real date will be a little later.
+- The dates are worked out by running the app's own learning rules
+  forward on your actual cards, so they stay right whenever those rules
+  change. They take a moment to appear.
+
+## 0.282 — 30 September 2026
+
+**Sentences with a word dropped in now say which "you" they mean.**
+
+- English uses "your" for one man, one woman and several people, where
+  Arabic uses a different word for each. A sentence like "Your name is
+  Shams" gave no way to tell which was meant. Now, when the word dropped
+  into a sentence reads the same in English as another form of it, the
+  question and the answer both say which one it is — for example "Your
+  name: plural". This needs the teacher to have marked the forms as
+  singular, plural, masculine or feminine; most sentences show nothing
+  extra.
+- Writing a different word in English is no longer marked "nearly right".
+  "Their name is Shams" for "Your name is Shams" used to be called the
+  right word, not quite spelt, because the rest of the sentence was right.
+  It is now marked wrong. A misspelt word, like "tried" for "tired", is
+  still nearly right, and one letter out is still counted as right.
+
+## 0.281 — 30 September 2026
+
+**If you practise several times a day, new words now arrive much faster.**
+
+- Words you are still getting to know now come first in each session, for
+  anyone who practises more than about two sessions' worth a day. Before,
+  they were shuffled in with every review that was waiting, so a new word
+  came up in only about a third of your sessions, took about six days to
+  clear, and blocked a new one from coming in behind it. Now it usually
+  clears in about a day.
+- For the same learners, the limit on words not yet fully learnt is
+  doubled, so the faster pace is not simply stopped by it.
+- In our simulation of fifteen sessions a day, words met in the first two
+  months went from about 110 to about 255, nearly all of them learnt, and
+  the same card comes round less often.
+- After about a month at that pace the larger limit fills up too, and new
+  words slow down until your earliest words are fully settled.
+- If you practise once or twice a day, nothing changes.
+
+## 0.280 — 29 September 2026
+
+**If you practise a lot, you can now hold more words at once.**
+
+- The app used to let you work on at most 60 words that were not yet fully
+  learnt, however much you practised. That suits one session a day. At ten
+  or twenty sessions a day it meant the same 60 words came round two or
+  three times a day, and once you reached 60, new words stopped for about
+  two weeks.
+- That limit now grows with how much you actually practise, averaged over
+  the last week — about one word in hand for every word a day of yours
+  reaches, up to 200. Practise less and it shrinks back on its own.
+- For someone doing fifteen sessions a day, new words now keep arriving
+  (the longest gap with nothing new went from about eleven days to two),
+  and about a fifth more words are met in the first two months.
+- If you practise once or twice a day, nothing changes: your limit stays
+  at 60.
+
+## 0.279 — 29 September 2026
+
+**No more of the same card, or the same exercise, twice in a row.**
+
+- A session is now put in order as a whole, so two questions in a row are
+  never about the same card — including two different forms of one word, or
+  a word you just matched in a grid. Before, a card with more questions than
+  the rest often ended up with two of them back to back near the end.
+- New rule: two questions in a row are never the same kind of exercise.
+- Both rules also hold when a missed question comes back, and when questions
+  are swapped out mid-session (for example after switching sound off).
+- The only exception is when a session's material makes it impossible — say,
+  a single card, or weak-skills practice on just one kind of exercise. Then
+  the order bends as little as it can, keeping cards apart first. No question
+  is ever dropped to keep a rule.
+
+## 0.278 — 28 September 2026
+
+**Approve or strike many sentences at once.**
+
+- In **Review sentences**, each sentence now has a tick box, and above the
+  list is **Select all** for every sentence on the tab you're looking at.
+  With some ticked, **Approve** and **Strike** mark them all in one go —
+  untick the few you want to read more carefully first.
+- This replaces the button that could only approve the waiting ones.
+  Nothing is sent until you tap **Save review**, as before.
+
+## 0.277 — 28 September 2026
+
+**Lock and unlock several decks at once.**
+
+- Select decks in Teaching > Decks, or in Admin's list of decks, and the
+  bulk actions now include **Lock** and **Unlock** beside **Delete**. The
+  message says how many decks actually changed, since any already locked
+  (or unlocked) are left as they are.
+
+## 0.276 — 28 September 2026
+
+**Only the Check button checks an answer.**
+
+- Pressing Enter in an answer box — or Go / Return on a phone's keyboard —
+  no longer checks the answer. It was too easy to hit by accident while
+  typing and send a half-written answer to be marked. Tap **Check** when
+  you're ready.
+
+## 0.275 — 28 September 2026
+
+**Exercises name a form's grammar one way, whatever the card.**
+
+- The note under a question saying which form is wanted used to read
+  "sg. f." on a noun, "feminine" on an adjective and "you (f)" on a verb.
+  It is now always whole words: "feminine", "plural", "feminine plural",
+  "you (feminine)".
+- It names only what tells the form apart from the card's others. A
+  plural beside a singular says "plural"; "singular" or "masculine" appear
+  only where another form of the card is plural or feminine; a lone word
+  says nothing.
+- A verb's form names its tense too, where two forms read the same in
+  English and differ only in tense: "past", or "past · you (feminine)"
+  where it takes both.
+- After an answer, "You wrote the sg. f. one." now reads "You wrote the
+  feminine one."
+- The card editor keeps its short forms ("sg. f."), where space is tight.
+  Vietnamese cards are unchanged: they have no grammar to name.
+
+## 0.274 — 28 September 2026
+
+**Deck tiles say less twice.**
+
+- A locked deck is marked by its padlock alone: deck tiles and the lists
+  for choosing decks no longer spell out "Locked" beside it. The padlock
+  still says "Locked" when you point at it or use a screen reader.
+- The green or grey dot at the foot of each deck tile is gone. The line
+  beside it already says whether students can see the deck.
+
 ## 0.273 — 28 September 2026
 
 **A one-letter slip in English counts as right, and a verb's "you" says

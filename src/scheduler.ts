@@ -93,11 +93,47 @@ export const FRONT_DOOR_CAP = 10;
 export const IN_HAND_CAP = 60;
 
 /*
+ * And how far the second pool grows for somebody who practises a lot.
+ *
+ * Sixty was measured against a learner who sits down once or twice a day,
+ * and for them it is generous: a day's practice reaches about a sitting's
+ * nine words, so sixty in hand is a week of rotation. It is the wrong
+ * number for somebody who sits down fifteen times — a day of theirs deals
+ * well over a hundred cards, all of them out of the same sixty, so every
+ * word came round two or three times a day and new words stopped for a
+ * fortnight while the first ones matured at calendar speed. Practice could
+ * not buy its way out, because an early answer is counted and moves
+ * nothing, and "settled" is a three-week gap.
+ *
+ * So the pool is as large as a typical day of this learner's actually
+ * reaches — see `inHandCap` — and never smaller than sixty, so nobody who
+ * practises less is paced any differently. `IN_HAND_MAX` is the ceiling on
+ * the ceiling: a hundred sittings on one day should not open the door to
+ * a whole course. It was two hundred, and went to four hundred when the
+ * app began allowing two words in hand for each word a keen learner's day
+ * reaches (see `inHandFor` in the app); fifteen sittings a day now asks
+ * for about 270.
+ *
+ * `PRACTICE_WINDOW_DAYS` is how far back "a typical day" looks: long
+ * enough that one idle day does not shut the door, short enough that a
+ * learner who eases off is carrying a smaller load within a week.
+ */
+export const IN_HAND_MAX = 400;
+export const PRACTICE_WINDOW_DAYS = 7;
+
+/*
  * The clock and the jitter. Defaulted here rather than at each call site,
  * so a caller that says nothing gets the real world and a test that passes
  * one object gets a world that holds still.
+ *
+ * `Date.now` is looked up at each reading rather than captured when this
+ * module loads. Captured, it could never be moved: the deck forecast and the
+ * pace simulation both play a learner's future forward by setting the
+ * clock to each simulated sitting, and every reader that fell back to this
+ * default went on reading today — so to them every card was due, or none
+ * was, whatever the simulated calendar said.
  */
-export const REAL_CLOCK = { now: Date.now, random: Math.random };
+export const REAL_CLOCK = { now: () => Date.now(), random: () => Math.random() };
 
 const timeOf = (clock?: Clock) => (clock && clock.now ? clock.now() : Date.now());
 
@@ -930,11 +966,52 @@ export function throughDoor(
  * holds in this language, not over the deck in front of them — the deck is
  * what they chose to look at, the load is what they carry.
  */
-export function roomForNew(counts: { front: number; inHand: number }): number {
+export function roomForNew(
+  counts: { front: number; inHand: number },
+  inHand: number = IN_HAND_CAP,
+): number {
   return Math.max(
     0,
-    Math.min(FRONT_DOOR_CAP - (counts.front || 0), IN_HAND_CAP - (counts.inHand || 0)),
+    Math.min(FRONT_DOOR_CAP - (counts.front || 0), inHand - (counts.inHand || 0)),
   );
+}
+
+/**
+ * How many words may be in hand, given how many the learner's typical day
+ * can hold.
+ *
+ * The caller says how many that is — the app allows two for every word a
+ * day of theirs reaches (see `inHandFor`) — and this keeps it between
+ * `IN_HAND_CAP` and `IN_HAND_MAX`. See those for why.
+ */
+export function inHandCap(wordsPerDay: number): number {
+  const reach = Math.round(Number.isFinite(wordsPerDay) ? wordsPerDay : 0);
+  return Math.min(IN_HAND_MAX, Math.max(IN_HAND_CAP, reach));
+}
+
+/**
+ * Questions answered on a typical recent day, read off the activity log.
+ *
+ * The average over the last `PRACTICE_WINDOW_DAYS` days, today included —
+ * idle days count as nought, because the load is about what a calendar day
+ * of this learner's covers. Days before the first one logged are not
+ * counted at all, so somebody on their first evening is read by that
+ * evening rather than by six empty days they were never here for.
+ *
+ * The log is one count a day over every language, which is what it has
+ * always been; a learner splitting their time between two is read a
+ * little generously in each.
+ */
+export function typicalDay(log: Record<string, unknown> | null | undefined, clock: Clock = REAL_CLOCK): number {
+  const counts = log || {};
+  const logged = Object.keys(counts).filter((k) => Number(counts[k]) > 0);
+  if (!logged.length) return 0;
+  const first = logged.sort()[0];
+  /* Day keys are YYYY-MM-DD, so they compare as dates. */
+  const days = recentDays(PRACTICE_WINDOW_DAYS, clock).filter((d) => d >= first);
+  if (!days.length) return 0;
+  const total = days.reduce((n, d) => n + (Number(counts[d]) || 0), 0);
+  return total / days.length;
 }
 
 /* ------------------------------------------------------------------

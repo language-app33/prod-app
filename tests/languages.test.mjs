@@ -16,6 +16,9 @@ import {
   dimValues,
   grammarFields,
   labelFor,
+  answerLabel,
+  askLabel,
+  lentLabel,
   formLabel,
   normDimValue,
   arRootKey,
@@ -157,6 +160,43 @@ test("English: one letter out is a slip and right; further out, or a short word,
   assert.equal(checkEn("cut", "cat").reason, "near");
   /* Two letters out of a long word is still only near. */
   assert.deepEqual(checkEn("understnad", "understand"), { ok: false, reason: "near" });
+});
+
+test("English: a different word in one place is wrong, not a near miss", () => {
+  /* Reported by a learner, twice: "their" for "your" was marked as the
+     right word, not quite spelt. */
+  assert.deepEqual(checkEn("Their name is Zatar", "Your name is Zaʿtar"), { ok: false, reason: "wrong" });
+  assert.deepEqual(checkEn("They name is Shams ", "Your name is Shams"), { ok: false, reason: "wrong" });
+  assert.deepEqual(checkEn("he is tired", "it is tired"), { ok: false, reason: "wrong" });
+  /* A misspelt word in a sentence is still near, and one letter still right. */
+  assert.deepEqual(checkEn("your nmae is shams", "Your name is Shams"), { ok: false, reason: "near" });
+  assert.deepEqual(checkEn("Your name is Zatar", "Your name is Zaʿtar"), { ok: true, reason: "typo" });
+  assert.deepEqual(checkEn("I am tried", "I am tired"), { ok: false, reason: "near" });
+});
+
+test("a word lent to a sentence is named only where its English is shared", () => {
+  const ar = LANGUAGES["ar-PS"];
+  /* The card behind "{{whose-name}} is {{person}}": three forms reading
+     "Your name" and one reading "My name". */
+  const card = { id: "n", ar: "اسمي", en: "My name", number: "singular", gender: "masculine",
+    subs: [
+      { id: "n2", ar: "اسمك", en: "Your name", number: "singular", gender: "masculine" },
+      { id: "n3", ar: "اسمك", en: "Your name", number: "singular", gender: "feminine" },
+      { id: "n4", ar: "اسمكم", en: "Your name", number: "plural", gender: "masculine" },
+    ] };
+  assert.equal(lentLabel(card.subs[2], card, ar), "plural");
+  assert.equal(lentLabel(card.subs[1], card, ar), "feminine");
+  assert.equal(lentLabel(card.subs[0], card, ar), "masculine singular");
+  /* Its English is its own: nothing to say. */
+  assert.equal(lentLabel(card, card, ar), "");
+  /* Alike in English and in everything the teacher wrote: nothing either. */
+  const bare = { id: "b", ar: "اسمك", en: "Your name", subs: [{ id: "b2", ar: "اسمكم", en: "Your name" }] };
+  assert.equal(lentLabel(bare.subs[0], bare, ar), "");
+  /* A verb's cells say who, as askLabel does. */
+  const cell = (/** @type {string} */ col, /** @type {string} */ word) =>
+    ({ id: `u-${col}`, ar: word, en: "You understand", lat: "", row: "present", col });
+  const verb = { id: "u", ar: "", en: "", category: "verb", subs: [cell("you-m", "بتِفهَم"), cell("you-f", "بتِفهَمي")] };
+  assert.equal(lentLabel(verb.subs[1], verb, ar), "you (feminine)");
 });
 
 test("dimValues carries every declared field, including a Vietnamese classifier", () => {
@@ -1064,18 +1104,67 @@ test("a blank that agrees with another takes a verb once per tense, and everythi
   assert.equal(beside(kept, kept.forms[2], "verb"), true);
 });
 
-test("a verb's cells that read alike in English say who they are about", () => {
+test("a verb's cells that read alike in English say who, and when, in whole words", () => {
   /* Reported by a learner: "You understand" on both the masculine and the
      feminine, and a question asking for the feminine said nothing else. */
   const ar = LANGUAGES["ar-PS"];
-  const you = (/** @type {string} */ col, /** @type {string} */ word, en = "You understand") =>
-    ({ id: `u-${col}`, ar: word, en, lat: "", row: "present", col });
+  const cell = (/** @type {string} */ row, /** @type {string} */ col, /** @type {string} */ word, en = "You understand") =>
+    ({ id: `u-${row}-${col}`, ar: word, en, lat: "", row, col });
   const card = { id: "u", ar: "", en: "", name: "to understand", category: "verb",
-    subs: [you("you-m", "بتِفهَم"), you("you-f", "بتِفهَمي"), you("he", "بيِفهَم", "He understands")] };
-  assert.equal(formLabel(you("you-f", "بتِفهَمي"), card, ar), "you (f)");
-  assert.equal(formLabel(you("you-m", "بتِفهَم"), card, ar), "you (m)");
+    subs: [cell("present", "you-m", "بتِفهَم"), cell("present", "you-f", "بتِفهَمي"),
+      cell("present", "he", "بيِفهَم", "He understands")] };
+  assert.equal(askLabel(card.subs[1], card, ar), "you (feminine)");
+  assert.equal(askLabel(card.subs[0], card, ar), "you (masculine)");
   /* A cell whose English is its own still names nothing. */
-  assert.equal(formLabel(you("he", "بيِفهَم", "He understands"), card, ar), "");
-  const said = { ...card, subs: [you("you-m", "بتِفهَم", "you (m) understand"), you("you-f", "بتِفهَمي", "you (f) understand")] };
-  assert.equal(formLabel(said.subs[1], said, ar), "");
+  assert.equal(askLabel(card.subs[2], card, ar), "");
+  const said = { ...card, subs: [cell("present", "you-m", "بتِفهَم", "you (m) understand"),
+    cell("present", "you-f", "بتِفهَمي", "you (f) understand")] };
+  assert.equal(askLabel(said.subs[1], said, ar), "");
+  /* Two tenses reading alike name the tense; both differing names both. */
+  const tensed = { ...card, subs: [cell("present", "he", "بيِفهَم", "He understood"), cell("past", "he", "فِهِم", "He understood"),
+    cell("past", "she", "فِهْمَت", "He understood")] };
+  assert.equal(askLabel(tensed.subs[0], tensed, ar), "present");
+  assert.equal(askLabel(tensed.subs[1], tensed, ar), "past · he");
+});
+
+test("an exercise names grammar one way on every kind of card", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const he = LANGUAGES["he-IL"];
+  /* A noun with its plural: whole words, and only what tells them apart. */
+  const teacher = { id: "t", ar: "معلم", en: "teacher", number: "singular", gender: "masculine",
+    subs: [{ id: "t2", ar: "معلمين", en: "teachers", number: "plural", gender: "masculine" },
+      { id: "t3", ar: "معلمة", en: "teacher", number: "singular", gender: "feminine" }] };
+  assert.equal(askLabel(teacher.subs[0], teacher, ar), "plural");
+  assert.equal(askLabel(teacher.subs[1], teacher, ar), "feminine");
+  assert.equal(askLabel(teacher, teacher, ar), "masculine singular");
+  /* Gender before number, where it takes both to tell it apart. */
+  const both = { ...teacher, subs: teacher.subs.concat([{ id: "t4", ar: "معلمات", en: "teachers", number: "plural", gender: "feminine" }]) };
+  assert.equal(askLabel(both.subs[2], both, ar), "feminine plural");
+  /* And one alone where one is enough. */
+  const pair = { ...teacher, subs: [{ id: "t4", ar: "معلمات", en: "teachers", number: "plural", gender: "feminine" }] };
+  assert.equal(askLabel(pair.subs[0], pair, ar), "feminine");
+  /* A lone noun says nothing, and a person-or-thing never shows. */
+  const book = { id: "b", ar: "كتاب", en: "book", number: "singular", gender: "masculine", human: "thing", subs: [] };
+  assert.equal(askLabel(book, book, ar), "");
+  /* An adjective's shapes, in the column's words as before. */
+  const shape = (/** @type {string} */ col) => ({ id: `big-${col}`, ar: "", en: "big", lat: "", row: "agreement", col });
+  const big = { id: "big", ar: "كبير", en: "big", lat: "", category: "adjective", subs: [shape("feminine"), shape("plural")] };
+  assert.equal(askLabel(shape("feminine"), big, ar), "feminine");
+  assert.equal(askLabel(big, big, ar), "masculine");
+  assert.equal(askLabel(shape("masc-plural"), big, he), "masculine plural");
+  /* Huế declares no grammar, and says nothing. */
+  const vi = LANGUAGES["vi-Hue"];
+  assert.equal(askLabel({ id: "c", ar: "chó", en: "dog" }, { id: "c", ar: "chó", en: "dog", subs: [] }, vi), "");
+});
+
+test("the answer a learner wrote is named in whole words, against the others it could have been", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const happy = { id: "h", en: "happy", answers: [
+    { text: "مبسوط", lat: "mabsuut", gender: "masculine", number: "singular" },
+    { text: "مبسوطة", lat: "mabsuuta", gender: "feminine", number: "singular" },
+  ], ar: "مبسوط / مبسوطة", lat: "mabsuut / mabsuuta" };
+  assert.equal(answerLabel(happy.answers[1], happy, ar), "feminine");
+  assert.equal(answerLabel(happy.answers[0], happy, ar), "masculine");
+  /* One answer: nothing it could be told from. */
+  assert.equal(answerLabel({ text: "كتاب", gender: "masculine" }, { id: "b", ar: "كتاب", en: "book" }, ar), "");
 });

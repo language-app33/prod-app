@@ -39,10 +39,11 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
+const { lentTags, varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
   fillersIn, buildWeakSession, weakness, isWeak, movesAmong, mergeMoves,
   saidMoves, sumMoves } = await import(path.join(out, "trainer.js"));
-const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
+const langs = await import(path.join(here, "..", "src", "languages.ts"));
+const { TYPES } = langs;
 const { FRONT_DOOR_CAP } = await import(path.join(here, "..", "src", "scheduler.ts"));
 
 /** @param {string} id @param {string} type */
@@ -97,6 +98,59 @@ test("a card with nothing to alternate with is still dealt", () => {
     ["ar2en", "en2ar", "tr2ar"],
     "each of them once"
   );
+});
+
+/** Any two questions side by side of the same exercise. */
+const sameTypeRunning = (/** @type {any[]} */ list) =>
+  list.some((/** @type {any} */ x, /** @type {number} */ i) => i > 0 && x.type === list[i - 1].type);
+
+test("a card with more questions than the rest is not left piled at the end", () => {
+  /*
+   * The fault the greedy pass had. A verb bringing two of its forms has
+   * four questions to everybody else's two; taking the first question that
+   * differed spent the other cards early and left the verb's last two
+   * standing together at the end. Planned as a whole it fits.
+   */
+  const list = [
+    q("a", "en2ar"), q("v", "tr2ar"), q("v", "listen"), q("c", "listen"),
+    q("a", "ar2en"), q("v", "ar2en"), q("v", "en2ar"), q("c", "tr2ar"),
+  ];
+  const got = varyTypes(list);
+  assert.equal(got.length, list.length, "nothing is lost or invented");
+  assert.equal(backToBack(got), false, `same card twice running: ${ids(got)}`);
+  assert.equal(sameTypeRunning(got), false, `same exercise twice running: ${got.map((/** @type {any} */ x) => x.type)}`);
+});
+
+test("no two questions running are the same exercise, where the material allows it", () => {
+  /* Taking the first question that differed put the two en2ar together. */
+  const list = [q("a", "ar2en"), q("b", "en2ar"), q("a", "en2ar"), q("b", "listen")];
+  const got = varyTypes(list);
+  assert.equal(sameTypeRunning(got), false, `same exercise twice running: ${got.map((/** @type {any} */ x) => x.type)}`);
+  assert.equal(backToBack(got), false, `same card twice running: ${ids(got)}`);
+});
+
+test("a grid counts as a question about every word standing in it", () => {
+  const grid = { id: "a", type: "match", subId: null, mates: [{ id: "b", subId: null }] };
+  const list = [grid, q("b", "ar2en"), q("c", "en2ar"), q("d", "tr2ar")];
+  const got = varyTypes(list);
+  const at = got.indexOf(grid);
+  assert.notEqual(got[at + 1]?.id, "b", `a word in the grid asked straight after it: ${ids(got)}`);
+  assert.notEqual(got[at - 1]?.id, "b", `a word in the grid asked straight before it: ${ids(got)}`);
+});
+
+test("the queue's own order is kept wherever the rules allow", () => {
+  /* Easiest first, and a card the learner asked for ahead of it all: the
+     order only turns aside where it has to. */
+  const list = [q("a", "ar2en"), q("b", "en2ar"), q("c", "tr2ar"), q("d", "listen")];
+  assert.deepEqual(ids(varyTypes(list)), "a b c d");
+});
+
+test("a retry does not land beside a question of its own exercise", () => {
+  const list = [q("a", "en2ar"), q("b", "ar2en"), q("c", "tr2ar"), q("d", "en2ar"), q("e", "listen")];
+  const got = requeueMissed(list, 1, list[0]);
+  assert.equal(got.length, 6);
+  assert.equal(sameTypeRunning(got.slice(1)), false, `same exercise twice running: ${got.map((/** @type {any} */ x) => x.type)}`);
+  assert.equal(backToBack(got), false, `same card twice running: ${ids(got)}`);
 });
 
 test("an empty queue comes back empty", () => {
@@ -1093,6 +1147,47 @@ test("a full front door stops new words, and does not stop the held ones being p
   );
 });
 
+/** A word still climbing, with a question waiting: right once, a retest
+    due, and last answered long enough ago that it is not resting. */
+const climbingWord = (/** @type {string} */ id) => {
+  const w = word(id, `كلمة${id}`, `word ${id}`);
+  const state = { phase: "learning", step: 1, ease: 2.5, interval: 0,
+    due: Date.now() - 60000, reps: 1, right: 1, wrong: 0, lapses: 0, skips: 0,
+    near: 0, hints: 0, updated: Date.now() - 3 * 3600000, hist: [1] };
+  w.forms[0].s = Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, { ...state }]));
+  return w;
+};
+
+test("for somebody who practises a lot, the words still climbing come first", () => {
+  /* Three words in the front door, each with a question waiting, among
+     thirty reviews that are just as due. Shuffled together, a session's
+     nine places reach all three about one time in seventy; a keen learner
+     is dealt all three every time, because a new word asked in a third of
+     their sittings took six days to clear and held its place all along. */
+  const items = ["c1", "c2", "c3"].map(climbingWord)
+    .concat(Array.from({ length: 30 }, (_, i) => settled(`r${i + 1}`, -1)));
+  for (let i = 0; i < 5; i += 1) {
+    const dealt = new Set(deal(items, { perDay: 300 }).exercises.map((/** @type {any} */ x) => x.id));
+    for (const id of ["c1", "c2", "c3"]) {
+      assert.ok(dealt.has(id), `a keen learner's climbing word ${id} was left out: ${[...dealt].join(" ")}`);
+    }
+  }
+});
+
+test("and for somebody who sits down once a day, they wait their turn as before", () => {
+  /* Their reviews passed over now are not reached later today, so the
+     order stays the shuffle it was. Five sessions all dealing every one of
+     the three would happen about once in a billion. */
+  const items = ["c1", "c2", "c3"].map(climbingWord)
+    .concat(Array.from({ length: 30 }, (_, i) => settled(`r${i + 1}`, -1)));
+  let everyTime = true;
+  for (let i = 0; i < 5; i += 1) {
+    const dealt = new Set(deal(items, { perDay: 18 }).exercises.map((/** @type {any} */ x) => x.id));
+    if (!["c1", "c2", "c3"].every((id) => dealt.has(id))) everyTime = false;
+  }
+  assert.ok(!everyTime, "a once-a-day learner's climbing words jumped the queue");
+});
+
 test("and a word leaves the front door as soon as it is cleared", () => {
   /* The release valve. These are up every level, so they are through the
      door and no longer block a newcomer, even though they have their
@@ -1368,11 +1463,17 @@ test("a deck with pictures deals the picture exercises, from the first level up"
     ...it,
     forms: [{ ...it.forms[0], recs: [{ id: `rec${i}` }], images: [String(i).repeat(64)] }],
   }));
-  const got = deal(items);
-  const types = got.exercises.map((/** @type {any} */ x) => String(x.type).split("@")[0]);
-  assert.ok(types.includes("rec2img"), `dealt: ${types.join(" ")}`);
+  /* Over several sessions, not one. Which of a new card's first-level
+     exercises it is dealt is shuffled, so a single session of five cards
+     leaves the picture out about one time in thirty-six — which made this
+     fail now and then with nothing wrong. Twenty sessions all missing it
+     would be a real fault; the harder two must be absent from every one. */
+  const sessions = Array.from({ length: 20 }, () =>
+    deal(items).exercises.map((/** @type {any} */ x) => String(x.type).split("@")[0]));
+  assert.ok(sessions.some((types) => types.includes("rec2img")),
+    `dealt: ${sessions.slice(0, 3).map((t) => t.join(" ")).join(" | ")}`);
   /* Not the harder two yet: nothing below them is known. */
-  assert.ok(!types.includes("img2ar"), "writing from a picture waits for its level");
+  assert.ok(sessions.every((types) => !types.includes("img2ar")), "writing from a picture waits for its level");
 });
 
 test("a card without a picture is never dealt one of the picture exercises", () => {
@@ -1380,4 +1481,27 @@ test("a card without a picture is never dealt one of the picture exercises", () 
   const got = deal(items);
   const types = got.exercises.map((/** @type {any} */ x) => String(x.type).split("@")[0]);
   assert.ok(!types.some((/** @type {string} */ t) => ["rec2img", "img2pick", "img2ar"].includes(t)), types.join(" "));
+});
+
+test("a sentence names the word in its blank where that word's English is shared", () => {
+  /* Reported twice by one learner on "{{whose-name}} is {{person}}": the
+     plural *your name* read "Your name is Shams", and nothing said it was
+     the plural. */
+  const { LANGUAGES } = langs;
+  const names = {
+    id: "n", lang: "ar-PS", fills: ["whose-name"], drill: false, updated: 1, tags: [],
+    forms: [
+      { id: "n", ar: "اسمي", en: "My name", lat: "ismi", number: "singular", gender: "masculine", s: {} },
+      { id: "n2", ar: "اسمك", en: "Your name", lat: "ismak", number: "singular", gender: "masculine", s: {} },
+      { id: "n3", ar: "اسمكم", en: "Your name", lat: "ismkum", number: "plural", gender: "masculine", s: {} },
+    ],
+  };
+  installIndexes([names], { language: "ar-PS" });
+  const ar = LANGUAGES["ar-PS"];
+  assert.deepEqual(lentTags({ id: "f", filled: { "whose-name": "n3" } }, ar), ["Your name: plural"]);
+  assert.deepEqual(lentTags({ id: "f", filled: { "whose-name": "n2" } }, ar), ["Your name: singular"]);
+  /* "My name" says what it is already. */
+  assert.deepEqual(lentTags({ id: "f", filled: { "whose-name": "n" } }, ar), []);
+  /* And an ordinary card, with nothing filled, says nothing. */
+  assert.deepEqual(lentTags({ id: "f" }, ar), []);
 });

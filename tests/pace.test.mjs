@@ -46,12 +46,23 @@ await build({
   },
 });
 
-const { buildSession, installIndexes, setOfflineNow, setAudibleClips, laddered } = await import(
+const { buildSession, installIndexes, setOfflineNow, setAudibleClips, laddered, inHandFor } = await import(
   path.join(out, "trainer.js")
 );
 const { gradeInto } = await import(path.join(root, "src", "grade.ts"));
-const { mastered, cleared, learnt, unitsOf, MASTERED_DAYS, PASSES_TO_LEARN, FRONT_DOOR_CAP, IN_HAND_CAP } =
-  await import(path.join(root, "src", "scheduler.ts"));
+const {
+  mastered,
+  cleared,
+  learnt,
+  unitsOf,
+  dayKey,
+  typicalDay,
+  MASTERED_DAYS,
+  PASSES_TO_LEARN,
+  FRONT_DOOR_CAP,
+  IN_HAND_CAP,
+  IN_HAND_MAX,
+} = await import(path.join(root, "src", "scheduler.ts"));
 const { handCounts } = await import(path.join(out, "trainer.js"));
 
 const DAY = 86400000;
@@ -84,13 +95,56 @@ const courseOf = (/** @type {number} */ n) => Array.from({ length: n }, (_, i) =
  *
  * @returns the cards as they stand afterwards.
  */
-function sitDown(/** @type {any[]} */ items, /** @type {number} */ at, /** @type {number} */ budget) {
+function sitDown(
+  /** @type {any[]} */ items,
+  /** @type {number} */ at,
+  /** @type {number} */ budget,
+  /** @type {Record<string, number>} */ log = {},
+) {
   const clock = { now: () => at, random: () => 0.5 };
   installIndexes(items, settings);
-  const built = buildSession({ items, settings, inDeck: () => true, budget });
+  /* Read off the learner's own log, as the app reads it, so how much they
+     practise sizes how much they may hold. */
+  const perDay = typicalDay(log, clock);
+  /* Built at the moment the learner sits down. The builder reads the
+     wall clock — what is due, what was asked half an hour ago and rests —
+     and left alone it would read today's date against cards dated to
+     this simulation's calendar, so everything would look overdue and the
+     order would be a shuffle of the whole hand. */
+  const wall = Date.now;
+  Date.now = () => at;
+  let built;
+  try {
+    built = buildSession({ items, settings, inDeck: () => true, budget, perDay });
+  } finally {
+    Date.now = wall;
+  }
+  const day = dayKey(at);
   let cards = items;
+  /** @type {Set<string>} */
+  const dealt = new Set();
   for (const ex of built.exercises || []) {
+    dealt.add(ex.id);
+    log[day] = (log[day] || 0) + 1;
     const marks = [{ id: ex.id, subId: ex.subId || null, rating: "good", correct: true, advance: true }];
+    /* A grid is a question about every word in it, and the app marks each
+       of them — moving a word's schedule only where its own question was
+       due. Marking the first word alone, as this did until 0.281, had every
+       other word in a grid climb as if it had never been asked, and
+       understated what a learner gets through. */
+    for (const m of ex.mates || []) {
+      const it = cards.find((/** @type {any} */ c) => c.id === m.id);
+      const u = it && unitsOf(it).find((/** @type {any} */ x) => (m.subId ? x.unit.id === m.subId : !x.isSub));
+      const st = u && u.unit.s && u.unit.s[ex.type];
+      dealt.add(m.id);
+      marks.push({
+        id: m.id,
+        subId: m.subId || null,
+        rating: "good",
+        correct: true,
+        advance: !st || st.phase === "new" || (st.due || 0) <= at,
+      });
+    }
     /* Handed the ladder, as the app hands it, so the passes that turn a
        cleared card into a learnt one are counted here too. Without it the
        simulation would measure the climb and nothing that follows it,
@@ -103,7 +157,7 @@ function sitDown(/** @type {any[]} */ items, /** @type {number} */ at, /** @type
     });
     if (next) cards = next;
   }
-  return { cards, asked: (built.exercises || []).length };
+  return { cards, asked: (built.exercises || []).length, dealt, perDay };
 }
 
 /**
@@ -114,6 +168,8 @@ function sitDown(/** @type {any[]} */ items, /** @type {number} */ at, /** @type
 function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
   let items = cards;
   let asked = 0;
+  /** @type {Record<string, number>} */
+  const log = {};
   /* When each word was first put to the learner, and when it reached the
      top of its ladder. Both read off the cards afterwards rather than
      tracked here, except the first, which nothing on a card records. */
@@ -128,14 +184,25 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
   const clearedOn = new Map();
   /** @type {Map<string, number>} */
   const learntOn = new Map();
+  /* And each day's rotation: how many times a card was dealt, and how
+     many different cards those deals were. The first over the second is
+     how often the same word came round that day, which is the number a
+     learner practising all day actually feels. */
+  /** @type {{ deals: number, distinct: number }[]} */
+  const daily = [];
 
   for (let d = 0; d < days; d += 1) {
+    let deals = 0;
+    /** @type {Set<string>} */
+    const today = new Set();
     for (let s = 0; s < sessionsPerDay; s += 1) {
       /* Spread through the day so a second session is genuinely later. */
       const at = START + d * DAY + s * 3600000;
-      const ran = sitDown(items, at, budget);
+      const ran = sitDown(items, at, budget, log);
       items = ran.cards;
       asked += ran.asked;
+      deals += ran.dealt.size;
+      for (const id of ran.dealt) today.add(id);
       for (const it of items) {
         const met = unitsOf(it).some((/** @type {any} */ u) =>
           Object.values(u.unit.s || {}).some((/** @type {any} */ st) => (st.reps || 0) > 0),
@@ -160,6 +227,7 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
         if (kept && !learntOn.has(it.id)) learntOn.set(it.id, d);
       }
     }
+    daily.push({ deals, distinct: today.size });
   }
 
   const days_to_master = [...mastery.entries()].map(([id, d]) => d - (firstSeen.get(id) ?? 0));
@@ -184,6 +252,9 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
         .sort((a, b) => a - b),
     ),
     asked,
+    daily,
+    /* The day each word was first met, for counting what arrived when. */
+    firstSeen,
     /* The number the last attempt at this regressed. */
     medianDaysToMaster: days_to_master.length
       ? days_to_master.sort((a, b) => a - b)[Math.floor(days_to_master.length / 2)]
@@ -196,16 +267,23 @@ function liveKeeping(/** @type {{ cards: any[], days: number, budget?: number, s
   let items = how.cards;
   let peakFront = 0;
   let peakInHand = 0;
+  /* How far past the pool the learner's own practice allowed at the time
+     they sat down — nought or less, always. */
+  let peakOver = -Infinity;
+  /** @type {Record<string, number>} */
+  const log = {};
   for (let d = 0; d < how.days; d += 1) {
     for (let s2 = 0; s2 < (how.sessionsPerDay || 1); s2 += 1) {
       const at = START + d * DAY + s2 * 3600000;
-      items = sitDown(items, at, how.budget || 18).cards;
+      const ran = sitDown(items, at, how.budget || 18, log);
+      items = ran.cards;
       const counts = handCounts(items, settings);
       peakFront = Math.max(peakFront, counts.front);
       peakInHand = Math.max(peakInHand, counts.inHand);
+      peakOver = Math.max(peakOver, counts.inHand - inHandFor(ran.perDay));
     }
   }
-  return { peakFront, peakInHand };
+  return { peakFront, peakInHand, peakOver };
 }
 
 /* ------------------------------------------------------------------
@@ -254,9 +332,14 @@ test("and the front door bounds a day however many sittings it holds", () => {
   const once = live({ cards: courseOf(300), days: 1, sessionsPerDay: 1 });
   const often = live({ cards: courseOf(300), days: 1, sessionsPerDay: 10 });
   console.log(`    in one day: one sitting met ${once.met}, ten sittings met ${often.met}`);
+  /* Plus whatever was cleared that day: since 0.272 a word cleared leaves
+     the front door at once and lets the next one in, so a keen first day
+     can meet an eleventh. What may never happen is more than the front
+     door's worth being learnt at once — see the test after this one. */
   assert.ok(
-    often.met <= FRONT_DOOR_CAP,
-    `ten sittings met ${often.met} words, past a front door of ${FRONT_DOOR_CAP}`,
+    often.met <= FRONT_DOOR_CAP + often.cleared,
+    `ten sittings met ${often.met} words, past a front door of ${FRONT_DOOR_CAP} ` +
+      `and the ${often.cleared} cleared`,
   );
 });
 
@@ -275,7 +358,9 @@ test("neither pool is ever exceeded, however hard the learner goes", () => {
 
 test("a course arrives gradually rather than all at once", () => {
   const first = live({ cards: courseOf(300), days: 1, sessionsPerDay: 10, budget: 20 });
-  assert.ok(first.met <= FRONT_DOOR_CAP, `${first.met} words on the first day`);
+  /* A cleared word lets the next in the same day; see the test above. */
+  assert.ok(first.met <= FRONT_DOOR_CAP + first.cleared,
+    `${first.met} words on the first day, ${first.cleared} of them cleared`);
   assert.ok(first.met >= 5, `only ${first.met} words on a whole first day`);
 });
 
@@ -330,7 +415,11 @@ test("and doing too much never beats doing the right amount", () => {
   assert.ok(keen.met >= steady.met, `${keen.met} against ${steady.met}`);
   const peaks = liveKeeping({ cards: courseOf(60), days: 10, sessionsPerDay: 30 });
   assert.ok(peaks.peakFront <= FRONT_DOOR_CAP, `front door reached ${peaks.peakFront}`);
-  assert.ok(peaks.peakInHand <= IN_HAND_CAP, `words in hand reached ${peaks.peakInHand}`);
+  /* The keen learner's pool is larger than sixty — it is sized to what
+     their day reaches — but it is still a pool: never past what their own
+     practice allowed when they sat down, and never past the ceiling. */
+  assert.ok(peaks.peakOver <= 0, `words in hand went ${peaks.peakOver} past what practice allowed`);
+  assert.ok(peaks.peakInHand <= IN_HAND_MAX, `words in hand reached ${peaks.peakInHand}`);
 });
 
 /* ------------------------------------------------------------------
@@ -391,4 +480,79 @@ test("and no amount of practice shortens the passes that follow", () => {
   /* And cleared is genuinely ahead of learnt, which is what gives a
      learner something to see on the day they do the work. */
   assert.ok(keen.cleared >= keen.learnt, "more cards learnt than cleared, which cannot happen");
+});
+
+/* ------------------------------------------------------------------
+   The learner who sits down all day, a month in
+
+   Every test above asks whether new words arrive. None asked how often
+   the *same* word does, which is how somebody practising fifteen times a
+   day came to be dealt sixty words two or three times each, every day,
+   with nothing new for a fortnight — and every test here stayed green.
+
+   Measured on a 400-word course over sixty days, every answer right, with
+   the simulation's clock fixed in 0.283 (before it, much of the app read
+   today's date instead of the simulated one, and every figure printed
+   here was off):
+
+   |                                   | 0.279 | 0.280 pool grows | 0.281 climbers first, pool ×2 |
+   |-----------------------------------|-------|------------------|-------------------------------|
+   | 15 a day: words learnt            | 120   | 248              | about 275                     |
+   | 15 a day: a card dealt, per day   | 5.4   | 3.8              | about 2.5                     |
+   | 3 a day: words learnt             | 78    | 78               | about 60                      |
+   | 1 a day: words learnt             | 23    | 24               | 24                            |
+
+   Two things are still true and not what this test holds. At fifteen a
+   day the pool fills around day twenty-five and new words stop for about
+   three weeks, until the first words met stand at three-week gaps
+   everywhere. And three a day is just past the keen line, where the
+   climbers-first rule costs more than it gives: about 60 learnt against
+   78. See DECISIONS.md.
+   ------------------------------------------------------------------ */
+
+test("fifteen sittings a day keep meeting new words, and meet the same card less", () => {
+  const days = 60;
+  const got = live({ cards: courseOf(400), days, sessionsPerDay: 15 });
+  const late = got.daily.slice(30);
+  const deals = late.reduce((n, d) => n + d.deals, 0);
+  const distinct = late.reduce((n, d) => n + d.distinct, 0);
+  const perCard = deals / Math.max(1, distinct);
+  console.log(
+    `    fifteen sittings a day: met ${got.met}, learnt ${got.learnt} in ${days} days; ` +
+      `days 31–60 each card dealt ${perCard.toFixed(2)} times a day`,
+  );
+  /* See the table above for what these were before. The bounds sit well
+     clear of both the old figures and the new on purpose — see the note
+     above "Effort buys the climb" on why every figure here moves a little
+     between runs. */
+  assert.ok(got.met >= 300, `only ${got.met} words met in ${days} days`);
+  assert.ok(got.learnt >= 220, `only ${got.learnt} words learnt in ${days} days`);
+  assert.ok(perCard < 3.2, `each card came round ${perCard.toFixed(2)} times a day`);
+});
+
+test("and a once-a-day learner's reviews are never crowded out by the climbers", () => {
+  /*
+   * The case that decided where the keen line sits. Put the words still
+   * climbing first for everybody and a once-a-day learner's nine places
+   * go to them every day: the reviews that turn a cleared word into a
+   * learnt one are crowded out, and what they learn falls away — measured
+   * as none at all in sixty days under the simulation's old clock. Below
+   * the line nothing about their order changed, and this holds them at
+   * what they learnt before 0.281 (about two dozen in sixty days).
+   */
+  const got = live({ cards: courseOf(400), days: 60, sessionsPerDay: 1 });
+  console.log(`    one sitting a day: met ${got.met}, learnt ${got.learnt} in 60 days`);
+  assert.ok(got.learnt >= 12, `a once-a-day learner learnt ${got.learnt} words in sixty days`);
+});
+
+test("and the pool only grows for somebody who practises a lot", () => {
+  /* Up to about three sittings a day the pool is the fixed sixty it
+     always was — two words for each of the nine a sitting reaches is
+     eighteen a sitting. */
+  assert.equal(inHandFor(18), IN_HAND_CAP);
+  assert.equal(inHandFor(54), IN_HAND_CAP);
+  assert.equal(inHandFor(0), IN_HAND_CAP);
+  assert.equal(inHandFor(undefined), IN_HAND_CAP);
+  assert.equal(inHandFor(270), 270, "fifteen sittings of eighteen: two words for each of 135");
+  assert.equal(inHandFor(100000), IN_HAND_MAX, "and a runaway day stops at the ceiling");
 });

@@ -168,15 +168,34 @@ export function ReviewScreen({
       return next;
     });
   };
+  /* Sentences ticked to be approved or struck together. Only ever ones on
+     screen: changing tab lets go of them, since a tick nobody can see is a
+     tick nobody meant. */
+  const [ticked, setTicked] = useState<Set<string>>(() => new Set());
+  const tick = (key: string) =>
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const pick = (next: Tab) => {
     setTab(next);
     setKept(new Set());
+    setTicked(new Set());
   };
   const all = parts.flatMap((p) => p.list);
-  const waiting = all.filter((s) => !markOf(s.key));
   const count = (t: Tab) => all.filter((s) => inTab(t, markOf(s.key))).length;
   const shows = (s: Sentence) => inTab(tab, markOf(s.key)) || kept.has(s.key);
   const shown = all.filter(shows);
+  const chosen = shown.filter((s) => ticked.has(s.key));
+  const allTicked = shown.length > 0 && chosen.length === shown.length;
+  /* The same mark on every ticked sentence, and the ticks let go: each
+     sentence now shows its mark, which is the confirmation. */
+  const markTicked = (mark: Mark) => {
+    for (const s of chosen) set(s.key, mark);
+    setTicked(new Set());
+  };
   const changed = all.filter((s) => (had.get(s.key) || null) !== markOf(s.key));
 
   async function save() {
@@ -260,11 +279,29 @@ export function ReviewScreen({
           ) : (
             !shown.length && <Help>{EMPTY[tab]}</Help>
           )}
-          {waiting.length > 0 && (tab === "wait" || tab === "all") && (
-            <div className="at-row">
-              <Button onClick={() => waiting.forEach((s) => set(s.key, "ok"))}>
-                Approve the {plural(waiting.length, "waiting sentence")}
+          {/* Select, then say what to do with them — the whole tab at
+              once, or all but the few worth a second look. This replaced a
+              button that could only approve, and only what was waiting. */}
+          {shown.length > 0 && (
+            <div className="at-row at-reviewbulk" data-el="review-bulk">
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={allTicked ? "close" : "select"}
+                onClick={() => setTicked(allTicked ? new Set() : new Set(shown.map((s) => s.key)))}
+              >
+                {allTicked ? "Select none" : `Select all ${shown.length}`}
               </Button>
+              {chosen.length > 0 && (
+                <>
+                  <Button size="sm" onClick={() => markTicked("ok")}>
+                    Approve {plural(chosen.length, "sentence")}
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => markTicked("no")}>
+                    Strike {plural(chosen.length, "sentence")}
+                  </Button>
+                </>
+              )}
             </div>
           )}
           {parts.map((part, at) => {
@@ -281,6 +318,13 @@ export function ReviewScreen({
                     const m = markOf(line.key);
                     return (
                       <li className={`at-askedline${m ? ` ${m}` : " wait"}`} key={line.key}>
+                        <input
+                          type="checkbox"
+                          className="at-reviewpick"
+                          aria-label="Select this sentence"
+                          checked={ticked.has(line.key)}
+                          onChange={() => tick(line.key)}
+                        />
                         <SentenceText line={line} lang={lang} />
                         <span className="at-reviewmarks">
                           <button
