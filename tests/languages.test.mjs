@@ -777,6 +777,21 @@ test("a word spelt in presentation forms is the word, not a stranger", () => {
   assert.equal(check("ﻻ", "لا", {}).ok, true, "and the lam-alef ligature is its two letters");
 });
 
+test("ة and ه are two letters, whichever is written for the other", () => {
+  /* Reported from 0.290: عندة for عندُه was marked right, because the fold
+     that forgave ه for ة rode on the hamza leniency and worked both ways.
+     Neither way is forgiven now; each is one letter off, a near miss. */
+  const check = LANGUAGES["ar-PS"].check;
+  const lenient = LANGUAGES["ar-PS"].marking;
+  assert.equal(check("عندة", "عندُه", lenient).ok, false, "ة for ه is not right");
+  assert.equal(check("عندة", "عندُه", lenient).reason, "near", "it is a misspelling of the word");
+  assert.equal(check("شوبانه", "شَوْبانة", lenient).ok, false, "ه for ة is not right either");
+  assert.equal(check("شوبانه", "شَوْبانة", lenient).reason, "near");
+  assert.equal(check("شوبانة", "شَوْبانة", lenient).ok, true, "the word as spelt still is");
+  assert.equal(check("اكل", "أكل", lenient).ok, true, "and the hamza leniency is untouched");
+  assert.equal(arRootKey("مدرسة"), arRootKey("درس"), "a family is still gathered across ة");
+});
+
 test("what arSkeleton did, and why it could never have grouped anything", () => {
   /* It stripped harakat and folded hamza and stopped there, so every word
      kept its own spelling as its key. Kept because similarity still reads

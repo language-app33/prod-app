@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.295 — 1 October 2026
+## 0.296 — 1 October 2026
 
 **The prep tile's two panels are a label and a number each.**
 
@@ -19,6 +19,20 @@ and moves once per batch of work you would notice, not once per commit.
   "Too soon" still show when they apply.
 - The note at the top of Progress that says what you're prepping for
   is back to its own look — the home screen's styling had leaked onto it.
+
+## 0.295 — 1 October 2026
+
+**In Arabic, ة and ه are marked as two different letters.**
+
+- Writing "عندة" for "عندُه" (*he has*) was marked right. The app forgave
+  ه written for ة, and by accident forgave ة written for ه as well.
+- Neither is forgiven now. Writing one for the other, either way round,
+  is marked "nearly right — not quite spelt", like any other one-letter
+  slip. So "شوبانه" for "شَوْبانة" is nearly right too, where it used to be
+  right.
+- The other allowances for beginners are unchanged: plain ا for أ إ آ,
+  و for ؤ, ي for ى and ئ, and a missing ء are still accepted. The marking
+  rules shown for Arabic say so.
 
 ## 0.294 — 1 October 2026
 
