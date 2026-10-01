@@ -14827,10 +14827,15 @@ export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, qu
         : `Too soon to learn it all — the earliest you could be ready is ${forecastWords(answer.earliest)}`,
     };
   }
-  if (perDay > 0 && perDay / SESSION_SIZE >= answer.rate) {
+  /* This morning's rate, which today's goal is also made from — see
+     prepToday. The live rate falls as today's sessions are done, so read
+     beside the goal it said "about 13 a day" under "13/14": two numbers
+     for one question. One figure for the day, and it moves overnight. */
+  const morning = answer.rate + (left > 0 ? questionsToday / SESSION_SIZE / left : 0);
+  if (perDay > 0 && perDay / SESSION_SIZE >= morning) {
     return { ...base, tone: "good", status: "On track", detail: "" };
   }
-  const needed = leastWords(answer.rate);
+  const needed = leastWords(morning);
   return {
     ...base,
     /* No word under the days left: "Needs more" said less than the line
