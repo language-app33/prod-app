@@ -4061,3 +4061,55 @@ session dealt its cards in, so the check failed about one run in three
 while prep mode was being tested, on this change and the one before it.
 The first picture question is now answered "I don't know", which is wrong
 whatever the order.
+
+---
+
+## Deck dates and prep advice by arithmetic, not simulation
+
+**1 October 2026** · `src/ArabicTrainer.tsx` (`workloadOf`, `LEARN_DAYS`,
+`PROGRESS_SHARE`, `learntAtPace`, `earliestOf`, `readyFor`); removed
+`deckForecast`, `earliestForecast`, `readyForecast` and their slicing,
+caching and index swapping; `tests/forecast.test.mjs`
+
+**Why.** Prep mode said "Working out how much practice it takes…" for
+about forty seconds on a laptop for a 50-card deck, and a phone is two to
+four times slower. An audit found two causes: every simulated grid ranked
+the learner's whole vocabulary for spare meanings marking never reads
+(over half the time), and the search played the deck forward twelve times
+to produce one sentence. Fixes for both brought it to about five seconds.
+The owner judged the machinery too complicated for what it says and asked
+for simple arithmetic instead, and for all of the simulation to go.
+
+**What it is.** Per card not yet learnt, per question on its ladder: no
+right answers owed if it is already right twice running, one if its last
+answer was right, two if not; plus the passes still owed at the top of
+the ladder. Sessions are those questions over a session's eighteen,
+halved (`PROGRESS_SHARE`) because about half of a session goes on cards
+asked ahead of time and on reviews. The fewest days is a floor: four
+(`LEARN_DAYS`) for a card not yet learnt, the wait for its next pass and
+two days for each after for a cleared one, and cards never met coming in
+ten at a time (`FRONT_DOOR_CAP`), a day apart.
+
+**How close.** Against the simulation it replaces, on synthetic decks:
+twelve cards at one sitting a day, 19 days against 21; at three, 7 against
+9; earliest, 5 against about 4½. Fifty cards to be ready in thirty days,
+about 2.6 sittings a day against 2.9 (both said "About 3"); in ten days,
+7.8 against 8.6 ("About 8" against "About 9"). Close, and a little
+hopeful, which is why the screens now call them estimates.
+
+**What it costs.** This reverses the owner's earlier requirement that the
+estimates follow any change to the rules by themselves. They now restate
+the rules in three places — what a card owes, the four-day floor and the
+half-a-session share — and nothing fails when the rules move and they do
+not. The note over `workloadOf` says so to whoever changes the rules, and
+so does the README. The owner asked for no simulation at all, so there is
+no test comparing the arithmetic with the rules; the two constants were
+taken from the pace simulation's measurements before the forecasts were
+retired.
+
+**Kept.** The shared answer marking (`marksForAnswer`, `resolveQuestion`,
+`gridFor`, `gradingFor`) stays: the question screen uses it and nothing
+about it was a simulation. So do the scheduler clock that reads
+`Date.now` at each call, and `tests/pace.test.mjs`, which measures the
+scheduling rules themselves rather than any estimate the app shows.
+

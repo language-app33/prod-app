@@ -283,37 +283,30 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   and keeps the one prep in the settings (`prep`, read through `prepOf`),
   so it syncs as they do and the learner can change or clear it. Being
   ready means every card in those decks learnt before the day starts. As
-  it is set, `readyForecast` says what that takes: the least sittings a
-  day that finish by then, found by playing the decks forward as the deck
-  forecast does, or the earliest they could be finished if no pace gets
-  there. The home screen offers "Prep for …" while the prep is still to
-  come and not yet learnt; it is `begin` with the prep's decks in place of
-  the chosen deck, so every rule of an ordinary session holds. Under it,
-  the days left and whether the learner's own pace gets them there.
-- **A deck says when it could all be learnt, and the rules say it.** A
-  deck's tile under Progress opens the deck on a screen of its own: how
-  far it has got, every card in it by where it stands, and two dates —
-  at the learner's own pace, which it names in sittings, and the earliest
-  possible. Neither is a formula. `deckForecast` plays the deck forward at
-  a given pace, every answer right: it deals with `buildSession`, shows
-  each question with `resolveQuestion` and `gridFor`, decides what the
-  answer marks with `marksForAnswer` and grades it with `gradingFor` and
-  `gradeInto` — the very functions the question screen calls when an
-  answer is given — until the Progress screen's own test calls every card
-  learnt; `earliestForecast` doubles the pace until the
-  date stops moving, then halves the gap between a pace that gets there
-  and one that does not to name the least practice that does — which is
-  what the screen says, as "About 16 sessions a day would get it learnt
-  by …". A forecast rolls its own dice from a fixed seed, so two paces are
-  compared on the same shuffle and a deck gives the same date each time.
-  So a change to the scheduler, the session builder or
-  the marking reaches the dates with nothing to keep in step. Only the
-  deck is played — practising one deck is the fastest way to finish it —
-  and the words the rest of the collection holds are counted once and
-  handed to the builder as `elsewhere`. The indexes a question reads are
-  installed for the simulated cards each simulated day and put back after
-  every slice of work, and the work is done a slice at a time so the
-  screen keeps answering.
+  it is set, `readyFor` says what that takes: the work spread over the
+  days left, or the earliest they could be finished if there are fewer
+  days than the cards can take. The home screen offers "Prep for …" while
+  the prep is still to come and not yet learnt; it is `begin` with the
+  prep's decks in place of the chosen deck, so every rule of an ordinary
+  session holds. Under it, the days left and whether the learner's own
+  pace gets them there.
+- **A deck says when it could all be learnt — an estimate, by
+  arithmetic.** A deck's tile under Progress opens the deck on a screen of
+  its own: how far it has got, every card in it by where it stands, and two
+  dates — at the learner's own pace, which it names in sittings, and the
+  earliest possible, with the practice a day that takes. `workloadOf`
+  counts what the cards still need off where they stand: per question on a
+  card's ladder, the right answers still owed to have it right twice
+  running, plus the passes still to make at the top. Sessions are those
+  questions over the length of a session times `PROGRESS_SHARE`, the part
+  of a session that moves cards forward. The earliest is a calendar floor
+  — `LEARN_DAYS` for a card not yet learnt, the wait for its passes for a
+  cleared one, and never-met cards coming in `FRONT_DOOR_CAP` at a time.
+  It is instant, and approximate. **It restates the rules rather than
+  running them, so a change to the ladder, the passes, the front door or
+  what a session deals has to be carried into it by hand** — nothing will
+  fail if it is not. It replaced, in 0.287, a forecast that played the
+  app's own rules forward and took most of a minute on a phone.
 
   The numbers are `FRONT_DOOR_CAP`, `IN_HAND_CAP` and `IN_HAND_MAX` in
   `src/scheduler.ts`, and they were measured rather than chosen:

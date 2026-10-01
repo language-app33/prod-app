@@ -1,13 +1,13 @@
 // @ts-check
 /*
- * How soon a deck could be learnt.
+ * How soon some cards could be learnt, and prep mode.
  *
- * The forecast is the app's own rules played forward — buildSession deals,
- * gradeInto marks, the Progress screen's own test says when a card is
- * learnt — so these tests hold what the forecast adds on top of them: that
- * more practice is never later, that the earliest date is a floor under
- * every pace, that a finished deck is said to be finished, and that the
- * app's question indexes are put back after every slice of work.
+ * Since 0.287 the estimates are simple arithmetic over where the cards
+ * stand (workloadOf) rather than the rules played forward. These tests hold
+ * the arithmetic to what it promises — work counted off a card's own ladder,
+ * more practice never later, the calendar floor, a finished deck finished —
+ * and say nothing about whether it matches the rules: keeping it in step
+ * with them is by hand, as the note over workloadOf says.
  */
 
 import { test } from "node:test";
@@ -36,8 +36,12 @@ await build({
 });
 
 const {
-  deckForecast,
-  earliestForecast,
+  workloadOf,
+  learntAtPace,
+  earliestOf,
+  readyFor,
+  LEARN_DAYS,
+  PROGRESS_SHARE,
   installIndexes,
   setOfflineNow,
   setAudibleClips,
@@ -45,7 +49,6 @@ const {
   forecastWords,
   leastWords,
   marksForAnswer,
-  readyForecast,
   readyWords,
   prepOf,
   prepStart,
@@ -55,6 +58,7 @@ const {
   buildSession,
 } = await import(path.join(out, "trainer.js"));
 const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
+const { FRONT_DOOR_CAP, PASSES_TO_LEARN } = await import(path.join(here, "..", "src", "scheduler.ts"));
 
 setOfflineNow(false);
 setAudibleClips(null);
@@ -77,123 +81,71 @@ const word = (i, deck) => ({
 const collection = Array.from({ length: 60 }, (_, i) => word(i + 1, i < 12 ? "deck" : "other"));
 const deckOf = (/** @type {any} */ it) => (it.tags || []).includes("deck");
 
-/** Run a forecast to its answer, counting the slices and the restores. */
-function answer(/** @type {any} */ run) {
-  let slices = 0;
-  while (!run.step(200)) slices += 1;
-  return { at: run.result(), slices: slices + 1 };
-}
-
-test("more practice is never a later date", () => {
-  let restores = 0;
-  const restore = () => {
-    restores += 1;
-    installIndexes(collection, settings);
-  };
-  restore();
-  const at = (/** @type {number} */ sessionsPerDay) =>
-    answer(deckForecast({ collection, deckOf, settings, sessionsPerDay, from: FROM, restore })).at;
-  const once = at(1);
-  const thrice = at(3);
-  const often = at(12);
-  console.log(
-    `    twelve-card deck: one a day ${((once - FROM) / DAY).toFixed(1)} days, ` +
-      `three ${((thrice - FROM) / DAY).toFixed(1)}, twelve ${((often - FROM) / DAY).toFixed(1)}`,
-  );
-  assert.ok(once !== null && thrice !== null && often !== null, "a forecast never finished");
-  assert.ok(thrice <= once, "three sittings a day finished later than one");
-  assert.ok(often <= thrice, "twelve sittings a day finished later than three");
-  assert.ok(once > FROM, "a deck of strangers was learnt at once");
-  assert.ok(restores > 1, "the indexes were never put back");
-});
-
-/** Midnight at the start of a moment's day. */
-const dayOf = (/** @type {number} */ t) => {
-  const d = new Date(t);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+const deck = () => collection.filter(deckOf);
+const learntState = {
+  phase: "review", step: 0, ease: 2.5, interval: 60, due: FROM + 30 * DAY, reps: 8, right: 8, wrong: 0,
+  lapses: 0, skips: 0, near: 0, hints: 0, updated: FROM - DAY, hist: [], passes: 2,
 };
-
-test("the same deck at the same pace gives the same date every time", () => {
-  /* A forecast rolls its own dice from a fixed seed. Without that, two
-     paces could not be compared — a slower one could win on a lucky shuffle
-     — and the date would move each time the screen was opened. */
-  const restore = () => installIndexes(collection, settings);
-  restore();
-  const once = () => answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: 3, from: FROM, restore })).at;
-  assert.equal(once(), once());
+const withStates = (/** @type {any} */ it, /** @type {any} */ state) => ({
+  ...it,
+  forms: [{ ...it.forms[0], s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, { ...state }])) }],
 });
 
-test("the earliest date names the least practice that reaches it, and that practice does", () => {
-  const restore = () => installIndexes(collection, settings);
-  restore();
-  const run = earliestForecast({ collection, deckOf, settings, from: FROM, restore });
-  const floor = answer(run).at;
-  const least = run.rate();
-  console.log(`    earliest: ${((floor - FROM) / DAY).toFixed(1)} days out, at ${leastWords(least)}`);
-  assert.ok(floor !== null && least !== null, "no earliest date or no practice named");
-  /* Rounded up as it is said, the practice named gets there. */
-  const said = least >= 2 ? Math.ceil(least) : Math.ceil(least * 10) / 10;
-  const at = answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: said, from: FROM, restore })).at;
-  assert.ok(at !== null && dayOf(at) <= dayOf(floor), `${said} a day finished ${at && (at - FROM) / DAY} days out`);
-  /* And markedly less does not: the practice named is not a round number
-     picked from the top of the search. */
-  const less = answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: least / 2, from: FROM, restore })).at;
-  assert.ok(less === null || dayOf(less) > dayOf(floor), `half of ${least} a day still finished by the earliest day`);
+test("the work is counted off each card's own ladder", () => {
+  installIndexes(collection, settings);
+  const one = workloadOf([deck()[0]], settings, FROM);
+  const all = workloadOf(deck(), settings, FROM);
+  assert.equal(all.left, 12);
+  assert.ok(one.questions > 0, "a card never met needs nothing");
+  assert.equal(all.questions, 12 * one.questions, "twelve like cards are twelve times one");
+  /* Two right answers for every question on its ladder, and a pass on each
+     question at the top — so at least twice as many as the passes. */
+  assert.ok(one.questions >= 2 * PASSES_TO_LEARN, `${one.questions} questions`);
+  assert.equal(all.sessions, all.questions / (18 * PROGRESS_SHARE));
 });
 
-test("the earliest date is a floor under every pace", () => {
-  const restore = () => installIndexes(collection, settings);
-  restore();
-  const floor = answer(earliestForecast({ collection, deckOf, settings, from: FROM, restore })).at;
-  const keen = answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: 12, from: FROM, restore })).at;
-  assert.ok(floor !== null, "the earliest date never came");
-  assert.ok(floor <= keen, "twelve sittings a day beat the earliest possible date");
-  /* And it is a real wait, not an instant: a word needs reviews on later
-     days before it counts as learnt, whatever the practice. */
-  assert.ok(floor - FROM >= 2 * DAY, `learnt ${((floor - FROM) / DAY).toFixed(1)} days out`);
+test("a card part way up needs less than one never met", () => {
+  installIndexes(collection, settings);
+  const fresh = workloadOf([deck()[0]], settings, FROM);
+  const rightOnce = { ...learntState, phase: "learning", interval: 0, passes: 0, hist: [1], due: FROM };
+  const partway = workloadOf([withStates(deck()[0], rightOnce)], settings, FROM);
+  assert.ok(partway.questions < fresh.questions, `${partway.questions} against ${fresh.questions}`);
 });
 
-test("every slice of work puts the app's indexes back before it returns", () => {
-  let depth = 0;
-  let lastWasRestore = false;
-  const restore = () => {
-    depth += 1;
-    lastWasRestore = true;
-    installIndexes(collection, settings);
-  };
-  restore();
-  const run = deckForecast({ collection, deckOf, settings, sessionsPerDay: 2, from: FROM, restore });
-  let slices = 0;
-  for (;;) {
-    lastWasRestore = false;
-    const done = run.step(5);
-    slices += 1;
-    assert.ok(lastWasRestore, `slice ${slices} returned with the forecast's indexes still installed`);
-    if (done) break;
-  }
-  assert.ok(depth >= slices);
+test("a learnt deck needs nothing, and is learnt now", () => {
+  installIndexes(collection, settings);
+  const done = deck().map((it) => withStates(it, learntState));
+  const w = workloadOf(done, settings, FROM);
+  assert.deepEqual(w, { left: 0, questions: 0, sessions: 0, earliestDays: 0 });
+  assert.equal(learntAtPace(w, 1, FROM), FROM);
+  assert.deepEqual(readyFor(w, FROM + 10 * DAY, FROM), { kind: "already" });
 });
 
-test("a deck already learnt is said to be learnt now", () => {
-  const learntState = {
-    phase: "review", step: 0, ease: 2.5, interval: 60, due: FROM + 30 * DAY, reps: 8, right: 8, wrong: 0,
-    lapses: 0, skips: 0, near: 0, hints: 0, updated: FROM - DAY, hist: [], passes: 2,
-  };
-  const done = collection.map((it) =>
-    deckOf(it)
-      ? { ...it, forms: [{ ...it.forms[0], s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, { ...learntState }])) }] }
-      : it,
-  );
-  const restore = () => installIndexes(done, settings);
-  restore();
-  const got = answer(deckForecast({ collection: done, deckOf, settings, sessionsPerDay: 1, from: FROM, restore }));
-  assert.equal(got.at, FROM);
+test("new words come in ten at a time, so a big deck has a later floor", () => {
+  installIndexes(collection, settings);
+  assert.equal(workloadOf(deck(), settings, FROM).earliestDays, LEARN_DAYS + Math.ceil(12 / FRONT_DOOR_CAP) - 1);
+  assert.equal(workloadOf(collection.slice(0, 40), settings, FROM).earliestDays, LEARN_DAYS + 3);
+  assert.equal(workloadOf(deck().slice(0, 5), settings, FROM).earliestDays, LEARN_DAYS);
 });
 
-test("no practice at all is no pace, rather than a date", () => {
-  const restore = () => installIndexes(collection, settings);
-  const got = answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: 0, from: FROM, restore }));
-  assert.equal(got.at, null);
+test("more practice is never a later date, and never earlier than the floor", () => {
+  installIndexes(collection, settings);
+  const w = workloadOf(deck(), settings, FROM);
+  const at = (/** @type {number} */ n) => /** @type {number} */ (learntAtPace(w, n, FROM));
+  assert.ok(at(1) >= at(3) && at(3) >= at(12) && at(12) >= at(100));
+  assert.equal(at(1000), earliestOf(w, FROM).at, "past enough practice, the floor is the date");
+  assert.equal(learntAtPace(w, 0, FROM), null, "no practice is no date");
+});
+
+test("being ready by a date: the work spread over the days, or too soon", () => {
+  installIndexes(collection, settings);
+  const w = workloadOf(deck(), settings, FROM);
+  const roomy = readyFor(w, FROM + 40 * DAY, FROM);
+  assert.equal(roomy.kind, "rate");
+  if (roomy.kind === "rate") assert.ok(Math.abs(roomy.rate - w.sessions / 40) < 1e-9);
+  const tight = readyFor(w, FROM + 2 * DAY, FROM);
+  assert.equal(tight.kind, "late");
+  if (tight.kind === "late") assert.equal(tight.earliest, earliestOf(w, FROM).at);
 });
 
 test("the pace is said as sittings a day, to a decimal under one", () => {
@@ -279,30 +231,8 @@ test("a prep session is dealt from the prep's decks alone", () => {
   }
 });
 
-test("being ready by a date says how much practice it takes, or that it cannot be done", () => {
-  const restore = () => installIndexes(collection, settings);
-  restore();
-  const take = (/** @type {number} */ days) => {
-    const run = readyForecast({ collection, deckOf, settings, from: FROM, by: FROM + days * DAY, restore });
-    while (!run.step(200));
-    return run.result();
-  };
-  const roomy = take(40);
-  const tight = take(2);
-  console.log(`    twelve-card deck: in 40 days ${JSON.stringify(roomy)}, in 2 days ${JSON.stringify(tight)}`);
-  assert.equal(roomy.kind, "rate", "forty days was not enough");
-  assert.equal(tight.kind, "late", "two days was enough for a deck of strangers");
-  /* And what forty days takes, practised, gets there. */
-  if (roomy.kind === "rate") {
-    const said = roomy.rate >= 2 ? Math.ceil(roomy.rate) : Math.ceil(roomy.rate * 10) / 10;
-    const at = answer(deckForecast({ collection, deckOf, settings, sessionsPerDay: said, from: FROM, restore })).at;
-    assert.ok(at !== null && at < FROM + 40 * DAY, `${said} a day was not ready in forty days`);
-  }
-});
-
 test("what a prep's forecast says", () => {
   const date = "2026-10-20";
-  assert.match(readyWords(undefined, date, 0), /Working out/);
   assert.match(readyWords({ kind: "already" }, date, 0), /already learnt/);
   assert.match(readyWords({ kind: "rate", rate: 5.2 }, date, 36), /^About 6 sessions a day will get you ready before .+\. You're doing about 2 sessions a day at the moment\.$/);
   assert.match(readyWords({ kind: "rate", rate: 5.2 }, date, 0), /^About 6 sessions a day will get you ready before [^.]+\.$/);

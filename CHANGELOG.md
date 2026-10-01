@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.287 — 1 October 2026
+
+**Prep mode and deck dates now appear instantly.**
+
+- The advice in **Prep mode** ("About 6 sessions a day will get you ready
+  before …") and the two dates on a deck's screen used to take anywhere
+  from several seconds to over a minute on a phone, while the screen said
+  "Working it out…". They now appear straight away.
+- They are now worked out with simple arithmetic: how many right answers
+  your cards still need, how many sessions that takes, and the days
+  available — with a minimum for the days a word needs between its
+  reviews, and for new words arriving ten at a time.
+- They are estimates, usually within about a fifth of what you'll
+  actually need, and a little on the hopeful side. Allow some extra.
+
 ## 0.286 — 30 September 2026
 
 **Prep mode: get a set of decks learnt by a date.**

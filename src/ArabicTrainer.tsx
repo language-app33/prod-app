@@ -213,6 +213,8 @@ import {
   openTypes as openTypesOf,
   passesMade,
   reachedLevel,
+  solid,
+  FRONT_DOOR_CAP,
   roomForNew,
   inHandCap,
   typicalDay,
@@ -3203,7 +3205,6 @@ export function buildSession({
   includeAll,
   budget: budgetIn,
   perDay,
-  elsewhere,
   systems,
 }: {
   items: Item[];
@@ -3219,15 +3220,6 @@ export function buildSession({
    * sits down once a day.
    */
   perDay?: number;
-  /**
-   * Words held in cards that are not in `items`, counted the way
-   * `handCounts` counts them, for a caller that deals from part of the
-   * collection while the rest stands still — the deck forecast, which
-   * plays one deck forward and leaves every other deck where it is. Those
-   * words still fill the front door and the pool, so they are added to
-   * what `items` holds before the room for new words is worked out.
-   */
-  elsewhere?: { front: number; inHand: number };
   /**
    * The teachers' number systems, for the skills among the cards.
    *
@@ -3417,14 +3409,7 @@ export function buildSession({
      * words hold their place and nothing new arrives, which is the same
      * protection without a rule of its own to keep in step.
      */
-    const held = handCounts(items, settings);
-    const room = roomForNew(
-      {
-        front: held.front + ((elsewhere && elsewhere.front) || 0),
-        inHand: held.inHand + ((elsewhere && elsewhere.inHand) || 0),
-      },
-      inHandFor(perDay),
-    );
+    const room = roomForNew(handCounts(items, settings), inHandFor(perDay));
     let newSeen = 0;
     candidates = candidates.filter((c) => {
       /* Except one the learner asked for by name. Both rules above are the
@@ -4227,225 +4212,42 @@ export function gradingFor(exercise: Question, settings: Settings) {
 }
 
 /* ------------------------------------------------------------------
-   How soon a deck could be learnt
+   How soon some cards could be learnt
 
-   Not a formula. A deck's forecast is the app's own rules played forward:
-   the learner's actual cards, sat down with at a given pace, dealt by
-   buildSession and marked by gradeInto exactly as a real sitting is, every
-   answer right, until every card in the deck is learnt by the same test
-   the Progress screen uses. So whatever the scheduler, the session builder
-   or the marking come to do, the forecast does too, with nothing here to
-   keep in step — a rule added to any of them is a rule the forecast obeys
-   the next time it runs.
+   Simple arithmetic over where the cards stand, not a simulation. It was a
+   simulation until 0.287 — the app's own session builder and marking
+   played forward sitting by sitting — and that took the better part of a
+   minute on a phone to say one sentence. The owner chose an answer that is
+   instant and approximate over one that is exact and slow, and chose to
+   keep it in step with the rules by hand.
 
-   Two things are the forecast's own, and they are about the learner rather
-   than the rules: how often they sit down, and the hours they do it in.
-   Everything else is read off the app.
+   **So when the learning rules change, look here.** Three things below are
+   the rules restated: what a card still needs (`workloadOf`), the calendar
+   floor on learning a card (`LEARN_DAYS`), and how much of a session moves
+   cards forward (`PROGRESS_SHARE`). A change to the ladder, to how a pass is
+   made, to the ten-word front door or to what a session deals can make any
+   of them wrong, and nothing will fail to say so.
    ------------------------------------------------------------------ */
 
-/* The waking day sittings are spread across: from eight in the morning,
-   for sixteen hours. */
-const FORECAST_DAY_START_H = 8;
-const FORECAST_DAY_HOURS = 16;
-/* How far ahead a forecast looks before it says "more than two years". */
-export const FORECAST_MAX_DAYS = 730;
-
-/** Whether every card in a list that can be asked about at all is learnt. */
-function allLearnt(cards: Item[], settings: Settings): boolean {
-  return cards.every((it) => {
-    const at = standing(cardStandings(it, settings));
-    /* A card nothing can be asked of stands on no level, and Progress
-       leaves it out of every count; so does this. */
-    return !at || at.status === "done";
-  });
-}
+/*
+ * The fewest days a card not yet learnt can take to be learnt, however
+ * much it is practised: a word can be climbed in one evening, but its two
+ * passes are reviews that only count on the day they come round, a day
+ * and then a few days apart. Four is what the pace simulation measured for
+ * the fastest words before it was retired.
+ */
+export const LEARN_DAYS = 4;
 
 /*
- * Run something with the clock set to a moment of the simulation, and the
- * dice set to the simulation's own.
- *
- * The app reads the time through Date.now — every default clock in the
- * scheduler does, and so does the session builder — so setting it is the
- * one way to put a sitting at a moment without threading a clock through
- * every function a sitting touches. The dice go the same way: a forecast
- * rolls its own, from a fixed seed, so the same cards at the same pace give
- * the same date every time — which is what lets two paces be compared at
- * all. Synchronous only: nothing else runs between setting them and putting
- * them back.
+ * How much of a session moves the chosen cards forward. The rest is
+ * questions asked ahead of time, retests and reviews of what is already
+ * known. About half, from the pace simulation's measurements before it was
+ * retired; it turns questions needed into sessions needed.
  */
-function atMoment<T>(t: Millis, fn: () => T, dice?: () => number): T {
-  const wall = Date.now;
-  const roll = Math.random;
-  Date.now = () => t;
-  if (dice) Math.random = dice;
-  try {
-    return fn();
-  } finally {
-    Date.now = wall;
-    Math.random = roll;
-  }
-}
+export const PROGRESS_SHARE = 0.5;
 
-/** A seeded roll of the dice (mulberry32): the same seed, the same rolls. */
-function seededDice(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** The moments a learner at `perDayRate` sittings a day sits down on day `d`. */
-function sittingsOn(dayStart: Millis, d: number, perDayRate: number): Millis[] {
-  const count = Math.floor((d + 1) * perDayRate + 1e-9) - Math.floor(d * perDayRate + 1e-9);
-  const out: Millis[] = [];
-  const open = dayStart + FORECAST_DAY_START_H * 3600000;
-  const span = FORECAST_DAY_HOURS * 3600000;
-  for (let k = 0; k < count; k += 1) out.push(open + Math.round(((k + 0.5) * span) / count));
-  return out;
-}
-
-export interface DeckForecast {
-  /** Advance for about this long; true once there is an answer. */
-  step: (budgetMs: number) => boolean;
-  /** The moment the deck is first all learnt, or null past FORECAST_MAX_DAYS. */
-  result: () => Millis | null;
-}
-
-/**
- * The deck, played forward at `sessionsPerDay` sittings a day.
- *
- * `collection` is what a session is dealt from — the cards the learner
- * holds in this language — and `deckOf` picks this deck's cards out of it.
- * Only the deck is played: practising one deck is the fastest way to
- * finish it, and every other card stands still, so the words they hold are
- * counted once and handed to buildSession as `elsewhere` rather than
- * walked again at every sitting.
- *
- * `restore` puts the app's indexes back. Some of what a question may ask
- * depends on how far the cards have climbed — a sentence's blanks, a
- * verb's rows — so each simulated day installs the indexes of the
- * simulated cards, and every step puts the real ones back before it
- * returns.
- */
-export function deckForecast({
-  collection,
-  deckOf,
-  settings,
-  sessionsPerDay,
-  from,
-  restore,
-  systems = [],
-  giveUpAfter,
-}: {
-  collection: Item[];
-  deckOf: (it: Item) => boolean;
-  settings: Settings;
-  sessionsPerDay: number;
-  from: Millis;
-  restore: () => void;
-  /** The teachers' number systems, as a session is handed them. */
-  systems?: SystemSet[];
-  /**
-   * Stop, with no answer, once the simulation is past this moment — for a
-   * caller asking only whether a pace finishes by then, which is most of
-   * what finding the practice the earliest date needs is.
-   */
-  giveUpAfter?: Millis;
-}): DeckForecast {
-  const others = collection.filter((it) => !deckOf(it));
-  let deck = collection.filter(deckOf);
-  const elsewhere = handCounts(others, settings);
-  const perDay = sessionsPerDay * SESSION_SIZE;
-  const start = new Date(from);
-  const dayStart = (d: number) =>
-    new Date(start.getFullYear(), start.getMonth(), start.getDate() + d).getTime();
-  let day = 0;
-  let answer: Millis | null = null;
-  let finished = false;
-  const dice = seededDice(1);
-
-  if (!sessionsPerDay || !(sessionsPerDay > 0)) finished = true;
-  else if (atMoment(from, () => allLearnt(deck, settings))) {
-    answer = from;
-    finished = true;
-  }
-
-  function sitDay() {
-    installIndexes(others.concat(deck), settings);
-    for (const at of sittingsOn(dayStart(day), day, sessionsPerDay)) {
-      if (at < from) continue;
-      if (giveUpAfter !== undefined && at > giveUpAfter) {
-        finished = true;
-        return false;
-      }
-      const clock = { now: () => at, random: dice };
-      atMoment(at, () => {
-        const built = buildSession({ items: deck, settings, inDeck: () => true, perDay, elsewhere, systems });
-        for (const ex of built.exercises || []) {
-          /* Shown, and marked, exactly as the question screen shows and
-             marks it — the same three functions — with every answer right. */
-          const asked = others.concat(deck);
-          const shown = resolveQuestion(asked, ex, false, systems);
-          if (!shown) continue;
-          const qLang = langOf(settingsFor(settings, shown.unit || shown.parent));
-          const spec = exOf(ex.type, qLang);
-          const marks = marksForAnswer({
-            exercise: ex,
-            item: shown.unit,
-            parentItem: shown.parent,
-            asking: asked,
-            settings,
-            systems,
-            correct: true,
-            rating: "good",
-            practice: false,
-            grid:
-              spec && spec.picks === "pair"
-                ? gridFor(shown.unit, ex, asked, settings, qLang).words.map((unit: Form) => ({ unit, right: true }))
-                : null,
-          });
-          const next = gradeInto(deck, marks, { ...gradingFor(ex, settings), clock, how: {} });
-          if (next) deck = next;
-        }
-      }, dice);
-      if (atMoment(at, () => allLearnt(deck, settings))) {
-        answer = at;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  return {
-    step(budgetMs: number) {
-      if (finished) return true;
-      const until = Date.now() + budgetMs;
-      try {
-        while (!finished && Date.now() < until) {
-          if (sitDay()) finished = true;
-          else if (++day >= FORECAST_MAX_DAYS) finished = true;
-          else if (giveUpAfter !== undefined && dayStart(day) > giveUpAfter) finished = true;
-        }
-      } finally {
-        restore();
-      }
-      return finished;
-    },
-    result: () => answer,
-  };
-}
-
-export interface EarliestForecast extends DeckForecast {
-  /**
-   * The least practice, in sittings a day, that gets the deck learnt by
-   * the earliest day — or null where there is no earliest day to reach.
-   */
-  rate: () => number | null;
-}
+/* How far ahead an answer is worth giving before it says "more than two years". */
+export const FORECAST_MAX_DAYS = 730;
 
 /** Midnight at the start of the day a moment falls on. */
 function dayOf(t: Millis): Millis {
@@ -4453,190 +4255,115 @@ function dayOf(t: Millis): Millis {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
+export interface Workload {
+  /** Cards that can be asked about and are not yet learnt. */
+  left: number;
+  /** Right answers still needed to take all of them to learnt. */
+  questions: number;
+  /** The sessions that takes, at PROGRESS_SHARE of a session each. */
+  sessions: number;
+  /** The fewest days it can take, however much is practised. */
+  earliestDays: number;
+}
+
 /**
- * The same deck at the fastest pace there is — the day no amount of
- * practice beats — and the least practice that reaches it.
+ * What some cards still need, counted off where they stand.
  *
- * There is no number for either written down anywhere, on purpose. Both
- * are found, by playing the deck forward:
+ * Per question on a card's ladder: nothing if it is right twice running
+ * already, one more right answer if its last answer was right, two if not —
+ * two in a row being what opens the level above. Then the passes still to
+ * make on the top of the ladder, one question each. A card nothing can be
+ * asked about, or already learnt, needs nothing.
  *
- * **The day.** Sixteen sittings a day, then thirty-two, sixty-four, and so
- * on, until doubling the practice no longer brings the day any closer —
- * which is where the rules themselves, and not the learner, are what is
- * left to wait for.
- *
- * **The practice.** Then the least that still gets there, found by halving
- * the gap between a pace that does and one that does not, to within a
- * sitting a day (a tenth of one under two a day). Each of those runs gives
- * up as soon as it is past the day, so a pace that falls short costs only
- * as long as the day is away. A change to the rules that moves either
- * moves it here too.
+ * The fewest days: every card not yet learnt takes LEARN_DAYS, except a
+ * cleared one, which waits only for its passes — the next when its review
+ * comes round, and a couple of days for each after. And cards never met
+ * come in at most FRONT_DOOR_CAP at a time, each group about a day behind
+ * the last.
  */
-export function earliestForecast(args: {
-  collection: Item[];
-  deckOf: (it: Item) => boolean;
-  settings: Settings;
-  from: Millis;
-  restore: () => void;
-  systems?: SystemSet[];
-}): EarliestForecast {
-  /* The first half: doubling until the day stops moving. */
-  let rate = 16;
-  let run: DeckForecast = deckForecast({ ...args, sessionsPerDay: rate });
-  let best: { at: Millis; rate: number } | null = null;
-  /* The fastest pace known to fall short of the day, if any. */
-  let short = 0;
-  /* The second half, once the day is known. */
-  let searching = false;
-  let probe = 0;
-  let answer: Millis | null = null;
-  let least: number | null = null;
-  let finished = false;
-
-  const close = (lo: number, hi: number) => hi - lo <= (hi < 2 ? 0.1 : 1);
-  const nextProbe = (lo: number, hi: number) => (lo > 0 ? (lo + hi) / 2 : hi / 2);
-
-  function settle() {
-    answer = best ? best.at : null;
-    least = best ? best.rate : null;
-    finished = true;
+export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()): Workload {
+  let left = 0;
+  let questions = 0;
+  let unseen = 0;
+  let floor = 0;
+  for (const it of cards) {
+    const where = standing(cardStandings(it, settings));
+    if (!where || where.status === "done") continue;
+    left += 1;
+    let fresh = true;
+    let passesLeft = 0;
+    for (const { unit } of unitsOf(it)) {
+      const keys = laddered(unit, settings);
+      if (!keys.length) continue;
+      for (const k of keys) {
+        const st = stateOf(unit, k);
+        if (st.phase !== "new") fresh = false;
+        if (solid(st)) continue;
+        const hist = st.hist || [];
+        questions += hist.length && hist[hist.length - 1] ? 1 : 2;
+      }
+      const top = topLevelOf(keys);
+      const owed = Math.max(0, PASSES_TO_LEARN - passesMade(keys, (k) => stateOf(unit, k)));
+      questions += owed * keys.filter((k) => levelOf(k) === top).length;
+      passesLeft = Math.max(passesLeft, owed);
+    }
+    if (fresh) unseen += 1;
+    if (where.status === "cleared" && passesLeft > 0) {
+      const next = nextPassAt(it, settings);
+      const wait = next > at ? Math.ceil((dayOf(next) - dayOf(at)) / 86400000) : 0;
+      floor = Math.max(floor, wait + (passesLeft - 1) * 2);
+    } else {
+      floor = Math.max(floor, LEARN_DAYS);
+    }
   }
-
+  if (unseen) floor = Math.max(floor, Math.ceil(unseen / FRONT_DOOR_CAP) - 1 + LEARN_DAYS);
   return {
-    step(budgetMs: number) {
-      if (finished) return true;
-      const until = Date.now() + budgetMs;
-      while (!finished && Date.now() < until) {
-        if (!run.step(Math.max(1, until - Date.now()))) continue;
-        const got = run.result();
-        if (!searching) {
-          const better = got !== null && (!best || dayOf(got) < dayOf(best.at));
-          if (better && rate < 256) {
-            if (best) short = best.rate;
-            best = { at: got as Millis, rate };
-            rate *= 2;
-            run = deckForecast({ ...args, sessionsPerDay: rate });
-            continue;
-          }
-          if (better) best = { at: got as Millis, rate };
-          /* Nothing ever finished, so there is no day to reach. */
-          if (!best) {
-            settle();
-            continue;
-          }
-          searching = true;
-        } else if (got !== null && best && dayOf(got) <= dayOf(best.at)) {
-          best = { at: got, rate: probe };
-        } else {
-          short = probe;
-        }
-        if (!best || close(short, best.rate)) {
-          settle();
-          continue;
-        }
-        probe = nextProbe(short, best.rate);
-        run = deckForecast({
-          ...args,
-          sessionsPerDay: probe,
-          giveUpAfter: dayOf(best.at) + 86400000 - 1,
-        });
-      }
-      return finished;
-    },
-    result: () => answer,
-    rate: () => least,
+    left,
+    questions,
+    sessions: questions / (SESSION_SIZE * PROGRESS_SHARE),
+    earliestDays: left ? floor : 0,
   };
 }
 
-export interface ReadyForecast {
-  step: (budgetMs: number) => boolean;
-  /**
-   * What getting there by `by` takes: the least practice, in sittings a
-   * day, that does it — or, where no amount does, the earliest moment the
-   * cards could be learnt instead. `already` where they are learnt now.
-   */
-  result: () =>
-    | { kind: "already" }
-    | { kind: "rate"; rate: number }
-    | { kind: "late"; earliest: Millis | null };
+/** Days from `at` to the start of the day `days` days on. */
+export function dayAfter(days: number, at: Millis = now()): Millis {
+  const d = new Date(dayOf(at));
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days).getTime();
 }
 
 /**
- * Whether some cards can be learnt by a moment, and how much practice that
- * takes — what a prep is told when it is set, and on the home screen.
- *
- * The earliest the cards could be learnt first (see earliestForecast). If
- * that is after `by`, no pace gets there and that is the answer. If it is
- * not, the least pace that finishes by `by` is found the same way the
- * earliest's own practice is: halving the gap between a pace that gets
- * there and one that does not, each run giving up as soon as it is past
- * `by`. Everything it knows about the rules it learns by playing them.
+ * When some cards would be learnt at a pace of `sessionsPerDay`: the work
+ * spread over the days, and never sooner than the fewest days it can take.
+ * Null where that is past FORECAST_MAX_DAYS, or there is no pace at all.
  */
-export function readyForecast(args: {
-  collection: Item[];
-  deckOf: (it: Item) => boolean;
-  settings: Settings;
-  from: Millis;
-  by: Millis;
-  restore: () => void;
-  systems?: SystemSet[];
-}): ReadyForecast {
-  const { by, ...rest } = args;
-  const earliest = earliestForecast(rest);
-  let phase: "earliest" | "search" | "done" = "earliest";
-  let run: DeckForecast | null = null;
-  let lo = 0;
-  let hi = 0;
-  let probe = 0;
-  let answer: ReturnType<ReadyForecast["result"]> = { kind: "late", earliest: null };
-  const close = () => hi - lo <= (hi < 2 ? 0.1 : 1);
-  const next = () => {
-    probe = lo > 0 ? (lo + hi) / 2 : hi / 2;
-    run = deckForecast({ ...rest, sessionsPerDay: probe, giveUpAfter: by - 1 });
-  };
-  return {
-    step(budgetMs: number) {
-      if (phase === "done") return true;
-      const until = Date.now() + budgetMs;
-      while (phase !== "done" && Date.now() < until) {
-        if (phase === "earliest") {
-          if (!earliest.step(Math.max(1, until - Date.now()))) continue;
-          const floor = earliest.result();
-          const least = earliest.rate();
-          if (floor !== null && floor <= args.from) {
-            answer = { kind: "already" };
-            phase = "done";
-          } else if (floor === null || least === null || floor >= by) {
-            answer = { kind: "late", earliest: floor };
-            phase = "done";
-          } else {
-            /* The earliest's own practice gets there by `by`, since it
-               gets there sooner still; the least that does is below it. */
-            hi = least;
-            lo = 0;
-            if (close()) {
-              answer = { kind: "rate", rate: hi };
-              phase = "done";
-            } else {
-              phase = "search";
-              next();
-            }
-          }
-          continue;
-        }
-        if (!run || !(run as DeckForecast).step(Math.max(1, until - Date.now()))) continue;
-        const got = (run as DeckForecast).result();
-        if (got !== null && got < by) hi = probe;
-        else lo = probe;
-        if (close()) {
-          answer = { kind: "rate", rate: hi };
-          phase = "done";
-        } else next();
-      }
-      return phase === "done";
-    },
-    result: () => answer,
-  };
+export function learntAtPace(w: Workload, sessionsPerDay: number, at: Millis = now()): Millis | null {
+  if (!w.left) return at;
+  if (!(sessionsPerDay > 0)) return null;
+  const days = Math.max(w.earliestDays, Math.ceil(w.sessions / sessionsPerDay));
+  return days > FORECAST_MAX_DAYS ? null : dayAfter(days, at);
+}
+
+/** The soonest the cards could be learnt, and the practice a day that takes. */
+export function earliestOf(w: Workload, at: Millis = now()): { at: Millis; rate: number } {
+  if (!w.left) return { at, rate: 0 };
+  return { at: dayAfter(w.earliestDays, at), rate: w.sessions / Math.max(1, w.earliestDays) };
+}
+
+export type ReadyAnswer =
+  | { kind: "already" }
+  | { kind: "rate"; rate: number }
+  | { kind: "late"; earliest: Millis | null };
+
+/**
+ * What being ready by `by` takes: the sessions a day that spread the work
+ * over the days left, or — if there are fewer days left than the cards can
+ * take — the soonest they could be learnt instead.
+ */
+export function readyFor(w: Workload, by: Millis, at: Millis = now()): ReadyAnswer {
+  if (!w.left) return { kind: "already" };
+  const days = Math.round((dayOf(by) - dayOf(at)) / 86400000);
+  if (days < w.earliestDays || days <= 0) return { kind: "late", earliest: earliestOf(w, at).at };
+  return { kind: "rate", rate: w.sessions / days };
 }
 
 /**
@@ -8456,10 +8183,6 @@ export default function ArabicTrainer() {
     [items, preview]
   );
   const settings = data.settings;
-  /* Puts the question indexes back as this render built them, for the deck
-     forecast, which installs its own while it plays a deck forward — see
-     deckForecast. */
-  const restoreIndexes = useCallback(() => installIndexes(asking, settings), [asking, settings]);
   /* The on-screen keys, opened from the button inside the answer field.
      Below `settings`, which it reads, and above every early return, which
      is where a hook has to be. */
@@ -10685,8 +10408,6 @@ export default function ArabicTrainer() {
                         collection={shown}
                         settings={settings}
                         perDay={perDay}
-                        restore={restoreIndexes}
-                        systems={systems}
                       />
                     </>
                   )}
@@ -11564,8 +11285,6 @@ export default function ArabicTrainer() {
             settings={settings}
             moves={data.moves}
             perDay={perDay}
-            restoreIndexes={restoreIndexes}
-            systems={systems}
             prep={prepOf(settings)}
             onPrep={savePrep}
           />
@@ -14783,63 +14502,12 @@ export function prepStatus(
   if (at >= prepStart(prep.date)) return "past";
   const cards = items.filter(prepDeckOf(prep.decks)).filter((it) => standing(cardStandings(it, settings)));
   if (!cards.length) return "empty";
-  return allLearnt(cards, settings) ? "done" : "active";
-}
-
-/* One number for each list of cards, so a forecast keyed on the cards can
-   tell a new list from the old one without comparing them. */
-const listIds: WeakMap<object, number> = new WeakMap();
-let nextListId = 1;
-function listId(list: object): number {
-  let id = listIds.get(list);
-  if (!id) {
-    id = nextListId++;
-    listIds.set(list, id);
-  }
-  return id;
-}
-
-/*
- * A forecast run a slice at a time, for as long as `key` stays the same.
- *
- * A changed key starts it again — after a short wait, which is also what
- * stops a date being typed from starting a forecast per keystroke. The
- * answer is `undefined` while it works.
- */
-function useStepped<R>(make: (() => { step: (ms: number) => boolean; result: () => R }) | null, key: string): R | undefined {
-  const [out, setOut] = useState<{ key: string; value: R } | null>(null);
-  useEffect(() => {
-    if (!make) return;
-    let stopped = false;
-    let timer = 0;
-    let run: { step: (ms: number) => boolean; result: () => R } | null = null;
-    const tick = () => {
-      if (stopped) return;
-      if (!run) run = make();
-      if (run.step(100)) {
-        setOut({ key, value: run.result() });
-        return;
-      }
-      timer = window.setTimeout(tick, 16);
-    };
-    timer = window.setTimeout(tick, 300);
-    return () => {
-      stopped = true;
-      window.clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return out && out.key === key ? out.value : undefined;
+  return workloadOf(cards, settings, at).left ? "active" : "done";
 }
 
 /** What a prep's forecast says, in a sentence. */
-export function readyWords(
-  answer: ReturnType<ReadyForecast["result"]> | undefined,
-  date: string,
-  perDay: number,
-): string {
+export function readyWords(answer: ReadyAnswer, date: string, perDay: number): string {
   const day = new Date(prepStart(date)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-  if (answer === undefined) return "Working out how much practice it takes…";
   if (answer.kind === "already") return "Every card in these decks is already learnt.";
   if (answer.kind === "late") {
     return answer.earliest === null
@@ -14857,8 +14525,6 @@ function PrepScreen({
   collection,
   settings,
   perDay,
-  restore,
-  systems,
   onSave,
   onBack,
 }: {
@@ -14867,8 +14533,6 @@ function PrepScreen({
   collection: Item[];
   settings: Settings;
   perDay: number;
-  restore: () => void;
-  systems: SystemSet[];
   onSave: (prep: Prep | null) => void;
   onBack: () => void;
 }) {
@@ -14878,21 +14542,13 @@ function PrepScreen({
   const tomorrow = dayKey(now() + 86400000);
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= tomorrow;
   const ready = name.trim() !== "" && dateOk && chosen.length > 0;
-  /* How much practice the choice takes, worked out as it is made. */
-  const answer = useStepped(
-    dateOk && chosen.length
-      ? () =>
-          readyForecast({
-            collection,
-            deckOf: prepDeckOf(chosen),
-            settings,
-            from: now(),
-            by: prepStart(date),
-            restore,
-            systems,
-          })
-      : null,
-    `${chosen.slice().sort().join("\u0001")}|${date}|${listId(collection)}`,
+  /* How much practice the choice takes, counted as it is made — see workloadOf. */
+  const answer = useMemo(
+    () =>
+      dateOk && chosen.length
+        ? readyFor(workloadOf(collection.filter(prepDeckOf(chosen)), settings), prepStart(date))
+        : null,
+    [dateOk, chosen, date, collection, settings],
   );
   return (
     <Screen title="Prep mode" onBack={onBack}>
@@ -14933,12 +14589,12 @@ function PrepScreen({
           empty="No decks to prepare yet."
         />
       </FormField>
-      {dateOk && chosen.length > 0 && (
+      {answer && (
         <div className="at-forecast at-prepready" aria-live="polite">
           <p>
             <span className="at-forecastpace">{readyWords(answer, date, perDay)}</span>
           </p>
-          <p className="at-forecastnote">This assumes you get every answer right, so allow a little more.</p>
+          <p className="at-forecastnote">An estimate, assuming you get every answer right, so allow a little more.</p>
         </div>
       )}
       <div className="at-row">
@@ -14963,49 +14619,30 @@ function PrepScreen({
 
 /*
  * The line under the home screen's prep button: days left, and whether the
- * learner's own pace gets them there — the deck forecast at their pace,
- * stopped at the prep's day.
+ * learner's own pace gets them there — the practice a day the prep needs
+ * (see readyFor) against what they have been doing.
  */
 function PrepLine({
   prep,
   collection,
   settings,
   perDay,
-  restore,
-  systems,
 }: {
   prep: Prep;
   collection: Item[];
   settings: Settings;
   perDay: number;
-  restore: () => void;
-  systems: SystemSet[];
 }) {
   const left = prepDaysLeft(prep.date);
-  const by = prepStart(prep.date);
-  const onPace = useStepped(
-    perDay > 0
-      ? () =>
-          deckForecast({
-            collection,
-            deckOf: prepDeckOf(prep.decks),
-            settings,
-            sessionsPerDay: perDay / SESSION_SIZE,
-            from: now(),
-            restore,
-            systems,
-            giveUpAfter: by - 1,
-          })
-      : null,
-    `${prep.decks.slice().sort().join("\u0001")}|${prep.date}|${perDay}|${listId(collection)}`,
+  const answer = useMemo(
+    () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings), prepStart(prep.date)),
+    [collection, settings, prep],
   );
   const days = left === 1 ? "1 day left" : `${left} days left`;
   const pace =
-    perDay <= 0
+    perDay <= 0 || answer.kind === "already"
       ? ""
-      : onPace === undefined
-      ? ""
-      : onPace !== null && onPace < by
+      : answer.kind === "rate" && perDay / SESSION_SIZE >= answer.rate
       ? " · on track at your pace"
       : " · you'll need more practice to be ready — Prep mode in Progress says how much";
   return <Help className="at-prepline">{days + pace}</Help>;
@@ -15016,12 +14653,9 @@ function PrepLine({
 
    Opened from a deck's tile under Progress: how far the deck has got, two
    dates for when it could all be learnt, and every card in it by where it
-   stands. The dates are the deck played forward by the app's own rules —
-   see deckForecast — so they follow any change to the rules by themselves.
+   stands. The dates are simple arithmetic over where its cards stand — see
+   workloadOf, and the note over it about keeping it in step with the rules.
    ------------------------------------------------------------------ */
-
-/* No number systems, as one list for every render. */
-const NO_SYSTEMS: SystemSet[] = [];
 
 /* The runs a deck's cards are listed in, least advanced first. */
 const DECK_RUNS = [
@@ -15080,106 +14714,20 @@ export function forecastWords(at: Millis | null, from: Millis = now()): string {
   return `${date} (${off})`;
 }
 
-/*
- * The two forecasts for a deck, worked out a slice at a time.
- *
- * Kept per deck until the cards change, so opening a deck twice does not
- * play it forward twice. `undefined` is still working; null is past the
- * two years a forecast looks ahead.
- */
-type ForecastEntry = { pace?: Millis | null; floor?: Millis | null; least?: number | null; perDay: number };
-const forecastCache: WeakMap<Item[], Map<string, ForecastEntry>> = new WeakMap();
-
-function useDeckForecast(
-  name: string,
-  collection: Item[],
-  settings: Settings,
-  perDay: number,
-  restore: () => void,
-  systems: SystemSet[],
-) {
-  const cached = forecastCache.get(collection)?.get(name);
-  const fresh = cached && cached.perDay === perDay ? cached : undefined;
-  const [pace, setPace] = useState<Millis | null | undefined>(fresh ? fresh.pace : undefined);
-  const [floor, setFloor] = useState<Millis | null | undefined>(fresh ? fresh.floor : undefined);
-  const [least, setLeast] = useState<number | null | undefined>(fresh ? fresh.least : undefined);
-  useEffect(() => {
-    const byDeck = forecastCache.get(collection) || new Map();
-    forecastCache.set(collection, byDeck);
-    const kept = byDeck.get(name);
-    if (kept && kept.perDay === perDay && kept.pace !== undefined && kept.floor !== undefined) {
-      setPace(kept.pace);
-      setFloor(kept.floor);
-      setLeast(kept.least);
-      return;
-    }
-    const entry: ForecastEntry = { perDay };
-    byDeck.set(name, entry);
-    setPace(undefined);
-    setFloor(undefined);
-    setLeast(undefined);
-    const from = now();
-    const deckOf = (it: Item) => (it.tags || []).includes(name);
-    const sessions = perDay / SESSION_SIZE;
-    /* Nothing to play forward at a pace of nothing. */
-    const paceRun =
-      sessions > 0 ? deckForecast({ collection, deckOf, settings, sessionsPerDay: sessions, from, restore, systems }) : null;
-    if (!paceRun) {
-      entry.pace = null;
-      setPace(null);
-    }
-    const floorRun = earliestForecast({ collection, deckOf, settings, from, restore, systems });
-    let stopped = false;
-    let timer = 0;
-    /* A slice at a time, so the screen answers a tap while the deck is
-       played forward: about a tenth of a second of work, then a breath. */
-    const tick = () => {
-      if (stopped) return;
-      if (paceRun && entry.pace === undefined) {
-        if (paceRun.step(100)) {
-          entry.pace = paceRun.result();
-          setPace(entry.pace);
-        }
-      } else if (floorRun.step(100)) {
-        entry.least = floorRun.rate();
-        entry.floor = floorRun.result();
-        setLeast(entry.least);
-        setFloor(entry.floor);
-        return;
-      }
-      timer = window.setTimeout(tick, 16);
-    };
-    timer = window.setTimeout(tick, 60);
-    return () => {
-      stopped = true;
-      window.clearTimeout(timer);
-      /* Half a forecast is not an answer; the next opening starts again. */
-      if (entry.pace === undefined || entry.floor === undefined) byDeck.delete(name);
-    };
-  }, [name, collection, settings, perDay, restore, systems]);
-  return { pace, floor, least };
-}
-
 function DeckScreen({
   name,
   cards,
-  collection,
   progressOf,
   settings,
   perDay,
-  restore,
-  systems,
   onBack,
   onCard,
 }: {
   name: string;
   cards: Item[];
-  collection: Item[];
   progressOf: Map<string, Standing | null>;
   settings: Settings;
   perDay: number;
-  restore: () => void;
-  systems: SystemSet[];
   onBack: () => void;
   onCard: (it: Item) => void;
 }) {
@@ -15187,8 +14735,11 @@ function DeckScreen({
   const learnt = shown.filter((it) => progressOf.get(it.id)?.status === "done").length;
   const pct = shown.length ? Math.round((learnt / shown.length) * 100) : 0;
   const allDone = shown.length > 0 && learnt === shown.length;
-  const { pace, floor, least } = useDeckForecast(name, collection, settings, perDay, restore, systems);
-  const when = (t: Millis | null | undefined) => (t === undefined ? "Working it out…" : `learnt by ${forecastWords(t)}`);
+  /* What is left and how soon it could be done — see workloadOf. */
+  const work = useMemo(() => workloadOf(cards, settings), [cards, settings]);
+  const pace = learntAtPace(work, perDay / SESSION_SIZE);
+  const floor = earliestOf(work);
+  const when = (t: Millis | null) => `learnt by ${forecastWords(t)}`;
   return (
     <Screen title={name} onBack={onBack}>
       <div className="at-deckhead">
@@ -15218,20 +14769,13 @@ function DeckScreen({
           </p>
           <p>
             <b>Earliest possible</b>
-            {floor === undefined ? (
-              <span className="at-forecastdate">Working it out…</span>
-            ) : floor === null || least == null ? (
-              <span className="at-forecastdate">more than two years away, however much you practise</span>
-            ) : (
-              <>
-                <span className="at-forecastpace">{leastWords(least)} would get it</span>
-                <span className="at-forecastdate">{when(floor)}</span>
-                <span className="at-forecastpace">Practising more than that won't bring it sooner.</span>
-              </>
-            )}
+            <span className="at-forecastpace">{leastWords(floor.rate)} would get it</span>
+            <span className="at-forecastdate">{when(floor.at)}</span>
+            <span className="at-forecastpace">Practising more than that won't bring it sooner.</span>
           </p>
           <p className="at-forecastnote">
-            Both assume you practise only this deck and get every answer right, so the real date will be later.
+            Both are estimates, assuming you practise only this deck and get every answer right, so the real date
+            will be a little later.
           </p>
         </div>
       )}
@@ -15268,8 +14812,6 @@ function ProgressTab({
   settings,
   moves,
   perDay = 0,
-  restoreIndexes,
-  systems = NO_SYSTEMS,
   prep = null,
   onPrep,
 }: {
@@ -15280,10 +14822,6 @@ function ProgressTab({
   moves?: Record<string, DayMoves>;
   /** Questions answered on a typical recent day — see `typicalDay`. */
   perDay?: number;
-  /** Puts the question indexes back after a deck forecast — see deckForecast. */
-  restoreIndexes?: () => void;
-  /** The teachers' number systems, which a forecast deals with as a session does. */
-  systems?: SystemSet[];
   /** The learner's prep, if they have one — see Prep. */
   prep?: Prep | null;
   /** Sets, changes or clears it. */
@@ -15294,7 +14832,6 @@ function ProgressTab({
   const [prepOpen, setPrepOpen] = useState(false);
   /* The deck open on its own screen, or none. */
   const [deckOpen, setDeckOpen] = useState<string>("");
-  const noRestore = useCallback(() => {}, []);
 
   /*
    * Where each card stands, and how far up it has got.
@@ -15638,8 +15175,6 @@ function ProgressTab({
           collection={items}
           settings={settings}
           perDay={perDay}
-          restore={restoreIndexes || noRestore}
-          systems={systems}
           onSave={(p) => {
             if (onPrep) onPrep(p);
             setPrepOpen(false);
@@ -15652,12 +15187,9 @@ function ProgressTab({
         <DeckScreen
           name={deckOpen}
           cards={items.filter((it) => (it.tags || []).includes(deckOpen))}
-          collection={items}
           progressOf={progressOf}
           settings={settings}
           perDay={perDay}
-          restore={restoreIndexes || noRestore}
-          systems={systems}
           onBack={() => setDeckOpen("")}
           onCard={(it) => setViewing(it)}
         />
