@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.289 — 1 October 2026
+## 0.290 — 1 October 2026
 
 **Questions no longer give away which form is wanted; the answer says it instead.**
 
@@ -25,6 +25,20 @@ and moves once per batch of work you would notice, not once per commit.
   appears under the Arabic sentence, where it gave away the English
   answer. It still appears when you're writing the sentence from English,
   and always with the answer.
+
+## 0.289 — 1 October 2026
+
+**A daily counter under Prep for ….**
+
+- Under the **Prep for …** button, a new line counts today's sessions
+  against what today needs to stay on track for your date — for example
+  "Today: 2 of 3 sessions done · 1 more to stay on track", and "on track
+  for today" once you've done enough.
+- Today's goal holds steady through the day rather than shrinking as you
+  practise. It counts all of today's practice, measured the same way as
+  "you're doing about 2 sessions a day".
+- If there isn't enough time left to learn everything, it just says how
+  many sessions you've done today.
 
 ## 0.288 — 1 October 2026
 

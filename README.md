@@ -288,8 +288,10 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   days than the cards can take. The home screen offers "Prep for …" while
   the prep is still to come and not yet learnt; it is `begin` with the
   prep's decks in place of the chosen deck, so every rule of an ordinary
-  session holds. Under it, the days left and whether the learner's own
-  pace gets them there.
+  session holds. Under it, today's sessions against the day's goal
+  (`prepToday`: the rate with today's sessions put back, so the goal does
+  not shrink as it is worked towards), then the days left and whether the
+  learner's own pace gets them there.
 - **A deck says when it could all be learnt — an estimate, by
   arithmetic.** A deck's tile under Progress opens the deck on a screen of
   its own: how far it has got, every card in it by where it stands, and two

@@ -10403,8 +10403,9 @@ export default function ArabicTrainer() {
                   </div>
                   {/* A session for the prep, while there is one to prepare
                       for — see Prep. Drawn from its decks alone, and said
-                      with how long is left and whether the learner's pace
-                      gets them there. */}
+                      with today's sessions against today's goal, how long
+                      is left and whether the learner's pace gets them
+                      there. */}
                   {homePrep && (
                     <>
                       <div className="at-row at-mt3">
@@ -10417,6 +10418,7 @@ export default function ArabicTrainer() {
                         collection={shown}
                         settings={settings}
                         perDay={perDay}
+                        today={(data.log || {})[dayKey()] || 0}
                       />
                     </>
                   )}
@@ -14692,27 +14694,61 @@ function PrepScreen({
 }
 
 /*
- * The line under the home screen's prep button: days left, and whether the
- * learner's own pace gets them there — the practice a day the prep needs
- * (see readyFor) against what they have been doing.
+ * The lines under the home screen's prep button: today's sessions against
+ * what today needs, then days left and whether the learner's own pace gets
+ * them there — the practice a day the prep needs (see readyFor) against
+ * what they have been doing.
  */
 function PrepLine({
   prep,
   collection,
   settings,
   perDay,
+  today,
 }: {
   prep: Prep;
   collection: Item[];
   settings: Settings;
   perDay: number;
+  today: number;
 }) {
   const left = prepDaysLeft(prep.date);
   const answer = useMemo(
     () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings), prepStart(prep.date)),
     [collection, settings, prep],
   );
-  return <Help className="at-prepline">{prepLineWords(left, answer, perDay)}</Help>;
+  return (
+    <>
+      <Help className="at-preptoday">{prepTodayWords(left, answer, today)}</Help>
+      <Help className="at-prepline">{prepLineWords(left, answer, perDay)}</Help>
+    </>
+  );
+}
+
+/**
+ * Today's sessions for the prep, and the sessions today that keep it on
+ * track. Sessions are the log's questions over SESSION_SIZE, as the pace is,
+ * and count all of today's practice.
+ *
+ * The rate readyFor gives shrinks as today's work is done, so read live it
+ * would move the goal as the learner walks towards it. Today's goal puts
+ * today's sessions back first — what the rate was this morning, near enough
+ * — and is rounded up to whole sessions. Null where there is no rate to keep
+ * to: too late for one, or nothing left to learn.
+ */
+export function prepToday(left: number, answer: ReadyAnswer, questionsToday: number): { done: number; goal: number | null } {
+  const sessions = questionsToday / SESSION_SIZE;
+  const done = Math.floor(sessions + 1e-9);
+  if (answer.kind !== "rate" || left <= 0) return { done, goal: null };
+  return { done, goal: Math.max(1, Math.ceil(answer.rate + sessions / left - 1e-9)) };
+}
+
+/** The home screen's daily counter, under the prep button. */
+export function prepTodayWords(left: number, answer: ReadyAnswer, questionsToday: number): string {
+  const { done, goal } = prepToday(left, answer, questionsToday);
+  if (goal === null) return done ? `Today: ${plural(done, "session")} done` : "Today: no sessions done yet";
+  const of = `Today: ${done} of ${plural(goal, "session")} done`;
+  return done >= goal ? `${of} · on track for today` : `${of} · ${goal - done} more to stay on track`;
 }
 
 /**
