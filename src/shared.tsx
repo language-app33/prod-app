@@ -18,7 +18,7 @@ import type { Reader, TableGroup } from "./card-facts.ts";
 import { askLine, A_SENTENCE, blanksOn, cellTitle, CLIP_KINDS, combosOf, dimsSaid, dimText, EXAMPLES_CEILING,
   examplesOf, fillersOn, IN_NO_DECK, isTableCell, lexicalKeys, lexicalLabel, NO_PART, NOT_DRILLED,
   rowsLine, tablesOn, tableTitle, unnamedOn } from "./card-facts.ts";
-import { colOf, personsOf, rowOf, slotRows, tensesOf } from "./verbs.ts";
+import { colOf, NO_PARTNER, personsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
 import { isOffline, watchNet } from "./net.ts";
 /* A teacher's numbers and their clock, which arrive with the material and
    become cards on the way in. Reached through the registry, never by
@@ -2252,10 +2252,13 @@ function ReadBlanks({ card, lang, cards }: {
            card's own words. Silent where it admits every tense, which is
            what a blank nobody has narrowed means. */
         const only = rowsLine(lang, slotRows(lead, slot));
+        /* And which blank it agrees with, where the teacher linked it. */
+        const link = slotLinks(lead)[slot] || "";
         return (
           <ReadRow key={slot} label={<span className="at-slot">{slot}</span>}>
             <>
             {only ? <p className="at-hint">{`${slot} · ${only}`}</p> : null}
+            {link ? <p className="at-hint">{`${slot} · ${link === NO_PARTNER ? "nothing" : link}`}</p> : null}
             {!fillers ? null : words.length ? (
               <ul className="at-filllist">
                 {words.slice(0, FILLS_SHOWN).map((value, i) => (
@@ -3751,6 +3754,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        teacher had unticked. The teacher's review list is built from what
        the teacher narrowed, so the two have to agree. */
     ...(f.tenses && typeof f.tenses === "object" ? { tenses: f.tenses } : null),
+    /* And which blank each of its blanks agrees with, where the teacher
+       linked any — see slotLinks. The review list reads it, so the device
+       has to as well. */
+    ...(f.agrees && typeof f.agrees === "object" ? { agrees: f.agrees } : null),
     /* What each accepted answer is, grammatically. Read rather than copied,
        so a card the server has not been asked to save since the change —
        one set of values flat on the form — arrives with each of its answers

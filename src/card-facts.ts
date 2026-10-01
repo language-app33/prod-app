@@ -51,14 +51,14 @@
 
 import type { Form, GrammarDim, Lang, VerbSpec } from "./types.ts";
 import { answersOf, splitAlternatives } from "./answers.ts";
-import { answerFields, BARE_ROW, blankAdmits, categoryLabel, endRowsOf, GRAMMAR, kindOf, LANGUAGES, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
+import { agreementOf, answerFields, BARE_ROW, blankAdmits, categoryLabel, endRowsOf, GRAMMAR, kindOf, LANGUAGES, lendsForm, tablesOf, tensedOf, verbOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { sentencesOf } from "./review.ts";
 import { cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
-import { citationOf, colOf, isCell, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotRows, tensesOf } from "./verbs.ts";
+import { citationOf, colOf, isCell, NO_PARTNER, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
 
 /* A card, a form of one, a turn of one, or a half-written draft — open for
    the reason the other pure modules are: the same questions are asked of a
@@ -408,6 +408,32 @@ export function tensedBlanks(
     if (!spec) continue;
     const names = fillsOf(card, kindOf(card, lang));
     for (const slot of holes) if (!out.has(slot) && names.includes(slot)) out.set(slot, spec);
+    if (out.size === holes.length) break;
+  }
+  return out;
+}
+
+/**
+ * Which of a form's blanks have words behind them that change to agree
+ * with another blank — an adjective, a demonstrative, a verb with more
+ * than one person — and so can be told which blank to follow. A blank of
+ * nouns or names decides and never follows, and is asked nothing.
+ */
+export function agreeingBlanks(
+  form: Held | null | undefined,
+  pool: Held[],
+  lang: Lang | null | undefined,
+): Set<string> {
+  const out = new Set<string>();
+  const holes = slotsOf(form);
+  if (holes.length < 2) return out;
+  for (const card of pool || []) {
+    if (lang && card.lang && card.lang !== lang.id) continue;
+    const category = str(card.category);
+    const tensed = tensedOf(lang, category);
+    if (!agreementOf(lang, category) && !(tensed && personsOf(tensed).length > 1)) continue;
+    const names = fillsOf(card, kindOf(card, lang));
+    for (const slot of holes) if (names.includes(slot)) out.add(slot);
     if (out.size === holes.length) break;
   }
   return out;
@@ -883,6 +909,16 @@ export const CARD_FACTS: FieldRule[] = [
       }
       return out;
     },
+  },
+  {
+    key: "agrees",
+    on: "form",
+    label: "Which blank each blank agrees with",
+    what: "Where a sentence links a blank to the one it takes its form from — an adjective to the verb, where the language drops the pronoun. A blank not linked agrees with the first other blank; one linked to nothing goes through every form in turn.",
+    reader: "both",
+    shown: (value) => Object.entries(slotLinks({ agrees: value })).map(
+      ([slot, to]) => `${slot} · ${to === NO_PARTNER ? "nothing" : to}`,
+    ),
   },
   {
     key: "col",

@@ -1809,19 +1809,36 @@ export const cardDims = (
  * is addressed to, never who a noun in its subject turns out to be. So a
  * plural filler still reaches "they", as it always did.
  */
+/*
+ * What each person is to a word that agrees with it — `is` on a column.
+ *
+ * An adjective's forms are named by gender and number, a verb's by
+ * person, and a sentence that links one to the other — عطشان، بدي مي,
+ * with no pronoun, the adjective following the verb — has to cross from
+ * one to the other. So: *I (m)*, *you (m)* and *he* are a masculine
+ * singular, which is the adjective's own word; *I (f)*, *you (f)* and
+ * *she* the feminine; *we*, *you (pl)* and *they* a plural of people, the
+ * plural. Masculine as well, for Hebrew, whose plural adjective has two
+ * genders and whose table does not tell the plural persons apart — the
+ * way its *I* stays masculine with verbs too.
+ */
+const MASC_ONE = { number: "singular", gender: "masculine", human: "person" };
+const FEM_ONE = { number: "singular", gender: "feminine", human: "person" };
+const PEOPLE = { number: "plural", gender: "masculine", human: "person" };
+
 const SUBJECT_PERSONS: VerbPerson[] = [
-  { id: "i", label: "I" },
-  { id: "you-m", label: "you (m)" },
-  { id: "you-f", label: "you (f)" },
-  { id: "he", label: "he", picks: { number: "singular", gender: "masculine" } },
-  { id: "she", label: "she", picks: { number: "singular", gender: "feminine" } },
-  { id: "we", label: "we" },
+  { id: "i", label: "I", is: MASC_ONE },
+  { id: "you-m", label: "you (m)", is: MASC_ONE },
+  { id: "you-f", label: "you (f)", is: FEM_ONE },
+  { id: "he", label: "he", picks: { number: "singular", gender: "masculine" }, is: MASC_ONE },
+  { id: "she", label: "she", picks: { number: "singular", gender: "feminine" }, is: FEM_ONE },
+  { id: "we", label: "we", is: PEOPLE },
   /* Between "we" and "they", where the paradigm puts it and where the
      pronouns on the end of a word already put theirs: a column is a column
      of two tables now, and a teacher reading down one should not meet them
      in two different orders. */
-  { id: "you-pl", label: "you (pl)" },
-  { id: "they", label: "they", picks: { number: "plural" } },
+  { id: "you-pl", label: "you (pl)", is: PEOPLE },
+  { id: "they", label: "they", picks: { number: "plural" }, is: PEOPLE },
 ];
 
 /*
@@ -1849,8 +1866,8 @@ const SUBJECT_PERSONS: VerbPerson[] = [
  * different shape of table and wants deciding on its own.
  */
 const AR_SUBJECT_PERSONS: VerbPerson[] = [
-  { id: "i", label: "I (m)" },
-  { id: "i-f", label: "I (f)" },
+  { id: "i", label: "I (m)", is: MASC_ONE },
+  { id: "i-f", label: "I (f)", is: FEM_ONE },
   ...SUBJECT_PERSONS.slice(1),
 ];
 

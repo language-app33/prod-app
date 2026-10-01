@@ -465,6 +465,22 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   cell in turn as it always did, and so does one in a language whose
   table has one column.
 
+  **And a blank can be told which other blank it agrees with.** The first
+  other blank is right for "{{noun}} {{adjective}}" and wrong for
+  Palestinian Arabic's عطشان، بدي مي, which drops the pronoun: there the
+  adjective has to follow the verb, which comes second. So a sentence may
+  link a blank to another by name, or to nothing (`NO_PARTNER`), stored as
+  `agrees` beside `tenses` and read through `slotLinks` and `partnerOf` in
+  `src/verbs.ts`. A blank something follows is never turned round to
+  follow it back, so the verb an adjective is linked to goes through its
+  persons; the editor offers no link that would make a ring, and a blank
+  nobody linked keeps the old rule. What the adjective reads off a verb or
+  a pronoun is the person it is in, and what the language says that
+  person is — `is` on each column: *I (f)*, *you (f)* and *she* a feminine
+  singular, *we*, *you (pl)* and *they* a plural of people (`asSubject`).
+  `agreeTook` fills a blank after the one it follows, so a chain reads
+  the form its partner ended up as.
+
   **A pronoun reads three ways in English, and the blank says which.**
   Arabic and Hebrew drop *to be* in the present — أنا تعبان is *I am
   tired* — and ask a question without moving anything, where English turns

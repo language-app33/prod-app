@@ -17,7 +17,7 @@ import { cleanRoles, memberName } from "../../src/cast.ts";
 import { formsOf } from "../../src/cards.ts";
 /* And which tenses a sentence's blanks ask their verbs for, read the one
    way the app reads it. */
-import { slotRows } from "../../src/verbs.ts";
+import { NO_PARTNER, slotLinks, slotRows } from "../../src/verbs.ts";
 import { holedParts, isSentenceKey, reviewOf } from "../../src/review.ts";
 /* A number system and a time system are read at this boundary the way an
    answer is: hand-written, total, and silent about why. See
@@ -1382,6 +1382,10 @@ export default async (req) => {
                which is every card written before the teacher was asked
                and every frame that wants any tense. */
             ...slotTenses(f),
+            /* And which blank each of its blanks agrees with, where the
+               teacher linked any — see slotLinks in src/verbs.ts, which
+               this is read through. Absent where nothing is linked. */
+            ...slotAgrees(f),
             /* Where this form sits in the card's verb table, when it is a
                cell of one. Stored as given, like the grammar values above
                and for the same reason: which rows and columns a language
@@ -1651,6 +1655,21 @@ export default async (req) => {
           if (rows.length) out[slot] = rows;
         }
         return Object.keys(out).length ? { tenses: out } : {};
+      }
+
+      /* Which blank a sentence's blanks agree with, through the answer the
+         app reads it through, every name narrowed like the names between
+         braces and the whole capped like the tenses above. */
+      /** @param {Record<string, any>} form */
+      function slotAgrees(form) {
+        /** @type {Record<string, string>} */
+        const out = {};
+        for (const [name, to] of Object.entries(slotLinks(form)).slice(0, MAX_FILLS)) {
+          const slot = slotName(name);
+          const target = to === NO_PARTNER ? NO_PARTNER : slotName(to);
+          if (slot && target && target !== slot) out[slot] = target;
+        }
+        return Object.keys(out).length ? { agrees: out } : {};
       }
 
       /*
@@ -1965,7 +1984,7 @@ export default async (req) => {
        */
       if (!reviewOf(saved) && holedParts(saved).length) {
         const framed = (/** @type {any} */ c) =>
-          JSON.stringify(holedParts(c).map((f) => [f.ar, f.lat, f.en, f.tenses || null, f.row || ""]));
+          JSON.stringify(holedParts(c).map((f) => [f.ar, f.lat, f.en, f.tenses || null, f.row || "", f.agrees || null]));
         if (!existing || framed(existing) !== framed(saved)) {
           saved.review = { ok: [], no: [], at: Date.now(), by: mine };
         }

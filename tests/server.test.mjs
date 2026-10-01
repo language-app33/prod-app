@@ -408,6 +408,34 @@ test("a sentence's blanks come back saying which tenses they ask for", async () 
   assert.equal("tenses" in lead(open.json.card), false, "no empty map on a frame that narrows nothing");
 });
 
+test("a sentence's blanks come back saying which blank each agrees with", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rami" } });
+  const key = made.json.key;
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: carded({
+        ar: "{{adjective}}، {{verb}} مي",
+        en: "{{adjective}}, {{verb}} water",
+        lat: "{{adjective}}, {{verb}} mayy",
+        agrees: { " Adjective ": "VERB", verb: "-", self: "self", "": "x" },
+      }, [], { sentence: true }),
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.deepEqual(lead(saved.json.card).agrees, { adjective: "verb", verb: "-" },
+    "names narrowed, nothing kept that links nothing");
+  const open = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: carded({ ar: "{{name}} {{verb}}", en: "{{name}} {{verb}}", lat: "{{name}} {{verb}}" }, [], { sentence: true }),
+      decks: [],
+    },
+  });
+  assert.equal("agrees" in lead(open.json.card), false, "no empty map on a sentence that links nothing");
+});
+
 /*
  * And what kind of card it is, which is settled when the card is made.
  *

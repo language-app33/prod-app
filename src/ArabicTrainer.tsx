@@ -168,6 +168,7 @@ import {
   hasCells,
   ownSlot,
   partnerOf,
+  slotLinks,
   citedCell,
   isCitation,
   openRows,
@@ -1922,6 +1923,7 @@ function fillFor(
     drawn,
     (v) => VALUE_OWNER.get(refOf(v)) || null,
     (c) => LANGUAGES[String(c.lang || "")] || activeLang(),
+    slotLinks(unit),
   );
   if (!took) return null;
   if (card && slots.length !== drawn.length) {

@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.299 — 1 October 2026
+
+**A blank in a sentence can be told which other blank to agree with.**
+
+- Under each blank whose words change form — verbs, adjectives, "this" and
+  "that" — the Blanks section now asks what it agrees with: the first other
+  blank (as before, and still the default), any other blank in the
+  sentence, or nothing, which goes through every form in turn.
+- So a sentence with no pronoun works: link the adjective in
+  "{adjective}، {verb} مي" to the verb, and it is met as عطشان، بدي مي,
+  عطشانة، بدها مي, عطشانين، بدنا مي and so on. Before, it only ever came
+  out in the verb's dictionary form.
+- An adjective beside a pronoun now agrees with every pronoun, not only
+  "she": إنتِ عطشانة, إحنا عطشانين, هم عطشانين.
+- Sentences already written are met exactly as before until a blank in
+  them is linked.
+
 ## 0.298 — 1 October 2026
 
 **The prep tile's practice line is shorter.**

@@ -156,6 +156,15 @@ export interface VerbPerson {
    * wins.
    */
   picks?: Record<string, string> | Record<string, string>[];
+  /**
+   * What this person is to a word that agrees with it — *we* is a plural
+   * of people, *you (f)* a feminine singular — so an adjective linked to a
+   * verb, or standing beside a pronoun, takes the form that person calls
+   * for. The other direction from `picks`, and kept apart from it on
+   * purpose: picks decide which column a noun calls for, and giving *I
+   * (f)* the picks of *she* would have a feminine noun call for *I*.
+   */
+  is?: Record<string, string>;
 }
 
 /** One row: when it happened, or what mood it is in. */
@@ -689,6 +698,19 @@ export interface CardForm {
    * same blanks, so the editor writes the same map onto each of them.
    */
   tenses?: Record<string, string[]>;
+  /**
+   * Which other blank each of a sentence's blanks agrees with, where the
+   * teacher has said: the blank's name, and the name of the blank it
+   * follows — or `NO_PARTNER` for one that follows nothing and goes
+   * through all its forms in turn. Palestinian Arabic drops the pronoun
+   * before an adjective — عطشان، بدي مي — so the adjective has to follow
+   * the verb, which the first-other-blank rule cannot say.
+   *
+   * **Absent means the rule as it was** — the first other blank — so a
+   * sentence nobody has linked is filled exactly as before. See slotLinks
+   * and partnerOf in src/verbs.ts.
+   */
+  agrees?: Record<string, string>;
 }
 
 /**

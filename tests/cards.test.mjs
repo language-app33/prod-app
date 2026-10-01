@@ -1622,6 +1622,59 @@ test("a verb drawn into a sentence beside a pronoun is swapped for the person th
   assert.equal(must(agreeTook({ pronoun: she, verb: own }, ["pronoun", "verb"], ownerOf, () => ar), "filled").verb.ar, "حكى");
 });
 
+/*
+ * عطشان، بدي مي: no pronoun, so the adjective is linked to the verb. The
+ * verb goes through its persons and the adjective takes the form each one
+ * calls for. And beside a pronoun, every person now reaches the adjective
+ * — إنتِ عطشانة, إحنا عطشانين — not only *she*.
+ */
+test("an adjective linked to a verb takes the form the verb's person calls for", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const thirsty = /** @type {any} */ ({
+    id: "thirsty", lang: "ar-PS", category: "adjective",
+    forms: [
+      { id: "thirsty", ar: "عطشان", en: "thirsty", lat: "" },
+      { id: "th-f", ar: "عطشانة", en: "thirsty", lat: "", row: "agreement", col: "feminine" },
+      { id: "th-pl", ar: "عطشانين", en: "thirsty", lat: "", row: "agreement", col: "plural" },
+    ],
+  });
+  const cells = { i: "بدي", "i-f": "بدي", "you-m": "بدك", "you-f": "بدك", he: "بدو", she: "بدها", we: "بدنا", "you-pl": "بدكم", they: "بدهم" };
+  const want = /** @type {any} */ ({
+    id: "want", lang: "ar-PS", category: "verb",
+    forms: [{ id: "want", ar: "بدو", en: "to want", lat: "" }].concat(
+      Object.entries(cells).map(([col, w]) => ({ id: `want-${col}`, ar: w, en: "want", lat: "", row: "present", col }))),
+  });
+  const owners = /** @type {Record<string, any>} */ ({});
+  for (const card of [thirsty, want]) for (const form of card.forms) owners[form.id] = { card, form };
+  const ownerOf = (/** @type {any} */ v) => owners[v.id] || null;
+  const own = { id: "thirsty", ar: "عطشان", en: "thirsty", lat: "" };
+  const verb = (/** @type {string} */ col) => ({ id: `want-${col}`, ar: cells[/** @type {keyof typeof cells} */ (col)], en: "want", lat: "" });
+  const slots = ["adjective", "verb"];
+  const links = { adjective: "verb" };
+  const expect = { i: "عطشان", "i-f": "عطشانة", "you-m": "عطشان", "you-f": "عطشانة", he: "عطشان", she: "عطشانة", we: "عطشانين", "you-pl": "عطشانين", they: "عطشانين" };
+  for (const [col, adjective] of Object.entries(expect)) {
+    const took = must(agreeTook({ adjective: own, verb: verb(col) }, slots, ownerOf, () => ar, links), col);
+    assert.equal(took.adjective.ar, adjective, col);
+    assert.equal(took.verb.ar, cells[/** @type {keyof typeof cells} */ (col)], `${col}: the verb is left as drawn`);
+  }
+  /* Unlinked, the verb waits on an adjective that has no person to give,
+     which is the sentence nobody could be asked before. */
+  assert.equal(agreeTook({ adjective: own, verb: verb("we") }, slots, ownerOf, () => ar), null);
+
+  /* Beside a pronoun, whichever it is, and through a chain: the adjective
+     follows the verb, which follows the pronoun. */
+  const pronoun = (/** @type {string} */ person) => ({ id: `p-${person}`, ar: "x", en: "y", lat: "", grammar: { person } });
+  const chain = { adjective: "verb", verb: "pronoun" };
+  const three = ["adjective", "pronoun", "verb"];
+  for (const [col, adjective] of Object.entries(expect)) {
+    const beside = must(agreeTook({ pronoun: pronoun(col), adjective: own }, ["pronoun", "adjective"], ownerOf, () => ar), col);
+    assert.equal(beside.adjective.ar, adjective, `beside ${col}`);
+    const chained = must(agreeTook({ adjective: own, pronoun: pronoun(col), verb: verb("i") }, three, ownerOf, () => ar, chain), col);
+    assert.equal(chained.verb.ar, cells[/** @type {keyof typeof cells} */ (col)], `the verb follows ${col}`);
+    assert.equal(chained.adjective.ar, adjective, `and the adjective the verb, for ${col}`);
+  }
+});
+
 test("an adjective or a verb after هاد agrees with the noun, not with هاد", () => {
   const ar = LANGUAGES["ar-PS"];
   const agreeing = (/** @type {string} */ id, /** @type {string} */ category,

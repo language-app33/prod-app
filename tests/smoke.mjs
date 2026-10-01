@@ -5421,7 +5421,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        ticks; a language whose verbs take one form would be offered none
        either. */
     {
-      const tenseRows = () => inHalf(HOLES, ".at-ticklist .at-tickrow");
+      /* The ticks, not the radio buttons beside them saying which blank
+         each agrees with. */
+      const tenseRows = () => inHalf(HOLES, ".at-ticklist .at-tickrow")
+        .filter((r) => r.querySelector("input[type=checkbox]"));
       const tenseNames = () => tenseRows()
         .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
       const tenseRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
@@ -5439,6 +5442,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("a blank that verbs fill is asked which tenses it wants them in",
         JSON.stringify(tenseNames()) === JSON.stringify(["present", "past", "command"]),
         tenseNames().join(", ") || "(nothing asked)");
+      /* And which blank the verb agrees with: the first other, until the
+         teacher links it to another or to nothing. */
+      const linkRows = () => inHalf(HOLES, ".at-ticklist .at-tickrow")
+        .filter((r) => r.querySelector("input[type=radio][name='agrees-verb']"))
+        .map((r) => (r.textContent || "").replace(/\s+/g, " ").trim());
+      check("and which blank it agrees with, the first other one until it says",
+        linkRows().length === 3 && /first other blank/.test(linkRows()[0]) && /friend/.test(linkRows()[0])
+          && /Nothing/.test(linkRows()[2]),
+        linkRows().join(" | ") || "(nothing asked)");
       check("and says which blank it is about, and that nothing ticked is any tense",
         /verb/.test(tenseSaid()) && /Any tense/.test(tenseSaid()),
         tenseSaid() || "(nothing said)");
