@@ -213,6 +213,11 @@ test("filtering by which decks a card is in, and which it is not", () => {
   assert.deepEqual(ids({ deckMode: "in", deckIds: ["gone"] }), []);
   assert.deepEqual(ids({ deckMode: "out", deckIds: ["gone"] }).length, list.length);
 
+  /* In no deck at all: an empty list and no list at all are the same
+     answer, and no deck needs ticking for it. */
+  assert.deepEqual(ids({ deckMode: "none" }), ["loose", "never-in-one"]);
+  assert.deepEqual(ids({ deckMode: "none", deckIds: ["d1"] }), ["loose", "never-in-one"], "ticks left over change nothing");
+
   /* And it narrows alongside the others rather than instead of them. */
   const heard = [
     card({ id: "quiet", decks: ["d1"] }),

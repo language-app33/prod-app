@@ -4140,6 +4140,26 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
 }
 
 /*
+ * A card list's filter as it starts, narrowing nothing — and what "Clear
+ * all filters" puts it back to.
+ */
+export const NO_CARD_FILTER = {
+  audio: "any",
+  forms: "any",
+  /* Which decks a card is in: "any" until a mode is picked, and narrowing
+     nothing until a deck is ticked — or "none", the cards in no deck. */
+  deckMode: "any",
+  deckIds: [] as string[],
+  /* And which side of a blank it is on — the sentence that leaves one,
+     or the word that fills it — with the blanks to keep, where the
+     teacher has named any. */
+  blankMode: "any",
+  blankNames: [] as string[],
+  /* And where a card stands with review — see filterCards. */
+  review: "any",
+};
+
+/*
  * What a card list leaves out.
  *
  * `deckMode` is "in" or "out" against `deckIds`: the cards that are in any
@@ -4147,6 +4167,11 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
  * than all, because that is what picking three decks reads as — show me
  * these three — and "in all of them at once" is a question nobody asked of a
  * deck list.
+ *
+ * "none" is the third answer and needs no decks ticked: the cards in no
+ * deck at all, which therefore reach no student. A card's deck list is the
+ * decks that exist and that the teacher can see, so one whose only deck was
+ * deleted is in none.
  *
  * A mode with no decks chosen narrows nothing. It is the state the filter is
  * in for as long as it takes to tick the first box, and hiding every card
@@ -4189,6 +4214,7 @@ export function filterCards(
     if (review === "waiting" && !waiting.has(c.id)) return false;
     if (review === "sentences" && !needsReview(c)) return false;
     if (forms === "several" && cardFormCount(c) < 2) return false;
+    if (deckMode === "none" && (c.decks || []).length) return false;
     if (byDeck) {
       const inOne = (c.decks || []).some((id) => deckIds.includes(id));
       if (deckMode === "in" ? !inOne : inOne) return false;
@@ -4616,21 +4642,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
      default, because the card just made is the one most likely wanted. */
   const [sortKey, setSortKey] = useState("changed");
   const [newestFirst, setNewestFirst] = useState(true);
-  const [cardFilter, setCardFilter] = useState({
-    audio: "any",
-    forms: "any",
-    /* Which decks a card is in: "any" until a mode is picked, and narrowing
-       nothing until a deck is ticked. */
-    deckMode: "any",
-    deckIds: [] as string[],
-    /* And which side of a blank it is on — the sentence that leaves one,
-       or the word that fills it — with the blanks to keep, where the
-       teacher has named any. */
-    blankMode: "any",
-    blankNames: [] as string[],
-    /* And where a card stands with review — see filterCards. */
-    review: "any",
-  });
+  const [cardFilter, setCardFilter] = useState(NO_CARD_FILTER);
   /*
    * Where every sentence card stands with review, and which are waiting.
    *
@@ -4662,7 +4674,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
   const deckView = useMemo(() => {
     if (!openDeck) return null;
     const held = cards.filter((c) => (c.decks || []).includes(openDeck));
-    const mine = sortCards(filterCards(held, cardFilter, waitingIds), sortKey, newestFirst);
+    /* "In no deck" is never true of a deck's own cards, so inside one it
+       is set aside rather than emptying the list. */
+    const inside = cardFilter.deckMode === "none" ? { ...cardFilter, deckMode: "any" } : cardFilter;
+    const mine = sortCards(filterCards(held, inside, waitingIds), sortKey, newestFirst);
     return { held, mine, listed: groupPronouns(mine, openDeck) };
   }, [openDeck, cards, cardFilter, waitingIds, sortKey, newestFirst]);
   /* The cards a selection stands for. Everything that acts on one goes
@@ -4771,7 +4786,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       label: "Decks",
       /* What the count on the Filter button reads: a mode with no deck
          ticked narrows nothing, so it is not counted as narrowing. */
-      value: cardFilter.deckMode !== "any" && cardFilter.deckIds.length ? cardFilter.deckMode : "any",
+      value: cardFilter.deckMode === "none" || (cardFilter.deckMode !== "any" && cardFilter.deckIds.length)
+        ? cardFilter.deckMode
+        : "any",
       quiet: "any",
       wide: true,
       /* Not a row of buttons: which decks is a list as long as the decks a
@@ -4785,11 +4802,15 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               { value: "any", label: "Any deck" },
               { value: "in", label: "In these" },
               { value: "out", label: "Not in these" },
+              { value: "none", label: "In no deck" },
             ]}
             value={cardFilter.deckMode}
             onChange={(v) => setCardFilter((f) => ({ ...f, deckMode: v }))}
           />
-          {cardFilter.deckMode !== "any" && (
+          {cardFilter.deckMode === "none" && (
+            <p className="at-hint">Cards that are in no deck at all, so no student sees them.</p>
+          )}
+          {(cardFilter.deckMode === "in" || cardFilter.deckMode === "out") && (
             <>
               <CheckList
                 options={decks.map((d) => ({
@@ -4917,7 +4938,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       label: "Filter",
       icon: "tune",
       busy: narrowing(filterGroups),
-      content: <FilterBar groups={filterGroups} />,
+      content: <FilterBar groups={filterGroups} onClear={() => setCardFilter(NO_CARD_FILTER)} />,
     },
   ];
 
@@ -5873,7 +5894,14 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               busy={busy}
               empty={
                 held.length
-                  ? "No cards in this deck match the filter."
+                  ? (
+                    <>
+                      No cards in this deck match the filter.{" "}
+                      <Button variant="ghost" size="sm" icon="close" onClick={() => setCardFilter(NO_CARD_FILTER)}>
+                        Clear all filters
+                      </Button>
+                    </>
+                  )
                   : "No cards in this deck yet. Make one, or add existing cards from the Cards tab."
               }
               /* A conversation has no word of its own to search for, so
@@ -6521,7 +6549,14 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 busy={busy}
                 empty={
                   onCards.length
-                    ? "No cards match the filter."
+                    ? (
+                      <>
+                        No cards match the filter.{" "}
+                        <Button variant="ghost" size="sm" icon="close" onClick={() => setCardFilter(NO_CARD_FILTER)}>
+                        Clear all filters
+                      </Button>
+                      </>
+                    )
                     : cards.length
                     ? "No cards in the languages switched on."
                     : "No cards yet. Make one — a card is anything to learn, with its meaning."

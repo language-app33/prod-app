@@ -1416,15 +1416,28 @@ export function narrowing(groups?: FilterGroup[]): number {
  * Built from Segmented rather than a new control, because picking one of a
  * few is a thing this app already does one way.
  */
-export function FilterBar({ groups, note }: {
+export function FilterBar({ groups, note, onClear }: {
   groups?: FilterGroup[];
   note?: Node;
+  /**
+   * Every group back to what narrows nothing, in one press. Offered only
+   * while something is narrowing: a teacher three filters deep should not
+   * have to find and undo each one to see the whole list again.
+   */
+  onClear?: () => void;
 }) {
   const live = liveGroups(groups);
   if (!live.length) return null;
 
   return (
     <div className="at-filterbar">
+      {onClear && narrowing(groups) > 0 ? (
+        <div className="at-filterclear">
+          <Button variant="ghost" size="sm" icon="close" onClick={onClear}>
+            Clear all filters
+          </Button>
+        </div>
+      ) : null}
       {live.map((g) => (
         <div className={`at-filtergroup${g.wide ? " wide" : ""}`} key={g.key}>
           <span className="at-filterlabel">{g.label}</span>

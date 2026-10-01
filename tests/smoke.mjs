@@ -7407,7 +7407,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       .find((b) => re.test((b.textContent || "").trim()));
   check("the filter offers in, not in, or any deck at all",
     [...frame.querySelectorAll('[role="group"][aria-label="In or out of the chosen decks"] .at-seg')]
-      .map((b) => (b.textContent || "").trim()).join(" | ") === "Any deck | In these | Not in these",
+      .map((b) => (b.textContent || "").trim()).join(" | ") === "Any deck | In these | Not in these | In no deck",
     [...frame.querySelectorAll('[role="group"][aria-label="In or out of the chosen decks"] .at-seg')]
       .map((b) => (b.textContent || "").trim()).join(" | ") || "(no deck filter)");
   click(deckMode(/^Not in these$/));
@@ -7436,6 +7436,27 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(250);
   check("the other way round shows the rest, and the two make the whole",
     tiles() === all - outside, `${tiles()} in, ${outside} out, ${all} in total`);
+  /* And the cards in no deck at all, with nothing to tick: fewer than
+     every card, and every one of them outside Lesson 1. */
+  click(deckMode(/^In no deck$/));
+  await sleep(250);
+  const loose = tiles();
+  check("in no deck shows the cards no deck holds, with nothing ticked",
+    loose > 0 && loose < all && loose <= outside && !frame.querySelector(".at-listmenu .at-deckfilter .at-tickrow"),
+    `${loose} in no deck, ${outside} outside Lesson 1, ${all} in all`);
+  /* And one press takes every filter off again. */
+  const clearAll = () => [...frame.querySelectorAll(".at-filterclear button")]
+    .find((b) => /Clear all filters/.test(b.textContent || ""));
+  check("a narrowed list offers to clear every filter at once", !!clearAll(), "(no Clear all filters)");
+  click(clearAll());
+  await sleep(250);
+  check("and clearing them shows every card, with nothing left to clear",
+    tiles() === all && !clearAll() && !/\d/.test(menuBtn(/^Filter/).textContent || ""),
+    `${tiles()} of ${all}; ${menuBtn(/^Filter/).textContent || ""}`);
+  click(deckMode(/^In these$/));
+  await sleep(250);
+  click(/** @type {any} */ ([...frame.querySelectorAll(".at-listmenu .at-tickrow")].find((r) => /Lesson 1/.test(r.textContent || ""))).querySelector("input"));
+  await sleep(250);
   /* ---- and the same controls over one deck ----
      Including the filter still in force, which is the point of one setting
      for both. */

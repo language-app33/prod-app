@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.300 — 1 October 2026
+
+**The card list can show the cards in no deck, and its filters clear in one press.**
+
+- Teaching → Cards → Filter → Decks has a fourth choice, "In no deck":
+  the cards no deck holds, so no student sees them. Nothing needs ticking.
+  Inside a deck it is set aside, since every card there is in a deck.
+- "Clear all filters" appears at the top of the Filter panel whenever
+  anything is filtered, and beside "No cards match the filter" when a
+  filter has hidden everything.
+
 ## 0.299 — 1 October 2026
 
 **A blank in a sentence can be told which other blank to agree with.**
