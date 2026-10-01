@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.288 — 1 October 2026
+
+**The home screen says how much practice your prep needs.**
+
+- Under **Prep for …**, the line used to say you'd need more practice and
+  send you to Prep mode to find out how much. It now says it — for example
+  "12 days left · about 6 sessions a day will get you ready — you're doing
+  about 2 sessions a day".
+- If there isn't enough time left to learn everything, it says the earliest
+  you could be ready instead. When your usual pace is enough, it still
+  says you're on track.
+
 ## 0.287 — 1 October 2026
 
 **Prep mode and deck dates now appear instantly.**

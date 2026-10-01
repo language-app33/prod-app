@@ -14638,14 +14638,28 @@ function PrepLine({
     () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings), prepStart(prep.date)),
     [collection, settings, prep],
   );
+  return <Help className="at-prepline">{prepLineWords(left, answer, perDay)}</Help>;
+}
+
+/**
+ * The home screen's prep line: the days left, then the practice that gets
+ * the learner there — said as on track when their own pace already does,
+ * as the sessions a day it takes when it does not, and as the earliest
+ * they could be ready when no amount of practice makes the day.
+ */
+export function prepLineWords(left: number, answer: ReadyAnswer, perDay: number): string {
   const days = left === 1 ? "1 day left" : `${left} days left`;
-  const pace =
-    perDay <= 0 || answer.kind === "already"
-      ? ""
-      : answer.kind === "rate" && perDay / SESSION_SIZE >= answer.rate
-      ? " · on track at your pace"
-      : " · you'll need more practice to be ready — Prep mode in Progress says how much";
-  return <Help className="at-prepline">{days + pace}</Help>;
+  if (answer.kind === "already") return days;
+  if (answer.kind === "late") {
+    return answer.earliest === null
+      ? `${days} · too soon to learn it all — it would take more than two years`
+      : `${days} · too soon to learn it all — the earliest you could be ready is ${forecastWords(answer.earliest)}`;
+  }
+  if (perDay > 0 && perDay / SESSION_SIZE >= answer.rate) return `${days} · on track at your pace`;
+  const needed = leastWords(answer.rate).replace(/^About/, "about");
+  return perDay > 0
+    ? `${days} · ${needed} will get you ready — you're doing ${paceWords(perDay)}`
+    : `${days} · ${needed} will get you ready`;
 }
 
 /* ------------------------------------------------------------------

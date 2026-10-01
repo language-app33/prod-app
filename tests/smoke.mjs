@@ -2229,7 +2229,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!prepButton() && /^Prep for Start of class$/.test((prepButton() || {}).textContent || ""),
       (prepButton() || {}).textContent || "(no prep button)");
     const line = () => ((document.querySelector(".at-prepline") || {}).textContent || "");
-    check("with how many days are left", /^\d+ days? left/.test(line()), line() || "(no line)");
+    check("with how many days are left, and the practice that gets you there",
+      /^\d+ days? left( · (on track at your pace|about [\d.]+ sessions? a day will get you ready.*|too soon to learn it all — .+))?$/.test(line()),
+      line() || "(no line)");
     click(prepButton());
     await sleep(300);
     check("and the button starts a session",

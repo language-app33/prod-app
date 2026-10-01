@@ -50,6 +50,7 @@ const {
   leastWords,
   marksForAnswer,
   readyWords,
+  prepLineWords,
   prepOf,
   prepStart,
   prepDaysLeft,
@@ -237,4 +238,18 @@ test("what a prep's forecast says", () => {
   assert.match(readyWords({ kind: "rate", rate: 5.2 }, date, 36), /^About 6 sessions a day will get you ready before .+\. You're doing about 2 sessions a day at the moment\.$/);
   assert.match(readyWords({ kind: "rate", rate: 5.2 }, date, 0), /^About 6 sessions a day will get you ready before [^.]+\.$/);
   assert.match(readyWords({ kind: "late", earliest: FROM + 30 * DAY }, date, 0), /can't be fully ready before .+ the earliest is/);
+});
+
+test("the home screen's prep line says the practice that gets you there", () => {
+  assert.equal(prepLineWords(12, { kind: "rate", rate: 2 }, 54), "12 days left · on track at your pace");
+  assert.equal(
+    prepLineWords(12, { kind: "rate", rate: 5.2 }, 36),
+    "12 days left · about 6 sessions a day will get you ready — you're doing about 2 sessions a day",
+  );
+  assert.equal(prepLineWords(1, { kind: "rate", rate: 0.4 }, 0), "1 day left · about 0.4 sessions a day will get you ready");
+  assert.match(
+    prepLineWords(3, { kind: "late", earliest: FROM + 6 * DAY }, 36),
+    /^3 days left · too soon to learn it all — the earliest you could be ready is .+\(in \d+ days\)$/,
+  );
+  assert.equal(prepLineWords(5, { kind: "already" }, 36), "5 days left");
 });
