@@ -160,6 +160,7 @@ import {
   blankAdmits,
   lendsForm,
   NUMBER_EQUIVALENT,
+  normEn,
 } from "./languages.ts";
 import {
   agreedCell,
@@ -14094,13 +14095,36 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
   const ids = new Set((shown || []).map((s) => s && s.id).filter(Boolean));
   if (!PROMPT_SHOWS_FORM.includes(promptField) && kin.some((k) => k && ids.has(k.id))) return true;
   if (!PROMPT_FIELDS.includes(promptField)) return false;
-  /* Compared as the learner reads it rather than as it is stored: a
-     difference of case or a stray space is not a difference they could
-     answer by. */
-  const said = (x: Record<string, any> | null | undefined) =>
-    String((x && x[promptField]) || "").trim().toLowerCase();
-  const asked = said(unit);
-  return !!asked && kin.some((k) => said(k) === asked);
+  return kin.some((k) => readAlike(unit, k, promptField));
+}
+
+/**
+ * Whether two forms read the same in the field a prompt is read from.
+ *
+ * Compared as the learner reads it rather than as it is stored: a
+ * difference of case or a stray space is not a difference they could
+ * answer by. And in English, by meaning rather than by the whole line: a
+ * masculine written "I am hot / I feel hot" beside a feminine
+ * written "I am hot" are both *I am hot*, and asked that, a learner has no
+ * way to know which was wanted. Exact lines let that pass with no tag, and
+ * a learner reported it — the second report of a missing tag. The
+ * meanings are split as lentLabel splits them, on a slash or a semicolon;
+ * not on a comma, which sits inside a phrase as often as between two.
+ */
+function readAlike(
+  a: Record<string, any> | null | undefined,
+  b: Record<string, any> | null | undefined,
+  field: string,
+): boolean {
+  const raw = (x: Record<string, any> | null | undefined) => String((x && x[field]) || "");
+  if (field !== "en") {
+    const said = (x: Record<string, any> | null | undefined) => raw(x).trim().toLowerCase();
+    return !!said(a) && said(a) === said(b);
+  }
+  const meanings = (x: Record<string, any> | null | undefined) =>
+    raw(x).split(/[/;]/).map(normEn).filter(Boolean);
+  const mine = meanings(a);
+  return meanings(b).some((m) => mine.includes(m));
 }
 
 /**
@@ -14178,11 +14202,7 @@ export function twinsOf({ unit, kin, promptField, told }: {
   told: boolean;
 }): Record<string, any>[] {
   if (!unit || told || !PROMPT_FIELDS.includes(promptField)) return [];
-  const said = (x: Record<string, any> | null | undefined) =>
-    String((x && x[promptField]) || "").trim().toLowerCase();
-  const asked = said(unit);
-  if (!asked) return [];
-  return kin.filter((k) => k && k.id !== unit.id && said(k) === asked);
+  return kin.filter((k) => k && k.id !== unit.id && readAlike(unit, k, promptField));
 }
 
 /**

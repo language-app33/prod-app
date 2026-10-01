@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.291 — 1 October 2026
+
+**A question says "masculine" or "feminine" whenever both forms would answer it.**
+
+- Asked to write "I am hot / I feel hot" in Arabic, nothing said whether
+  the masculine or the feminine was wanted — the feminine is "I am hot"
+  too, but because the two meanings weren't written identically the app
+  thought the question was clear. Forms now count as answering the same
+  question when they share any one meaning, so the label appears.
+- Where a card has no label to show, writing either of two such forms
+  is marked right.
+
 ## 0.290 — 1 October 2026
 
 **Questions no longer give away which form is wanted; the answer says it instead.**
