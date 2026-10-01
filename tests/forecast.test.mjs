@@ -51,6 +51,8 @@ const {
   marksForAnswer,
   readyWords,
   prepLineWords,
+  prepToday,
+  prepTodayWords,
   prepOf,
   prepStart,
   prepDaysLeft,
@@ -252,4 +254,22 @@ test("the home screen's prep line says the practice that gets you there", () => 
     /^3 days left · too soon to learn it all — the earliest you could be ready is .+\(in \d+ days\)$/,
   );
   assert.equal(prepLineWords(5, { kind: "already" }, 36), "5 days left");
+});
+
+test("the home screen counts today's sessions against what today needs", () => {
+  /* 18 questions to a session. Nothing done: the rate, rounded up. */
+  assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.3 }, 0), { done: 0, goal: 3 });
+  assert.equal(prepTodayWords(10, { kind: "rate", rate: 2.3 }, 0), "Today: 0 of 3 sessions done · 3 more to stay on track");
+  /* Two sessions done, and the rate read afterwards has fallen by about
+     what they did: the goal stays where it was this morning. */
+  assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.1 }, 36), { done: 2, goal: 3 });
+  assert.equal(prepTodayWords(10, { kind: "rate", rate: 2.1 }, 36), "Today: 2 of 3 sessions done · 1 more to stay on track");
+  /* A session half done is not counted yet. */
+  assert.equal(prepToday(10, { kind: "rate", rate: 2.1 }, 45).done, 2);
+  assert.equal(prepTodayWords(10, { kind: "rate", rate: 1.8 }, 54), "Today: 3 of 3 sessions done · on track for today");
+  /* Under a session a day still asks for one today. */
+  assert.equal(prepTodayWords(1, { kind: "rate", rate: 0.4 }, 0), "Today: 0 of 1 session done · 1 more to stay on track");
+  /* No rate to keep to: just what was done. */
+  assert.equal(prepTodayWords(3, { kind: "late", earliest: null }, 0), "Today: no sessions done yet");
+  assert.equal(prepTodayWords(3, { kind: "late", earliest: null }, 18), "Today: 1 session done");
 });

@@ -4113,3 +4113,34 @@ about it was a simulation. So do the scheduler clock that reads
 `Date.now` at each call, and `tests/pace.test.mjs`, which measures the
 scheduling rules themselves rather than any estimate the app shows.
 
+
+## A form is named in the question only where the question needs it
+
+A learner reported three times in one sitting that the question was
+telling them the answer: "you · masculine" under عندَك, "feminine" under a
+noun shown in the script, and "Your name: plural" under اسمكم شمس — the
+last being, word for word, the English they were asked to write.
+
+**Before.** The prompt's form tag was shown on every sub-form whatever
+the question (`isSub || tellForm`), because "the plural of" seemed worth
+knowing on its own; and a kin form among the tiles counted as ambiguity
+even under a prompt showing the word in the script. The sentence-blank
+tags (`lentTags`, 0.282) were shown under every prompt and again beside
+the answer.
+
+**Now.** `formTagsAt` decides both places. Under the prompt: the form tag
+only where `formIsAmbiguous` holds, and that no longer counts tiles when
+the prompt shows the form itself (`PROMPT_SHOWS_FORM`: script,
+transliteration, recording) — there only two forms reading the same in
+that field leave it open. The blank tags likewise only under a prompt
+that does not show the form. Beside the answer: the form tag on every
+question about a card with more than one form (`answer-form-tag`), and
+the blank tags as before.
+
+**Kept, deliberately.** The owner's caveat: some questions cannot be
+answered without the tag — English → script, where cells share their
+English — and those keep it. `twinsOf` is unchanged: where a tag could be
+shown it is, under exactly the prompts where twins could arise.
+
+The report that "Their name is…" was marked nearly right (0.273) was
+already fixed in 0.282 (`sameWords`).

@@ -2228,6 +2228,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the home screen offers a session for it",
       !!prepButton() && /^Prep for Start of class$/.test((prepButton() || {}).textContent || ""),
       (prepButton() || {}).textContent || "(no prep button)");
+    const counter = () => ((document.querySelector(".at-preptoday") || {}).textContent || "");
+    check("under it, today's sessions against what today needs",
+      /^Today: (\d+ of \d+ sessions? done · (\d+ more to stay on track|on track for today)|no sessions done yet|\d+ sessions? done)$/.test(counter()),
+      counter() || "(no counter)");
     const line = () => ((document.querySelector(".at-prepline") || {}).textContent || "");
     check("with how many days are left, and the practice that gets you there",
       /^\d+ days? left( · (on track at your pace|about [\d.]+ sessions? a day will get you ready.*|too soon to learn it all — .+))?$/.test(line()),
@@ -6986,6 +6990,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     click(document.querySelector('[data-el="check-button"]'));
     await sleep(250);
   }
+  /* And the answer says it again, which is where it is said on every
+     question about a card with more than one form — see formTagsAt. */
+  const answerTag = ((document.querySelector('[data-el="answer-form-tag"]') || {}).textContent || "")
+    .replace(/\s+/g, " ").trim();
+  check("and the answer names the form too", /^masculine\b/.test(answerTag), answerTag || "(nothing said)");
   click(buttonNamed(/^Continue$/));
   await sleep(700);
 
