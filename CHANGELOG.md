@@ -8,6 +8,93 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.312 — 2 October 2026
+
+**Bigger numbers when choosing a session's length.**
+
+- On the last step of building a session, the number of questions and
+  the number of minutes are shown larger, on taller buttons. The time
+  choices are now headed "Minutes" and show just the number, so all five
+  still fit on one row of a phone.
+
+## 0.311 — 2 October 2026
+
+**A session you build in Regular now picks cards the way the home screen does, and there is a new mode for cards you have not seen lately.**
+
+- Regular, on Build a session, now works like the everyday session and
+  Prep mode, just limited to the cards you picked. Cards that are due come
+  first, words you are partway through learning come before the rest, and
+  new words come in only as fast as you clear the ones you have. Until now
+  it shuffled every card you picked, so the same decks gave a much wider
+  and less focused spread than the home screen did. With a time limit,
+  it plans about six questions a minute.
+- New mode on Build a session: **Not seen lately**. It asks about the
+  cards you picked that you have not practised in the last three days,
+  so new cards and older ones you have left alone come up together. Cards
+  that are already Cleared or Learnt are left out, so everything it asks
+  about can still move up a level. If you have practised all the cards you
+  picked in the last three days, it says so instead of starting.
+- Fix mistakes, Get started and Ultimate are unchanged.
+
+## 0.310 — 2 October 2026
+
+**Longer custom sessions.**
+
+- A session you build yourself can now run for 2, 5, 10, 15 or 30
+  minutes. The 3-minute choice is gone; sessions already saved with 3
+  minutes still run for 3.
+
+## 0.309 — 2 October 2026
+
+**Each language's grammar comes from that language, and exercises say it in words.**
+
+- Hebrew verbs now have a feminine for every person: "I", "we", plural
+  "you" and "they" each have a box for women beside the one for men, as
+  Arabic's "I" already does. Women learning Hebrew are no longer taught
+  the masculine form about themselves. Boxes already filled stay where
+  they were, under the masculine.
+- "I am tired" sentences no longer put "(m)" or "(f)" in the middle of
+  the sentence. The English reads "I am tired today", and the word
+  "masculine", "feminine" or "plural" is shown beside it. Teachers see
+  the same word when reviewing sentences. Typing the note is still
+  accepted.
+- In Vietnamese, phrases and sentences can say who a form is said to:
+  someone younger (em), a peer (anh / chị) or an elder (bác). A question
+  then says which one it wants. Nouns and other words are not asked.
+- Arabic and Hebrew teachers are no longer offered a "neutral" gender,
+  which neither language has. Cards that already carry one keep it.
+- The first screen shows the app's name, Taleb33, instead of an Arabic
+  word, whatever language you are learning.
+- Behind the scenes: the check that keeps one language's words out of the
+  rest of the app now covers every part of it, including Vietnamese.
+
+## 0.308 — 2 October 2026
+
+**"I am tired" works with any adjective blank, not only "any adjective".**
+
+- When a blank in a sentence uses one of your own tags, or one card's ID,
+  and there are adjectives behind it, you now get the same choice as with
+  "Adjective": "Tired" or "I am tired".
+- With "I am tired", only the adjectives under that tag are used. Other
+  words with the same tag (a noun, say) are left out of that blank, and
+  the count beside it says how many adjectives there are.
+- Pronouns work the same way: a tag or an ID with pronouns behind it now
+  offers "I", "I am" and "am I", just as "Pronoun" does.
+- Sentences you have already written are unchanged.
+
+## 0.307 — 2 October 2026
+
+**A question no longer names the person when that gives the answer away.**
+
+- Where a card has two forms written the same way that also mean the same
+  thing — "I understand" filed once for a man and once for a woman — the
+  question used to say "I" above the word, which told the learner part of
+  the English and nothing about which form was wanted. It now says nothing
+  there. The answer screen still names the form as before.
+- Where two forms are written the same but mean different things — "you
+  understand" and "she understands" — the question still says which one
+  it wants.
+
 ## 0.306 — 2 October 2026
 
 **The prep tile counts only practice on your prep decks.**

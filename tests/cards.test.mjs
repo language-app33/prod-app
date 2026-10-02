@@ -843,6 +843,27 @@ test("two forms sharing one meaning between their English answer the same prompt
   assert.equal(formIsAmbiguous({ unit: one("a", "I am hot / I feel hot"), kin: [one("a-f0", "I am cold")], shown: [], promptField: "en" }), false);
 });
 
+test("two forms with the same prompt and the same answer need no tag", () => {
+  /* Reported from k242f5c639f1c: بَفهَم is filed for "I" and again for
+     "I (f)", both "I understand". Asked it in the script, the question
+     said "I" — which told the learner nothing about which form, since
+     either answer is the answer, and gave away half the English. */
+  const i = form({ id: "u-f2", ar: "بَفهَم", en: "I understand", lat: "bafham" });
+  const iF = form({ id: "u-f3", ar: "بَفهَم", en: "I understand", lat: "bafham" });
+  const you = form({ id: "u-f0", ar: "بتِفهَم", en: "You understand", lat: "btifham" });
+  assert.equal(formIsAmbiguous({ unit: i, kin: [iF, you], shown: [], promptField: "ar", answerField: "en" }), false);
+  /* Spelt alike but meaning different things, it still has to say which. */
+  const she = form({ id: "u-f4", ar: "بتِفهَم", en: "She understands", lat: "btifham" });
+  assert.equal(formIsAmbiguous({ unit: you, kin: [she], shown: [], promptField: "ar", answerField: "en" }), true);
+  /* And the other way round: the same English, written differently. */
+  assert.equal(
+    formIsAmbiguous({ unit: form({ id: "t", ar: "مدرس", en: "teacher" }), kin: [form({ id: "t-f0", ar: "مدرسة", en: "teacher" })], shown: [], promptField: "en", answerField: "ar" }),
+    true,
+  );
+  /* Another form among the tiles is a different matter, and still tagged. */
+  assert.equal(formIsAmbiguous({ unit: i, kin: [iF], shown: [iF], promptField: "en", answerField: "ar" }), true);
+});
+
 test("where the question cannot say which form, the forms it cannot tell apart all count", () => {
   /* مِش منيح and مِش منيحة: a phrase and its feminine, both "Not good",
      with no grammar written on either — so there is no tag to put up, and

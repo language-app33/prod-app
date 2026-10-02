@@ -57,7 +57,7 @@ import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { sentencesOf } from "./review.ts";
-import { ADJECTIVE_IS_SLOT, cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
+import { aboutPerson, cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
 import { citationOf, colOf, isCell, NO_PARTNER, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
 
 /* A card, a form of one, a turn of one, or a half-written draft — open for
@@ -438,7 +438,7 @@ export function agreeingBlanks(
     const names = fillsOf(card, kindOf(card, lang));
     /* Not an adjective said about a person: it carries its own person,
        and has nothing to follow. */
-    for (const slot of holes) if (names.includes(slot) && slot !== ADJECTIVE_IS_SLOT) out.add(slot);
+    for (const slot of holes) if (names.includes(slot) && !aboutPerson(card, slot)) out.add(slot);
     if (out.size === holes.length) break;
   }
   return out;

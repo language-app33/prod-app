@@ -536,8 +536,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   fills it once for each form it takes about a person — the persons of
   the verb table, read through `asSubject` and the agreement table exactly
   as a pronoun beside the adjective would be — and the English of each is
-  every person that form fits, as alternatives: *I am (m) tired / you are
-  (m) tired / he is tired*. `aboutPersons` in `src/languages.ts` makes
+  every person that form fits, as alternatives: *I am tired / you are
+  tired / he is tired*. Which form it is — *masculine*, *feminine*,
+  *plural* — is said beside the sentence in a word, by the name its
+  agreement table gives it (`tag` on the value, carried as `tags` by
+  `fillForm` and shown by `lentTags`), never written into the sentence as
+  a note. `aboutPersons` in `src/languages.ts` makes
   those values and `lendsInto` hands them to all three readers of a blank;
   `fillEnglish` in `src/variables.ts` puts each alternative into the whole
   sentence before joining them, so a learner turning تعبان اليوم into
@@ -545,9 +549,18 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   shown one person at a time. The value is already agreed, so `agreeTook`
   leaves it alone and the Blanks section asks it nothing. Offered as the
   second step of choosing an adjective blank, where the language's verbs
-  say who each person is (`saysAboutPersons`). Marking English accepts the
-  person note left off — *you are tired* for *you are (m) tired* — and no
-  other bracket (`PERSON_NOTE` in `checkEn`).
+  say who each person is (`saysAboutPersons`). Marking English accepts a
+  person note left off or typed — *you are tired* for *you are (m) tired*,
+  and the other way round — and no other bracket (`PERSON_NOTE` in
+  `checkEn`).
+
+  **And both readings belong to any name, not only the kind.** A group tag
+  or a card's ID with adjectives or pronouns behind it is read the same
+  way: `{{feelings-is}}`, `{{tired-is}}`, `{{is-ana}}`. `readingNames` in
+  `src/variables.ts` is the one rule, and the three names above are it
+  applied to the kind of word. Only an adjective or a pronoun fills a
+  reading, so a tag with nouns in it lends its adjectives alone; the blank
+  screen asks the second question wherever there are any.
 
   **And a list of cards shows a language's pronouns as one entry.** The
   Pronouns screen writes a card per person, because each is practised,

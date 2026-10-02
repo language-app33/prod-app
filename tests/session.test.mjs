@@ -1538,3 +1538,92 @@ test("a sentence names the word in its blank where that word's English is shared
   /* And an ordinary card, with nothing filled, says nothing. */
   assert.deepEqual(lentTags({ id: "f" }, ar), []);
 });
+
+/* ------------------------------------------------------------------
+   Regular, built by hand, is the everyday session over the cards picked
+
+   It used to take every card picked, shuffled, with no regard for what
+   was due or how many new words were already in hand — so the same decks
+   gave a far wider spread here than on the home screen or in a prep.
+   ------------------------------------------------------------------ */
+
+test("built by hand in Regular, new words are let in as a dealt session lets them in", () => {
+  /* Sixty strangers picked: the front door admits what it admits, the same
+     as when the home screen deals from them. */
+  const items = deckOf(60);
+  installIndexes(items, settings);
+  const byHand = buildManualSession({
+    items, settings, ids: items.map((i) => i.id), mode: "regular", count: 50,
+  });
+  const dealt = buildSession({ items, settings, inDeck: anyDeck, budget: 50 });
+  assert.equal(byHand.reason, null, byHand.reason || "");
+  assert.ok(dealtCards(byHand).size <= FRONT_DOOR_CAP,
+    `${dealtCards(byHand).size} new words in one session`);
+  assert.equal(dealtCards(byHand).size, dealtCards(dealt).size, "the same number a dealt session takes");
+});
+
+test("and what is due comes ahead of what is not", () => {
+  /* Six due and twelve a week off, all picked. A short session reaches the
+     due ones; a shuffle of everything picked would not. */
+  const waiting = dueDeck(6);
+  const ahead = Array.from({ length: 12 }, (_, i) => settled(`s${i + 1}`, 7));
+  const items = waiting.concat(ahead);
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((i) => i.id), mode: "regular", count: 10,
+  });
+  assert.equal(got.reason, null, got.reason || "");
+  const dealtIds = dealtCards(got);
+  assert.ok([...dealtIds].every((id) => waiting.some((w) => w.id === id)),
+    `a card not yet due was dealt ahead of one waiting: ${[...dealtIds].join(" ")}`);
+});
+
+test("and only the cards picked are dealt", () => {
+  const items = deckOf(4).concat(dueDeck(8).map((w) => ({ ...w, id: `d${w.id}` })));
+  installIndexes(items, settings);
+  const picked = items.slice(0, 4).map((i) => i.id);
+  const got = buildManualSession({ items, settings, ids: picked, mode: "regular", count: 20 });
+  assert.equal(got.reason, null, got.reason || "");
+  assert.ok([...dealtCards(got)].every((id) => picked.includes(id)), "a card not picked was dealt");
+  assert.equal(got.manual, true, "and it is still a session built by hand");
+});
+
+/* ------------------------------------------------------------------
+   Not seen lately: anything still climbing that has not been practised
+   for a few days, new or not — and nothing already cleared
+   ------------------------------------------------------------------ */
+
+/** A form answered `daysAgo` days back, part-way up the ladder. */
+const lastAnswered = (/** @type {string} */ id, /** @type {number} */ daysAgo) =>
+  word(id, `كلمة-${id}`, `word ${id}`, {
+    forms: [{ id, ar: `كلمة-${id}`, en: `word ${id}`, lat: id, lang: "ar-PS",
+      s: { ar2en: { ...withHist([1, 0]), updated: Date.now() - daysAgo * DAY_MS } } }],
+  });
+
+test("Not seen lately mixes new cards with ones left alone a while", () => {
+  const untouched = word("n1", "كلمة-n1", "word n1");
+  const old = lastAnswered("o1", 10);
+  const recent = lastAnswered("r1", 1);
+  /* Settled on every exercise it has, so it is cleared — and stale, so
+     staleness alone would have let it in. */
+  const done = settled("c1", 30);
+  for (const st of Object.values(done.forms[0].s)) {
+    Object.assign(st, { hist: [1, 1], updated: Date.now() - 20 * DAY_MS });
+  }
+  const items = [untouched, old, recent, done];
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((i) => i.id), mode: "unseen", count: 20,
+  });
+  assert.equal(got.reason, null, got.reason || "");
+  assert.deepEqual([...dealtCards(got)].sort(), ["n1", "o1"]);
+});
+
+test("and with nothing left alone among them, it says so", () => {
+  const items = [lastAnswered("r1", 0), lastAnswered("r2", 2)];
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((i) => i.id), mode: "unseen", count: 20,
+  });
+  assert.equal(got.reason, "no-unseen");
+});

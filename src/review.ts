@@ -47,7 +47,7 @@ import { linesOf, pickedFrom } from "./dialogs.ts";
 import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, lendsInto, tensedOf, verbOf } from "./languages.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
-import { ADJECTIVE_IS_SLOT, fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
+import { aboutPerson, fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
 import {
   agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, ownSlot, partnerOf, personsOf,
   rowIdsOf, rowOf, slotLinks, slotRows, subjectSlot,
@@ -283,7 +283,7 @@ export function agreeTook(
     if (!owner) return true;
     /* An adjective said about a person came in already in the form that
        person calls for — see aboutPersons — and follows nothing. */
-    if (slot === ADJECTIVE_IS_SLOT) return true;
+    if (aboutPerson(owner.card, slot)) return true;
     const lang = langFor(owner.card);
     const beside = partnerSlot(slot);
     if (beside && !fill(beside)) return false;
@@ -438,6 +438,9 @@ export interface Sentence {
   en: string;
   /** Which card stood in each hole, and the word it stood there as. */
   took: Record<string, { card: string; word: string }>;
+  /** Which form a hole's word is, in a word, where the English cannot say
+      — "feminine" for تعبانة in *I am tired today*. See aboutPersons. */
+  tags?: Record<string, string>;
 }
 
 /** Every sentence one part of a card makes today, or as many as are worth
@@ -496,6 +499,7 @@ export function sentencesOf(
       lat: String(filled.lat || "").trim(),
       en: String(filled.en || "").trim(),
       took: who,
+      ...(filled.tags ? { tags: filled.tags as Record<string, string> } : {}),
     });
   }
   return { id: String(part.id || (card && card.id) || ""), combos, cut: combos > limit, list };

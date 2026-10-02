@@ -209,7 +209,7 @@ export function Onboarding({ onDone }: { onDone: (account?: User & { key: string
       <div className="ob-box">
         {step === "choose" && (
           <>
-            <h1>مُفْرَدات</h1>
+            <h1>Taleb33</h1>
             {/* What it used to say: "an account only matters if you join a
                 course or use more than one device". Both exits from this
                 screen are requests to the server, so an account is not

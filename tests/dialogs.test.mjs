@@ -470,4 +470,8 @@ test("a text reads as one paragraph, each sentence ended where it was not", () =
   ];
   assert.equal(proseOf(lines, "en"), "Sami lives here. Where is your house? I love the street.");
   assert.equal(proseOf(lines, "ar"), "سامي ساكن هون. وين بيتك؟ بحب الشارع.", "the Arabic question mark closes a sentence too");
+  /* Closing marks are Unicode's, not one script's list: a quotation that
+     ends a line ends it, and a comma — Latin or Arabic — does not. */
+  assert.equal(proseOf([{ en: "He said «yes»" }, { en: "Then," }], "en"), "He said «yes» Then,.");
+  assert.equal(proseOf([{ ar: "قال،" }], "ar"), "قال،.");
 });

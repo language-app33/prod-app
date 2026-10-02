@@ -111,6 +111,11 @@ function SentenceText({ line, lang }: { line: Sentence; lang: Lang }) {
       )}
       {line.lat && <span className="at-askedsaid">{line.lat}</span>}
       {line.en && <span className="at-askedmeans">{line.en}</span>}
+      {/* Which form stands in a blank, where the English reads the same
+          for several — the word a student is shown beside the sentence. */}
+      {line.tags && Object.keys(line.tags).length > 0 && (
+        <span className="at-askedsaid">{Object.values(line.tags).join(" · ")}</span>
+      )}
     </span>
   );
 }

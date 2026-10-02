@@ -299,7 +299,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { installIndexes, castQuestion } = await import(path.join(out, "trainer.js"));
+const { installIndexes, castQuestion, lentTags } = await import(path.join(out, "trainer.js"));
 
 const settings = { language: "ar-PS" };
 const nameCard = (/** @type {string} */ id, /** @type {string} */ word, /** @type {string} */ en, /** @type {number} */ created) => ({
@@ -456,9 +456,12 @@ test("an adjective said about a person is one sentence per form, read as every p
   assert.equal(made.combos, 3);
   assert.deepEqual(made.list.map((s) => s.ar), ["تعبان اليوم", "تعبانة اليوم", "تعبانين اليوم"]);
   assert.equal(made.list[0].lat, "taʿbān il-yōm");
-  assert.equal(made.list[0].en, "I am (m) tired today / You are (m) tired today / He is tired today");
-  assert.equal(made.list[1].en, "I am (f) tired today / You are (f) tired today / She is tired today");
-  assert.equal(made.list[2].en, "We are tired today / You are (pl) tired today / They are tired today");
+  /* The persons as English says them, with no note in the middle of the
+     sentence — which form it is goes beside it, in a word. */
+  assert.equal(made.list[0].en, "I am tired today / You are tired today / He is tired today");
+  assert.equal(made.list[1].en, "I am tired today / You are tired today / She is tired today");
+  assert.equal(made.list[2].en, "We are tired today / You are tired today / They are tired today");
+  assert.deepEqual(made.list.map((s) => s.tags && s.tags["adjective-is"]), ["masculine", "feminine", "plural"]);
   assert.equal(made.list[0].took["adjective-is"].card, "tired", "and the review list knows whose word it was");
 
   /* Turning it into English, any of the persons is right, with or without
@@ -488,12 +491,47 @@ test("the adjective with a pronoun is unchanged, and the new name is reserved", 
   assert.ok(!checkEn("close", "close (the door)").ok);
 });
 
+/*
+ * The same reading under a group tag or a card's ID: `{{feelings-is}}`
+ * takes the adjectives tagged *feelings* about each person, and leaves the
+ * rest of the tag out; `{{tired-is}}` takes that one adjective.
+ */
+test("an adjective's group tag and its ID say it about a person too, and a tag's other words are left out", () => {
+  const frame = (/** @type {string} */ slot) => ({
+    id: "G", ar: `{{${slot}}} اليوم`, en: `{{${slot}}} today`, lat: `{{${slot}}} il-yōm`, lang: "ar-PS", s: {},
+  });
+  const tired = tiredCard({ fills: ["feelings"], ref: "tired" });
+  const party = {
+    id: "party", lang: "ar-PS", kind: "word", tags: [], created: 3, category: "noun", fills: ["feelings"],
+    forms: [{ id: "party", ar: "حفلة", en: "party", lat: "ḥafle", lang: "ar-PS", s: {} }],
+  };
+  for (const slot of ["feelings-is", "tired-is"]) {
+    const f = frame(slot);
+    const card = { ...todayCard, id: "G", forms: [f] };
+    const made = sentencesOf(card, f, [card, tired, party], ar);
+    assert.deepEqual(made.list.map((s) => s.ar), ["تعبان اليوم", "تعبانة اليوم", "تعبانين اليوم"], slot);
+    assert.equal(made.list[1].en, "I am tired today / You are tired today / She is tired today", slot);
+    assert.equal(made.list[1].tags && made.list[1].tags[slot], "feminine", slot);
+  }
+  /* And the plain tag still takes everything in it, as it is. */
+  const plain = frame("feelings");
+  const card = { ...todayCard, id: "G", forms: [plain] };
+  const made = sentencesOf(card, plain, [card, tired, party], ar).list.map((s) => s.ar);
+  assert.deepEqual(made.sort(), ["تعبان اليوم", "حفلة اليوم"].sort());
+  /* A reading of a name that is taken is taken. */
+  assert.equal((refClash("tired-is", [tired]) || {}).kind, "card");
+  assert.equal((refClash("feelings-is", [tired]) || {}).kind, "group");
+});
+
 test("a student is asked it the way the teacher's list shows it", () => {
   const items = [todayCard, tiredCard()];
   installIndexes(items, settings);
   const unit = must(castQuestion(items, { id: "T", subId: null, type: "ar2en" }, true), "the question");
   assert.equal(unit.ar, "تعبان اليوم");
-  assert.equal(unit.en, "I am (m) tired today / You are (m) tired today / He is tired today");
+  assert.equal(unit.en, "I am tired today / You are tired today / He is tired today");
+  /* And beside it, which of the three it is: the line the answer screen
+     shows, in a word rather than a note in the sentence. */
+  assert.deepEqual(lentTags(unit, ar), ["tired: masculine"]);
 });
 
 /*

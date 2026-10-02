@@ -102,11 +102,12 @@ button {
 .at {
   --ui: ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  /* The wordmark is the product's own name — always this one Arabic
-     word, whatever the learner is studying. It is a brand asset, not
-     the taught script, so it keeps its own face and does not follow
-     --sfont, --sdir or --sscale. */
-  --wordmark: "Noto Naskh Arabic", "Amiri", "Scheherazade New", "Traditional Arabic", "Geeza Pro", "Al Bayan", "Arabic Typesetting", "Segoe UI", serif;
+  /* The wordmark is the product's own name, Taleb33, the same in every
+     course. It was one Arabic word, which greeted a learner of Hebrew or
+     Huế in a script they were not learning; it is the name the corner
+     and the browser tab already use. Not the taught script, so it does
+     not follow --sfont, --sdir or --sscale. */
+  --wordmark: ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   /* The taught script's face and direction. Both are overwritten from
      the language pack wherever a language is in scope; these are what a
@@ -411,6 +412,13 @@ button {
 .at-minicard .en { display:block; font-size:calc(12px * var(--tile, 1)); font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .at-lengthgroup { margin-bottom:14px; }
+/* The length is the one decision on this step, so its numbers are read
+   at a glance rather than squinted at. Bare numbers — the unit is in the
+   heading — which is what lets five of them stay this size on one row of
+   a phone. The type still grows with the track, as every segmented
+   row's does, from a larger floor to a larger ceiling. */
+.at-lengthgroup .at-seg { font-size: clamp(16px, calc(var(--seg) * 0.3), 24px);
+  min-height:52px; }
 .at-lengthor { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.1em;
   text-transform:uppercase; color: var(--faint); text-align:center; margin:6px 0 14px; }
 .at-handle { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:14px;
@@ -419,8 +427,8 @@ button {
 .ob { position:fixed; inset:0; z-index:500; background: var(--bg); display:flex;
   align-items:center; justify-content:center; padding:24px 18px; overflow-y:auto; }
 .ob-box { width:100%; max-width:420px; }
-.ob-box h1 { font-family: var(--wordmark); font-size:34px; font-weight:700; margin:0 0 14px;
-  text-align:center; direction: rtl; }
+.ob-box h1 { font-family: var(--wordmark); font-size:34px; font-weight:800; margin:0 0 14px;
+  text-align:center; letter-spacing:.01em; }
 .ob-box h2 { font-size:22px; font-weight:800; margin:0 0 10px; letter-spacing:-.01em; }
 .ob-lede { font-size:15px; font-weight:500; color: var(--muted); line-height:1.6; margin:0 0 18px; }
 .at-nav2 { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }

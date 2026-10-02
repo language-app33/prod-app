@@ -179,15 +179,20 @@ test("a verb is marked for a room as well as a person", () => {
        every row. */
     assert.ok(cols.includes("they"));
     /* Between "we" and "they", which is where the paradigm puts it and
-       where the pronouns on the end of a word already put theirs. */
-    assert.deepEqual(cols.slice(-3), ["we", "you-pl", "they"]);
+       where the pronouns on the end of a word already put theirs — in
+       Hebrew each with its feminine beside it. */
+    assert.deepEqual(
+      cols.slice(id === "he-IL" ? -6 : -3),
+      id === "he-IL" ? ["we", "we-f", "you-pl", "you-pl-f", "they", "they-f"] : ["we", "you-pl", "they"],
+    );
     /* And it picks nothing, for the reason the singular *you*s do not: a
        noun dropped into a subject is never the person being addressed. A
        plural subject still reaches "they" and could never reach here. */
     assert.equal(must(personFor(spec, { number: "plural" }), "they").id, "they");
     assert.equal(
       must(personFor(spec, { number: "plural", gender: "feminine" }), "they").id,
-      "they",
+      /* Hebrew's plural of women has a column of its own. */
+      id === "he-IL" ? "they-f" : "they",
     );
   }
   /* The command is addressed, so it has a cell for each of the three
@@ -366,8 +371,30 @@ test("Arabic marks I for gender, keeping the old column under the masculine", ()
   assert.equal(personFor(arabic, { number: "singular", gender: "feminine" })?.id, "she");
   /* And a pronoun the Pronouns screen writes as the feminine I takes it by name. */
   assert.equal(must(personFor(arabic, { person: "i-f" }), "I (f)").id, "i-f");
+});
+
+test("Hebrew marks every person for gender, keeping the old columns under the masculine", () => {
+  /* Its present tense varies by gender in every person — אני אוכל, אני
+     אוכלת; אנחנו אוכלים, אנחנו אוכלות — and with one box for each of I,
+     we, the plural you and they, a woman was taught the masculine about
+     herself. The masculine keeps each old id, so nothing written moves. */
   const hebrew = must(verbOf(LANGUAGES["he-IL"]), "the Hebrew verb table");
-  assert.deepEqual(personsOf(hebrew).map((p) => p.id), ["i", "you-m", "you-f", "he", "she", "we", "you-pl", "they"]);
+  assert.deepEqual(
+    personsOf(hebrew).map((p) => p.id),
+    ["i", "i-f", "you-m", "you-f", "he", "she", "we", "we-f", "you-pl", "you-pl-f", "they", "they-f"],
+  );
+  const label = (/** @type {string} */ id) => must(personsOf(hebrew).find((p) => p.id === id), id).label;
+  assert.equal(label("i"), "I (m)");
+  assert.equal(label("we-f"), "we (f)");
+  assert.equal(label("you-pl-f"), "you (f pl)");
+  /* A noun in the subject still chooses only among the third persons: a
+     plural of women takes they (f), any other plural they (m), and nobody
+     is ever the speaker. */
+  assert.equal(personFor(hebrew, { number: "plural", gender: "feminine" })?.id, "they-f");
+  assert.equal(personFor(hebrew, { number: "plural", gender: "masculine" })?.id, "they");
+  assert.equal(personFor(hebrew, { number: "plural" })?.id, "they");
+  assert.equal(personFor(hebrew, { number: "singular", gender: "feminine" })?.id, "she");
+  assert.equal(must(personFor(hebrew, { person: "we-f" }), "we (f)").id, "we-f");
 });
 
 test("the table is crossed row by row, in teaching order", () => {

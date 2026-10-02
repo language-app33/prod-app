@@ -247,6 +247,9 @@ const bigWithForms = {
   id: "k999999999999", owner: "t-1", ar: "كبير", en: "big", lat: "kbiir",
   note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
   category: "adjective",
+  /* And an ID, so a blank can ask for this adjective alone — and still be
+     asked whether it says who. */
+  ref: "big",
   clips: [], uses: [], rev: 1, updated: 1, created: 6,
   subs: [{
     ar: "كبيرة", en: "big (f)", lat: "kbiire",
@@ -4685,8 +4688,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      a picker that dropped one would still pass a count. */
   const genderPicks = [...(genderGroup ? genderGroup.querySelectorAll('input[type="radio"]') : [])]
     .map((i) => i.getAttribute("aria-label") || "");
-  check("with every value of the axis on the one line, and a way back to none",
-    ["not set", "masculine", "feminine", "neutral"].every((v) => genderPicks.includes(v)),
+  /* The language's values and no other: Arabic has two genders, and a
+     third — "neutral" — was offered until the choices became the pack's. */
+  check("with every value the language has on the one line, and a way back to none",
+    ["not set", "masculine", "feminine"].every((v) => genderPicks.includes(v)) &&
+      !genderPicks.includes("neutral"),
     genderPicks.join(" | ") || "(no radios)");
   click(
     [...(genderGroup ? genderGroup.querySelectorAll('input[type="radio"]') : [])]
@@ -5318,6 +5324,14 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("and choosing it asks whether it is the word or the word said about a person",
         title() === "How the adjective reads" &&
           JSON.stringify(names()) === JSON.stringify(["adjective", "adjective-is"]),
+        `${title()} · ${names().join(" ")}`);
+      click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the blanks"));
+      await sleep(300);
+      /* The same question for one adjective asked for by its ID. */
+      click(rowFor(/^big$/));
+      await sleep(300);
+      check("an adjective asked for by its ID asks the same",
+        title() === "How the big reads" && JSON.stringify(names()) === JSON.stringify(["big", "big-is"]),
         `${title()} · ${names().join(" ")}`);
       click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the blanks"));
       await sleep(300);

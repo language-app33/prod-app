@@ -4272,3 +4272,100 @@ hour — rather than the words for *forty* and *seven*, because a number
 is built out of words, and a teacher picking words would have to know
 which ones each number needs. The words come along with the part.
 
+---
+
+## A reading belongs to any name an adjective or pronoun answers to
+
+**2 October 2026** · `readingNames`, `readingOf`, `readAs` in `src/variables.ts`; `aboutPersons` and `lendsInto` in `src/languages.ts`; `BlankScreen` offers in `src/card-editor.tsx`
+
+The owner asked why "I am tired" was offered only on the general adjective
+blank. There was no reason in the language: `{{adjective-is}}`,
+`{{pronoun-is}}` and `{{is-pronoun}}` had been added as three names of
+their own, reached only through the kind of word, so a blank built from a
+group tag or a card's ID had nowhere to say it.
+
+**Now the reading is an affix on any name.** `{{feelings-is}}` is the
+adjectives tagged *feelings* said about each person; `{{tired-is}}` is the
+one card with that ID; `{{is-ana}}` asks with one pronoun. `fillsOf`
+adds the readings for every name that reaches an adjective or a pronoun,
+so the three old names are this rule applied to the kind and read exactly
+as before. A value carries its reading under the blank's own name
+(`readAs`, and `aboutPersons` given the slot), which is the key `fillText`
+already read, so nothing downstream had to learn about it.
+
+**A tag with more than adjectives in it** lends only its adjectives to the
+reading. The owner chose that over offering the choice only when every
+card in the tag is an adjective. It falls out of the rule: only an
+adjective or a pronoun fills a reading.
+
+**What it costs.** A name ending in `-is` or starting `is-` could be a tag
+of its own. Where somebody has tagged a card with it, it stays that tag
+(`readingOf` asks the card's own names first), and the editor refuses a
+new tag or ID that an adjective or pronoun would already read that way.
+A reading may run three characters past the 24 a name is cut to, so an ID
+of full length can still be read. A tag with both pronouns and adjectives
+is offered the adjective's question; each card still reads its own way.
+
+## What a language has is the language pack's to say
+
+**2 October 2026** · `grammarOptions` on a pack and `dimsOf` in `src/languages.ts`; `HE_SUBJECT_PERSONS`; `aboutPersons`; `tests/language-isolation.test.mjs`
+
+An audit of what the packs hold against what the app holds, asked for by
+the owner after two weeks of sentence, verb and number work, found the
+packs already carried every question's wording, every hint and the
+marking — and found grammar still half outside them. The owner asked for
+all of it to be fixed.
+
+**The values of an axis are the pack's.** GRAMMAR was one list for every
+language, and a pack only chose which axes it used, so Arabic and Hebrew
+teachers were offered a *neutral* gender neither language has. A pack now
+declares the values each axis offers and what each is called
+(`grammarOptions`); GRAMMAR stays the superset a stored card is checked
+against, so a value outside a pack's list is still kept and still read.
+The second copy of the abbreviations (`NUMBER_SHORT`, `GENDER_SHORT`)
+went: a tag reads the axis's own `brief`, with `short` for what stays
+silent.
+
+**Huế names who a form is said to.** The addressee axis was retired in
+the first weeks because addressee is not a property of a word — *chó* is
+*chó* whoever is listening — and greetings that do vary became plain,
+unlabelled forms of one card. Unlabelled was the cost: asked for *hello*,
+a learner had no way to know which of three was wanted, and a grid could
+pair them only by chance. It is back, asked only where the old objection
+does not reach: every kind of word declares the axes it is asked about
+and none declares this one, so it is offered on phrases and sentences and
+never on a noun. Its labels are Huế's own, in its address terms.
+
+**Hebrew has a feminine for every person.** Its present tense varies by
+gender in every person, and the table had one box each for *I*, *we*, the
+plural *you* and *they* — the same fault 0.261 fixed for Arabic's *I*, in
+four places. Twelve columns, the masculine keeping each old id so nothing
+written moves; cells that do not differ are typed twice, as Arabic's
+already are. *They (f)* picks a plural of women, and wins over *they (m)*
+by being the more specific.
+
+**A person is named beside a sentence, not inside it.** `{{adjective-is}}`
+read *I am (m) tired*, the one place left where an exercise put grammar as
+shorthand into the middle of English, against the rule that exercises say
+it in whole words. The English is now *I am tired* and the value carries
+which form it is — *masculine*, *feminine*, *plural* — by the name its
+agreement table gives that column. It is shown where the words in a
+sentence's blanks are already named (`lentTags`), and in the teacher's
+sentence review. Marking accepts the note typed as well as left off.
+
+**The guard reads the whole app.** The test that keeps a language's words
+out of app code listed twelve files, and none of the sentence, verb,
+pronoun or number modules written since was among them. It reads the
+directory now, ignores comments (an explanation that أنا is *I* is not a
+rule), and looks for Vietnamese as well as Arabic and Hebrew. Two strings
+it had allowed went: the card sheet's placeholder comes from the pack, and
+the first screen's wordmark is the app's name, Taleb33, rather than an
+Arabic word every learner met whatever they were learning. Sentence-ending
+punctuation is read off Unicode's classes rather than a list naming one
+script's question mark.
+
+**What it costs.** Hebrew's verb table is half as wide again for a
+teacher to fill. The addressee tag on a Huế form is long beside a word
+in the card list. Feedback lines that name a form are whole sentences with
+gaps (`src/wording.ts`), which changes nothing on screen today and is
+there for the day the app's own wording is translated.

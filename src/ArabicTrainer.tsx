@@ -4,6 +4,7 @@ import type {
   Lang, LangId, Millis, Question, SavedSession, Settings, User,
  VerbSpec, } from "./types.ts";
 import type { Node } from "./shared.tsx";
+import { say } from "./wording.ts";
 import {
   APP_COMMIT,
   APP_RELEASE,
@@ -1081,14 +1082,18 @@ export function fillersIn(unit: Form, key: string, settings: Settings): Filler[]
 export function lentTags(unit: Form | null | undefined, lang: Lang): string[] {
   const filled = unit ? ((unit as Record<string, any>).filled as Record<string, string> | undefined) : undefined;
   if (!filled) return [];
+  /* What a value said it was when it was put in — an adjective in
+     `{{adjective-is}}` is one of its own forms, chosen by person, and only
+     the value knows which. The card would name its own word instead. */
+  const told = ((unit as Record<string, any>).tags || {}) as Record<string, string>;
   const out: string[] = [];
-  for (const ref of Object.values(filled)) {
+  for (const [slot, ref] of Object.entries(filled)) {
     const found = ref ? VALUE_OWNER.get(ref) : null;
     if (!found) continue;
-    const label = lentLabel(found.form, found.card, LANGUAGES[String(found.card.lang || "")] || lang);
+    const label = told[slot] || lentLabel(found.form, found.card, LANGUAGES[String(found.card.lang || "")] || lang);
     if (!label) continue;
     const en = String(found.form.en || "").split("/")[0].trim();
-    const line = en ? `${en}: ${label}` : label;
+    const line = say("blankForm", { word: en, form: label });
     if (!out.includes(line)) out.push(line);
   }
   return out;
@@ -3032,7 +3037,40 @@ const MODES = {
     label: "Fix mistakes",
     blurb: "Only the cards you've slipped on in the last couple of attempts.",
   },
+  unseen: {
+    label: "Not seen lately",
+    blurb: "Cards you haven't practised in the last few days, new ones included — anything still climbing the levels.",
+  },
 };
+
+/*
+ * How long since a form was last answered before Not seen lately offers
+ * it: three days. Long enough that yesterday's words are not in it, short
+ * enough that a word from last week is.
+ */
+const UNSEEN_DAYS = 3;
+
+/*
+ * Is this form one Not seen lately should ask about? Not answered on any
+ * of its exercises in the last UNSEEN_DAYS — a form never answered at all
+ * is the plainest case — and not yet cleared, which takes learnt with it:
+ * the mode is for moving words up the levels, and a cleared word has no
+ * level left to climb, only reviews that have to come round on their own.
+ */
+function notSeenLately(unit: Form, settings: Settings) {
+  const st = (t: string) => stateOf(unit, t);
+  if (cleared(laddered(unit, settings), st)) return false;
+  const last = Math.max(0, ...Object.values(statesOf(unit)).map((x) => (x && x.updated) || 0));
+  return now() - last >= UNSEEN_DAYS * 86400000;
+}
+
+/*
+ * How many questions a timed session is given to work through: about one
+ * every ten seconds. Only Regular reads it, because it is the one mode
+ * whose cards are chosen to fit a length — the rest take everything picked
+ * and let the clock end it.
+ */
+const TIMED_PER_MINUTE = 6;
 
 /* Did this form go wrong in either of its last two outings? Read in the
    card's own language, and through stateOf, which answers for a key that
@@ -3853,14 +3891,33 @@ function everyTypeMode(mode: string) {
  * nothing to gain from drilling them — and the caller is told which cards
  * were skipped for that reason so it can say so.
  */
-export function buildManualSession({ items, settings, ids, mode, count }: {
+export function buildManualSession({ items, settings, ids, mode, count, minutes, perDay, systems }: {
   items: Item[];
   settings: Settings;
   ids: Set<string> | string[];
   mode: string;
   count?: number;
+  minutes?: number;
+  /** As buildSession takes them — Regular is dealt by it. */
+  perDay?: number;
+  systems?: SystemSet[];
 }) {
   const chosen = new Set(ids);
+  /*
+   * Regular is the everyday session over the cards picked: the same
+   * dealing the home screen and a prep do, narrowed to these cards the way
+   * a prep narrows it to its decks. What is due first, the words still
+   * climbing ahead of the rest, and new words let in only as fast as the
+   * learner clears them. It used to take every card picked, shuffled, with
+   * none of that — so the same decks gave a far wider and far less useful
+   * spread here than on the home screen. The other modes are for
+   * deliberately stepping outside the schedule, and keep their own rules.
+   */
+  if (mode === "regular") {
+    const budget = count && count < 999 ? count : minutes ? minutes * TIMED_PER_MINUTE : SESSION_SIZE;
+    const built = buildSession({ items, settings, inDeck: (it) => chosen.has(it.id), budget, perDay, systems });
+    return { ...built, manual: true, mode, learnt: [] as Item[] };
+  }
   const allowed = new Set(typesForMode(mode));
   /* Two types is the rule everywhere else, and it is what keeps a session
      from being one exercise repeated. Get started draws on the two gentle
@@ -3920,6 +3977,7 @@ export function buildManualSession({ items, settings, ids, mode, count }: {
         continue;
       }
       if (mode === "mistakes" && !hasRecentMistake(unit, settings)) continue;
+      if (mode === "unseen" && !notSeenLately(unit, settings)) continue;
       const usable = usableFor(unit);
       if (!usable.length) continue;
       anyUsable = true;
@@ -3940,7 +3998,13 @@ export function buildManualSession({ items, settings, ids, mode, count }: {
   if (!plans.length) {
     return {
       exercises: [],
-      reason: learnt.length ? "all-learnt" : mode === "mistakes" ? "no-mistakes" : "none-drillable",
+      reason: learnt.length
+        ? "all-learnt"
+        : mode === "mistakes"
+        ? "no-mistakes"
+        : mode === "unseen"
+        ? "no-unseen"
+        : "none-drillable",
       learnt,
     };
   }
@@ -8579,12 +8643,21 @@ export default function ArabicTrainer() {
     count?: number;
     minutes?: number;
   }) {
-    const built = buildManualSession({ items, settings, ids, mode, count });
+    /* Regular is dealt as the home screen deals, so it reads the cards the
+       home screen does: the language switch has its say over which words
+       count as in hand, exactly as it does for a prep. */
+    const built = buildManualSession({
+      items: mode === "regular" ? shown : items, settings, ids, mode, count, minutes, perDay, systems,
+    });
     setBuilding(false);
     if (!built.exercises.length) {
       flash(
         built.reason === "no-mistakes"
           ? "Nothing to fix — none of those have gone wrong recently"
+          : built.reason === "no-unseen"
+          ? "You've practised all of those in the last few days, or they're already cleared"
+          : built.reason === "nothing-due"
+          ? "Nothing new to bring in yet — what you're learning comes back shortly"
           : built.reason === "no-variety"
           ? "That needs at least two exercise types"
           : "Those cards don't have enough to practice yet"
@@ -9311,6 +9384,7 @@ export default function ArabicTrainer() {
       kin,
       shown: (choices as Record<string, any>[]).concat(grid.words || []),
       promptField: spec.promptField || "",
+      answerField: spec.answerField || "",
     });
   }, [item, parentItem, spec, choices, grid]);
 
@@ -11092,7 +11166,7 @@ export default function ArabicTrainer() {
                           the pair. */}
                       {gaveLabel && (
                         <Help data-el="answer-grammar">
-                          {`You wrote the ${gaveLabel} one.`}
+                          {say("wroteForm", { form: gaveLabel })}
                         </Help>
                       )}
                       {/* Directly under the marked spelling it is talking
@@ -13131,7 +13205,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                       value={sb.ar}
                       onChange={(v) => setSub(i, "ar", v)}
                       mode={settings.keyboard}
-                      placeholder="الشكل"
+                      placeholder={langOf(settings).scriptNative}
                     />
 
                     <div className="at-inline">
@@ -13304,7 +13378,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
    ------------------------------------------------------------------ */
 
 const COUNT_CHOICES = [10, 20, 30, 50];
-const TIME_CHOICES = [2, 3, 5, 10];
+const TIME_CHOICES = [2, 5, 10, 15, 30];
 
 /* ------------------------------------------------------------------
    Full-screen: the sessions somebody kept
@@ -13739,11 +13813,11 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
           <div className="at-lengthor">or</div>
 
           <div className="at-lengthgroup">
-            <p className="at-label">Time</p>
+            <p className="at-label">Minutes</p>
             <Segmented
               size={null}
-              label="How long"
-              options={TIME_CHOICES.map((n) => ({ value: n, label: `${n} min` }))}
+              label="How many minutes"
+              options={TIME_CHOICES.map((n) => ({ value: n, label: String(n) }))}
               value={limitKind === "time" ? minutes : null}
               onChange={(n) => {
                 setLimitKind("time");
@@ -14129,13 +14203,17 @@ const PROMPT_FIELDS = ["ar", "en", "lat"];
    already on the screen — see formTagsAt. */
 const PROMPT_SHOWS_FORM = ["ar", "lat", "audio"];
 
-export function formIsAmbiguous({ unit, kin, shown, promptField }: {
+export function formIsAmbiguous({ unit, kin, shown, promptField, answerField }: {
   unit: Record<string, any> | null | undefined;
   /** The card's other forms. */
   kin: Record<string, any>[];
   /** What else is on screen as an answer — the tiles, or the grid's words. */
   shown: Record<string, any>[];
   promptField: string;
+  /** The field the answer is written in. Optional: without it, any two
+      forms reading alike in the prompt are taken to want different
+      answers. */
+  answerField?: string;
 }): boolean {
   if (!unit || !kin.length) return false;
   /* A prompt showing the word itself — in the script, its transliteration,
@@ -14145,7 +14223,14 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
   const ids = new Set((shown || []).map((s) => s && s.id).filter(Boolean));
   if (!PROMPT_SHOWS_FORM.includes(promptField) && kin.some((k) => k && ids.has(k.id))) return true;
   if (!PROMPT_FIELDS.includes(promptField)) return false;
-  return kin.some((k) => readAlike(unit, k, promptField));
+  /* Two forms reading alike in the prompt *and* in the answer leave
+     nothing to choose between: either answer is the answer. "bafham" filed
+     once for "I" and once for "I (f)", both "I understand", put "I" over
+     the question and so gave half the English away for nothing — a
+     learner reported exactly that. */
+  const sameAnswer = (k: Record<string, any>) =>
+    !!answerField && PROMPT_FIELDS.includes(answerField) && readAlike(unit, k, answerField);
+  return kin.some((k) => readAlike(unit, k, promptField) && !sameAnswer(k));
 }
 
 /**

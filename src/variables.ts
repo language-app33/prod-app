@@ -233,13 +233,86 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
   if (kind === WORD_SLOT && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
   const said = String((card && card.category) || "").toLowerCase();
   if (said && !out.includes(said)) out.push(said);
-  /* And a pronoun fills the two blanks that read it with *to be* — the
-     same cards, with a different English. See READING_SLOTS. */
-  if (said === PRONOUN_SLOT) for (const slot of READING_SLOTS) if (!out.includes(slot)) out.push(slot);
-  /* And an adjective the blank that says it about a person — see
-     ADJECTIVE_IS_SLOT. */
-  if (said === ADJECTIVE_SLOT && !out.includes(ADJECTIVE_IS_SLOT)) out.push(ADJECTIVE_IS_SLOT);
+  /* And a pronoun fills the blanks that read it with *to be*, and an
+     adjective the one that says it about a person — the same cards, with
+     a different English — under every name that reaches it: its kind,
+     its group tags and its own ID. See readingNames. */
+  for (const name of [...out]) {
+    for (const slot of readingNames(said, name)) if (!out.includes(slot)) out.push(slot);
+  }
   return out;
+}
+
+/*
+ * The other ways a name can be read, for a card of one kind.
+ *
+ * `{{pronoun-is}}`, `{{is-pronoun}}` and `{{adjective-is}}` were three
+ * names of their own, reached only through the kind of word. A teacher who
+ * gathers their adjectives of feeling under a tag, or wants one adjective
+ * by its ID, wants the same choice — *tired* or *I am tired* — and the
+ * blank's name is the only place it can be written. So the reading is an
+ * affix on any name: `{{feelings-is}}`, `{{tired-is}}`, `{{is-ana}}`. The
+ * three built-in names are this rule applied to the kind, and read exactly
+ * as before.
+ *
+ * A pronoun reads `-is` as *I am* and `is-` as *am I*; an adjective reads
+ * `-is` about each person in turn; nothing else reads either, so a tag
+ * with nouns and adjectives in it lends only its adjectives to
+ * `{{feelings-is}}`. `{{word}}` has no readings: every word fills it, and
+ * a reading of it would be a kind of word under another name.
+ */
+export function readingNames(kind: string, name: string): string[] {
+  if (!name || name === WORD_SLOT) return [];
+  if (kind === PRONOUN_SLOT) return [`${name}-is`, `is-${name}`];
+  if (kind === ADJECTIVE_SLOT) return [`${name}-is`];
+  return [];
+}
+
+/**
+ * The name a reading is a reading of, and which: `feelings-is` is the
+ * `is` of `feelings`, `is-ana` the `ask` of `ana`. Null for a name with
+ * neither affix. Says nothing about whether anything answers to it —
+ * see readingOf, which asks a card.
+ */
+export function readingBase(slot: string): { base: string; reads: "is" | "ask" } | null {
+  if (slot.length > 3 && slot.endsWith("-is")) return { base: slot.slice(0, -3), reads: "is" };
+  if (slot.length > 3 && slot.startsWith("is-")) return { base: slot.slice(3), reads: "ask" };
+  return null;
+}
+
+/**
+ * How one card stands in one blank: as itself (""), or read with *to be*
+ * ("is", "ask") because the blank is a reading of a name that reaches it.
+ * A name the card answers to as it is wins over a reading of a shorter
+ * one, so a tag that happens to end in `-is` is still that tag.
+ */
+export function readingOf(card: WithSlots | null | undefined, slot: string): "" | "is" | "ask" {
+  const kind = String((card && card.category) || "").toLowerCase();
+  if (kind !== PRONOUN_SLOT && kind !== ADJECTIVE_SLOT) return "";
+  const read = readingBase(slot);
+  if (!read) return "";
+  if (fillNames(card).includes(slot) || cardRef(card) === slot) return "";
+  return readingNames(kind, read.base).includes(slot) && fillsOf(card).includes(read.base) ? read.reads : "";
+}
+
+/** Whether one card stands in one blank as an adjective said about a
+    person — see aboutPersons in languages.ts. */
+export const aboutPerson = (card: WithSlots | null | undefined, slot: string): boolean =>
+  String((card && card.category) || "").toLowerCase() === ADJECTIVE_SLOT && readingOf(card, slot) === "is";
+
+/*
+ * One value as it stands in one blank: a pronoun in a reading of any name
+ * carries the English of that reading under the blank's own name, which
+ * is the key fillText reads. Its readings are worked out under the
+ * built-in names — see readingsOf — and copied across here.
+ */
+export function readAs(card: WithSlots | null | undefined, value: Value, slot: string): Value {
+  const reads = readingOf(card, slot);
+  if (!reads || String((card && card.category) || "").toLowerCase() !== PRONOUN_SLOT) return value;
+  const key = reads === "is" ? PRONOUN_IS_SLOT : IS_PRONOUN_SLOT;
+  const said = value.readings && value.readings[key];
+  if (!said || key === slot) return value;
+  return { ...value, readings: { ...value.readings, [slot]: said } };
 }
 
 /*
@@ -252,11 +325,15 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
  * a phone. Written before it is stored and again on the way in, so what
  * the editor shows and what the server keeps cannot come apart.
  */
-export const slotName = (raw: unknown): string =>
-  String(raw == null ? "" : raw)
+export const slotName = (raw: unknown): string => {
+  const name = String(raw == null ? "" : raw)
     .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, "")
-    .slice(0, 24);
+    .replace(/[^a-z0-9_-]/g, "");
+  /* A reading of a name may run past the limit by its affix: an ID of the
+     full length, read as `{{…-is}}`, is still that ID. See readingNames. */
+  const read = readingBase(name);
+  return read && read.base.length <= 24 ? name : name.slice(0, 24);
+};
 
 /**
  * The ID a teacher gave this card, as anything asking for it by name
@@ -311,6 +388,17 @@ export function refClash(
     if (String((card && card.id) || "") === self) continue;
     if (cardRef(card) === want) return { kind: "card", card };
     if (fillNames(card).includes(want)) return { kind: "group", card };
+  }
+  /* And a reading of a name an adjective or a pronoun answers to —
+     `tired-is` beside the ID `tired` — is that name read another way, not
+     a name of its own. A name no such card would read, `name-is`, is
+     free. See readingNames. */
+  if (!readingBase(want)) return null;
+  for (const card of pool || []) {
+    if (String((card && card.id) || "") === self) continue;
+    if (!readingOf(card, want)) continue;
+    const own = readingNames(String(card.category || "").toLowerCase(), cardRef(card)).includes(want);
+    return { kind: own ? "card" : "group", card };
   }
   return null;
 }
@@ -645,6 +733,13 @@ export interface Value {
    */
   readings?: Record<string, string>;
   /**
+   * Which form it is, in words, where its English cannot say — an
+   * adjective standing in `{{adjective-is}}` reads *I am tired* whether it
+   * is تعبان or تعبانة, and this is "masculine" or "feminine". Shown
+   * beside the sentence, never written into it. See aboutPersons.
+   */
+  tag?: string;
+  /**
    * Whether it is a name — a person or a place — and so keeps its capital
    * wherever it stands in a sentence. See fitCase.
    */
@@ -879,7 +974,7 @@ export function valuesFor(
       for (const slot of slots) {
         if (!out[slot]) continue;
         if (admits && !admits(card, lent.form, slot)) continue;
-        out[slot].push(...(into ? into(card, lent.value, slot) : [lent.value]));
+        out[slot].push(...(into ? into(card, lent.value, slot) : [readAs(card, lent.value, slot)]));
       }
     }
   }
@@ -1315,5 +1410,9 @@ export function fillForm<T extends WithSlots>(
     }));
   }
   out.filled = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.id || v.ar]));
+  /* And what a blank's value said it was, where its English could not —
+     read by the screen that names the words in a sentence's blanks. */
+  const tags = Object.entries(values).filter(([, v]) => v && v.tag);
+  if (tags.length) out.tags = Object.fromEntries(tags.map(([k, v]) => [k, v.tag]));
   return out as T;
 }
