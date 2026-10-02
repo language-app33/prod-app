@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.310 — 2 October 2026
+
+**Longer custom sessions.**
+
+- A session you build yourself can now run for 2, 5, 10, 15 or 30
+  minutes. The 3-minute choice is gone; sessions already saved with 3
+  minutes still run for 3.
+
 ## 0.309 — 2 October 2026
 
 **Each language's grammar comes from that language, and exercises say it in words.**
