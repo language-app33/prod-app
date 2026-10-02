@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.314 — 2 October 2026
+
+**A missing "s" is not a typo, and punctuation never costs you an answer.**
+
+- Answering in English, leaving off or adding an "s" (or "es", or "ies")
+  at the end of a word is no longer forgiven as a typo. "Photo" for
+  "photos" is the singular for the plural, and "live" for "she lives" is
+  the wrong person, so both are now a near miss: the card comes back
+  later in the session, and the answer screen says the ending changes the
+  meaning. Every other one-letter slip is still counted as right.
+- Punctuation is ignored when marking, in every language: commas, full
+  stops, question marks, quotes and dashes. That already held for the
+  plain ones; it now also holds for the curly quotes and apostrophes
+  phones type on their own, so "it’s", “yes” and "don’t" are marked
+  exactly as if they had been typed plainly.
+
 ## 0.313 — 2 October 2026
 
 **A timed session can be paused.**

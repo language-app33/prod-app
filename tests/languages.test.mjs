@@ -162,6 +162,36 @@ test("English: one letter out is a slip and right; further out, or a short word,
   assert.deepEqual(checkEn("understnad", "understand"), { ok: false, reason: "near" });
 });
 
+test("English: an s on the end is grammar, not a typo", () => {
+  /* Reported by a learner: "Photo" for صُوَر, the plural, was marked right
+     as one letter out. And "live" for "she lives" was too. */
+  assert.deepEqual(checkEn("Photo", "Pictures / Photos / Images"), { ok: false, reason: "ending" });
+  assert.deepEqual(checkEn("photos", "Picture / Photo / Image"), { ok: false, reason: "ending" });
+  assert.deepEqual(checkEn("live", "lives"), { ok: false, reason: "ending" });
+  assert.deepEqual(checkEn("she live", "she lives"), { ok: false, reason: "ending" });
+  assert.deepEqual(checkEn("boxes", "box"), { ok: false, reason: "ending" });
+  assert.deepEqual(checkEn("city", "cities"), { ok: false, reason: "ending" });
+  /* The right ending is still right, and a doubled s dropped is still a slip. */
+  assert.deepEqual(checkEn("Photos", "Pictures / Photos / Images"), { ok: true, reason: "exact" });
+  assert.deepEqual(checkEn("glas", "glass"), { ok: true, reason: "typo" });
+  /* Any other one-letter slip is still forgiven. */
+  assert.deepEqual(checkEn("Phots", "Pictures / Photos / Images"), { ok: true, reason: "typo" });
+});
+
+test("Punctuation is never what an answer is marked on, curly or straight", () => {
+  /* Phones type curly quotes and apostrophes on their own. */
+  assert.deepEqual(checkEn("I don’t know", "I don't know"), { ok: true, reason: "exact" });
+  assert.deepEqual(checkEn("it’s", "it's"), { ok: true, reason: "exact" });
+  assert.deepEqual(checkEn("“yes”", "yes"), { ok: true, reason: "exact" });
+  assert.deepEqual(checkEn("Hello how are you", "Hello, how are you?"), { ok: true, reason: "exact" });
+  assert.deepEqual(checkEn("well — then", "well, then"), { ok: true, reason: "exact" });
+  assert.equal(checkAr("“مرحبا”", "مرحبا", {}).ok, true);
+  assert.equal(checkAr("مرحبا كيفك", "مرحبا، كيفك؟", {}).ok, true);
+  assert.equal(checkHe("„שלום“", "שלום", {}).ok, true);
+  assert.equal(checkViet("xin chào — bạn", "xin chào, bạn!", { tones: "either" }).ok, true);
+  assert.equal(checkViet("“xin chào”", "xin chào", { tones: "either" }).ok, true);
+});
+
 test("English: a different word in one place is wrong, not a near miss", () => {
   /* Reported by a learner, twice: "their" for "your" was marked as the
      right word, not quite spelt. */
