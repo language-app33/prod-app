@@ -37,6 +37,10 @@ import {
   agreedValue,
   drawnOf,
   partnerOf,
+  slotLinks,
+  linkLoops,
+  asSubject,
+  NO_PARTNER,
   rowLead,
   isRowLead,
   hasCells,
@@ -898,6 +902,44 @@ test("the blanks a sentence draws are every one but its own place, and a blank's
   assert.equal(partnerOf({ ar: "{{verb}} {{pronoun}}" }, ["verb", "pronoun"], "verb"), "pronoun", "whichever side it is on");
   assert.equal(partnerOf({ ar: "أنا {{verb}} عربي" }, ["verb"], "verb"), "", "nothing to agree with");
   assert.equal(partnerOf(frame, ["name", "verb", "object"], "object"), "name", "and a frame's other blanks read past its own place");
+});
+
+/*
+ * A blank linked to another follows it, wherever it stands.
+ *
+ * عطشان، بدي مي has no pronoun: the adjective follows the verb, which
+ * comes second, and the verb — followed rather than following — goes
+ * through its persons.
+ */
+test("a sentence can link a blank to the one it agrees with, or to nothing", () => {
+  const linked = { ar: "{{adjective}}، {{verb}} مي", agrees: { " Adjective ": "VERB" } };
+  const slots = ["adjective", "verb"];
+  assert.deepEqual(slotLinks(linked), { adjective: "verb" }, "names narrowed like the names in braces");
+  assert.equal(partnerOf(linked, slots, "adjective"), "verb");
+  assert.equal(partnerOf(linked, slots, "verb"), "", "a blank something follows does not follow it back");
+  assert.equal(partnerOf({ ar: "{{adjective}}، {{verb}} مي" }, slots, "verb"), "adjective", "unlinked, the rule as it was");
+  assert.equal(partnerOf({ ar: "{{pronoun}} {{verb}}", agrees: { verb: NO_PARTNER } }, ["pronoun", "verb"], "verb"), "",
+    "linked to nothing");
+  assert.equal(partnerOf({ ar: "{{a}} {{b}}", agrees: { b: "gone" } }, ["a", "b"], "b"), "a",
+    "a link to a blank the sentence no longer has falls back to the rule");
+  assert.deepEqual(slotLinks({ agrees: { a: "a", b: "", c: 3 } }), {}, "a link to itself, or to nothing written, is none");
+  assert.equal(linkLoops({ verb: "adjective" }, "adjective", "verb"), true, "two blanks following each other");
+  assert.equal(linkLoops({ b: "c", c: "a" }, "a", "b"), true, "or round a ring");
+  assert.equal(linkLoops({ verb: "pronoun" }, "adjective", "verb"), false, "a chain is fine");
+});
+
+test("a person says what it is to a word that agrees with it", () => {
+  const ar = verbOf(LANGUAGES["ar-PS"]);
+  assert.deepEqual(asSubject(ar, {}, "we"), { number: "plural", gender: "masculine", human: "person", person: "we" });
+  assert.equal(asSubject(ar, { person: "i-f" }).gender, "feminine", "a pronoun's own person");
+  assert.equal(asSubject(ar, { person: "you-f" }).number, "singular");
+  assert.equal(asSubject(ar, { person: "they", number: "plural" }).human, "person", "they are people");
+  assert.deepEqual(asSubject(ar, { number: "plural", human: "thing" }), { number: "plural", human: "thing" },
+    "a noun, with no person, is left as it is");
+  /* Every column of both languages that has persons says what it is. */
+  for (const id of ["ar-PS", "he-IL"]) {
+    for (const p of personsOf(verbOf(LANGUAGES[id]))) assert.ok(p.is && p.is.number, `${id} ${p.id}`);
+  }
 });
 
 test("one cell stands for a row: the first filled one the card lends, in the order the persons are listed", () => {

@@ -725,7 +725,9 @@ test("a card's own ID is a name a blank can ask for", () => {
 
   /* Beside its groups and its kind, not instead of them. */
   const tagged = { ...red, fills: ["colours"], category: "adjective" };
-  assert.deepEqual(fillsOf(tagged, "word"), ["colours", "colour-red", WORD_SLOT, "adjective"]);
+  /* An adjective also fills the blank that says it about a person — see
+     ADJECTIVE_IS_SLOT. */
+  assert.deepEqual(fillsOf(tagged, "word"), ["colours", "colour-red", WORD_SLOT, "adjective", "adjective-is"]);
 
   /* Narrowed the way every other name that goes in braces is, so what the
      editor checked and what the server stored cannot come apart. */

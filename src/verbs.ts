@@ -454,8 +454,104 @@ export const drawnOf = (form: unknown, slots: string[]): string[] => {
  * lends one form per tense, since the sentence picks the person — and the
  * pool is counted before anything is drawn.
  */
-export const partnerOf = (form: unknown, slots: string[], slot: string): string =>
-  agreeWith(drawnOf(form, slots), slot);
+export function partnerOf(form: unknown, slots: string[], slot: string): string {
+  const drawn = drawnOf(form, slots);
+  const links = slotLinks(form);
+  return linkedPartner(links, drawn, slot) ?? agreeWith(followable(links, drawn, slot), slot);
+}
+
+/**
+ * What a blank linked to nothing is stored as: it follows no other blank,
+ * and goes through all its forms in turn — a verb every person of it.
+ */
+export const NO_PARTNER = "-";
+
+/**
+ * Which blank each of a sentence's blanks has been told to agree with.
+ *
+ * "{{noun}} {{adjective}}" needs nothing said: the first other blank is
+ * the right one. Palestinian Arabic drops the pronoun before an adjective
+ * — عطشان، بدي مي — and in "{{adjective}}، {{verb}} مي" the adjective has
+ * to follow the verb, which comes second. So a sentence may link a blank
+ * to another by name, or to NO_PARTNER, and this is where that is read.
+ *
+ * Written on the form beside `tenses`, for the same reasons. **Absent
+ * means the first-other-blank rule**, so nothing written before this is
+ * read any differently. A link to itself is no link.
+ */
+export function slotLinks(form: unknown): Record<string, string> {
+  const said = field(form, "agrees");
+  const out: Record<string, string> = {};
+  if (!said || typeof said !== "object" || Array.isArray(said)) return out;
+  for (const [name, to] of Object.entries(said as Record<string, unknown>)) {
+    const slot = str(name).toLowerCase();
+    const target = typeof to === "string" ? str(to).toLowerCase() : "";
+    if (slot && target && target !== slot) out[slot] = target;
+  }
+  return out;
+}
+
+/**
+ * The partner a link names, among the blanks actually drawn: the blank,
+ * "" for NO_PARTNER, or undefined where nothing usable is said — no link,
+ * or one to a blank the sentence no longer has — and the rule decides.
+ */
+export function linkedPartner(
+  links: Record<string, string>,
+  drawn: string[],
+  slot: string,
+): string | undefined {
+  const to = links[slot];
+  if (!to) return undefined;
+  if (to === NO_PARTNER) return "";
+  return to !== slot && drawn.includes(to) ? to : undefined;
+}
+
+/**
+ * The blanks the first-other-blank rule may pick for one blank: all but
+ * those linked to it. A blank something follows is what decides the form,
+ * so it is not turned round to follow its follower — the verb that an
+ * adjective is linked to goes through its persons rather than waiting on
+ * an adjective that has none to give.
+ */
+export const followable = (links: Record<string, string>, slots: string[], slot: string): string[] =>
+  (slots || []).filter((s) => links[s] !== slot);
+
+/**
+ * Whether linking `slot` to `to` would have a blank end up following
+ * itself: A to B while B is linked to A, or round a longer ring. The
+ * editor offers no such choice.
+ */
+export function linkLoops(links: Record<string, string>, slot: string, to: string): boolean {
+  let at = to;
+  const seen = new Set<string>([slot]);
+  while (at && at !== NO_PARTNER) {
+    if (seen.has(at)) return true;
+    seen.add(at);
+    at = links[at] || "";
+  }
+  return false;
+}
+
+/**
+ * What a filler is to a word that agrees with it, once the person it is
+ * in is known: its own grammar, with what the language says that person
+ * is laid over it — see `is` on a column. A pronoun card carries its
+ * person; a verb's cell is in one. Unchanged where no person is known or
+ * the table says nothing about it.
+ */
+export function asSubject(
+  spec: VerbSpec | null | undefined,
+  grammar: Record<string, unknown> | null | undefined,
+  person?: string,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(grammar || {})) if (str(v)) out[k] = str(v);
+  const named = str(person) || out.person || "";
+  const column = named ? personsOf(spec).find((p) => p.id === named) : null;
+  if (!column) return out;
+  return { ...out, ...(column.is || {}), person: named };
+}
 
 /**
  * The cell that stands for one row of a table, where a blank wants one

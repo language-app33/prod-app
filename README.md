@@ -275,8 +275,33 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   word clears in about a day. Not below it: a once-a-day learner's reviews
   passed over are not reached later that day, and in the pace simulation
   they learnt nothing in two months with the rule applied to them.
-  `KEEN_DAY` and `KEEN_POOL` in `src/ArabicTrainer.tsx`. The front door
-  itself does not grow: nobody holds more than ten strangers at once.
+  `KEEN_DAY` and `KEEN_POOL` in `src/ArabicTrainer.tsx`.
+
+  **And the front door widens for them too, up to twenty.** With the words
+  climbing first, a door of ten filled nearly every sitting of somebody
+  practising fifteen times a day: the same word thirteen or fourteen times
+  in a day, and a course of three hundred cards looked no different from
+  one of a hundred, because what was waiting behind the door was never
+  dealt. So the door holds one word for every `DOOR_OUTINGS` a typical day
+  reaches — ten, as before, up to about five sittings a day, and twenty
+  from about ten. Measured, at fifteen sittings: the busiest word down to
+  about ten showings a day, and a word clearing in a day and a half
+  rather than under one. It is a modest gain, and the larger cause is
+  plainer — a day of fifteen sittings asks for more cards than a ladder
+  that is climbed by effort and kept by time will give it — but it is
+  the part the door can do. `FRONT_DOOR_MAX`, `DOOR_OUTINGS` and
+  `frontDoorCap` in `src/scheduler.ts`, `frontDoorFor` in the app.
+
+  **What comes through the door is mixed.** Each place goes to a card of
+  whichever kind is least represented among the words already in the
+  door and those let in before it — a noun, a verb, any other kind of word
+  by what the teacher says it is; a phrase, a sentence, a conversation, a
+  text, a number skill. Within a kind, the due order decides, chance and
+  all. Left to the due order alone, a door's worth of strangers was a draw
+  from whatever the material held most of, so a deck of nouns with a few
+  sentences opened with nouns. The cost is that a kind with only a few
+  cards in it comes in early. `byVariety` in `src/scheduler.ts`,
+  `varietyOf` in the app.
 
 - **A learner can prepare for a date.** Prep mode, under Progress, takes
   a name ("Start of class"), a day and the decks to have learnt by then,
@@ -291,7 +316,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   session holds. Under it, today's sessions against the day's goal
   (`prepToday`: the rate with today's sessions put back, so the goal does
   not shrink as it is worked towards), then the days left and whether the
-  learner's own pace gets them there.
+  learner's own pace gets them there. Both of those are read off
+  `prepLog`, a daily count of questions on cards in the prep's decks, kept
+  beside the log and merged the same way (`tallyAnswer`): the goal is
+  counted off those cards, so what is held against it is too, whichever
+  kind of session asked them. Read off the whole log, practice on another
+  deck filled today's sessions and moved the prep nowhere.
 - **A deck says when it could all be learnt — an estimate, by
   arithmetic.** A deck's tile under Progress opens the deck on a screen of
   its own: how far it has got, every card in it by where it stands, and two
@@ -465,6 +495,22 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   cell in turn as it always did, and so does one in a language whose
   table has one column.
 
+  **And a blank can be told which other blank it agrees with.** The first
+  other blank is right for "{{noun}} {{adjective}}" and wrong for
+  Palestinian Arabic's عطشان، بدي مي, which drops the pronoun: there the
+  adjective has to follow the verb, which comes second. So a sentence may
+  link a blank to another by name, or to nothing (`NO_PARTNER`), stored as
+  `agrees` beside `tenses` and read through `slotLinks` and `partnerOf` in
+  `src/verbs.ts`. A blank something follows is never turned round to
+  follow it back, so the verb an adjective is linked to goes through its
+  persons; the editor offers no link that would make a ring, and a blank
+  nobody linked keeps the old rule. What the adjective reads off a verb or
+  a pronoun is the person it is in, and what the language says that
+  person is — `is` on each column: *I (f)*, *you (f)* and *she* a feminine
+  singular, *we*, *you (pl)* and *they* a plural of people (`asSubject`).
+  `agreeTook` fills a blank after the one it follows, so a chain reads
+  the form its partner ended up as.
+
   **A pronoun reads three ways in English, and the blank says which.**
   Arabic and Hebrew drop *to be* in the present — أنا تعبان is *I am
   tired* — and ask a question without moving anything, where English turns
@@ -483,6 +529,25 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   (`BlankScreen` in `src/card-editor.tsx`) lists the pronoun once, and
   choosing it turns to the three readings, which is what put that picker
   on a screen rather than a sheet.
+
+  **And an adjective can say who, with the pronoun left out.** تعبان
+  answers "how are you?" by itself, and تعبانة اليوم is *I am tired today*
+  with no word for *I*. `{{adjective-is}}` is that blank: every adjective
+  fills it once for each form it takes about a person — the persons of
+  the verb table, read through `asSubject` and the agreement table exactly
+  as a pronoun beside the adjective would be — and the English of each is
+  every person that form fits, as alternatives: *I am (m) tired / you are
+  (m) tired / he is tired*. `aboutPersons` in `src/languages.ts` makes
+  those values and `lendsInto` hands them to all three readers of a blank;
+  `fillEnglish` in `src/variables.ts` puts each alternative into the whole
+  sentence before joining them, so a learner turning تعبان اليوم into
+  English is right with any person it fits, and one asked to write it is
+  shown one person at a time. The value is already agreed, so `agreeTook`
+  leaves it alone and the Blanks section asks it nothing. Offered as the
+  second step of choosing an adjective blank, where the language's verbs
+  say who each person is (`saysAboutPersons`). Marking English accepts the
+  person note left off — *you are tired* for *you are (m) tired* — and no
+  other bracket (`PERSON_NOTE` in `checkEn`).
 
   **And a list of cards shows a language's pronouns as one entry.** The
   Pronouns screen writes a card per person, because each is practised,
@@ -871,6 +936,28 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   a word gives back the same cards and nobody loses their year on one. A
   range is offered only once the whole of it can be said, so a system that
   stops at ten is a practice that counts to ten and stops.
+
+  **A deck holds the parts it teaches.** A system is one document per
+  language and not cards, so a deck cannot list it among its cards: it
+  names the ranges it teaches (`parts` on the deck, set through
+  `set-deck-parts`), and each learner's device files the matching skill,
+  and every word its askings are built of, under the deck's name —
+  `fileIntoDecks` and `wordsOfRange` in `src/numbers/generate.ts`. So 11
+  to 99 brings the tens and the units with it, and a word two decks need
+  is in both. **A part in no deck reaches nobody**: numbers used to go to
+  every learner of the language whatever their decks held, and now arrive
+  the way every other card does. What a learner had earned on a part
+  taken out is set aside by the fold like any card that leaves the
+  material, and is waiting when it comes back. The same screen ticks
+  pronouns in and out of the deck, one person at a time; those are
+  ordinary cards and simply join it.
+
+  **Counting things is three ranges, not one** — 1 and 2, 3 to 10, 11 to
+  20, where the counted word changes shape — so a teacher can hand them
+  out a lesson at a time, and a missing plural no longer holds back the
+  part that never needs one. `COUNTING_RANGES` in `src/numbers/types.ts`,
+  shared by Arabic and Hebrew; `handOnSplit` carries a learner's progress
+  on the old single range into each part.
 
   A box that has a word in it asks two more things about it — **how it
   sounds** and **a recording** — and both ride onto the card the word

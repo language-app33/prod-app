@@ -57,7 +57,7 @@ import {
   scriptVars } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
 import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
-import { fillersFor, groupPronouns, isPronounGroup, pickedCardIds } from "./card-facts.ts";
+import { fillersFor, groupPronouns, isPronounCard, isPronounGroup, pickedCardIds } from "./card-facts.ts";
 import type { PronounGroup } from "./card-facts.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
@@ -4140,6 +4140,26 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
 }
 
 /*
+ * A card list's filter as it starts, narrowing nothing — and what "Clear
+ * all filters" puts it back to.
+ */
+export const NO_CARD_FILTER = {
+  audio: "any",
+  forms: "any",
+  /* Which decks a card is in: "any" until a mode is picked, and narrowing
+     nothing until a deck is ticked — or "none", the cards in no deck. */
+  deckMode: "any",
+  deckIds: [] as string[],
+  /* And which side of a blank it is on — the sentence that leaves one,
+     or the word that fills it — with the blanks to keep, where the
+     teacher has named any. */
+  blankMode: "any",
+  blankNames: [] as string[],
+  /* And where a card stands with review — see filterCards. */
+  review: "any",
+};
+
+/*
  * What a card list leaves out.
  *
  * `deckMode` is "in" or "out" against `deckIds`: the cards that are in any
@@ -4147,6 +4167,11 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
  * than all, because that is what picking three decks reads as — show me
  * these three — and "in all of them at once" is a question nobody asked of a
  * deck list.
+ *
+ * "none" is the third answer and needs no decks ticked: the cards in no
+ * deck at all, which therefore reach no student. A card's deck list is the
+ * decks that exist and that the teacher can see, so one whose only deck was
+ * deleted is in none.
  *
  * A mode with no decks chosen narrows nothing. It is the state the filter is
  * in for as long as it takes to tick the first box, and hiding every card
@@ -4189,6 +4214,7 @@ export function filterCards(
     if (review === "waiting" && !waiting.has(c.id)) return false;
     if (review === "sentences" && !needsReview(c)) return false;
     if (forms === "several" && cardFormCount(c) < 2) return false;
+    if (deckMode === "none" && (c.decks || []).length) return false;
     if (byDeck) {
       const inOne = (c.decks || []).some((id) => deckIds.includes(id));
       if (deckMode === "in" ? !inOne : inOne) return false;
@@ -4378,6 +4404,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
      step, for the same reason. */
   const [pronouning, setPronouning] = useState<LangId | null>(null);
   const [pronounLang, setPronounLang] = useState<LangId | null>(null);
+  /* The open deck's numbers and pronouns, being chosen: null when the
+     screen is shut, and otherwise what is ticked on it so far — the parts
+     of the numbers by range id, and the pronoun cards by card id. */
+  const [deckExtras, setDeckExtras] = useState<{ parts: string[]; pronouns: string[] } | null>(null);
   /* And which language, where the teacher has more than one to choose
      from. The same two-step the New card button takes, for the same
      reason and through the same control. */
@@ -4616,21 +4646,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
      default, because the card just made is the one most likely wanted. */
   const [sortKey, setSortKey] = useState("changed");
   const [newestFirst, setNewestFirst] = useState(true);
-  const [cardFilter, setCardFilter] = useState({
-    audio: "any",
-    forms: "any",
-    /* Which decks a card is in: "any" until a mode is picked, and narrowing
-       nothing until a deck is ticked. */
-    deckMode: "any",
-    deckIds: [] as string[],
-    /* And which side of a blank it is on — the sentence that leaves one,
-       or the word that fills it — with the blanks to keep, where the
-       teacher has named any. */
-    blankMode: "any",
-    blankNames: [] as string[],
-    /* And where a card stands with review — see filterCards. */
-    review: "any",
-  });
+  const [cardFilter, setCardFilter] = useState(NO_CARD_FILTER);
   /*
    * Where every sentence card stands with review, and which are waiting.
    *
@@ -4662,7 +4678,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
   const deckView = useMemo(() => {
     if (!openDeck) return null;
     const held = cards.filter((c) => (c.decks || []).includes(openDeck));
-    const mine = sortCards(filterCards(held, cardFilter, waitingIds), sortKey, newestFirst);
+    /* "In no deck" is never true of a deck's own cards, so inside one it
+       is set aside rather than emptying the list. */
+    const inside = cardFilter.deckMode === "none" ? { ...cardFilter, deckMode: "any" } : cardFilter;
+    const mine = sortCards(filterCards(held, inside, waitingIds), sortKey, newestFirst);
     return { held, mine, listed: groupPronouns(mine, openDeck) };
   }, [openDeck, cards, cardFilter, waitingIds, sortKey, newestFirst]);
   /* The cards a selection stands for. Everything that acts on one goes
@@ -4771,7 +4790,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       label: "Decks",
       /* What the count on the Filter button reads: a mode with no deck
          ticked narrows nothing, so it is not counted as narrowing. */
-      value: cardFilter.deckMode !== "any" && cardFilter.deckIds.length ? cardFilter.deckMode : "any",
+      value: cardFilter.deckMode === "none" || (cardFilter.deckMode !== "any" && cardFilter.deckIds.length)
+        ? cardFilter.deckMode
+        : "any",
       quiet: "any",
       wide: true,
       /* Not a row of buttons: which decks is a list as long as the decks a
@@ -4785,11 +4806,15 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               { value: "any", label: "Any deck" },
               { value: "in", label: "In these" },
               { value: "out", label: "Not in these" },
+              { value: "none", label: "In no deck" },
             ]}
             value={cardFilter.deckMode}
             onChange={(v) => setCardFilter((f) => ({ ...f, deckMode: v }))}
           />
-          {cardFilter.deckMode !== "any" && (
+          {cardFilter.deckMode === "none" && (
+            <p className="at-hint">Cards that are in no deck at all, so no student sees them.</p>
+          )}
+          {(cardFilter.deckMode === "in" || cardFilter.deckMode === "out") && (
             <>
               <CheckList
                 options={decks.map((d) => ({
@@ -4917,7 +4942,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       label: "Filter",
       icon: "tune",
       busy: narrowing(filterGroups),
-      content: <FilterBar groups={filterGroups} />,
+      content: <FilterBar groups={filterGroups} onClear={() => setCardFilter(NO_CARD_FILTER)} />,
     },
   ];
 
@@ -5823,6 +5848,99 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     </Screen>
   );
 
+  /* ---- what a deck can hold besides cards: parts of the numbers, and
+         pronouns ----
+     Numbers are one document per language and pronouns one screen, so
+     neither is a card a teacher would find in a list to add. This is the
+     one place a deck takes them: the parts of the numbers by name — 0 to
+     10, counting things 3 to 10, telling the hour — each bringing the
+     words it is built of, and the pronouns one person at a time. Nothing
+     of either reaches a student except through a deck. */
+  const numberPartsOf = (langId: LangId | undefined) => [
+    ...((composerFor(langId) || { ranges: () => [] }).ranges()),
+    ...((timeComposerFor(langId) || { ranges: () => [] }).ranges()),
+  ];
+  const pronounCardsOf = (langId: LangId | undefined): Card[] => {
+    const own = cards.filter((c) => isPronounCard(c) && c.lang === langId);
+    const group = groupPronouns(own).find(isPronounGroup);
+    const order = group ? group.members : [];
+    return order.map((id) => own.find((c) => c.id === id)).filter(Boolean) as Card[];
+  };
+  const extrasScreen = (d: Deck) => {
+    const langId = (langOfDeck(d) || {}).id || d.lang;
+    const parts = numberPartsOf(langId);
+    const pronouns = pronounCardsOf(langId);
+    const picked = deckExtras || { parts: [], pronouns: [] };
+    const toggle = (key: "parts" | "pronouns") => (id: string, on: boolean) =>
+      setDeckExtras({ ...picked, [key]: on ? picked[key].filter((x) => x !== id) : picked[key].concat([id]) });
+    return (
+      <Screen title="Numbers and pronouns" onBack={() => setDeckExtras(null)}>
+        <Notice kind="error">{error}</Notice>
+        {parts.length > 0 && (
+          <Section title="Numbers">
+            <Help>
+              Tick the parts this deck teaches. Each part brings the number words it needs. Students get
+              only the parts that are in one of their decks.
+            </Help>
+            <CheckList
+              options={parts.map((r) => ({ id: r.id, title: r.label }))}
+              chosen={picked.parts}
+              onToggle={toggle("parts")}
+            />
+          </Section>
+        )}
+        {pronouns.length > 0 && (
+          <Section title="Pronouns" className="at-mt5">
+            <CheckList
+              options={pronouns.map((c) => ({
+                id: c.id,
+                title: leadOf(c).en || leadOf(c).ar,
+                note: [leadOf(c).ar, leadOf(c).lat].filter(Boolean).join(" · "),
+              }))}
+              chosen={picked.pronouns}
+              onToggle={toggle("pronouns")}
+            />
+          </Section>
+        )}
+        {!parts.length && !pronouns.length && (
+          <Help>
+            Nothing to add yet. Write this language's numbers or pronouns from the Cards tab first.
+          </Help>
+        )}
+        <div className="at-row at-mt5">
+          <Button variant="ghost" icon="close" onClick={() => setDeckExtras(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            icon="check"
+            disabled={busy}
+            onClick={() =>
+              run(
+                async () => {
+                  const had = d.parts || [];
+                  const same = had.length === picked.parts.length && had.every((x) => picked.parts.includes(x));
+                  if (!same) await API.setDeckParts(d.id, picked.parts);
+                  for (const card of pronouns) {
+                    const inNow = card.decks || [];
+                    const want = picked.pronouns.includes(card.id);
+                    if (want === inNow.includes(d.id)) continue;
+                    absorbSaved(await API.saveCard(card, want ? inNow.concat([d.id]) : inNow.filter((x) => x !== d.id)));
+                  }
+                  setDeckExtras(null);
+                  await refresh();
+                },
+                "Saved"
+              )
+            }
+          >
+            Save
+          </Button>
+        </div>
+      </Screen>
+    );
+  };
+
   /* ---- an open deck takes over the screen, showing its cards the same
          way the Cards tab does ---- */
   if (openDeck) {
@@ -5831,6 +5949,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       setOpenDeck(null);
       return null;
     }
+    if (deckExtras) return extrasScreen(d);
     /* The deck's cards, through the same sort and the same filter the Cards
        tab uses — this screen showed them in whatever order they arrived and
        offered no way to narrow them at all. See deckView. */
@@ -5838,7 +5957,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     const mine = deckView ? deckView.mine : [];
     const listed = deckView ? deckView.listed : [];
     return (
-      <Screen title={d.title} onBack={() => { setOpenDeck(null); setCardAction(null); }}>
+      <Screen title={d.title} onBack={() => { setOpenDeck(null); setCardAction(null); setDeckExtras(null); }}>
             <Notice kind="error">{error}</Notice>
             <Help>
               {(langOfDeck(d) || {}).name} · {plural(held.length, "card")}
@@ -5854,6 +5973,47 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               <Help>
                 Tap a card to see it. Tap Select to add several to another deck, take them out, or delete them.
               </Help>
+            )}
+
+            {/* What it holds besides cards, and the way in to change it —
+                see extrasScreen. Said in a line rather than listed: the
+                pronouns are among the cards below already. */}
+            {(numberPartsOf((langOfDeck(d) || {}).id || d.lang).length > 0 ||
+              pronounCardsOf((langOfDeck(d) || {}).id || d.lang).length > 0) && (
+              <Section title="Numbers and pronouns" className="at-mt5">
+                <Help>
+                  {(() => {
+                    const all = numberPartsOf((langOfDeck(d) || {}).id || d.lang);
+                    const named = (d.parts || [])
+                      .map((id) => (all.find((r) => r.id === id) || { label: "" }).label)
+                      .filter(Boolean);
+                    const pron = pronounCardsOf((langOfDeck(d) || {}).id || d.lang).filter((c) =>
+                      (c.decks || []).includes(d.id)
+                    ).length;
+                    const said = named.concat(pron ? [plural(pron, "pronoun")] : []);
+                    return said.length ? said.join(" · ") : "None in this deck yet.";
+                  })()}
+                </Help>
+                {!d.locked && (
+                  <div className="at-row at-mt3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="add"
+                      onClick={() =>
+                        setDeckExtras({
+                          parts: d.parts || [],
+                          pronouns: pronounCardsOf((langOfDeck(d) || {}).id || d.lang)
+                            .filter((c) => (c.decks || []).includes(d.id))
+                            .map((c) => c.id),
+                        })
+                      }
+                    >
+                      Add numbers or pronouns
+                    </Button>
+                  </div>
+                )}
+              </Section>
             )}
 
             {/* The whole deck, whatever the list below is showing: what a
@@ -5873,7 +6033,14 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               busy={busy}
               empty={
                 held.length
-                  ? "No cards in this deck match the filter."
+                  ? (
+                    <>
+                      No cards in this deck match the filter.{" "}
+                      <Button variant="ghost" size="sm" icon="close" onClick={() => setCardFilter(NO_CARD_FILTER)}>
+                        Clear all filters
+                      </Button>
+                    </>
+                  )
                   : "No cards in this deck yet. Make one, or add existing cards from the Cards tab."
               }
               /* A conversation has no word of its own to search for, so
@@ -6517,11 +6684,19 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 }
                 menus={cardMenus}
                 resizable
+                searchBelow
                 size="small"
                 busy={busy}
                 empty={
                   onCards.length
-                    ? "No cards match the filter."
+                    ? (
+                      <>
+                        No cards match the filter.{" "}
+                        <Button variant="ghost" size="sm" icon="close" onClick={() => setCardFilter(NO_CARD_FILTER)}>
+                        Clear all filters
+                      </Button>
+                      </>
+                    )
                     : cards.length
                     ? "No cards in the languages switched on."
                     : "No cards yet. Make one — a card is anything to learn, with its meaning."

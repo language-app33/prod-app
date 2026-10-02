@@ -159,6 +159,7 @@ import {
   verbOf,
   blankAdmits,
   lendsForm,
+  lendsInto,
   NUMBER_EQUIVALENT,
   normEn,
 } from "./languages.ts";
@@ -168,6 +169,7 @@ import {
   hasCells,
   ownSlot,
   partnerOf,
+  slotLinks,
   citedCell,
   isCitation,
   openRows,
@@ -218,6 +220,8 @@ import {
   FRONT_DOOR_CAP,
   roomForNew,
   inHandCap,
+  frontDoorCap,
+  byVariety,
   typicalDay,
   restingNow,
   throughDoor,
@@ -1551,10 +1555,11 @@ export function valueIndexOf(items: Item[], settings: Settings): Map<string, Val
     const slots = fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings)));
     if (!slots.length) continue;
     const lends = lendsForm(LANGUAGES[langId] || langOf(settings), it);
+    const into = lendsInto(LANGUAGES[langId] || langOf(settings));
     for (const value of valuesOf(it, grammarFields(), lends)) {
       for (const slot of slots) {
         const key = valueKey(langId, slot);
-        map.set(key, (map.get(key) || []).concat([value]));
+        map.set(key, (map.get(key) || []).concat(into(it, value, slot)));
       }
     }
   }
@@ -1922,6 +1927,7 @@ function fillFor(
     drawn,
     (v) => VALUE_OWNER.get(refOf(v)) || null,
     (c) => LANGUAGES[String(c.lang || "")] || activeLang(),
+    slotLinks(unit),
   );
   if (!took) return null;
   if (card && slots.length !== drawn.length) {
@@ -2912,6 +2918,34 @@ export function inHandFor(perDay?: number): number {
 const KEEN_POOL = 2;
 
 /*
+ * How many strangers this learner may hold at once — the front door, sized
+ * to how much they practise.
+ *
+ * A typical day reaches `perDay / PER_UNIT` words, and the door holds one
+ * for every DOOR_OUTINGS of them: ten for anybody doing up to about five
+ * sittings a day, as it always was, rising to twenty at about ten. See
+ * FRONT_DOOR_MAX. Exported for the pace simulation.
+ */
+export function frontDoorFor(perDay?: number): number {
+  return frontDoorCap((perDay || 0) / PER_UNIT);
+}
+
+/*
+ * What kind of card this is, for mixing the new cards a learner is given.
+ *
+ * Words by what the teacher says they are — a noun, a verb, a name — so a
+ * door's worth of strangers is not all one part of speech; then phrases,
+ * sentences, conversations and texts, each a kind of its own; and a number
+ * skill, which is none of those. See byVariety.
+ */
+export function varietyOf(it: Item, settings: Settings): string {
+  if (isRangeSkill(it)) return "skill";
+  if (isDialog(it)) return isText(it) ? "text" : "conversation";
+  const kind = kindOf(it, LANGUAGES[langIdOf(it, settings)] || langOf(settings));
+  return kind === "word" && it.category ? `word:${it.category}` : kind;
+}
+
+/*
  * More than two full sittings' worth of questions on a typical day: the
  * learner who comes back later the same day, so a review passed over now
  * is still reached before it goes stale. It decides one thing — whether
@@ -3410,18 +3444,24 @@ export function buildSession({
      * words hold their place and nothing new arrives, which is the same
      * protection without a rule of its own to keep in step.
      */
-    const room = roomForNew(handCounts(items, settings), inHandFor(perDay));
-    let newSeen = 0;
-    candidates = candidates.filter((c) => {
+    const room = roomForNew(handCounts(items, settings), inHandFor(perDay), frontDoorFor(perDay));
+    /* Which ones, mixed by kind against what is already in the front door
+       — see byVariety. Picked in the order they will be reached, so a
+       session with room for only some of them still takes a mix. */
+    const admitted = byVariety(
+      candidates.filter((c) => c.isNew && !c.urgent),
+      room,
+      candidates.filter((c) => c.climbing),
+      (c) => varietyOf(c.it, settings)
+    );
+    candidates = candidates.filter(
       /* Except one the learner asked for by name. Both rules above are the
          app protecting somebody from more new words than they can hold,
          and neither is worth telling a learner who has just pointed at a
          card that they cannot have it. It is one card, chosen on purpose,
          and the way to stop it is the way it started. */
-      if (!c.isNew || c.urgent) return true;
-      newSeen += 1;
-      return newSeen <= room;
-    });
+      (c) => !c.isNew || c.urgent
+    );
     /*
      * And a place admitted is a place kept.
      *
@@ -3441,7 +3481,7 @@ export function buildSession({
     candidates = candidates
       .filter((c) => c.urgent)
       .concat(
-        candidates.filter((c) => !c.urgent && c.isNew),
+        admitted,
         candidates.filter((c) => !c.urgent && !c.isNew)
       );
   }
@@ -4280,7 +4320,9 @@ export interface Workload {
  * cleared one, which waits only for its passes — the next when its review
  * comes round, and a couple of days for each after. And cards never met
  * come in at most FRONT_DOOR_CAP at a time, each group about a day behind
- * the last.
+ * the last. Ten even for a keen learner, whose door is wider (see
+ * frontDoorFor): a wider door clears each word more slowly, and measured,
+ * a hundred cards were all met at about the same day either way.
  */
 export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()): Workload {
   let left = 0;
@@ -8176,6 +8218,9 @@ export default function ArabicTrainer() {
      may be in hand — see inHandFor. Read off the log every answer already
      writes, so it follows the learner without anything new to store. */
   const perDay = useMemo(() => typicalDay(data.log), [data.log]);
+  /* The same, over the prep's decks alone — the pace the prep tile holds
+     against its goal. See prepLog. */
+  const prepPerDay = useMemo(() => typicalDay(data.prepLog || {}), [data.prepLog]);
   /* What the question machinery reads: the device's cards, plus anything
      borrowed. Everything else in the app reads `items`, because nothing
      else should see a card that is not really here. */
@@ -8339,7 +8384,7 @@ export default function ArabicTrainer() {
          of them — the same reckoning buildSession does, so the two cannot
          come to disagree. */
       const fresh = pool.filter((it) => !waiting(it, false) && waiting(it, true)).length;
-      return met + Math.min(fresh, roomForNew(handCounts(items, settings), inHandFor(perDay)));
+      return met + Math.min(fresh, roomForNew(handCounts(items, settings), inHandFor(perDay), frontDoorFor(perDay)));
     },
     [settings, items, perDay]
   );
@@ -8899,7 +8944,7 @@ export default function ArabicTrainer() {
       reset: at,
       updated: at,
     }));
-    persist({ ...data, items: cleared, log: {} });
+    persist({ ...data, items: cleared, log: {}, prepLog: {} });
     setSession(null);
     flash("Scheduling reset — nothing is due until you practice it");
   }
@@ -9830,6 +9875,8 @@ export default function ArabicTrainer() {
        function there and then rather than queuing it, so by the time this
        is read it holds what this answer actually moved. */
     let moving: { id: string; move: Move }[] = [];
+    const prep = prepOf(settings);
+    const forPrep = !!prep && prepDeckOf(prep.decks)(parentItem);
     persist((cur) => {
       const graded = gradeInto(cur.items, marks, {
         ...gradingFor(exercise, settings),
@@ -9866,8 +9913,7 @@ export default function ArabicTrainer() {
       return {
         ...cur,
         items: graded,
-        /* One question answered, however many words it marked. */
-        log: { ...cur.log, [day]: (cur.log[day] || 0) + 1 },
+        ...tallyAnswer(cur, day, forPrep),
         ...(stirred.length ? { moves: { ...(cur.moves || {}), [day]: tally } } : null),
       };
     });
@@ -10401,8 +10447,8 @@ export default function ArabicTrainer() {
                       prep={homePrep}
                       collection={shown}
                       settings={settings}
-                      perDay={perDay}
-                      today={(data.log || {})[dayKey()] || 0}
+                      perDay={prepPerDay}
+                      today={(data.prepLog || {})[dayKey()] || 0}
                     />
                   </div>
                 )}
@@ -14584,6 +14630,23 @@ export function prepStart(date: string): Millis {
 /** Whether a card is in any of the prep's decks. */
 export const prepDeckOf = (decks: string[]) => (it: Item) => (it.tags || []).some((t) => decks.includes(t));
 
+/**
+ * The day's counts with one more question answered: always the log, which
+ * counts all practice, and the prep's own count where the card asked is in
+ * the prep's decks — whatever kind of session asked it. One question
+ * however many words it marked. See prepLog.
+ */
+export function tallyAnswer(
+  doc: { log: Record<string, any>; prepLog?: Record<string, number> },
+  day: string,
+  forPrep: boolean,
+): { log: Record<string, any>; prepLog?: Record<string, number> } {
+  const log = { ...doc.log, [day]: (doc.log[day] || 0) + 1 };
+  if (!forPrep) return { log };
+  const prepLog = doc.prepLog || {};
+  return { log, prepLog: { ...prepLog, [day]: (prepLog[day] || 0) + 1 } };
+}
+
 /** Whole days from today to the prep's day: 1 is tomorrow. */
 export function prepDaysLeft(date: string, at: Millis = now()): number {
   return Math.round((prepStart(date) - dayOf(at)) / 86400000);
@@ -14781,8 +14844,9 @@ const PREP_DOTS = 8;
 
 /**
  * Today's sessions for the prep, and the sessions today that keep it on
- * track. Sessions are the log's questions over SESSION_SIZE, as the pace is,
- * and count all of today's practice.
+ * track. Sessions are questions over SESSION_SIZE, as the pace is — today's
+ * questions on the prep's own cards (`prepLog`), in any kind of session,
+ * because the goal is counted off those cards and nothing else.
  *
  * The rate readyFor gives shrinks as today's work is done, so read live it
  * would move the goal as the learner walks towards it. Today's goal puts

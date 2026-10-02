@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useId, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Deck, GrammarDim, Lang, VerbSpec, VerbTense } from "./types.ts";
-import { cellsIn, citationOf, citedWord, framesOf, isCell, isFrame, personsOf, rowIdsOf, slotRows, tensesOf } from "./verbs.ts";
+import { cellsIn, citationOf, citedWord, framesOf, isCell, isFrame, linkLoops, NO_PARTNER, partnerOf, personsOf, rowIdsOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
 import { formsOf, leadOf, subFormsOf } from "./cards.ts";
 import type { Node } from "./shared.tsx";
 import {
@@ -37,14 +37,15 @@ import {
   verbOf,
   BARE_ROW,
   endRowsOf,
+  saysAboutPersons,
 } from "./languages.ts";
 import { CONVERSATION, MAX_SPEAKERS, TEXT, isDialog, isText, namedPart, pickedFrom, pickedLine, proseOf, sceneKindOf, sideOf } from "./dialogs.ts";
 import type { SceneKind } from "./dialogs.ts";
 import { castFill, castOf, castReport, filledScene, memberBase, memberLabel, newMember, recast, roleIn } from "./cast.ts";
 import { reviewPool, sentencesOf } from "./review.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, IS_PRONOUN_SLOT, MAX_FILLS, movedSlot, PRONOUN_IS_SLOT, PRONOUN_SLOT, READING_SLOTS, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
-import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
+import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, IS_PRONOUN_SLOT, MAX_FILLS, movedSlot, PRONOUN_IS_SLOT, PRONOUN_SLOT, READING_SLOTS, refClash, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
+import { agreeingBlanks, combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
 import { MAX_IMAGES, shrinkImage } from "./images.ts";
@@ -2446,6 +2447,21 @@ const PRONOUN_READINGS: Reading[] = [
 ];
 
 /*
+ * The two ways an adjective blank reads: the word as it is — *a tired
+ * man*, *the house is big* — and the word said about a person with no
+ * pronoun, which goes through every person and puts in the form each one
+ * calls for. See ADJECTIVE_IS_SLOT in variables.ts.
+ */
+const ADJECTIVE_READINGS: Reading[] = [
+  { name: ADJECTIVE_SLOT, label: "Tired", note: "The adjective itself \u2014 a tired man, the house is big" },
+  {
+    name: ADJECTIVE_IS_SLOT,
+    label: "I am tired",
+    note: "I am tired, you are tired, she is tired \u2026 \u2014 with no pronoun in the sentence",
+  },
+];
+
+/*
  * The screen a blank is chosen in.
  *
  * Every name that means something in this language, each saying what would
@@ -2984,6 +3000,40 @@ export function withRows(
 }
 
 /*
+ * Which blank each of a sentence's blanks has been linked to follow, read
+ * off the card's own word as the tenses are — see slotLinks. Nothing
+ * linked is the first-other-blank rule, and every card before this.
+ */
+export function initialLinks(card: Card | null): Record<string, string> {
+  return card ? slotLinks(leadOf(card)) : {};
+}
+
+/*
+ * The same forms, each saying which blank its blanks follow: one answer
+ * for the card, as withRows writes the tenses. Only for blanks the card
+ * still leaves, linked to a blank it still leaves or to nothing, so a
+ * link outlives neither end of it.
+ */
+export function withLinks(
+  forms: Record<string, any>[],
+  links: Record<string, string>,
+  holes: string[],
+): Record<string, any>[] {
+  const said: Record<string, string> = {};
+  for (const slot of holes) {
+    const to = (links || {})[slot];
+    if (to && to !== slot && (to === NO_PARTNER || holes.includes(to))) said[slot] = to;
+  }
+  const any = Object.keys(said).length > 0;
+  return forms.map((form) => {
+    const next = { ...form };
+    if (any) next.agrees = said;
+    else delete next.agrees;
+    return next;
+  });
+}
+
+/*
  * One value per card for the axes that are about the card.
  *
  * Whether a noun is a person or a thing is as true of its plural as of its
@@ -3426,7 +3476,8 @@ export interface Blank {
   /** Cards that named it in `fills`: whether anybody wrote this blank by hand. */
   wrote: number;
   /* `reading` is a pronoun read with *to be* — `{{pronoun-is}}` and
-     `{{is-pronoun}}`, which the same cards fill as `{{pronoun}}`. */
+     `{{is-pronoun}}`, which the same cards fill as `{{pronoun}}` — or an
+     adjective said about a person, `{{adjective-is}}`. */
   built?: "any" | "category" | "reading";
 }
 
@@ -3830,6 +3881,16 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
      "any tense" again, and there is no third state to explain. */
   const setBlankRow = (slot: string, rows: string[]) =>
     setBlankRows((was) => ({ ...was, [slot]: rows }));
+  /* Which blank each blank agrees with, where the teacher has said — see
+     withLinks. "" takes a link off, back to the first-other-blank rule. */
+  const [blankLinks, setBlankLinks] = useState<Record<string, string>>(() => initialLinks(card));
+  const setBlankLink = (slot: string, to: string) =>
+    setBlankLinks((was) => {
+      const next = { ...was };
+      if (to) next[slot] = to;
+      else delete next[slot];
+      return next;
+    });
   /* Whether a blank's words carry a pronoun on the end, which the sentence
      narrows in the same list as its tenses — see BARE_ROW. Put in place of
      any answer the blank had to this question, beside whatever tenses it
@@ -3883,7 +3944,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
      it rather than against a block nobody is filling in. Each of them
      carrying what its blanks ask their verbs for, which is one answer for
      the card and is written where the reader of a blank looks. */
-  const ownForms = withRows([lead].concat(forms.slice(1)), blankRows, holes);
+  const ownForms = withLinks(withRows([lead].concat(forms.slice(1)), blankRows, holes), blankLinks, holes);
   /* And the card's own word as it will be saved, which is what everything
      below reads: the holes it leaves, the words behind them, the sentences
      it is met as, and what the save sends. */
@@ -3891,7 +3952,9 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
   /* What the narrowing comes to as one string, for the memos below: a
      fresh map every render would re-fill the preview on every keystroke,
      and what they actually depend on is which tenses are ticked. */
-  const rowsKey = holes.map((slot) => `${slot}:${(blankRows[slot] || []).join(",")}`).join("\u0000");
+  const rowsKey = holes
+    .map((slot) => `${slot}:${(blankRows[slot] || []).join(",")}>${blankLinks[slot] || ""}`)
+    .join("\u0000");
   /*
    * Every blank this card stands in, as it stands right now.
    *
@@ -4114,6 +4177,15 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         wrote: named.get(name) || 0,
         built: "reading" as const,
       })),
+      /* And an adjective said about a person, where the language's verbs
+         say which person is which — see saysAboutPersons. */
+      ...(saysAboutPersons(lang) ? [ADJECTIVE_IS_SLOT] : []).map((name) => ({
+        name,
+        words: behind.get(name) || 0,
+        used: used.get(name) || 0,
+        wrote: named.get(name) || 0,
+        built: "reading" as const,
+      })),
     ];
     const names = [...new Set([...named.keys(), ...used.keys()])]
       .filter((n) => !builtIn.some((b) => b.name === n))
@@ -4190,7 +4262,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
        it is, and they are listed under Default tags. A sentence with a
        {{name}} blank is asking for Names, not for a custom tag. */
     const kinds = new Set(categoriesOf(lang).map((c) => c.id));
-    const custom = (name: string) => name !== WORD_SLOT && !kinds.has(name) && !READING_SLOTS.includes(name);
+    const custom = (name: string) => name !== WORD_SLOT && !kinds.has(name) && !RESERVED_READINGS.includes(name);
     const written = blanksAround.filter(
       (b) => custom(b.name) && (b.used > 0 || b.wrote > 0),
     );
@@ -4234,15 +4306,27 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
            same cards, read as *I*, *I am* or *am I*. Which is asked once it
            is chosen — see BlankScreen — rather than laid out here as three
            rows a teacher has to tell apart before they know why. */
-        const reads = b.name === PRONOUN_SLOT && blanksAround.some((r) => r.built === "reading");
+        const reads = b.name === PRONOUN_SLOT && blanksAround.some((r) => r.built === "reading" && r.name !== ADJECTIVE_IS_SLOT);
+        /* And an adjective is one blank too, asked once chosen whether it
+           is the word or the word said about a person. */
+        const about = b.name === ADJECTIVE_SLOT && blanksAround.find((r) => r.name === ADJECTIVE_IS_SLOT);
         rows.push({
           name: b.name,
           kind: "category",
           words,
           note: reads
             ? "Any pronoun \u2014 then choose how it reads in English"
-            : `Any ${named(b.name).toLowerCase()}`,
+            : about
+              ? "Any adjective \u2014 then choose whether it says who"
+              : `Any ${named(b.name).toLowerCase()}`,
           ...(reads ? { readings: PRONOUN_READINGS } : null),
+          ...(about
+            ? {
+              readings: ADJECTIVE_READINGS.map((r) => (r.name === ADJECTIVE_IS_SLOT ? { ...r, words: about.words } : r)),
+              readingsHint:
+                "Choose what it reads as. \u201cI am tired\u201d goes through every person \u2014 I, you, she, we and the rest \u2014 with the adjective in the form each one calls for and no pronoun said. Turning it into English, any person that fits is right.",
+            }
+            : null),
         });
       } else if (b.built === "reading") {
         /* Offered under the pronoun, above. */
@@ -4322,6 +4406,14 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
   const tensed = useMemo(() => {
     if (scene || !holes.length) return new Map<string, VerbSpec>();
     return tensedBlanks(main, allCards || [], lang);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene, holes, allCards, lang]);
+
+  /* And which of them can be told which blank to agree with: those whose
+     words change form to agree — see agreeingBlanks. */
+  const agreeing = useMemo(() => {
+    if (scene || holes.length < 2) return new Set<string>();
+    return agreeingBlanks(main, allCards || [], lang);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, holes, allCards, lang]);
 
@@ -4684,6 +4776,10 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     blankRows,
     setBlankRow,
     tensed,
+    /* And which blank each one agrees with, where the teacher linked it. */
+    blankLinks,
+    setBlankLink,
+    agreeing,
     /* And whether a blank's words carry a pronoun on the end, where some
        word in it has those forms — see endsBehind and setBlankEnds. */
     endsBehind,
@@ -7015,7 +7111,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
     holes, starved, starvedWhy, combos, fillers, pool, fills, fillsOffer, addFill,
     main, trouble, sentence, strayHoles, tensed, blankRows, setBlankRow,
-    endsBehind, setBlankEnds,
+    endsBehind, setBlankEnds, blankLinks, setBlankLink, agreeing,
   } = word;
   /* The tenses a blank asks for, as against whether its words carry a
      pronoun on the end — two answers kept in one list. See BARE_ROW. */
@@ -7308,6 +7404,54 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                 ]}
                 value={value}
                 onChange={(v) => setBlankEnds(slot, v === "bare" ? [BARE_ROW] : [endRow])}
+              />
+            </Field>
+          );
+        })}
+
+        {/* ---- which blank a blank agrees with ----
+
+            The first other blank, unless the teacher says otherwise.
+            Palestinian Arabic drops the pronoun before an adjective —
+            "thirsty, I want water" with no "I" — so the adjective has to
+            follow the verb, which comes second; and a verb beside its object should follow
+            nothing and go through its persons. Offered under each blank
+            whose words change to agree, never a choice that would have a
+            blank end up following itself. See slotLinks. */}
+        {sentence && holes.length > 1 && holes.map((slot) => {
+          if (!agreeing.has(slot)) return null;
+          const said = blankLinks[slot] || "";
+          const unlinked = { ...blankLinks };
+          delete unlinked[slot];
+          const byRule = partnerOf({ ...main, agrees: unlinked }, holes, slot);
+          const others = holes.filter((s) => s !== slot && !linkLoops(blankLinks, slot, s));
+          return (
+            <Field
+              key={`agrees-${slot}`}
+              label={<>What <BlankNames names={[slot]} /> agrees with</>}
+              hint={
+                said === NO_PARTNER
+                  ? "Nothing: every form of its words in turn."
+                  : said
+                    ? "Its words take the form that blank calls for."
+                    : "The first other blank, until you choose."
+              }
+            >
+              <RadioGroup
+                quiet
+                label={`What ${slot} agrees with`}
+                name={`agrees-${slot}`}
+                options={[
+                  {
+                    value: "",
+                    label: "The first other blank",
+                    note: byRule ? <BlankNames names={[byRule]} /> : "nothing, here",
+                  },
+                  ...others.map((s) => ({ value: s, label: <BlankNames names={[s]} /> })),
+                  { value: NO_PARTNER, label: "Nothing", note: "every form in turn" },
+                ]}
+                value={said}
+                onChange={(v) => setBlankLink(slot, v)}
               />
             </Field>
           );

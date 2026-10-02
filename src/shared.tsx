@@ -18,7 +18,7 @@ import type { Reader, TableGroup } from "./card-facts.ts";
 import { askLine, A_SENTENCE, blanksOn, cellTitle, CLIP_KINDS, combosOf, dimsSaid, dimText, EXAMPLES_CEILING,
   examplesOf, fillersOn, IN_NO_DECK, isTableCell, lexicalKeys, lexicalLabel, NO_PART, NOT_DRILLED,
   rowsLine, tablesOn, tableTitle, unnamedOn } from "./card-facts.ts";
-import { colOf, personsOf, rowOf, slotRows, tensesOf } from "./verbs.ts";
+import { colOf, NO_PARTNER, personsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
 import { isOffline, watchNet } from "./net.ts";
 /* A teacher's numbers and their clock, which arrive with the material and
    become cards on the way in. Reached through the registry, never by
@@ -26,7 +26,7 @@ import { isOffline, watchNet } from "./net.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { generate, handOn } from "./numbers/generate.ts";
+import { fileIntoDecks, generate, handOn, handOnSplit } from "./numbers/generate.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -1416,15 +1416,28 @@ export function narrowing(groups?: FilterGroup[]): number {
  * Built from Segmented rather than a new control, because picking one of a
  * few is a thing this app already does one way.
  */
-export function FilterBar({ groups, note }: {
+export function FilterBar({ groups, note, onClear }: {
   groups?: FilterGroup[];
   note?: Node;
+  /**
+   * Every group back to what narrows nothing, in one press. Offered only
+   * while something is narrowing: a teacher three filters deep should not
+   * have to find and undo each one to see the whole list again.
+   */
+  onClear?: () => void;
 }) {
   const live = liveGroups(groups);
   if (!live.length) return null;
 
   return (
     <div className="at-filterbar">
+      {onClear && narrowing(groups) > 0 ? (
+        <div className="at-filterclear">
+          <Button variant="ghost" size="sm" icon="close" onClick={onClear}>
+            Clear all filters
+          </Button>
+        </div>
+      ) : null}
       {live.map((g) => (
         <div className={`at-filtergroup${g.wide ? " wide" : ""}`} key={g.key}>
           <span className="at-filterlabel">{g.label}</span>
@@ -1551,6 +1564,7 @@ export function ItemList<T>({
   size = "large",
   resizable,
   onNew,
+  searchBelow,
   renderItem,
   selected,
   onSelectedChange,
@@ -1575,6 +1589,13 @@ export function ItemList<T>({
    */
   menus?: { key: string; label: string; icon?: string; busy?: number; content?: Node }[];
   /** Controls under the toolbar — tag pickers and the like. */ filters?: Node;
+  /**
+   * The search box on a line of its own, under New and the toolbar's
+   * buttons, rather than between them. The Cards tab asks for it: its row
+   * carries three or four icons beside New card, which left the box too
+   * narrow to read what was typed in it on a phone.
+   */
+  searchBelow?: boolean;
   /** An override for the "n of m" line. */ count?: Node;
   items: T[];
   itemKey?: (item: T) => string;
@@ -1743,6 +1764,19 @@ export function ItemList<T>({
     watching.current.observe(node);
   }, []);
 
+  const searchBox = (
+    <input
+      className="at-input at-search"
+      type="search"
+      /* Cards are searched by typing the language they are written in,
+         so the box has to lay itself out by what is in it. */
+      dir="auto"
+      placeholder={`Search ${plural || `${noun}s`}`}
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+    />
+  );
+
   return (
     <div
       className="at-listwrap"
@@ -1755,18 +1789,7 @@ export function ItemList<T>({
             New {noun}
           </button>
         )}
-        {items.length > 0 && (
-          <input
-            className="at-input at-search"
-            type="search"
-            /* Cards are searched by typing the language they are written in,
-               so the box has to lay itself out by what is in it. */
-            dir="auto"
-            placeholder={`Search ${plural || `${noun}s`}`}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        )}
+        {items.length > 0 && !searchBelow && searchBox}
         {/* Beside the search box, because narrowing by hand and narrowing by
             typing are the same job. */}
         {tools}
@@ -1788,6 +1811,10 @@ export function ItemList<T>({
           </button>
         )}
       </div>
+
+      {searchBelow && items.length > 0 && (
+        <div className="at-toolbar at-toolbar-search">{searchBox}</div>
+      )}
 
       {/* Select, and the menus that order and narrow the list — one row,
           under the one that searches it. Select is not a filter and comes
@@ -2252,10 +2279,13 @@ function ReadBlanks({ card, lang, cards }: {
            card's own words. Silent where it admits every tense, which is
            what a blank nobody has narrowed means. */
         const only = rowsLine(lang, slotRows(lead, slot));
+        /* And which blank it agrees with, where the teacher linked it. */
+        const link = slotLinks(lead)[slot] || "";
         return (
           <ReadRow key={slot} label={<span className="at-slot">{slot}</span>}>
             <>
             {only ? <p className="at-hint">{`${slot} · ${only}`}</p> : null}
+            {link ? <p className="at-hint">{`${slot} · ${link === NO_PARTNER ? "nothing" : link}`}</p> : null}
             {!fillers ? null : words.length ? (
               <ul className="at-filllist">
                 {words.slice(0, FILLS_SHOWN).map((value, i) => (
@@ -3751,6 +3781,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        teacher had unticked. The teacher's review list is built from what
        the teacher narrowed, so the two have to agree. */
     ...(f.tenses && typeof f.tenses === "object" ? { tenses: f.tenses } : null),
+    /* And which blank each of its blanks agrees with, where the teacher
+       linked any — see slotLinks. The review list reads it, so the device
+       has to as well. */
+    ...(f.agrees && typeof f.agrees === "object" ? { agrees: f.agrees } : null),
     /* What each accepted answer is, grammatically. Read rather than copied,
        so a card the server has not been asked to save since the change —
        one set of values flat on the form — arrives with each of its answers
@@ -4060,8 +4094,8 @@ export async function pullCourses(
   }
 
   /*
-   * And the teachers' numbers, which are in no deck and arrive beside
-   * them.
+   * And the teachers' numbers, which arrive beside the decks and are filed
+   * into whichever of them holds a part of them.
    *
    * Read through the boundary reader first, so what is folded into
    * somebody's collection is the narrowed shape and not whatever came
@@ -4073,10 +4107,12 @@ export async function pullCourses(
   const now = Date.now();
   for (const set of systems) {
     const lang = LANGUAGES[set.numbers.languageId];
+    const composer = composerFor(set.numbers.languageId);
+    const timeComposer = timeComposerFor(set.numbers.languageId);
     const made = generate({
-      composer: composerFor(set.numbers.languageId),
+      composer,
       sys: set.numbers,
-      timeComposer: timeComposerFor(set.numbers.languageId),
+      timeComposer,
       timeSys: set.times,
       /* Filed under a name of its own in the card list, the way a deck's
          title files its cards: they are material, and a learner looking
@@ -4089,7 +4125,15 @@ export async function pullCourses(
        that card is a box now. See handOn, which reads what the migration
        wrote down and moves the schedule across — once, onto a card this
        device has never held. */
-    for (const item of handOn(made.items, items, set.numbers)) {
+    const handed = handOnSplit(handOn(made.items, items, set.numbers), items, parked, set.numbers.id);
+    /* And only the parts a deck holds, filed under that deck: numbers
+       arrive the way every other card does — see fileIntoDecks. A deck in
+       another language holds none of this system's. */
+    const holding = decks
+      .filter((d: Deck & { courseLanguage?: string }) => (d.lang || d.courseLanguage) === set.numbers.languageId)
+      .map((d: Deck) => ({ title: String(d.title || ""), parts: d.parts || [] }));
+    const filed = fileIntoDecks(handed, { composer, sys: set.numbers, timeComposer, timeSys: set.times }, holding);
+    for (const item of filed) {
       if (at.has(item.id)) continue;
       at.set(item.id, item);
       incoming.push(item);

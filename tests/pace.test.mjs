@@ -46,7 +46,7 @@ await build({
   },
 });
 
-const { buildSession, installIndexes, setOfflineNow, setAudibleClips, laddered, inHandFor } = await import(
+const { buildSession, installIndexes, setOfflineNow, setAudibleClips, laddered, inHandFor, frontDoorFor } = await import(
   path.join(out, "trainer.js")
 );
 const { gradeInto } = await import(path.join(root, "src", "grade.ts"));
@@ -60,6 +60,7 @@ const {
   MASTERED_DAYS,
   PASSES_TO_LEARN,
   FRONT_DOOR_CAP,
+  FRONT_DOOR_MAX,
   IN_HAND_CAP,
   IN_HAND_MAX,
 } = await import(path.join(root, "src", "scheduler.ts"));
@@ -270,20 +271,27 @@ function liveKeeping(/** @type {{ cards: any[], days: number, budget?: number, s
   /* How far past the pool the learner's own practice allowed at the time
      they sat down — nought or less, always. */
   let peakOver = -Infinity;
+  /* And the same for the front door, which also widens with practice:
+     how far a sitting took it past what practice allowed. Past, not
+     merely over — a door that narrows on a quieter day, or at midnight,
+     sends nobody away, it only lets nobody else in. */
+  let peakDoorOver = -Infinity;
   /** @type {Record<string, number>} */
   const log = {};
   for (let d = 0; d < how.days; d += 1) {
     for (let s2 = 0; s2 < (how.sessionsPerDay || 1); s2 += 1) {
       const at = START + d * DAY + s2 * 3600000;
+      const before = handCounts(items, settings).front;
       const ran = sitDown(items, at, how.budget || 18, log);
       items = ran.cards;
       const counts = handCounts(items, settings);
       peakFront = Math.max(peakFront, counts.front);
       peakInHand = Math.max(peakInHand, counts.inHand);
       peakOver = Math.max(peakOver, counts.inHand - inHandFor(ran.perDay));
+      peakDoorOver = Math.max(peakDoorOver, counts.front - Math.max(before, frontDoorFor(ran.perDay)));
     }
   }
-  return { peakFront, peakInHand, peakOver };
+  return { peakFront, peakInHand, peakOver, peakDoorOver };
 }
 
 /* ------------------------------------------------------------------
@@ -335,10 +343,11 @@ test("and the front door bounds a day however many sittings it holds", () => {
   /* Plus whatever was cleared that day: since 0.272 a word cleared leaves
      the front door at once and lets the next one in, so a keen first day
      can meet an eleventh. What may never happen is more than the front
-     door's worth being learnt at once — see the test after this one. */
+     door's worth being learnt at once — see the test after this one. The
+     door is the widest it gets, since 0.303: ten sittings is a keen day. */
   assert.ok(
-    often.met <= FRONT_DOOR_CAP + often.cleared,
-    `ten sittings met ${often.met} words, past a front door of ${FRONT_DOOR_CAP} ` +
+    often.met <= FRONT_DOOR_MAX + often.cleared,
+    `ten sittings met ${often.met} words, past a front door of ${FRONT_DOOR_MAX} ` +
       `and the ${often.cleared} cleared`,
   );
 });
@@ -359,7 +368,7 @@ test("neither pool is ever exceeded, however hard the learner goes", () => {
 test("a course arrives gradually rather than all at once", () => {
   const first = live({ cards: courseOf(300), days: 1, sessionsPerDay: 10, budget: 20 });
   /* A cleared word lets the next in the same day; see the test above. */
-  assert.ok(first.met <= FRONT_DOOR_CAP + first.cleared,
+  assert.ok(first.met <= FRONT_DOOR_MAX + first.cleared,
     `${first.met} words on the first day, ${first.cleared} of them cleared`);
   assert.ok(first.met >= 5, `only ${first.met} words on a whole first day`);
 });
@@ -414,7 +423,10 @@ test("and doing too much never beats doing the right amount", () => {
   const keen = live({ cards: courseOf(60), days: 10, sessionsPerDay: 30 });
   assert.ok(keen.met >= steady.met, `${keen.met} against ${steady.met}`);
   const peaks = liveKeeping({ cards: courseOf(60), days: 10, sessionsPerDay: 30 });
-  assert.ok(peaks.peakFront <= FRONT_DOOR_CAP, `front door reached ${peaks.peakFront}`);
+  /* The keen learner's door is wider than ten too, for the same reason,
+     and bound the same way: never past what their practice allowed. */
+  assert.ok(peaks.peakDoorOver <= 0, `front door went ${peaks.peakDoorOver} past what practice allowed`);
+  assert.ok(peaks.peakFront <= FRONT_DOOR_MAX, `front door reached ${peaks.peakFront}`);
   /* The keen learner's pool is larger than sixty — it is sized to what
      their day reaches — but it is still a pool: never past what their own
      practice allowed when they sat down, and never past the ceiling. */

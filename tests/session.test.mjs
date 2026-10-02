@@ -44,7 +44,7 @@ const { lentTags, varyTypes, requeueMissed, isUrgent, buildSession, buildManualS
   saidMoves, sumMoves } = await import(path.join(out, "trainer.js"));
 const langs = await import(path.join(here, "..", "src", "languages.ts"));
 const { TYPES } = langs;
-const { FRONT_DOOR_CAP } = await import(path.join(here, "..", "src", "scheduler.ts"));
+const { FRONT_DOOR_CAP, FRONT_DOOR_MAX } = await import(path.join(here, "..", "src", "scheduler.ts"));
 
 /** @param {string} id @param {string} type */
 const q = (id, type) => ({ id, type, subId: null });
@@ -1201,6 +1201,39 @@ test("and a word leaves the front door as soon as it is cleared", () => {
   );
 });
 
+
+test("a keen learner may hold more strangers, and a once-a-day one no more than before", () => {
+  /* Twenty-two new words waiting in front of a full ten-word door. Once a
+     day, that door is full; at twenty sittings' worth a day it has room. */
+  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+  const items = held.concat(deckOf(22));
+  const isNew = (/** @type {string} */ id) => String(id).startsWith("w");
+  const daily = dealtCards(deal(items, { perDay: 18 }));
+  assert.ok(![...daily].some(isNew), `a once-a-day learner was let past a full door: ${[...daily].join(" ")}`);
+  const keen = dealtCards(deal(items, { perDay: 20 * 18 }));
+  assert.ok([...keen].some(isNew), `a keen learner's wider door let nothing in: ${[...keen].join(" ")}`);
+  assert.ok([...keen].filter(isNew).length <= FRONT_DOOR_MAX - FRONT_DOOR_CAP, "and no more than it holds");
+});
+
+test("the new cards a session opens are of more than one kind", () => {
+  /* Thirty nouns and a handful of other kinds. Drawn by the due order
+     alone, nine new cards would be nearly all nouns most times; mixed,
+     every kind there is gets a place in every sitting. */
+  const nouns = Array.from({ length: 30 }, (_, i) =>
+    word(`n${i + 1}`, `اسم${i + 1}`, `noun ${i + 1}`, { category: "noun" }));
+  const others = [
+    word("a1", "صفة", "adjective one", { category: "adjective" }),
+    word("a2", "صفتين", "adjective two", { category: "adjective" }),
+    word("p1", "كلمة تانية", "a phrase", { kind: "phrase" }),
+    word("p2", "كلمة تالتة", "another phrase", { kind: "phrase" }),
+  ];
+  for (let i = 0; i < 5; i += 1) {
+    const dealt = [...dealtCards(deal(nouns.concat(others)))];
+    for (const k of ["n", "a", "p"]) {
+      assert.ok(dealt.some((id) => id.startsWith(k)), `no ${k} among ${dealt.join(" ")}`);
+    }
+  }
+});
 
 /* ------------------------------------------------------------------
    What a sitting moved

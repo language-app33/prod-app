@@ -296,6 +296,14 @@ let deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T
    the field, so this one does too. */
 /** @type {any[]} */
 let materialSystems = [];
+/* And the decks the quiet material sends beside them. A part of a
+   teacher's numbers reaches a learner only through a deck that holds it,
+   so a walk that meets numbers has to be sent one. */
+/** @type {any[]} */
+let materialDecks = [];
+/* What the deck screen's Numbers and pronouns asked the server to keep. */
+/** @type {any[]} */
+const savedParts = [];
 /* The accounts the first screen asked to have made, so a walk of it can
    check what was sent rather than only what the screen then showed. */
 /** @type {any[]} */
@@ -355,7 +363,7 @@ const fakeFetch = async (input, opts = {}) => {
       if (materialQuiet) {
         return json({
           ok: true, version: "v-quiet", teaches: true,
-          courses: [], decks: [], cards: [], systems: materialSystems,
+          courses: [], decks: materialDecks, cards: [], systems: materialSystems,
         });
       }
       const version = "v-abc";
@@ -429,6 +437,12 @@ const fakeFetch = async (input, opts = {}) => {
           ...(teachesTwo ? [{ ...viTeach, decks: [] }] : []),
         ],
       });
+    }
+    /* Which parts of the numbers a deck holds, as the screen saved them. */
+    if (action === "set-deck-parts") {
+      const body = JSON.parse(opts.body || "{}");
+      savedParts.push(body);
+      return json({ ok: true, parts: body.parts || [] });
     }
     if (action === "create-deck") {
       const body = JSON.parse(opts.body || "{}");
@@ -5288,6 +5302,31 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         readField(enNow()) === "My name is {{pronoun-is}}" && !sheet(),
         `${readField(enNow())} · ${sheet() ? "still open" : "closed"}`);
 
+      /* ---- one adjective, then whether it says who ----
+
+         An adjective is the word itself, or the word said about a person
+         with no pronoun — تعبان, *I am tired* — so it too is one blank on
+         the list and asks which once chosen. Looked at and left: nothing
+         is put in. */
+      click(addIn(/into English$/));
+      await sleep(300);
+      check("the adjective is one blank on the list, not two",
+        names().includes("adjective") && !names().includes("adjective-is"),
+        names().join(" ") || "(nothing offered)");
+      click(rowFor(/^adjective$/));
+      await sleep(300);
+      check("and choosing it asks whether it is the word or the word said about a person",
+        title() === "How the adjective reads" &&
+          JSON.stringify(names()) === JSON.stringify(["adjective", "adjective-is"]),
+        `${title()} · ${names().join(" ")}`);
+      click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the blanks"));
+      await sleep(300);
+      click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the card"));
+      await sleep(300);
+      check("and leaving puts nothing in",
+        readField(enNow()) === "My name is {{pronoun-is}}" && !sheet(),
+        `${readField(enNow())} · ${sheet() ? "still open" : "closed"}`);
+
       /* ---- a word with a pronoun on the end, or without ----
 
          The pen in this collection has "my pen" written out, and it is a
@@ -5421,7 +5460,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        ticks; a language whose verbs take one form would be offered none
        either. */
     {
-      const tenseRows = () => inHalf(HOLES, ".at-ticklist .at-tickrow");
+      /* The ticks, not the radio buttons beside them saying which blank
+         each agrees with. */
+      const tenseRows = () => inHalf(HOLES, ".at-ticklist .at-tickrow")
+        .filter((r) => r.querySelector("input[type=checkbox]"));
       const tenseNames = () => tenseRows()
         .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
       const tenseRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
@@ -5439,6 +5481,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("a blank that verbs fill is asked which tenses it wants them in",
         JSON.stringify(tenseNames()) === JSON.stringify(["present", "past", "command"]),
         tenseNames().join(", ") || "(nothing asked)");
+      /* And which blank the verb agrees with: the first other, until the
+         teacher links it to another or to nothing. */
+      const linkRows = () => inHalf(HOLES, ".at-ticklist .at-tickrow")
+        .filter((r) => r.querySelector("input[type=radio][name='agrees-verb']"))
+        .map((r) => (r.textContent || "").replace(/\s+/g, " ").trim());
+      check("and which blank it agrees with, the first other one until it says",
+        linkRows().length === 3 && /first other blank/.test(linkRows()[0]) && /friend/.test(linkRows()[0])
+          && /Nothing/.test(linkRows()[2]),
+        linkRows().join(" | ") || "(nothing asked)");
       check("and says which blank it is about, and that nothing ticked is any tense",
         /verb/.test(tenseSaid()) && /Any tense/.test(tenseSaid()),
         tenseSaid() || "(nothing said)");
@@ -7250,9 +7301,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
    The Cards tab and an open deck show the same material and were two
    different screens about it: the tab could be sorted and narrowed, the deck
    could do neither, and Select was an unlabelled icon up in the search row.
-   Both now carry the same two rows — New card, search and the size button,
-   then Select, Sort and Filter — and the same settings, so a deck opened
-   while the list is narrowed opens narrowed the same way. */
+   Both now carry the same rows — New card and the size button, then
+   Select, Sort and Filter — and the same settings, so a deck opened while
+   the list is narrowed opens narrowed the same way. The Cards tab puts its
+   search box on a line of its own between the two, since its first row
+   also carries Reports, Numbers and Pronouns. */
 {
   const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
   /* The last one in the document: the learner's nav is still behind this. */
@@ -7286,20 +7339,26 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   click(tabNamed(/^Cards$/));
   await sleep(500);
 
-  check("a card list's controls are two rows, not one",
-    rows().length === 2, `${rows().length} rows`);
+  check("the Cards tab's controls are three rows: buttons, search, then Select and the menus",
+    rows().length === 3, `${rows().length} rows`);
   const top = /** @type {any} */ (rows()[0]);
-  check("the first row is New card, the search box and the size button",
+  check("the first row is New card and the size button, with no search box in it",
     !!top && /New card/.test(top.textContent || "") &&
-      !!top.querySelector("input.at-search") && !!top.querySelector(".at-sizebtn"),
+      !top.querySelector("input.at-search") && !!top.querySelector(".at-sizebtn"),
     top ? (top.textContent || "").replace(/\s+/g, " ").trim() + ` · ${top.querySelectorAll("input, button").length} controls` : "no row");
+  const searchRow = /** @type {any} */ (rows()[1]);
+  check("and the search box is on a line of its own under it",
+    !!searchRow && searchRow.classList.contains("at-toolbar-search") &&
+      searchRow.querySelectorAll("input, button").length === 1 &&
+      !!searchRow.querySelector("input.at-search[placeholder='Search cards']"),
+    searchRow ? searchRow.className : "no row");
   const sizeName = () => {
     const btn = one(".at-sizebtn", null);
     return btn ? btn.getAttribute("aria-label") || "" : "(no size button)";
   };
   check("and the size button says which size it is at and what pressing it does",
     /^Card size: Small — press for medium$/.test(sizeName()), sizeName());
-  check("the second row is Select, Sort and Filter, in that order",
+  check("the row of menus is Select, Sort and Filter, in that order",
     named(subRow()).join(" | ") === "Select | Sort | Filter",
     named(subRow()).join(" | ") || "(no second row)");
 
@@ -7395,7 +7454,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       .find((b) => re.test((b.textContent || "").trim()));
   check("the filter offers in, not in, or any deck at all",
     [...frame.querySelectorAll('[role="group"][aria-label="In or out of the chosen decks"] .at-seg')]
-      .map((b) => (b.textContent || "").trim()).join(" | ") === "Any deck | In these | Not in these",
+      .map((b) => (b.textContent || "").trim()).join(" | ") === "Any deck | In these | Not in these | In no deck",
     [...frame.querySelectorAll('[role="group"][aria-label="In or out of the chosen decks"] .at-seg')]
       .map((b) => (b.textContent || "").trim()).join(" | ") || "(no deck filter)");
   click(deckMode(/^Not in these$/));
@@ -7424,6 +7483,27 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(250);
   check("the other way round shows the rest, and the two make the whole",
     tiles() === all - outside, `${tiles()} in, ${outside} out, ${all} in total`);
+  /* And the cards in no deck at all, with nothing to tick: fewer than
+     every card, and every one of them outside Lesson 1. */
+  click(deckMode(/^In no deck$/));
+  await sleep(250);
+  const loose = tiles();
+  check("in no deck shows the cards no deck holds, with nothing ticked",
+    loose > 0 && loose < all && loose <= outside && !frame.querySelector(".at-listmenu .at-deckfilter .at-tickrow"),
+    `${loose} in no deck, ${outside} outside Lesson 1, ${all} in all`);
+  /* And one press takes every filter off again. */
+  const clearAll = () => [...frame.querySelectorAll(".at-filterclear button")]
+    .find((b) => /Clear all filters/.test(b.textContent || ""));
+  check("a narrowed list offers to clear every filter at once", !!clearAll(), "(no Clear all filters)");
+  click(clearAll());
+  await sleep(250);
+  check("and clearing them shows every card, with nothing left to clear",
+    tiles() === all && !clearAll() && !/\d/.test(menuBtn(/^Filter/).textContent || ""),
+    `${tiles()} of ${all}; ${menuBtn(/^Filter/).textContent || ""}`);
+  click(deckMode(/^In these$/));
+  await sleep(250);
+  click(/** @type {any} */ ([...frame.querySelectorAll(".at-listmenu .at-tickrow")].find((r) => /Lesson 1/.test(r.textContent || ""))).querySelector("input"));
+  await sleep(250);
   /* ---- and the same controls over one deck ----
      Including the filter still in force, which is the point of one setting
      for both. */
@@ -7469,6 +7549,30 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("and it comes back round to where it started rather than running out",
     !scale() && localStorage.getItem("arabic-trainer-tile-size") === "0",
     `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-tile-size")}`);
+
+  /* ---- and what a deck holds besides cards ----
+     Numbers are one document per language, so a deck takes them in parts,
+     by name, from a screen of their own. */
+  const addExtras = buttonNamed(/^Add numbers or pronouns$/);
+  check("an open deck offers to add numbers or pronouns", !!addExtras,
+    (document.body.textContent || "").includes("Numbers and pronouns") ? "(section, no button)" : "(no section)");
+  click(addExtras);
+  await sleep(300);
+  const partRow = (/** @type {RegExp} */ re) =>
+    [...document.querySelectorAll(".at-tickrow, label")].find((r) => re.test(r.textContent || ""));
+  check("and lists the parts of the numbers, counting things in three",
+    !!partRow(/Numbers 0 to 10/) && !!partRow(/Counting things: 1 and 2/) &&
+      !!partRow(/Counting things: 3 to 10/) && !!partRow(/Counting things: 11 to 20/) && !!partRow(/Telling the hour/),
+    [...document.querySelectorAll(".at-tickrow, label")].map((r) => (r.textContent || "").slice(0, 24)).join(" | ") || "(no list)");
+  const box = partRow(/Numbers 0 to 10/);
+  click(box && (box.querySelector("input") || box));
+  await sleep(150);
+  click(buttonNamed(/^Save$/));
+  await sleep(600);
+  const sent = savedParts[savedParts.length - 1];
+  check("and saving tells the server which parts the deck holds",
+    !!sent && sent.deckId === "d1" && JSON.stringify(sent.parts) === JSON.stringify(["numbers:0-10"]),
+    JSON.stringify(savedParts));
 }
 
 /* ---- a deck whose cards accept two spellings ----
@@ -7851,9 +7955,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      document side by side, told apart by what they hold rather than by a
      label. The app pairs them up itself. */
   materialSystems = [goldenNumbers, goldenTimes];
+  /* In a deck, every part of them, as a teacher would put them: numbers
+     in no deck reach nobody. */
+  materialDecks = [{
+    id: "dn", title: "Numbers deck", lang: "ar-PS", owner: "t-1", cardIds: [], cardCount: 0,
+    courseId: "c1", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 1,
+    parts: rangeSkills.map((/** @type {any} */ it) => it.range.id),
+  }];
   materialQuiet = true;
   localStorage.setItem("arabic-trainer:material", JSON.stringify({
-    handle: account.handle, courses: [], decks: [], systems: materialSystems,
+    handle: account.handle, courses: [], decks: materialDecks, systems: materialSystems,
     version: "v-numbers", at: Date.now(),
   }));
   /* The document starts empty on purpose: the cards and skills are the
@@ -7941,6 +8052,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   root4.unmount();
   host4.remove();
   materialSystems = [];
+  materialDecks = [];
   materialQuiet = false;
   await sleep(200);
 }

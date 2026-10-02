@@ -605,6 +605,19 @@ test("a day's movement takes the larger of two devices, never the sum", () => {
     { up: 3, cleared: 1, learnt: 2 }, "and neither side is privileged");
 });
 
+test("the prep's count of questions merges like the log beside it", () => {
+  /* The larger of the two, never the sum: a phone that syncs twice must
+     not read as twice the prep practice. And a day only one side has is
+     kept. */
+  const phone = doc([], { prepLog: { "2026-10-02": 40, "2026-10-01": 12 } });
+  const laptop = doc([], { prepLog: { "2026-10-02": 25 } });
+  const both = mergeData(phone, laptop);
+  assert.deepEqual(both.prepLog, { "2026-10-02": 40, "2026-10-01": 12 });
+  assert.deepEqual(mergeData(both, laptop).prepLog, both.prepLog, "merging twice changes nothing");
+  assert.deepEqual(mergeData(laptop, phone).prepLog, both.prepLog, "and neither side is privileged");
+  assert.deepEqual(mergeData(doc([]), doc([])).prepLog, {}, "and a document without one reads as none");
+});
+
 test("a day only one device recorded survives the merge either way round", () => {
   const tuesday = moved({ "2026-09-15": { up: 4, cleared: 0, learnt: 1 } });
   const empty = doc([]);

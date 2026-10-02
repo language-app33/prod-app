@@ -44,11 +44,14 @@
 import type { Form, Lang } from "./types.ts";
 import { formsOf } from "./cards.ts";
 import { linesOf, pickedFrom } from "./dialogs.ts";
-import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, tensedOf, verbOf } from "./languages.ts";
+import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, lendsInto, tensedOf, verbOf } from "./languages.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
-import { fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
-import { agreedCell, agreedValue, agreeWith, ownSlot, partnerOf, personsOf, rowIdsOf, rowOf, slotRows, subjectSlot } from "./verbs.ts";
+import { ADJECTIVE_IS_SLOT, fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
+import {
+  agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, ownSlot, partnerOf, personsOf,
+  rowIdsOf, rowOf, slotLinks, slotRows, subjectSlot,
+} from "./verbs.ts";
 
 type Held = Record<string, any>;
 
@@ -232,38 +235,81 @@ type Owner = { card: Held; form: Held };
  * teacher's list has to take this step too or it lists sentences nobody
  * is asked. The trainer re-exports it.
  */
+/*
+ * **And a blank follows the one the teacher linked it to**, where they
+ * linked it (see slotLinks in verbs.ts): عطشان، بدي مي has no pronoun, so
+ * the adjective is linked to the verb, which follows nothing and goes
+ * through its persons. The adjective reads the person the verb is in and
+ * what the language says that person is (`is` on a column — *we* is a
+ * plural of people), which is also what lets an adjective beside إنتِ
+ * take the feminine. A blank is filled after the one it follows, so a
+ * chain reads the form its partner ended up as. Where nothing is linked,
+ * the rule above, less any blank linked to this one.
+ */
 export function agreeTook(
   took: Record<string, Value>,
   slots: string[],
   ownerOf: (value: Value) => Owner | null,
   langFor: (card: Held) => Lang | null | undefined,
+  links: Record<string, string> = {},
 ): Record<string, Value> | null {
   const out = { ...took };
   const leads = leadsOf(took, slots, ownerOf, langFor);
-  const partnerSlot = (slot: string) => agreeWith(leads, slot) || agreeWith(slots, slot);
-  for (const slot of slots) {
+  const partnerSlot = (slot: string) =>
+    linkedPartner(links, slots, slot) ??
+    (agreeWith(followable(links, leads, slot), slot) || agreeWith(followable(links, slots, slot), slot));
+  /* The person each filled blank is in, where it is in one: a verb's
+     cell, as drawn or as agreed. A pronoun carries its own. */
+  const personAt: Record<string, string> = {};
+  const done = new Set<string>();
+  const busy = new Set<string>();
+  /* What a word agreeing with this blank reads off it. */
+  const readOff = (slot: string, lang: Lang | null | undefined): Value | null => {
+    const value = out[slot];
+    if (!value) return null;
+    return { ...value, grammar: asSubject(verbOf(lang), value.grammar, personAt[slot]) };
+  };
+  const fill = (slot: string): boolean => {
+    if (done.has(slot) || busy.has(slot)) return true;
+    busy.add(slot);
+    const ok = fillOne(slot);
+    busy.delete(slot);
+    done.add(slot);
+    return ok;
+  };
+  const fillOne = (slot: string): boolean => {
     const value = took[slot];
     const owner = value ? ownerOf(value) : null;
-    if (!owner) continue;
+    if (!owner) return true;
+    /* An adjective said about a person came in already in the form that
+       person calls for — see aboutPersons — and follows nothing. */
+    if (slot === ADJECTIVE_IS_SLOT) return true;
     const lang = langFor(owner.card);
+    const beside = partnerSlot(slot);
+    if (beside && !fill(beside)) return false;
     const spec = agreementOf(lang, owner.card.category);
     if (spec) {
-      const partner = took[partnerSlot(slot)] || null;
-      const agreed = agreedValue(owner.card, spec, value, partner);
-      if (!agreed) return null;
+      const agreed = agreedValue(owner.card, spec, value, beside ? readOff(beside, lang) : null);
+      if (!agreed) return false;
       out[slot] = agreed;
-      continue;
+      return true;
     }
     const tensed = tensedOf(lang, owner.card.category);
-    if (!tensed || personsOf(tensed).length < 2) continue;
-    if (!rowIdsOf(tensed).has(rowOf(owner.form))) continue;
-    const beside = partnerSlot(slot);
-    if (!beside) continue;
-    const partner = took[beside] || null;
+    if (!tensed || personsOf(tensed).length < 2) return true;
+    if (!rowIdsOf(tensed).has(rowOf(owner.form))) return true;
+    if (!beside) {
+      const col = colOf(owner.form);
+      if (col) personAt[slot] = col;
+      return true;
+    }
+    const partner = readOff(beside, lang);
     const cell = agreedCell(owner.card, tensed, rowOf(owner.form), partner ? partner.grammar : null);
-    if (!cell || !String(cell.ar || "").trim()) return null;
+    if (!cell || !String(cell.ar || "").trim()) return false;
     out[slot] = { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
-  }
+    personAt[slot] = colOf(cell);
+    return true;
+  };
+  for (const slot of slots) if (!fill(slot)) return null;
   return out;
 }
 
@@ -321,7 +367,7 @@ export function finishTook(
   ownerOf: (value: Value) => Owner | null,
   langFor: (card: Held) => Lang | null | undefined,
 ): Record<string, Value> | null {
-  const took = agreeTook(turned, drawn, ownerOf, langFor);
+  const took = agreeTook(turned, drawn, ownerOf, langFor, slotLinks(part));
   if (!took) return null;
   const own = ownSlot(part);
   if (own && card && slotsOf(part).includes(own)) {
@@ -361,6 +407,7 @@ export function reviewPool(
     (a, b) => (a.created || 0) - (b.created || 0) || String(a.id).localeCompare(String(b.id)),
   );
   const fields = grammarFields();
+  const into = lendsInto(lang);
   for (const card of byAge) {
     if (!card) continue;
     if (langId && card.lang && card.lang !== langId) continue;
@@ -372,7 +419,7 @@ export function reviewPool(
       for (const slot of slots) {
         if (!values[slot]) continue;
         if (!admits(card, form, slot)) continue;
-        values[slot].push(value);
+        values[slot].push(...into(card, value, slot));
       }
     }
     for (const form of formsOf(card) as Held[]) {
@@ -567,6 +614,13 @@ export function narrowed(
       tenses[to] = tenses[from];
       delete tenses[from];
       out.tenses = tenses;
+    }
+    /* And which blank each follows, on either end of a link. */
+    const links = slotLinks(part);
+    if (Object.keys(links).length) {
+      const agrees: Record<string, string> = {};
+      for (const [k, v] of Object.entries(links)) agrees[k === from ? to : k] = v === from ? to : v;
+      out.agrees = agrees;
     }
     return out;
   };

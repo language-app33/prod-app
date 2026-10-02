@@ -31,13 +31,14 @@ import type {
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
-import { answersOf } from "./answers.ts";
+import { ALT_SEP, answersOf } from "./answers.ts";
 import { leadOf, subFormsOf } from "./cards.ts";
 /* And what a row is, for the one rule below that reads one: verbs.ts
    knows what a table is made of and no language at all, which is the
    same direction every other import here goes. */
-import { citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows, tensesOf } from "./verbs.ts";
-import { isLent } from "./variables.ts";
+import { agreedValue, asSubject, citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows, tensesOf } from "./verbs.ts";
+import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, beReadings, isLent } from "./variables.ts";
+import type { Value } from "./variables.ts";
 /*
  * How each language builds its numbers and tells the time.
  *
@@ -1809,19 +1810,36 @@ export const cardDims = (
  * is addressed to, never who a noun in its subject turns out to be. So a
  * plural filler still reaches "they", as it always did.
  */
+/*
+ * What each person is to a word that agrees with it — `is` on a column.
+ *
+ * An adjective's forms are named by gender and number, a verb's by
+ * person, and a sentence that links one to the other — عطشان، بدي مي,
+ * with no pronoun, the adjective following the verb — has to cross from
+ * one to the other. So: *I (m)*, *you (m)* and *he* are a masculine
+ * singular, which is the adjective's own word; *I (f)*, *you (f)* and
+ * *she* the feminine; *we*, *you (pl)* and *they* a plural of people, the
+ * plural. Masculine as well, for Hebrew, whose plural adjective has two
+ * genders and whose table does not tell the plural persons apart — the
+ * way its *I* stays masculine with verbs too.
+ */
+const MASC_ONE = { number: "singular", gender: "masculine", human: "person" };
+const FEM_ONE = { number: "singular", gender: "feminine", human: "person" };
+const PEOPLE = { number: "plural", gender: "masculine", human: "person" };
+
 const SUBJECT_PERSONS: VerbPerson[] = [
-  { id: "i", label: "I" },
-  { id: "you-m", label: "you (m)" },
-  { id: "you-f", label: "you (f)" },
-  { id: "he", label: "he", picks: { number: "singular", gender: "masculine" } },
-  { id: "she", label: "she", picks: { number: "singular", gender: "feminine" } },
-  { id: "we", label: "we" },
+  { id: "i", label: "I", is: MASC_ONE },
+  { id: "you-m", label: "you (m)", is: MASC_ONE },
+  { id: "you-f", label: "you (f)", is: FEM_ONE },
+  { id: "he", label: "he", picks: { number: "singular", gender: "masculine" }, is: MASC_ONE },
+  { id: "she", label: "she", picks: { number: "singular", gender: "feminine" }, is: FEM_ONE },
+  { id: "we", label: "we", is: PEOPLE },
   /* Between "we" and "they", where the paradigm puts it and where the
      pronouns on the end of a word already put theirs: a column is a column
      of two tables now, and a teacher reading down one should not meet them
      in two different orders. */
-  { id: "you-pl", label: "you (pl)" },
-  { id: "they", label: "they", picks: { number: "plural" } },
+  { id: "you-pl", label: "you (pl)", is: PEOPLE },
+  { id: "they", label: "they", picks: { number: "plural" }, is: PEOPLE },
 ];
 
 /*
@@ -1849,8 +1867,8 @@ const SUBJECT_PERSONS: VerbPerson[] = [
  * different shape of table and wants deciding on its own.
  */
 const AR_SUBJECT_PERSONS: VerbPerson[] = [
-  { id: "i", label: "I (m)" },
-  { id: "i-f", label: "I (f)" },
+  { id: "i", label: "I (m)", is: MASC_ONE },
+  { id: "i-f", label: "I (f)", is: FEM_ONE },
   ...SUBJECT_PERSONS.slice(1),
 ];
 
@@ -2057,6 +2075,12 @@ const WORD_CATEGORIES: WordCategory[] = [
     label: "Person",
     note: "A particular person, or a named animal: Sarah, Abu Khaled.",
     grammar: ["number", "gender"],
+    /* One person unless the card says more, and always a person: an
+       adjective beside سارة with her number left blank took the masculine,
+       and beside a family marked plural it took the masculine too, since
+       only a plural of people takes تعبانين and a Person card is never
+       asked whether it is one. */
+    implies: { number: "singular", human: "person" },
   },
   {
     id: "place",
@@ -2169,6 +2193,102 @@ export const takesAttached = (lang: Lang | null | undefined): boolean => !!attac
 
 /** Whether this language lays verbs out in a table at all. */
 export const teachesVerbs = (lang: Lang | null | undefined): boolean => !!verbOf(lang);
+
+/**
+ * The persons a sentence can say something about with the pronoun left
+ * out: the verb table's columns that say what they are — *I (f)* a
+ * feminine singular, *we* a plural of people — which is what lets an
+ * adjective pick its form from one. Empty in a language whose verbs have
+ * no persons to speak of, which is a language with no `{{adjective-is}}`.
+ */
+export const subjectPersonsOf = (lang: Lang | null | undefined) =>
+  personsOf(verbOf(lang)).filter((p) => p.is && Object.keys(p.is).length);
+
+/** Whether a sentence in this language can say an adjective about a person
+    with no pronoun — see ADJECTIVE_IS_SLOT. */
+export const saysAboutPersons = (lang: Lang | null | undefined): boolean =>
+  categoriesOf(lang).some((c) => c.id === ADJECTIVE_SLOT) && subjectPersonsOf(lang).length > 0;
+
+/**
+ * An adjective as it stands in `{{adjective-is}}`: once for each form it
+ * takes about a person, each reading in English as every person that form
+ * can be about.
+ *
+ * Each person is read the way a pronoun beside the adjective would be —
+ * asSubject, then the agreement table — so تعبان is *I (m)*, *you (m)* and
+ * *he*, تعبانة is *I (f)*, *you (f)* and *she*, and تعبانين the three
+ * plurals. Persons whose cell the teacher left blank are left out, as a
+ * sentence beside them would be; two persons whose forms are spelt alike
+ * are one value. The English is *to be* worked out from the person's label
+ * — the same beReadings the pronoun uses — with the adjective's own English
+ * after it.
+ *
+ * The value keeps the adjective's own id, which is what the blank is gated
+ * on and what goes back to the card, as it does in `{{adjective}}` before
+ * agreement swaps it. Nothing else agrees it afterwards: see agreeTook.
+ */
+export function aboutPersons(
+  lang: Lang | null | undefined,
+  card: { category?: unknown } | null | undefined,
+  value: Value,
+): Value[] {
+  const persons = subjectPersonsOf(lang);
+  const en = String(value.en || "").trim();
+  if (!persons.length || !en) return [];
+  const spec = agreementOf(lang, String((card && card.category) || ""));
+  const verb = verbOf(lang);
+  const groups: { ar: string; lat: string; reads: string[] }[] = [];
+  for (const person of persons) {
+    const grammar = asSubject(verb, {}, person.id);
+    const form = spec ? agreedValue(card, spec, value, { grammar }) : value;
+    if (!form || !String(form.ar || "").trim()) continue;
+    const read = `${beReadings(person.label).is} ${en}`;
+    const had = groups.find((g) => g.ar === form.ar);
+    if (had) {
+      if (!had.reads.includes(read)) had.reads.push(read);
+    } else groups.push({ ar: form.ar, lat: form.lat || "", reads: [read] });
+  }
+  return groups.map((g) => ({
+    ...value,
+    ar: g.ar,
+    lat: g.lat,
+    readings: { ...(value.readings || {}), [ADJECTIVE_IS_SLOT]: g.reads.join(ALT_SEP) },
+  }));
+}
+
+/**
+ * What one value a card lends stands in one blank as: itself, except an
+ * adjective in `{{adjective-is}}` — see aboutPersons. One answer for the
+ * session, the teacher's preview and the review list, so the three count
+ * the same sentences.
+ */
+export const lendsInto = (
+  lang: Lang | null | undefined,
+): ((card: { category?: unknown } | null | undefined, value: Value, slot: string) => Value[]) =>
+  (card, value, slot) => {
+    const implied = impliedOf(lang, card, value);
+    return slot === ADJECTIVE_IS_SLOT ? aboutPersons(lang, card, implied) : [implied];
+  };
+
+/**
+ * A value with what its kind of word implies filled in where the card
+ * left it blank — see `implies` on a category. What the card says wins:
+ * a Person card marked plural stays plural, and only gains that it is
+ * people.
+ */
+function impliedOf(
+  lang: Lang | null | undefined,
+  card: { category?: unknown } | null | undefined,
+  value: Value,
+): Value {
+  const kind = categoryOf(lang, String((card && card.category) || ""));
+  const implies = kind && kind.implies;
+  if (!implies) return value;
+  const had = value.grammar || {};
+  const missing = Object.entries(implies).filter(([k]) => !String(had[k] || "").trim());
+  if (!missing.length) return value;
+  return { ...value, grammar: { ...had, ...Object.fromEntries(missing) } };
+}
 
 /**
  * The table a word of this kind agrees out of, where it has one: one row,
@@ -3261,10 +3381,21 @@ export function splitForms(expected: string, sep: RegExp) {
  */
 const EN_SLIP_MIN = 4;
 
+/*
+ * A note saying which person or which number — "you (m)", "I am (f)
+ * tired", "you (pl)" — tells a learner writing the language which form to
+ * write. Turning it into English, nobody types it: "you are tired" is the
+ * whole answer. So the expected English is also accepted without such a
+ * note, and only such a note: "close (the door)" is a different matter.
+ */
+const PERSON_NOTE = /\s*\((?:m|f|pl|sg|masc|fem|masculine|feminine|plural|singular)\.?\)/gi;
+
 export function checkEn(given: string, expected: string) {
   const g = normEn(given);
   if (!g) return { ok: false, reason: "wrong" };
-  const forms = splitForms(expected, /[/;,]/).map(normEn);
+  const split = splitForms(expected, /[/;,]/);
+  const bare = split.map((e) => e.replace(PERSON_NOTE, "")).filter((e, i) => e !== split[i]);
+  const forms = split.concat(bare).map(normEn);
   if (forms.includes(g)) return { ok: true, reason: "exact" };
   if (forms.some((e) => tight(e).length >= EN_SLIP_MIN && editDistance(g, e) === 1))
     return { ok: true, reason: "typo" };

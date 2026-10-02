@@ -172,6 +172,7 @@ const tensed = {
       en: "yesterday {{name}} {{verb}}",
       lat: "mbaari7 {{name}} {{verb}}",
       tenses: { verb: ["past"] },
+      agrees: { verb: "name" },
     },
   ],
 };

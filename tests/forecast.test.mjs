@@ -51,6 +51,7 @@ const {
   marksForAnswer,
   readyWords,
   prepToday,
+  tallyAnswer,
   prepGlance,
   prepOf,
   prepStart,
@@ -260,6 +261,28 @@ test("the home screen's prep tile says whether the pace gets you there", () => {
   assert.match(midday.detail, /^About 14 sessions a day will get you ready/);
   const all = prepGlance(5, { kind: "already" }, 36, 0);
   assert.deepEqual([all.days, all.tone, all.status, all.detail], [5, "good", "All learnt", ""]);
+});
+
+test("only a question on a prep card counts towards the prep, whatever session asked it", () => {
+  /* The goal is counted off the prep's cards, so today's sessions are
+     too: a question on another deck is practice, and fills the log, but
+     moves the prep nowhere and so does not fill its count. */
+  const inPrep = prepDeckOf(["Lesson 1", "Lesson 2"]);
+  const lesson = { id: "a", tags: ["Lesson 2"] };
+  const other = { id: "b", tags: ["Holiday words"] };
+  assert.equal(inPrep(/** @type {any} */ (lesson)), true);
+  assert.equal(inPrep(/** @type {any} */ (other)), false);
+
+  const day = "2026-10-02";
+  let doc = { log: { [day]: 5 }, prepLog: { [day]: 3 } };
+  doc = { ...doc, ...tallyAnswer(doc, day, inPrep(/** @type {any} */ (lesson))) };
+  assert.deepEqual([doc.log[day], doc.prepLog[day]], [6, 4], "a prep card: both counts");
+  doc = { ...doc, ...tallyAnswer(doc, day, inPrep(/** @type {any} */ (other))) };
+  assert.deepEqual([doc.log[day], doc.prepLog[day]], [7, 4], "another deck: the log alone");
+  /* A document from before the count existed starts it at one. */
+  const old = tallyAnswer({ log: {} }, day, true);
+  assert.deepEqual(old, { log: { [day]: 1 }, prepLog: { [day]: 1 } });
+  assert.equal(tallyAnswer({ log: {} }, day, false).prepLog, undefined, "and does not invent one");
 });
 
 test("the home screen counts today's sessions against what today needs", () => {

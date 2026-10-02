@@ -32,7 +32,7 @@ import type {
   Rendering,
   SlotSpec,
 } from "./types.ts";
-import { NUMBER_CEILING } from "./types.ts";
+import { COUNTING_RANGES, NUMBER_CEILING } from "./types.ts";
 import { Build } from "./build.ts";
 import { chunksOf, nounTextOf } from "./compose.ts";
 import type { VerbSpec } from "../types.ts";
@@ -116,7 +116,7 @@ export const HE_RANGES: Range[] = [
   { id: "numbers:11-99", kind: "numbers", label: "Numbers 11 to 99", from: 11, to: 99 },
   { id: "numbers:100-999", kind: "numbers", label: "Numbers 100 to 999", from: 100, to: 999 },
   { id: "numbers:1000+", kind: "numbers", label: "Numbers over a thousand", from: 1000, to: NUMBER_CEILING },
-  { id: "numbers:agreement", kind: "numbers", label: "Counting things", from: 1, to: 20, counted: true },
+  ...COUNTING_RANGES,
 ];
 
 export const HE_NUMBER_TABLE: VerbSpec = {

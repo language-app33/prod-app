@@ -8,6 +8,127 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.306 — 2 October 2026
+
+**The prep tile counts only practice on your prep decks.**
+
+- "Today's sessions" on the prep tile now counts the exercises you answer
+  on cards in your prep decks, in any kind of session — the prep button,
+  Start session, Weak skills or a session you build yourself — shown as
+  sessions of 18. Practice on other decks no longer fills it.
+- "On track" is judged the same way: from your recent practice on the
+  prep decks, not all your practice.
+- The goal itself is unchanged: it was always worked out from what your
+  prep cards still need.
+- Counting starts with this release, so on the day it arrives "Today's
+  sessions" starts again from zero, and "On track" reads only from then.
+
+## 0.305 — 2 October 2026
+
+**Numbers and pronouns go in decks, a part at a time.**
+
+- An open deck in Teaching has a new line, "Numbers and pronouns", with
+  an "Add numbers or pronouns" button. It lists the parts of the
+  language's numbers (Numbers 0 to 10, 11 to 99, 100 to 999, over a
+  thousand, the three parts of counting things, and the parts of telling
+  the time) and its pronouns one by one. Tick the ones the deck teaches.
+- A number part brings the words it is built from: "Numbers 11 to 99"
+  brings the words for the tens and the units it needs. A part can be in
+  several decks.
+- Students now get numbers only through a deck. **Numbers in no deck no
+  longer reach anybody**, so a teacher needs to add them to a deck for
+  students to keep practising them. Nothing a student had learnt is lost:
+  it comes back as soon as the part is in one of their decks.
+- Number parts count like any other card in a deck: on the home screen's
+  deck choice, on Progress, and in prep.
+- "Counting things" is now three parts — 1 and 2, 3 to 10, and 11 to 20
+  — because the counted word changes shape at those points. A teacher who
+  has not written the plurals yet can already hand out "1 and 2". What a
+  student had learnt on counting things carries into all three.
+- A locked deck's numbers and pronouns can't be changed, like its cards.
+
+## 0.304 — 2 October 2026
+
+**If you practise a lot, you see the same few cards less often, and new cards come in as a mix.**
+
+- Practising ten or more sessions a day, you can now be learning up to
+  20 new cards at once instead of 10, so your sessions spread over more
+  cards. The card you see most comes up about 10 times on a busy day
+  instead of 13 or 14. New cards take a day or two to clear instead of
+  under a day. At up to about five sessions a day, nothing changes.
+- New cards no longer come in as whatever your decks hold most of. Each
+  new card is taken from whichever kind you are learning least of right
+  now: nouns, verbs, adjectives and other kinds of word, phrases,
+  sentences, conversations. A deck of mostly nouns no longer opens with
+  nothing but nouns. A kind you have only a few cards of comes in sooner
+  than before.
+- Cards you mark high priority still come first, whatever their kind.
+
+## 0.303 — 2 October 2026
+
+**The card search has a line of its own.**
+
+- In Teaching → Cards, the search box now sits on its own line under the
+  New card button, full width, instead of squeezed between New card and
+  the Reports, Numbers and Pronouns buttons.
+- Other lists, a deck's cards among them, are unchanged.
+
+## 0.302 — 1 October 2026
+
+**Adjectives and verbs agree with a Person card that leaves its number blank.**
+
+- A Person card with only its gender answered — Layla, feminine — now
+  counts as one person, so sentences read ليلى تعبانة and ليلى بتحكي.
+  Before, the adjective came out masculine and the verb was left out.
+- A Person card marked plural — a family, a group — now takes the plural
+  adjective (تعبانين), as people do. Before, it took the masculine.
+- A Person card with no gender is still not guessed at.
+
+## 0.301 — 1 October 2026
+
+**An adjective can say who is tired, with no pronoun.**
+
+- When you add an adjective blank to a sentence, you now choose between
+  "Tired" — the adjective itself, as before — and "I am tired".
+- "I am tired" goes through every person, with the adjective in the form
+  each one calls for: "{adjective-is} اليوم" is met as تعبان اليوم,
+  تعبانة اليوم and تعبانين اليوم — *I am tired today*, *you are tired
+  today*, *she is tired today*, *we are tired today* and the rest. Nothing
+  needs adding to your adjective cards.
+- Since تعبان could be *I*, *you* or *he*, turning it into English accepts
+  any person it fits. Writing it in Arabic, the English shows one person
+  at a time, with (m), (f) or (pl) where that decides the form.
+- Typing English, "you are tired" now counts for "you are (m) tired": a
+  note saying which person or number never has to be typed.
+
+## 0.300 — 1 October 2026
+
+**The card list can show the cards in no deck, and its filters clear in one press.**
+
+- Teaching → Cards → Filter → Decks has a fourth choice, "In no deck":
+  the cards no deck holds, so no student sees them. Nothing needs ticking.
+  Inside a deck it is set aside, since every card there is in a deck.
+- "Clear all filters" appears at the top of the Filter panel whenever
+  anything is filtered, and beside "No cards match the filter" when a
+  filter has hidden everything.
+
+## 0.299 — 1 October 2026
+
+**A blank in a sentence can be told which other blank to agree with.**
+
+- Under each blank whose words change form — verbs, adjectives, "this" and
+  "that" — the Blanks section now asks what it agrees with: the first other
+  blank (as before, and still the default), any other blank in the
+  sentence, or nothing, which goes through every form in turn.
+- So a sentence with no pronoun works: link the adjective in
+  "{adjective}، {verb} مي" to the verb, and it is met as عطشان، بدي مي,
+  عطشانة، بدها مي, عطشانين، بدنا مي and so on. Before, it only ever came
+  out in the verb's dictionary form.
+- An adjective beside a pronoun now agrees with every pronoun, not only
+  "she": إنتِ عطشانة, إحنا عطشانين, هم عطشانين.
+- Sentences already written are met exactly as before until a blank in
+  them is linked.
+
 ## 0.298 — 1 October 2026
 
 **The prep tile's practice line is shorter.**

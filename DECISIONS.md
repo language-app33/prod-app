@@ -4158,3 +4158,117 @@ any one meaning is shared, split on a slash or semicolon and compared by
 `normEn`, as `lentLabel` already did for sentence blanks. Not on a comma,
 which sits inside a phrase as often as between meanings. The script and
 transliteration are still compared as whole lines.
+
+## An adjective said about a person is one sentence per form, not per person
+
+The owner asked for adjective cards to carry *I am tired* as well as
+*tired*, so a sentence could say تعبان اليوم — *I am tired today* — with no
+pronoun. `{{pronoun-is}} {{adjective}}` already made أنا تعبان اليوم; what
+was missing was the sentence with nothing in it saying who.
+
+**Not written on the card.** Nine *I am tired*, *you are tired*… on every
+adjective would be typing the same English rule into every card. The
+English is worked out instead, from the person's label and the adjective's
+own English — the same `beReadings` the pronoun's readings use — and the
+form from the agreement table, so nothing on an adjective changes.
+
+**One value per form, with every person it fits as alternatives**, rather
+than one value per person. Without the pronoun, تعبان is *I (m)*, *you
+(m)* and *he* at once; nine values would have made three Arabic sentences
+three times each, listed three times for the teacher to approve and
+marked as wrong whenever a learner gave a different person from the one
+drawn. The owner chose "accept any person that fits". As alternatives,
+the existing machinery does the rest: `checkEn` accepts any of them,
+`castMeaning` shows one at a time where English is the prompt, and a
+review sees three sentences, which is what there are. The cost is that a
+verb in the same sentence cannot follow `{{adjective-is}}` — it carries no
+single person, so a verb beside it finds no column and that sentence is
+not asked, as beside a plain `{{adjective}}` before. The blank itself is
+asked nothing about agreement. A sentence that needs a verb too writes
+the pronoun.
+
+**A person note may be left off in English.** "I am (m) tired today" is
+how English → script says which form to write, and nobody types "(m)"
+going the other way. `checkEn` accepts the expected English with a gender
+or number note removed, and only such a note: "close (the door)" still
+wants the door.
+
+## A Person is one person unless it says more, and always a person
+
+A Person card is asked its number and gender, and agreement needs both:
+the feminine adjective picks *feminine singular*, the verb's *she* the
+same. A teacher who answered the gender of ليلى and left the number blank
+got ليلى تعبان and no verb sentence at all, with nothing to say why. And a
+Person card is never asked whether it is a person or a thing — the answer
+is obvious — so one marked plural matched neither the plural adjective,
+which wants a plural of people, nor the feminine, which wants a plural of
+things, and fell to the masculine singular.
+
+**Now.** A kind of word may declare what it implies (`implies` on a
+category); Person implies *singular* and *a person*. Filled in where the
+card says nothing, when the word is lent to a sentence — `lendsInto`,
+which the session, the review list and the preview all go through — and
+never written to the card, so what a teacher answered always wins.
+Gender is not implied: a name says nothing reliable about it, and a
+sentence not asked is better than one asked wrong. Place is left alone
+for now; the owner asked about people.
+
+---
+
+## New cards are mixed by kind, evenly rather than in proportion
+
+**2 October 2026** · `src/scheduler.ts` (`byVariety`), `src/ArabicTrainer.tsx` (`varietyOf`)
+
+Which new cards a learner meets used to be the front of the due list,
+where every never-met card ranks the same and chance decides. That is a
+draw in proportion to the material: eighty nouns and twenty sentences
+meant roughly four nouns to every sentence, and nothing stopped a dozen
+strangers held at once being all one kind.
+
+Now each place at the front door goes to whichever kind is least
+represented among what is already there, which is an even mix rather
+than a proportional one.
+
+**Why even.** A proportional draw is what chance already gave on average;
+the complaint was that it gave nothing better than average, and on a deck
+that is mostly one kind the average is the problem. Even is what "mixed"
+means to a learner looking at a session.
+
+**What it costs.** A kind with few cards is used up early: five sentences
+in a deck of a hundred all arrive in the first day or two, and the deck's
+last weeks are whatever it held most of. A proportional rule would have
+avoided that and given the learner much less of what they asked for.
+
+**What counts as a kind** is what the teacher says a word is — noun,
+verb, name — and otherwise the card's own kind: phrase, sentence,
+conversation, text, number skill. A word nobody gave a part of speech is
+one kind of its own. Nothing finer: tags were considered and left out,
+because they are a teacher's filing, not a kind of thing to learn.
+
+---
+
+## Numbers reach a learner only through a deck
+
+**2 October 2026** · `src/numbers/generate.ts` (`fileIntoDecks`), `server/api/courses.js` (`set-deck-parts`)
+
+A teacher's numbers used to go to every student of the language, outside
+any deck. That meant they could not be handed out a part at a time, and a
+student could not prep for them, since prep is by deck.
+
+A deck now names the parts it holds, and a part in no deck is sent to
+nobody. The other choice was to keep sending parts in no deck to everyone
+and file the rest under their decks. That would have changed nothing for
+anyone on the day it shipped, which was its appeal; it was turned down
+because it leaves two ways for numbers to arrive, and a teacher who put
+0 to 10 in Week 1 would still find 11 to 99 on every student's device
+before Week 2.
+
+**What it costs.** On the day it ships, students of a teacher who has
+not put numbers in a deck stop being asked them. Their progress is set
+aside, not deleted, and comes back with the part.
+
+**Why parts, not words.** A deck names ranges — 0 to 10, telling the
+hour — rather than the words for *forty* and *seven*, because a number
+is built out of words, and a teacher picking words would have to know
+which ones each number needs. The words come along with the part.
+
