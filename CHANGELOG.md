@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.307 — 2 October 2026
+
+**"I am tired" works with any adjective blank, not only "any adjective".**
+
+- When a blank in a sentence uses one of your own tags, or one card's ID,
+  and there are adjectives behind it, you now get the same choice as with
+  "Adjective": "Tired" or "I am tired".
+- With "I am tired", only the adjectives under that tag are used. Other
+  words with the same tag (a noun, say) are left out of that blank, and
+  the count beside it says how many adjectives there are.
+- Pronouns work the same way: a tag or an ID with pronouns behind it now
+  offers "I", "I am" and "am I", just as "Pronoun" does.
+- Sentences you have already written are unchanged.
+
 ## 0.306 — 2 October 2026
 
 **The prep tile counts only practice on your prep decks.**

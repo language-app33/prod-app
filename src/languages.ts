@@ -37,7 +37,7 @@ import { leadOf, subFormsOf } from "./cards.ts";
    knows what a table is made of and no language at all, which is the
    same direction every other import here goes. */
 import { agreedValue, asSubject, citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows, tensesOf } from "./verbs.ts";
-import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, beReadings, isLent } from "./variables.ts";
+import { aboutPerson, ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, beReadings, isLent, readAs } from "./variables.ts";
 import type { Value } from "./variables.ts";
 /*
  * How each language builds its numbers and tells the time.
@@ -2231,6 +2231,9 @@ export function aboutPersons(
   lang: Lang | null | undefined,
   card: { category?: unknown } | null | undefined,
   value: Value,
+  /** The blank it stands in — `{{adjective-is}}`, or the same reading of a
+      group tag or the card's ID. The English is kept under that name. */
+  slot: string = ADJECTIVE_IS_SLOT,
 ): Value[] {
   const persons = subjectPersonsOf(lang);
   const en = String(value.en || "").trim();
@@ -2252,13 +2255,15 @@ export function aboutPersons(
     ...value,
     ar: g.ar,
     lat: g.lat,
-    readings: { ...(value.readings || {}), [ADJECTIVE_IS_SLOT]: g.reads.join(ALT_SEP) },
+    readings: { ...(value.readings || {}), [slot]: g.reads.join(ALT_SEP) },
   }));
 }
 
 /**
  * What one value a card lends stands in one blank as: itself, except an
- * adjective in `{{adjective-is}}` — see aboutPersons. One answer for the
+ * adjective in `{{adjective-is}}` or a reading of its tag or ID — see
+ * aboutPersons — and a pronoun in a reading of any name, which carries
+ * that reading's English — see readAs. One answer for the
  * session, the teacher's preview and the review list, so the three count
  * the same sentences.
  */
@@ -2267,7 +2272,8 @@ export const lendsInto = (
 ): ((card: { category?: unknown } | null | undefined, value: Value, slot: string) => Value[]) =>
   (card, value, slot) => {
     const implied = impliedOf(lang, card, value);
-    return slot === ADJECTIVE_IS_SLOT ? aboutPersons(lang, card, implied) : [implied];
+    const held = card as Record<string, unknown>;
+    return aboutPerson(held, slot) ? aboutPersons(lang, card, implied, slot) : [readAs(held, implied, slot)];
   };
 
 /**

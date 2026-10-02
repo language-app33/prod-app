@@ -549,6 +549,14 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   person note left off — *you are tired* for *you are (m) tired* — and no
   other bracket (`PERSON_NOTE` in `checkEn`).
 
+  **And both readings belong to any name, not only the kind.** A group tag
+  or a card's ID with adjectives or pronouns behind it is read the same
+  way: `{{feelings-is}}`, `{{tired-is}}`, `{{is-ana}}`. `readingNames` in
+  `src/variables.ts` is the one rule, and the three names above are it
+  applied to the kind of word. Only an adjective or a pronoun fills a
+  reading, so a tag with nouns in it lends its adjectives alone; the blank
+  screen asks the second question wherever there are any.
+
   **And a list of cards shows a language's pronouns as one entry.** The
   Pronouns screen writes a card per person, because each is practised,
   recorded and lent on its own — but a teacher wrote them as one set, on

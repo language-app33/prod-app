@@ -247,6 +247,9 @@ const bigWithForms = {
   id: "k999999999999", owner: "t-1", ar: "كبير", en: "big", lat: "kbiir",
   note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
   category: "adjective",
+  /* And an ID, so a blank can ask for this adjective alone — and still be
+     asked whether it says who. */
+  ref: "big",
   clips: [], uses: [], rev: 1, updated: 1, created: 6,
   subs: [{
     ar: "كبيرة", en: "big (f)", lat: "kbiire",
@@ -5318,6 +5321,14 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("and choosing it asks whether it is the word or the word said about a person",
         title() === "How the adjective reads" &&
           JSON.stringify(names()) === JSON.stringify(["adjective", "adjective-is"]),
+        `${title()} · ${names().join(" ")}`);
+      click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the blanks"));
+      await sleep(300);
+      /* The same question for one adjective asked for by its ID. */
+      click(rowFor(/^big$/));
+      await sleep(300);
+      check("an adjective asked for by its ID asks the same",
+        title() === "How the big reads" && JSON.stringify(names()) === JSON.stringify(["big", "big-is"]),
         `${title()} · ${names().join(" ")}`);
       click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the blanks"));
       await sleep(300);

@@ -38,6 +38,7 @@ import {
   droppedIn,
   renamedIn,
   slotName,
+  readingOf,
   isSentence,
   slotSpans,
   withSlotAt,
@@ -725,9 +726,11 @@ test("a card's own ID is a name a blank can ask for", () => {
 
   /* Beside its groups and its kind, not instead of them. */
   const tagged = { ...red, fills: ["colours"], category: "adjective" };
-  /* An adjective also fills the blank that says it about a person — see
-     ADJECTIVE_IS_SLOT. */
-  assert.deepEqual(fillsOf(tagged, "word"), ["colours", "colour-red", WORD_SLOT, "adjective", "adjective-is"]);
+  /* An adjective also fills the blank that says it about a person, under
+     every name that reaches it — see ADJECTIVE_IS_SLOT and readingNames. */
+  assert.deepEqual(fillsOf(tagged, "word"), [
+    "colours", "colour-red", WORD_SLOT, "adjective", "colours-is", "colour-red-is", "adjective-is",
+  ]);
 
   /* Narrowed the way every other name that goes in braces is, so what the
      editor checked and what the server stored cannot come apart. */
@@ -1106,6 +1109,33 @@ test("a frame reads its pronoun as I, I am or am I by the blank it leaves; the A
   assert.equal(said(is, hiya).ar, "هي من فلسطين");
   assert.equal(said(ask, hiya).ar, "هي من فلسطين؟");
   assert.equal(said(ask, hiya).lat, "hiye min falasṭīn?");
+});
+
+test("a pronoun's group tag and its ID read it with to be as well, and nothing else in the tag does", () => {
+  const ana = { id: "p-i", person: "i", category: "pronoun", ref: "ana", fills: ["people"], forms: [{ ar: "أنا", en: "I", lat: "ana" }] };
+  const hiya = { id: "p-she", person: "she", category: "pronoun", fills: ["people"], forms: [{ ar: "هي", en: "she", lat: "hiye" }] };
+  const rami = { id: "rami", category: "person", fills: ["people"], forms: [{ ar: "رامي", en: "Rami", lat: "rāmi" }] };
+  const pool = [ana, hiya, rami];
+  const frame = (/** @type {string} */ slot) => ({ ar: `{{${slot}}} هون`, en: `{{${slot}}} here`, lat: "" });
+  const read = (/** @type {string} */ slot) =>
+    valuesFor(frame(slot), pool)[slot].map((v) => fillForm(frame(slot), { [slot]: v }).en);
+
+  assert.deepEqual(read("people-is"), ["I am here", "She is here"], "Rami is not a pronoun, and is left out");
+  assert.deepEqual(read("is-people"), ["Am I here", "Is she here"]);
+  assert.deepEqual(read("ana-is"), ["I am here"]);
+  assert.deepEqual(read("is-ana"), ["Am I here"]);
+  assert.deepEqual(read("people").sort(), ["I here", "Rami here", "She here"].sort(), "the plain tag is unchanged");
+  assert.equal(readingOf(ana, "people-is"), "is");
+  assert.equal(readingOf(ana, "people"), "");
+  assert.equal(readingOf(rami, "people-is"), "");
+
+  /* A tag that happens to end in -is is that tag, not a reading. */
+  const odd = { ...hiya, id: "odd", fills: ["people-is"] };
+  assert.equal(readingOf(odd, "people-is"), "");
+  /* And an ID at the full length can still be read. */
+  const long = "a".repeat(24);
+  assert.equal(slotName(`${long}-is`), `${long}-is`);
+  assert.equal(slotName(`${long}-isx`), long);
 });
 
 test("a teacher's own reading wins over the worked-out one, and the person still rides along", () => {

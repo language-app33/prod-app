@@ -4272,3 +4272,36 @@ hour — rather than the words for *forty* and *seven*, because a number
 is built out of words, and a teacher picking words would have to know
 which ones each number needs. The words come along with the part.
 
+---
+
+## A reading belongs to any name an adjective or pronoun answers to
+
+**2 October 2026** · `readingNames`, `readingOf`, `readAs` in `src/variables.ts`; `aboutPersons` and `lendsInto` in `src/languages.ts`; `BlankScreen` offers in `src/card-editor.tsx`
+
+The owner asked why "I am tired" was offered only on the general adjective
+blank. There was no reason in the language: `{{adjective-is}}`,
+`{{pronoun-is}}` and `{{is-pronoun}}` had been added as three names of
+their own, reached only through the kind of word, so a blank built from a
+group tag or a card's ID had nowhere to say it.
+
+**Now the reading is an affix on any name.** `{{feelings-is}}` is the
+adjectives tagged *feelings* said about each person; `{{tired-is}}` is the
+one card with that ID; `{{is-ana}}` asks with one pronoun. `fillsOf`
+adds the readings for every name that reaches an adjective or a pronoun,
+so the three old names are this rule applied to the kind and read exactly
+as before. A value carries its reading under the blank's own name
+(`readAs`, and `aboutPersons` given the slot), which is the key `fillText`
+already read, so nothing downstream had to learn about it.
+
+**A tag with more than adjectives in it** lends only its adjectives to the
+reading. The owner chose that over offering the choice only when every
+card in the tag is an adjective. It falls out of the rule: only an
+adjective or a pronoun fills a reading.
+
+**What it costs.** A name ending in `-is` or starting `is-` could be a tag
+of its own. Where somebody has tagged a card with it, it stays that tag
+(`readingOf` asks the card's own names first), and the editor refuses a
+new tag or ID that an adjective or pronoun would already read that way.
+A reading may run three characters past the 24 a name is cut to, so an ID
+of full length can still be read. A tag with both pronouns and adjectives
+is offered the adjective's question; each card still reads its own way.

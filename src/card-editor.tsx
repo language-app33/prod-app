@@ -44,7 +44,7 @@ import type { SceneKind } from "./dialogs.ts";
 import { castFill, castOf, castReport, filledScene, memberBase, memberLabel, newMember, recast, roleIn } from "./cast.ts";
 import { reviewPool, sentencesOf } from "./review.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, IS_PRONOUN_SLOT, MAX_FILLS, movedSlot, PRONOUN_IS_SLOT, PRONOUN_SLOT, READING_SLOTS, refClash, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
+import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
 import { agreeingBlanks, combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
@@ -2430,36 +2430,50 @@ function BlankBar({ wiring, value, onChange, label, lang, script = false, box }:
  * The same pronoun cards fill all three and the script is the same word in
  * each: what differs is the English, because Arabic says "I am tired" with
  * no word for "am" and asks a question without moving anything. See
- * READING_SLOTS in variables.ts.
+ * READING_SLOTS in variables.ts. Offered the same under a group tag or a
+ * card's ID with pronouns behind it, as readings of that name — see
+ * readingNames.
  */
-const PRONOUN_READINGS: Reading[] = [
-  { name: PRONOUN_SLOT, label: "Pronoun", note: "I, he, they \u2014 I like coffee" },
-  {
-    name: PRONOUN_IS_SLOT,
-    label: "Pronoun with \u201cto be\u201d",
-    note: "I am, he is, they are \u2014 I am tired",
-  },
-  {
-    name: IS_PRONOUN_SLOT,
-    label: "Pronoun with \u201cto be\u201d, as a question",
-    note: "am I, is he, are they \u2014 am I tired?",
-  },
-];
+const pronounReadings = (name: string, pronouns?: number): Reading[] => {
+  const [is, ask] = readingNames(PRONOUN_SLOT, name);
+  const words = pronouns === undefined ? null : { words: pronouns };
+  return [
+    { name, label: "Pronoun", note: "I, he, they \u2014 I like coffee" },
+    {
+      name: is,
+      label: "Pronoun with \u201cto be\u201d",
+      note: "I am, he is, they are \u2014 I am tired",
+      ...words,
+    },
+    {
+      name: ask,
+      label: "Pronoun with \u201cto be\u201d, as a question",
+      note: "am I, is he, are they \u2014 am I tired?",
+      ...words,
+    },
+  ];
+};
 
 /*
  * The two ways an adjective blank reads: the word as it is — *a tired
  * man*, *the house is big* — and the word said about a person with no
  * pronoun, which goes through every person and puts in the form each one
- * calls for. See ADJECTIVE_IS_SLOT in variables.ts.
+ * calls for. See ADJECTIVE_IS_SLOT in variables.ts. Offered under a group
+ * tag or a card's ID too, wherever an adjective is behind it; the reading
+ * then holds the adjectives alone.
  */
-const ADJECTIVE_READINGS: Reading[] = [
-  { name: ADJECTIVE_SLOT, label: "Tired", note: "The adjective itself \u2014 a tired man, the house is big" },
+const adjectiveReadings = (name: string, about: number): Reading[] => [
+  { name, label: "Tired", note: "The adjective itself \u2014 a tired man, the house is big" },
   {
-    name: ADJECTIVE_IS_SLOT,
+    name: readingNames(ADJECTIVE_SLOT, name)[0],
     label: "I am tired",
     note: "I am tired, you are tired, she is tired \u2026 \u2014 with no pronoun in the sentence",
+    words: about,
   },
 ];
+
+const ABOUT_HINT =
+  "Choose what it reads as. \u201cI am tired\u201d goes through every person \u2014 I, you, she, we and the rest \u2014 with the adjective in the form each one calls for and no pronoun said. Turning it into English, any person that fits is right.";
 
 /*
  * The screen a blank is chosen in.
@@ -4187,8 +4201,16 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         built: "reading" as const,
       })),
     ];
+    /* A reading of a tag or an ID — `{{feelings-is}}` — is that name read
+       another way, offered under it, and not a tag of its own. Unless
+       somebody did tag a card with it, which is then what it is. */
+    const refs = new Set((allCards || []).map((c) => cardRef(c)).filter(Boolean));
+    const isReading = (n: string) => {
+      const read = readingBase(n);
+      return !!read && !named.has(n) && (named.has(read.base) || refs.has(read.base));
+    };
     const names = [...new Set([...named.keys(), ...used.keys()])]
-      .filter((n) => !builtIn.some((b) => b.name === n))
+      .filter((n) => !builtIn.some((b) => b.name === n) && !isReading(n))
       .sort();
     /* One row shape over both kinds, so a reader can ask any row whether
        it is built in — the list that leaves the built-in ones out reads
@@ -4296,6 +4318,22 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
       (categoriesOf(lang).find((c) => c.id === id) || { label: id }).label;
     /* How many words are behind each name — `behind`, which counts the way
        the question will: through fillsOf, and once for the whole screen. */
+    /* A group tag or a card's ID asks the same second question as the kind
+       of word, where adjectives or pronouns are behind it: an adjective
+       first, since a tag gathering both is a tag of things said about
+       somebody. Counted through fillsOf, which gives a pronoun both
+       readings and an adjective the one — so the pronouns are the `is-`
+       count, and the adjectives what the `-is` count has besides. */
+    const pronounKind = categoriesOf(lang).some((c) => c.id === PRONOUN_SLOT);
+    const readingsBehind = (name: string): Partial<BlankOffer> => {
+      const pronouns = behind.get(`is-${name}`) || 0;
+      const adjectives = (behind.get(`${name}-is`) || 0) - pronouns;
+      if (adjectives > 0 && saysAboutPersons(lang)) {
+        return { readings: adjectiveReadings(name, adjectives), readingsHint: ABOUT_HINT };
+      }
+      if (pronouns > 0 && pronounKind) return { readings: pronounReadings(name, pronouns) };
+      return {};
+    };
     const rows: BlankOffer[] = [];
     for (const b of blanksAround) {
       const words = b.words;
@@ -4319,19 +4357,13 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
             : about
               ? "Any adjective \u2014 then choose whether it says who"
               : `Any ${named(b.name).toLowerCase()}`,
-          ...(reads ? { readings: PRONOUN_READINGS } : null),
-          ...(about
-            ? {
-              readings: ADJECTIVE_READINGS.map((r) => (r.name === ADJECTIVE_IS_SLOT ? { ...r, words: about.words } : r)),
-              readingsHint:
-                "Choose what it reads as. \u201cI am tired\u201d goes through every person \u2014 I, you, she, we and the rest \u2014 with the adjective in the form each one calls for and no pronoun said. Turning it into English, any person that fits is right.",
-            }
-            : null),
+          ...(reads ? { readings: pronounReadings(b.name) } : null),
+          ...(about ? { readings: adjectiveReadings(b.name, about.words), readingsHint: ABOUT_HINT } : null),
         });
       } else if (b.built === "reading") {
         /* Offered under the pronoun, above. */
       } else if (b.used > 0 || b.wrote > 0) {
-        rows.push({ name: b.name, kind: "group", words, note: "The cards tagged with it" });
+        rows.push({ name: b.name, kind: "group", words, note: "The cards tagged with it", ...readingsBehind(b.name) });
       }
     }
     for (const c of allCards || []) {
@@ -4346,6 +4378,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         kind: "card",
         words: behind.get(own) || 1,
         note: [word.ar, word.en].filter(Boolean).join(" · ") || "This card alone",
+        ...readingsBehind(own),
       });
     }
     /* And a blank some word in which takes the pronouns on its end asks,

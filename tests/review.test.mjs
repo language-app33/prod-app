@@ -488,6 +488,37 @@ test("the adjective with a pronoun is unchanged, and the new name is reserved", 
   assert.ok(!checkEn("close", "close (the door)").ok);
 });
 
+/*
+ * The same reading under a group tag or a card's ID: `{{feelings-is}}`
+ * takes the adjectives tagged *feelings* about each person, and leaves the
+ * rest of the tag out; `{{tired-is}}` takes that one adjective.
+ */
+test("an adjective's group tag and its ID say it about a person too, and a tag's other words are left out", () => {
+  const frame = (/** @type {string} */ slot) => ({
+    id: "G", ar: `{{${slot}}} اليوم`, en: `{{${slot}}} today`, lat: `{{${slot}}} il-yōm`, lang: "ar-PS", s: {},
+  });
+  const tired = tiredCard({ fills: ["feelings"], ref: "tired" });
+  const party = {
+    id: "party", lang: "ar-PS", kind: "word", tags: [], created: 3, category: "noun", fills: ["feelings"],
+    forms: [{ id: "party", ar: "حفلة", en: "party", lat: "ḥafle", lang: "ar-PS", s: {} }],
+  };
+  for (const slot of ["feelings-is", "tired-is"]) {
+    const f = frame(slot);
+    const card = { ...todayCard, id: "G", forms: [f] };
+    const made = sentencesOf(card, f, [card, tired, party], ar);
+    assert.deepEqual(made.list.map((s) => s.ar), ["تعبان اليوم", "تعبانة اليوم", "تعبانين اليوم"], slot);
+    assert.equal(made.list[1].en, "I am (f) tired today / You are (f) tired today / She is tired today", slot);
+  }
+  /* And the plain tag still takes everything in it, as it is. */
+  const plain = frame("feelings");
+  const card = { ...todayCard, id: "G", forms: [plain] };
+  const made = sentencesOf(card, plain, [card, tired, party], ar).list.map((s) => s.ar);
+  assert.deepEqual(made.sort(), ["تعبان اليوم", "حفلة اليوم"].sort());
+  /* A reading of a name that is taken is taken. */
+  assert.equal((refClash("tired-is", [tired]) || {}).kind, "card");
+  assert.equal((refClash("feelings-is", [tired]) || {}).kind, "group");
+});
+
 test("a student is asked it the way the teacher's list shows it", () => {
   const items = [todayCard, tiredCard()];
   installIndexes(items, settings);
