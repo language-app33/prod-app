@@ -1,7 +1,7 @@
 {
   "name": "taleb33",
   "private": true,
-  "version": "0.311.0",
+  "version": "0.312.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
