@@ -3410,6 +3410,74 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and every one of them actually started", openings.length === 6, `${openings.length} started`);
 }
 
+/* ---- pausing a timed session ----
+   A clock that cannot be stopped turns a knock at the door into lost
+   minutes. Pausing holds the countdown and the bar where they are and
+   hides the question, so the pause is not free thinking time; carrying on
+   picks up with the same time left. A counted session has nothing to
+   pause, so it offers nothing. */
+{
+  click(buttonNamed(/^Start session$/));
+  await sleep(400);
+  check("a counted session has no pause, because nothing is running out",
+    !!document.querySelector(".at-instruction") && !document.querySelector('[data-el="session-pause"]'));
+  click(document.querySelector('[data-el="leave-session"]'));
+  await sleep(150);
+  click(buttonNamed(/^Leave$/));
+  await sleep(300);
+
+  click(buttonNamed(/Build a session|Choose what to practice|Pick cards/));
+  await sleep(300);
+  click([...document.querySelectorAll(".at-modecard")].find((b) => /Regular/.test(b.textContent || "")));
+  await sleep(60);
+  clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
+  await sleep(150);
+  click([...document.querySelectorAll(".at-tagpickmain")].find((b) => /Introductions/.test(b.textContent || "")));
+  await sleep(80);
+  clickNamed(/^(Next|Choose at least one card)$/);
+  await sleep(150);
+  const groups = [...document.querySelectorAll(".at-lengthgroup")];
+  const minutesGroup = groups.find((g) => /Minutes/.test(g.textContent || ""));
+  click(minutesGroup && [...minutesGroup.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "2"));
+  await sleep(60);
+  clickNamed(/^(Start|Choose a length)$/);
+  await sleep(400);
+
+  const clockText = () => ((document.querySelector('[data-el="session-count"]') || {}).textContent || "").trim();
+  const pauseBtn = () => document.querySelector('[data-el="session-pause"]');
+  check("a timed session counts down and offers a pause beside the bar",
+    /^\d+:\d\d$/.test(clockText()) && !!pauseBtn(), `${clockText()} / ${pauseBtn() ? "pause" : "no pause"}`);
+
+  click(pauseBtn());
+  await sleep(100);
+  const held = clockText();
+  const root = document.querySelector(".at");
+  check("pausing hides the question and says it is paused",
+    !!root && root.classList.contains("paused") && !!document.querySelector('[data-el="session-paused"]'),
+    root ? root.className : "no root");
+  check("and the pause button turns into play",
+    (pauseBtn() || { getAttribute: () => null }).getAttribute("aria-label") === "Carry on",
+    (pauseBtn() || { getAttribute: () => "no button" }).getAttribute("aria-label") || "");
+  await sleep(1600);
+  check("while paused the clock does not move", clockText() === held, `${held} then ${clockText()}`);
+
+  click(buttonNamed(/^Carry on$/));
+  await sleep(100);
+  check("carrying on brings the question back with the time it had",
+    !!root && !root.classList.contains("paused") && clockText() === held &&
+      !!document.querySelector(".at-instruction"),
+    `${held} then ${clockText()}`);
+  await sleep(1600);
+  check("and the clock runs again", clockText() !== held, `${held} then ${clockText()}`);
+
+  click(document.querySelector('[data-el="leave-session"]'));
+  await sleep(150);
+  click(buttonNamed(/^Leave$/));
+  await sleep(300);
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+}
+
 /* ---- a word, and the phrase it turns up in ----
    The seeded course holds كتاب and "الكتاب كبير", and the phrase says it
    teaches the word. What that link is worth is the whole of this block:

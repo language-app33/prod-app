@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.313 — 2 October 2026
+
+**A timed session can be paused.**
+
+- A session with a time limit has a small pause button at the end of the
+  bar at the top. Pressing it stops the clock and hides the question, so
+  stepping away does not cost you minutes, and the pause is not extra
+  time to think about the answer.
+- Press play, or "Carry on", to pick up with the same time left. Anything
+  you had typed is still there.
+- A session with a number of questions has no pause button, because it
+  already waits for as long as you take.
+
 ## 0.312 — 2 October 2026
 
 **Bigger numbers when choosing a session's length.**

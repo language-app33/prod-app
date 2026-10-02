@@ -10318,11 +10318,31 @@ export default function ArabicTrainer() {
 
   /* ---------------- render ---------------- */
 
+  /* The time a timed session's clock reads: now, or the moment it was
+     paused. Holding it there is the whole of pausing — the countdown and
+     the bar both read from this, so neither moves until play is pressed. */
+  const clock = session && session.pausedAt ? session.pausedAt : Date.now();
+
   /* Seconds remaining on a timed session, or null when it's counted.
      This has to sit above the early return below: a hook that only runs on
      some renders is React error #310. */
   const timeLeft =
-    session && session.endsAt ? Math.max(0, Math.ceil((session.endsAt - Date.now()) / 1000)) : null;
+    session && session.endsAt ? Math.max(0, Math.ceil((session.endsAt - clock) / 1000)) : null;
+
+  /* Pause or carry on with a timed session. Carrying on moves the start and
+     the end later by however long it sat paused, so the time left is what
+     it was when pause was pressed and the bar picks up where it stopped.
+     Whatever is playing stops too: a pause that keeps talking is not one. */
+  function togglePause() {
+    if (!session || !session.endsAt) return;
+    if (!session.pausedAt) document.querySelectorAll("audio").forEach((a) => a.pause());
+    setSession((s: any) => {
+      if (!s || !s.endsAt) return s;
+      if (!s.pausedAt) return { ...s, pausedAt: now() };
+      const gap = now() - s.pausedAt;
+      return { ...s, startedAt: s.startedAt + gap, endsAt: s.endsAt + gap, pausedAt: 0 };
+    });
+  }
 
   useEffect(() => {
     if (session && session.endsAt && timeLeft === 0 && exercise) {
@@ -10383,7 +10403,9 @@ export default function ArabicTrainer() {
 
   return (
     <div
-      className={`at ${theme}${inExercise ? " in-exercise" : ""}${kbOpen ? " kb-open" : ""}`}
+      className={`at ${theme}${inExercise ? " in-exercise" : ""}${kbOpen ? " kb-open" : ""}${
+        inExercise && session.pausedAt ? " paused" : ""
+      }`}
       /* Every rule that lays out the language being learnt reads these two.
          Nothing set them, so the fallbacks applied and Vietnamese was laid
          out right-to-left, like Arabic. */
@@ -10658,7 +10680,7 @@ export default function ArabicTrainer() {
                               session.endsAt && session.startedAt
                                 ? Math.min(
                                     100,
-                                    ((now() - session.startedAt) /
+                                    ((clock - session.startedAt) /
                                       (session.endsAt - session.startedAt)) *
                                       100
                                   )
@@ -10667,9 +10689,35 @@ export default function ArabicTrainer() {
                           }}
                         />
                       </div>
+                      {/* Only a clock can be paused: a counted session
+                          already waits for as long as you take. */}
+                      {timeLeft !== null && (
+                        <button
+                          type="button"
+                          className="at-pause"
+                          aria-label={session.pausedAt ? "Carry on" : "Pause"}
+                          aria-pressed={!!session.pausedAt}
+                          data-el="session-pause"
+                          onClick={togglePause}
+                        >
+                          <Icon name={session.pausedAt ? "play" : "pause"} size={16} />
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
+
+                {/* While paused the question is hidden rather than taken
+                    away, so what was typed is still there to carry on
+                    from, and nobody gets free thinking time on it. */}
+                {session.pausedAt ? (
+                  <div className="at-pausednote" data-el="session-paused">
+                    <p className="at-eyebrow">Paused</p>
+                    <Button variant="primary" icon="play" onClick={togglePause}>
+                      Carry on
+                    </Button>
+                  </div>
+                ) : null}
 
                 {/* Once the answer is up, the question and the box you typed
                     into step back so the answer holds the eye. */}

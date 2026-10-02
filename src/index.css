@@ -227,6 +227,16 @@ button {
 .at-count { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.05em;
   color: var(--muted); white-space:nowrap; }
 .at-headline .at-progress { flex:1; margin-bottom:0; }
+/* Pause on a timed session: the same round outline as the way out at the
+   other end of the line, smaller, because it is used less. */
+.at-pause { flex-shrink:0; width:28px; height:28px; border-radius:999px; cursor:pointer;
+  background:none; border:2px solid var(--line); color: var(--muted); padding:0;
+  display:inline-flex; align-items:center; justify-content:center; }
+.at-pause:hover { color: var(--text); border-color: var(--muted); }
+.at-pause[aria-pressed="true"] { color: var(--jade); border-color: var(--jade); }
+.at.paused .at-exercise { display:none; }
+.at-pausednote { display:flex; flex-direction:column; align-items:center; gap:14px;
+  padding:48px 16px; text-align:center; }
 /* The question line, identical on every exercise.
    Its size, weight and colour never varied — but its height did: "Fill the
    gap" is one line and "Listen, then write it in arabic script" is two, so
