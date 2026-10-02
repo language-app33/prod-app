@@ -9311,6 +9311,7 @@ export default function ArabicTrainer() {
       kin,
       shown: (choices as Record<string, any>[]).concat(grid.words || []),
       promptField: spec.promptField || "",
+      answerField: spec.answerField || "",
     });
   }, [item, parentItem, spec, choices, grid]);
 
@@ -14129,13 +14130,17 @@ const PROMPT_FIELDS = ["ar", "en", "lat"];
    already on the screen — see formTagsAt. */
 const PROMPT_SHOWS_FORM = ["ar", "lat", "audio"];
 
-export function formIsAmbiguous({ unit, kin, shown, promptField }: {
+export function formIsAmbiguous({ unit, kin, shown, promptField, answerField }: {
   unit: Record<string, any> | null | undefined;
   /** The card's other forms. */
   kin: Record<string, any>[];
   /** What else is on screen as an answer — the tiles, or the grid's words. */
   shown: Record<string, any>[];
   promptField: string;
+  /** The field the answer is written in. Optional: without it, any two
+      forms reading alike in the prompt are taken to want different
+      answers. */
+  answerField?: string;
 }): boolean {
   if (!unit || !kin.length) return false;
   /* A prompt showing the word itself — in the script, its transliteration,
@@ -14145,7 +14150,14 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
   const ids = new Set((shown || []).map((s) => s && s.id).filter(Boolean));
   if (!PROMPT_SHOWS_FORM.includes(promptField) && kin.some((k) => k && ids.has(k.id))) return true;
   if (!PROMPT_FIELDS.includes(promptField)) return false;
-  return kin.some((k) => readAlike(unit, k, promptField));
+  /* Two forms reading alike in the prompt *and* in the answer leave
+     nothing to choose between: either answer is the answer. "bafham" filed
+     once for "I" and once for "I (f)", both "I understand", put "I" over
+     the question and so gave half the English away for nothing — a
+     learner reported exactly that. */
+  const sameAnswer = (k: Record<string, any>) =>
+    !!answerField && PROMPT_FIELDS.includes(answerField) && readAlike(unit, k, answerField);
+  return kin.some((k) => readAlike(unit, k, promptField) && !sameAnswer(k));
 }
 
 /**

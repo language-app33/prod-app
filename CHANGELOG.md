@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.307 — 2 October 2026
+## 0.308 — 2 October 2026
 
 **"I am tired" works with any adjective blank, not only "any adjective".**
 
@@ -21,6 +21,19 @@ and moves once per batch of work you would notice, not once per commit.
 - Pronouns work the same way: a tag or an ID with pronouns behind it now
   offers "I", "I am" and "am I", just as "Pronoun" does.
 - Sentences you have already written are unchanged.
+
+## 0.307 — 2 October 2026
+
+**A question no longer names the person when that gives the answer away.**
+
+- Where a card has two forms written the same way that also mean the same
+  thing — "I understand" filed once for a man and once for a woman — the
+  question used to say "I" above the word, which told the learner part of
+  the English and nothing about which form was wanted. It now says nothing
+  there. The answer screen still names the form as before.
+- Where two forms are written the same but mean different things — "you
+  understand" and "she understands" — the question still says which one
+  it wants.
 
 ## 0.306 — 2 October 2026
 
