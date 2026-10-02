@@ -6545,6 +6545,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 }
                 menus={cardMenus}
                 resizable
+                searchBelow
                 size="small"
                 busy={busy}
                 empty={

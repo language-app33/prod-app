@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.303 — 2 October 2026
+
+**The card search has a line of its own.**
+
+- In Teaching → Cards, the search box now sits on its own line under the
+  New card button, full width, instead of squeezed between New card and
+  the Reports, Numbers and Pronouns buttons.
+- Other lists, a deck's cards among them, are unchanged.
+
 ## 0.302 — 1 October 2026
 
 **Adjectives and verbs agree with a Person card that leaves its number blank.**

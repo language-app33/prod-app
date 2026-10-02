@@ -1564,6 +1564,7 @@ export function ItemList<T>({
   size = "large",
   resizable,
   onNew,
+  searchBelow,
   renderItem,
   selected,
   onSelectedChange,
@@ -1588,6 +1589,13 @@ export function ItemList<T>({
    */
   menus?: { key: string; label: string; icon?: string; busy?: number; content?: Node }[];
   /** Controls under the toolbar — tag pickers and the like. */ filters?: Node;
+  /**
+   * The search box on a line of its own, under New and the toolbar's
+   * buttons, rather than between them. The Cards tab asks for it: its row
+   * carries three or four icons beside New card, which left the box too
+   * narrow to read what was typed in it on a phone.
+   */
+  searchBelow?: boolean;
   /** An override for the "n of m" line. */ count?: Node;
   items: T[];
   itemKey?: (item: T) => string;
@@ -1756,6 +1764,19 @@ export function ItemList<T>({
     watching.current.observe(node);
   }, []);
 
+  const searchBox = (
+    <input
+      className="at-input at-search"
+      type="search"
+      /* Cards are searched by typing the language they are written in,
+         so the box has to lay itself out by what is in it. */
+      dir="auto"
+      placeholder={`Search ${plural || `${noun}s`}`}
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+    />
+  );
+
   return (
     <div
       className="at-listwrap"
@@ -1768,18 +1789,7 @@ export function ItemList<T>({
             New {noun}
           </button>
         )}
-        {items.length > 0 && (
-          <input
-            className="at-input at-search"
-            type="search"
-            /* Cards are searched by typing the language they are written in,
-               so the box has to lay itself out by what is in it. */
-            dir="auto"
-            placeholder={`Search ${plural || `${noun}s`}`}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        )}
+        {items.length > 0 && !searchBelow && searchBox}
         {/* Beside the search box, because narrowing by hand and narrowing by
             typing are the same job. */}
         {tools}
@@ -1801,6 +1811,10 @@ export function ItemList<T>({
           </button>
         )}
       </div>
+
+      {searchBelow && items.length > 0 && (
+        <div className="at-toolbar at-toolbar-search">{searchBox}</div>
+      )}
 
       {/* Select, and the menus that order and narrow the list — one row,
           under the one that searches it. Select is not a filter and comes

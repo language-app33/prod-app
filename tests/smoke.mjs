@@ -7287,9 +7287,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
    The Cards tab and an open deck show the same material and were two
    different screens about it: the tab could be sorted and narrowed, the deck
    could do neither, and Select was an unlabelled icon up in the search row.
-   Both now carry the same two rows — New card, search and the size button,
-   then Select, Sort and Filter — and the same settings, so a deck opened
-   while the list is narrowed opens narrowed the same way. */
+   Both now carry the same rows — New card and the size button, then
+   Select, Sort and Filter — and the same settings, so a deck opened while
+   the list is narrowed opens narrowed the same way. The Cards tab puts its
+   search box on a line of its own between the two, since its first row
+   also carries Reports, Numbers and Pronouns. */
 {
   const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
   /* The last one in the document: the learner's nav is still behind this. */
@@ -7323,20 +7325,26 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   click(tabNamed(/^Cards$/));
   await sleep(500);
 
-  check("a card list's controls are two rows, not one",
-    rows().length === 2, `${rows().length} rows`);
+  check("the Cards tab's controls are three rows: buttons, search, then Select and the menus",
+    rows().length === 3, `${rows().length} rows`);
   const top = /** @type {any} */ (rows()[0]);
-  check("the first row is New card, the search box and the size button",
+  check("the first row is New card and the size button, with no search box in it",
     !!top && /New card/.test(top.textContent || "") &&
-      !!top.querySelector("input.at-search") && !!top.querySelector(".at-sizebtn"),
+      !top.querySelector("input.at-search") && !!top.querySelector(".at-sizebtn"),
     top ? (top.textContent || "").replace(/\s+/g, " ").trim() + ` · ${top.querySelectorAll("input, button").length} controls` : "no row");
+  const searchRow = /** @type {any} */ (rows()[1]);
+  check("and the search box is on a line of its own under it",
+    !!searchRow && searchRow.classList.contains("at-toolbar-search") &&
+      searchRow.querySelectorAll("input, button").length === 1 &&
+      !!searchRow.querySelector("input.at-search[placeholder='Search cards']"),
+    searchRow ? searchRow.className : "no row");
   const sizeName = () => {
     const btn = one(".at-sizebtn", null);
     return btn ? btn.getAttribute("aria-label") || "" : "(no size button)";
   };
   check("and the size button says which size it is at and what pressing it does",
     /^Card size: Small — press for medium$/.test(sizeName()), sizeName());
-  check("the second row is Select, Sort and Filter, in that order",
+  check("the row of menus is Select, Sort and Filter, in that order",
     named(subRow()).join(" | ") === "Select | Sort | Filter",
     named(subRow()).join(" | ") || "(no second row)");
 
