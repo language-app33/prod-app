@@ -4688,8 +4688,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      a picker that dropped one would still pass a count. */
   const genderPicks = [...(genderGroup ? genderGroup.querySelectorAll('input[type="radio"]') : [])]
     .map((i) => i.getAttribute("aria-label") || "");
-  check("with every value of the axis on the one line, and a way back to none",
-    ["not set", "masculine", "feminine", "neutral"].every((v) => genderPicks.includes(v)),
+  /* The language's values and no other: Arabic has two genders, and a
+     third — "neutral" — was offered until the choices became the pack's. */
+  check("with every value the language has on the one line, and a way back to none",
+    ["not set", "masculine", "feminine"].every((v) => genderPicks.includes(v)) &&
+      !genderPicks.includes("neutral"),
     genderPicks.join(" | ") || "(no radios)");
   click(
     [...(genderGroup ? genderGroup.querySelectorAll('input[type="radio"]') : [])]

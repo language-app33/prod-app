@@ -167,8 +167,14 @@ export const isText = (it: Scene): boolean => sceneKindOf(it) === TEXT;
  * is ended with a full stop where it has no closing mark of its own, in
  * any of the scripts a pack writes (the Arabic question mark included),
  * and a line with nothing in that field is left out rather than stopped.
+ *
+ * "Closing mark" is read off Unicode's own classes — ending punctuation,
+ * closing quotes and brackets — rather than off a list of the marks one
+ * script uses, so Arabic's ؟ and a fourth language's full stop are both
+ * already in it. A comma and the like are not: a line ending in one is not
+ * finished.
  */
-const CLOSERS = /[.!?؟…:;"'»”)\]]$/;
+const CLOSERS = /(?![,\u060C\u3001*#%&@/\\])[\p{Po}\p{Pf}\p{Pe}]$/u;
 export function proseOf(lines: Record<string, any>[], field: "ar" | "lat" | "en"): string {
   return (lines || [])
     .map((l) => String((l && l[field]) || "").trim())

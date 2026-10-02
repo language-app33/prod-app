@@ -787,14 +787,6 @@ export const isListening = (key?: string | null): boolean => {
   return !!spec && spec.promptField === "audio";
 };
 
-/* "na" maps to nothing on purpose: a form whose number does not apply should
-   carry no number label at all, not the letters "na". labelFor falls back to
-   the raw value for anything missing here, so the empty string is load
-   bearing. */
-export const NUMBER_SHORT: Record<string, string> = { singular: "sg.", plural: "pl.", dual: "du.", na: "" };
-
-export const GENDER_SHORT: Record<string, string> = { masculine: "m.", feminine: "f.", neutral: "n." };
-
 export function editDistance(a: string, b: string) {
   if (a === b) return 0;
   if (!a.length || !b.length) return Math.max(a.length, b.length);
@@ -954,13 +946,12 @@ export function labelFor(unit: Record<string, any>, lang: Lang = activeLang()) {
        N/A, which should name nothing — stays empty instead of falling back to
        its own id. An unknown value still falls back, which is the point of
        the fallback. */
-    if (dim.field === "number") bits.push(NUMBER_SHORT[value] ?? value);
-    else if (dim.field === "gender") bits.push(GENDER_SHORT[value] ?? value);
-    else if (dim.short) bits.push(dim.short[value] ?? value);
-    else {
-      const opt = dim.options.find(([v]) => v === value);
-      bits.push(opt ? opt[1] : value);
-    }
+    /* A value the axis keeps silent on a tag says nothing; every other
+       reads as it does in the editor's narrow rows. ?? rather than ||, so
+       the silence is kept. One list for both: there used to be a second
+       copy of the abbreviations here, beside the axis's own. */
+    const silent = dim.short && dim.short[value];
+    bits.push(silent ?? briefOf(dim, value));
   }
   return bits.filter(Boolean).join(" ") || shapeOf(unit, lang);
 }
@@ -1039,13 +1030,15 @@ export function formLabel(
    reader is a teacher.
    ------------------------------------------------------------------ */
 
-/* "you (f)" → "you (feminine)": the person tables' own labels, written
-   out. */
+/* "you (f)" → "you (feminine)", "you (f pl)" → "you (feminine plural)":
+   the person tables' own labels, written out. The tables abbreviate
+   because a column heading is narrow; an exercise has room. */
+const NOTE_WORDS: Record<string, string> = { m: "masculine", f: "feminine", pl: "plural", sg: "singular" };
 const spelledPerson = (label: string): string =>
-  String(label || "")
-    .replace(/\(m\)/g, "(masculine)")
-    .replace(/\(f\)/g, "(feminine)")
-    .replace(/\(pl\)/g, "(plural)");
+  String(label || "").replace(/\(([^)]*)\)/g, (whole, inner: string) => {
+    const words = inner.trim().split(/[\s,]+/);
+    return words.every((w) => NOTE_WORDS[w]) ? `(${words.map((w) => NOTE_WORDS[w]).join(" ")})` : whole;
+  });
 
 /* Gender first, then number, then whatever else a language declares. */
 const SPOKEN_ORDER = ["gender", "number"];
@@ -1667,6 +1660,9 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        has one here: a tag saying nothing is right, and a radio button
        labelled nothing is not. */
     brief: { singular: "sg.", plural: "pl.", dual: "du.", na: "N/A" },
+    /* And on a tag, a number that does not apply names nothing — not the
+       letters "N/A". */
+    short: { na: "" },
   },
   gender: {
     label: "Gender",
@@ -1704,27 +1700,41 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        goes, not the word. */
     brief: { thing: "thing", person: "person" },
   },
-  /* Retired. Addressee turned out not to be a property of a word — chó is
-     chó whoever is listening — but of an utterance containing an address
-     term, and those are better held as plain forms of one card. No language
-     declares this axis any more. The definition stays so that cards saved
-     while it existed keep their value in storage and export instead of
-     having it silently stripped. */
+  /* Who a form is said to: a greeting or a thank-you that changes with
+     whether the listener is younger, a peer or an elder.
+
+     It was retired once, because addressee is not a property of a word —
+     chó is chó whoever is listening — and the forms that do vary were kept
+     as plain, unlabelled forms of one card. Unlabelled was the trouble: a
+     card holding three ways to say *hello* asked for one of them with
+     nothing on the screen to say which. So it is back, asked only where it
+     can mean something: every kind of word a teacher can name lists the
+     axes it is asked about and none lists this one, so it is offered on
+     phrases and sentences and never on a noun. What each value is called
+     is the pack's — Huế says it with its own address terms. */
   register: {
-    label: "Addressee",
+    label: "Said to",
     field: "register",
     required: false,
-    retired: true,
     options: [
-      ["em", "younger (em)"],
-      ["peer", "peer (anh / chị)"],
-      ["elder", "elder (bác)"],
+      ["em", "someone younger"],
+      ["peer", "a peer"],
+      ["elder", "an elder"],
     ],
   },
 };
 
+/* The axes a language uses, each offering the values the pack says it
+   has — see grammarOptions. What is stored is never narrowed by this: a
+   value outside the pack's list is still kept, and still read back. */
 export const dimsOf = (lang: Lang): GrammarDim[] =>
-  (lang.grammar || []).map((k) => GRAMMAR[k]).filter(Boolean);
+  (lang.grammar || [])
+    .map((k) => {
+      const dim = GRAMMAR[k];
+      const own = dim && lang.grammarOptions && lang.grammarOptions[k];
+      return own ? { ...dim, options: own } : dim;
+    })
+    .filter(Boolean);
 
 /**
  * What one value of an axis reads as where there is no room for its name.
@@ -1782,8 +1792,9 @@ export const cardDims = (
  *
  * Here rather than written out twice because Arabic and Hebrew mark a verb
  * for the same eight — the two are not related by accident — and a pack
- * that wants six or nine simply writes its own. Arabic now does, below:
- * these eight plus a feminine *I*. Nothing reads either list but the packs.
+ * that wants six or nine simply writes its own. Both now do, below: Arabic
+ * these eight plus a feminine *I*, Hebrew a feminine for every person.
+ * Nothing reads these lists but the packs.
  *
  * There were seven until 0.195, and the missing one was the plural *you*.
  * It was never a decision: the worked example in the proposal this feature
@@ -1826,6 +1837,7 @@ export const cardDims = (
 const MASC_ONE = { number: "singular", gender: "masculine", human: "person" };
 const FEM_ONE = { number: "singular", gender: "feminine", human: "person" };
 const PEOPLE = { number: "plural", gender: "masculine", human: "person" };
+const WOMEN = { number: "plural", gender: "feminine", human: "person" };
 
 const SUBJECT_PERSONS: VerbPerson[] = [
   { id: "i", label: "I", is: MASC_ONE },
@@ -1862,9 +1874,7 @@ const SUBJECT_PERSONS: VerbPerson[] = [
  * is the new column and sits beside it, where a teacher reading down the
  * table expects it.
  *
- * Hebrew is left on the eight for now. Its present tense varies by gender
- * in every person — אוכל and אוכלת, אוכלים and אוכלות — which is a
- * different shape of table and wants deciding on its own.
+ * Hebrew needs more, and has its own list below.
  */
 const AR_SUBJECT_PERSONS: VerbPerson[] = [
   { id: "i", label: "I (m)", is: MASC_ONE },
@@ -1893,6 +1903,37 @@ const AR_SUBJECT_PERSONS: VerbPerson[] = [
  * nothing here is a subject: a frame does not choose between كتابي and
  * كتابك by looking at who is in it.
  */
+/*
+ * Hebrew's twelve: every person with a gender of its own, because its
+ * present tense varies by gender in every person — אני אוכל and אני אוכלת,
+ * אנחנו אוכלים and אנחנו אוכלות — and until 0.309 the table had one box
+ * for *I*, one for *we* and one each for the plural *you* and *they*. A
+ * teacher wrote the masculine and a woman learnt to say the wrong word
+ * about herself, which is what 0.261 put right for Arabic.
+ *
+ * The past and the future mostly do not split — אכלתי and אכלנו are
+ * anybody's — and those boxes are typed twice, as Arabic's already are:
+ * a cell carries the words it was given. The masculine keeps each id the
+ * single column had, so nothing a teacher has written moves; the feminine
+ * sits beside it.
+ *
+ * `picks` as before, on the third person only: a plural of women reaches
+ * *they (f)*, which asks for both number and gender and so wins over
+ * *they (m)*, which asks for number alone and still takes every other
+ * plural.
+ */
+const HE_SUBJECT_PERSONS: VerbPerson[] = [
+  { id: "i", label: "I (m)", is: MASC_ONE },
+  { id: "i-f", label: "I (f)", is: FEM_ONE },
+  ...SUBJECT_PERSONS.slice(1, 5),
+  { id: "we", label: "we (m)", is: PEOPLE },
+  { id: "we-f", label: "we (f)", is: WOMEN },
+  { id: "you-pl", label: "you (m pl)", is: PEOPLE },
+  { id: "you-pl-f", label: "you (f pl)", is: WOMEN },
+  { id: "they", label: "they (m)", picks: { number: "plural" }, is: PEOPLE },
+  { id: "they-f", label: "they (f)", picks: { number: "plural", gender: "feminine" }, is: WOMEN },
+];
+
 const ATTACHED_PERSONS: VerbPerson[] = [
   { id: "me", label: "me" },
   { id: "you-m", label: "you (m)" },
@@ -2240,24 +2281,55 @@ export function aboutPersons(
   if (!persons.length || !en) return [];
   const spec = agreementOf(lang, String((card && card.category) || ""));
   const verb = verbOf(lang);
-  const groups: { ar: string; lat: string; reads: string[] }[] = [];
+  const groups: { ar: string; lat: string; reads: string[]; shape: string }[] = [];
   for (const person of persons) {
     const grammar = asSubject(verb, {}, person.id);
     const form = spec ? agreedValue(card, spec, value, { grammar }) : value;
     if (!form || !String(form.ar || "").trim()) continue;
-    const read = `${beReadings(person.label).is} ${en}`;
+    /* The person as English says it — *I am*, *you are* — with no note in
+       brackets. Which *you* it is goes beside the sentence, in words: see
+       `tag` below. */
+    const read = `${beReadings(bareLabel(person.label)).is} ${en}`;
     const had = groups.find((g) => g.ar === form.ar);
     if (had) {
       if (!had.reads.includes(read)) had.reads.push(read);
-    } else groups.push({ ar: form.ar, lat: form.lat || "", reads: [read] });
+    } else groups.push({ ar: form.ar, lat: form.lat || "", reads: [read], shape: shapeName(lang, card, spec, value, form) });
   }
-  return groups.map((g) => ({
-    ...value,
-    ar: g.ar,
-    lat: g.lat,
-    readings: { ...(value.readings || {}), [slot]: g.reads.join(ALT_SEP) },
-  }));
+  return groups.map((g) => {
+    /* Which of the adjective's forms this is — "masculine", "feminine",
+       "plural", "masculine plural" — by the name its table gives it, the
+       words every exercise uses for an adjective's shapes. Without it,
+       *I am tired* was the English of تعبان and of تعبانة alike, and the
+       only thing telling them apart was "(m)" written into the middle of
+       the sentence. Nothing where there is only one form to tell apart. */
+    const tag = groups.length > 1 ? g.shape : "";
+    return {
+      ...value,
+      ar: g.ar,
+      lat: g.lat,
+      readings: { ...(value.readings || {}), [slot]: g.reads.join(ALT_SEP) },
+      ...(tag ? { tag } : {}),
+    };
+  });
 }
+
+/* What an agreed form is called: its column, or the table's name for the
+   word itself where the agreement left the word as it was. */
+function shapeName(
+  lang: Lang | null | undefined,
+  card: unknown,
+  spec: VerbSpec | null,
+  value: Value,
+  form: { id?: string },
+): string {
+  if (!spec) return "";
+  if (!form.id || form.id === value.id) return spec.base || "";
+  const cell = subFormsOf(card).find((f) => f && f.id === form.id);
+  return cell ? shapeOf(cell, lang || activeLang()) : "";
+}
+
+/* A person's label without its note: "you (f)" is *you*. */
+const bareLabel = (label: string): string => String(label || "").replace(/\s*\([^)]*\)\s*$/, "").trim() || String(label || "");
 
 /**
  * What one value a card lends stands in one blank as: itself, except an
@@ -2807,6 +2879,12 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* And whether a noun is a person or a thing, which is what an
        adjective beside a plural reads — see GRAMMAR.human. */
     grammar: ["number", "gender", "human"],
+    /* Two genders and a dual: there is no neuter to offer. */
+    grammarOptions: {
+      number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
+      gender: [["masculine", "masculine"], ["feminine", "feminine"]],
+      human: [["thing", "a thing"], ["person", "a person"]],
+    },
     /* A verb is marked for who is doing it and when, so its forms are laid
        out on those two axes. The tenses are in the order they are taught,
        which is the order they open in: what you do before what you did,
@@ -2947,10 +3025,19 @@ export const LANGUAGES: Record<LangId, Lang> = {
       { ar: "một", en: "one", lat: "" },
     ],
     translitLabel: "Pronunciation note",
-    /* Nothing declines, and nothing about a word varies by who is being
-       addressed — greetings and thanks that do vary are held as forms of
-       one card, unlabelled. So: no grammatical axes at all. */
-    grammar: [],
+    /* Nothing declines. What does vary is who is being spoken to: a
+       greeting or a thanks has a form for someone younger, a peer and an
+       elder, held as forms of one card — and named, so a learner asked for
+       one is told which. Asked of phrases and sentences only; see
+       GRAMMAR.register. */
+    grammar: ["register"],
+    grammarOptions: {
+      register: [
+        ["em", "to someone younger (em)"],
+        ["peer", "to a peer (anh / chị)"],
+        ["elder", "to an elder (bác)"],
+      ],
+    },
     /* A noun is not usable without its classifier, and which one it takes is
        simply memorised — the job gender does in Arabic. */
     lexical: { key: "classifier", label: "Classifier", help: "con, cái, cây, quả …" },
@@ -3076,15 +3163,18 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* Nouns carry number and gender, and adjectives agree with both —
        the same two axes Arabic declares. */
     grammar: ["number", "gender"],
-    /* Marked for the eight persons Arabic had before its *I* was split,
-       and for the same reason — so the shared columns, declared once
-       above; see AR_SUBJECT_PERSONS for why Hebrew is not split with it.
-       The rows are its own:
+    /* Two genders, and a dual for the nouns that have one — שעתיים. */
+    grammarOptions: {
+      number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
+      gender: [["masculine", "masculine"], ["feminine", "feminine"]],
+    },
+    /* Marked for twelve persons, every one with a gender of its own —
+       see HE_SUBJECT_PERSONS. The rows are its own:
        Hebrew's future is a form of the verb rather than a word in front of
        it, and is taught after the past. */
     tables: {
       verb: {
-        persons: SUBJECT_PERSONS,
+        persons: HE_SUBJECT_PERSONS,
         tenses: [
           { id: "present", label: "present" },
           { id: "past", label: "past" },
@@ -3394,7 +3484,8 @@ const EN_SLIP_MIN = 4;
  * whole answer. So the expected English is also accepted without such a
  * note, and only such a note: "close (the door)" is a different matter.
  */
-const PERSON_NOTE = /\s*\((?:m|f|pl|sg|masc|fem|masculine|feminine|plural|singular)\.?\)/gi;
+const NOTE_WORD = "(?:m|f|pl|sg|masc|fem|masculine|feminine|plural|singular)\\.?";
+const PERSON_NOTE = new RegExp(`\\s*\\(${NOTE_WORD}(?:[\\s,]+${NOTE_WORD})*\\)`, "gi");
 
 export function checkEn(given: string, expected: string) {
   const g = normEn(given);
@@ -3403,6 +3494,11 @@ export function checkEn(given: string, expected: string) {
   const bare = split.map((e) => e.replace(PERSON_NOTE, "")).filter((e, i) => e !== split[i]);
   const forms = split.concat(bare).map(normEn);
   if (forms.includes(g)) return { ok: true, reason: "exact" };
+  /* And the other way round: a learner who writes the note the question
+     showed them — "I am (m) tired" — has written the whole answer and a
+     little more. */
+  const unnoted = normEn(String(given).replace(PERSON_NOTE, ""));
+  if (unnoted !== g && forms.includes(unnoted)) return { ok: true, reason: "exact" };
   if (forms.some((e) => tight(e).length >= EN_SLIP_MIN && editDistance(g, e) === 1))
     return { ok: true, reason: "typo" };
   const near = forms.some((e) => editDistance(g, e) <= Math.max(1, Math.round(e.length * 0.25)) && sameWords(g, e));

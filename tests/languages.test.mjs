@@ -233,8 +233,8 @@ test("a pair is a number a language may count", () => {
   assert.equal(normDimValue(GRAMMAR.number, "dual"), "dual");
   assert.equal(normDimValue(GRAMMAR.number, "du"), "dual");
   /* And it is offered only where somebody counts in pairs: Huế declares
-     no axes at all, so nobody there is asked a question about a dual. */
-  assert.deepEqual(LANGUAGES["vi-Hue"].grammar, []);
+     no number at all, so nobody there is asked a question about a dual. */
+  assert.ok(!LANGUAGES["vi-Hue"].grammar.includes("number"));
   const ar = LANGUAGES["ar-PS"];
   assert.equal(labelFor({ number: "dual", gender: "" }, ar), "du.");
   assert.equal(labelFor({ number: "dual", gender: "feminine" }, ar), "du. f.");
@@ -1182,4 +1182,61 @@ test("the answer a learner wrote is named in whole words, against the others it 
   assert.equal(answerLabel(happy.answers[0], happy, ar), "masculine");
   /* One answer: nothing it could be told from. */
   assert.equal(answerLabel({ text: "كتاب", gender: "masculine" }, { id: "b", ar: "كتاب", en: "book" }, ar), "");
+});
+
+test("each pack offers only the grammar its language has", () => {
+  /* Arabic and Hebrew have two genders, and a teacher writing either was
+     offered a third — "neutral" — because the choices were the app's and
+     not the language's. They are the pack's now. */
+  const values = (/** @type {string} */ id, /** @type {string} */ axis) =>
+    must(dimsOf(LANGUAGES[id]).find((d) => d.field === axis), `${id} ${axis}`).options.map(([v]) => v);
+  for (const id of ["ar-PS", "he-IL"]) {
+    assert.deepEqual(values(id, "gender"), ["masculine", "feminine"], id);
+    assert.deepEqual(values(id, "number"), ["singular", "plural", "dual", "na"], id);
+  }
+  /* And what is stored is never narrowed: a value outside the pack's list
+     is still kept, and a tag still reads it. */
+  assert.equal(dimValues({ gender: "neutral" }).gender, "neutral");
+  assert.equal(labelFor({ gender: "neutral" }, LANGUAGES["ar-PS"]), "n.");
+  /* One list of abbreviations, the axis's own: a number that does not
+     apply names nothing on a tag. */
+  assert.equal(labelFor({ number: "na", gender: "feminine" }, LANGUAGES["ar-PS"]), "f.");
+  assert.equal(labelFor({ number: "plural", gender: "masculine" }, LANGUAGES["he-IL"]), "pl. m.");
+});
+
+test("Huế names who a form is said to, on phrases and never on a noun", () => {
+  /* A greeting with a form for someone younger, a peer and an elder was
+     three unlabelled forms, and a learner asked for one was not told
+     which. The axis is Huế's, in its own address terms. */
+  const vi = LANGUAGES["vi-Hue"];
+  const said = must(dimsOf(vi).find((d) => d.field === "register"), "the addressee axis");
+  assert.deepEqual(said.options.map(([, label]) => label),
+    ["to someone younger (em)", "to a peer (anh / chị)", "to an elder (bác)"]);
+  /* Asked of a phrase, which names no kind of word; never of a noun —
+     chó is chó whoever is listening — nor of any other kind of word. */
+  assert.deepEqual(dimsFor(vi, null).map((d) => d.field), ["register"]);
+  for (const kind of ["noun", "verb", "adjective", "other"]) assert.deepEqual(dimsFor(vi, kind), [], kind);
+  /* And a question names the one it wants, in those words. */
+  const card = { id: "hi", ar: "", en: "", forms: [
+    { id: "hi-em", ar: "chào em", en: "hello", lat: "", register: "em" },
+    { id: "hi-peer", ar: "chào anh", en: "hello", lat: "", register: "peer" },
+    { id: "hi-elder", ar: "chào bác", en: "hello", lat: "", register: "elder" },
+  ] };
+  assert.equal(askLabel(card.forms[2], card, vi), "to an elder (bác)");
+  assert.equal(askLabel(card.forms[0], card, vi), "to someone younger (em)");
+});
+
+test("a person noted for gender and number is spelt out in full", () => {
+  /* Hebrew's plural persons carry both — "you (f pl)" — and an exercise
+     names them in words, as it does every other person. */
+  const he = LANGUAGES["he-IL"];
+  const cell = (/** @type {string} */ col, /** @type {string} */ word) =>
+    ({ id: `e-${col}`, ar: word, en: "You eat", lat: "", row: "present", col });
+  const card = { id: "e", ar: "", en: "", name: "to eat", category: "verb",
+    subs: [cell("you-pl", "אוכלים"), cell("you-pl-f", "אוכלות")] };
+  assert.equal(askLabel(card.subs[1], card, he), "you (feminine plural)");
+  assert.equal(askLabel(card.subs[0], card, he), "you (masculine plural)");
+  /* And an English answer is right without the note, or with it. */
+  assert.ok(checkEn("you eat", "you (f pl) eat").ok);
+  assert.ok(checkEn("you (f pl) eat", "you eat").ok);
 });

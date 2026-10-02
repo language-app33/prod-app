@@ -464,6 +464,15 @@ export interface Lang {
   translitLabel: string;
   /** Which axes of GRAMMAR this language uses. */
   grammar: string[];
+  /**
+   * The values each of those axes offers in this language, and what each
+   * is called — [stored value, what to show]. GRAMMAR's own list is every
+   * value any language stores, which is what a card is checked against;
+   * this is the part of it that means something here. Arabic has no
+   * neuter, so a teacher writing Arabic is not offered one; Huế names its
+   * addressees in its own words. An axis not listed offers GRAMMAR's.
+   */
+  grammarOptions?: Record<string, [string, string][]>;
   verdicts: Verdicts;
   derived: Derived[];
   similarityKey: (word: string) => string;

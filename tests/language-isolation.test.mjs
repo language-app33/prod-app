@@ -34,9 +34,43 @@ const src = (/** @type {string} */ stem) => {
   throw new Error(`no source file for ${stem}`);
 };
 
-/* Everything that renders or drives the app. languages is the one file
-   allowed to know about languages, so it is not in this list. */
-const APP_FILES = ["ArabicTrainer", "spaces", "card-editor", "shared", "gallery", "screen-elements", "sync", "storage", "courses-api", "scheduler", "grade", "spelling"];
+/*
+ * Everything that renders or drives the app: every module directly under
+ * src/, read off the directory. languages is the one file allowed to know
+ * about languages, so it is not among them.
+ *
+ * It was a list of twelve until 0.309, and the list had rotted the way
+ * lists do: sentence blanks, verb tables, the pronouns screen, the review
+ * of sentences and the number editor had all been written since, and
+ * none of them was checked. Read off the directory, a file added
+ * tomorrow is checked tomorrow.
+ */
+const APP_FILES = readdirSync(new URL("../src/", import.meta.url))
+  .filter((f) => /\.(tsx?|jsx?)$/.test(f) && !/\.d\.ts$/.test(f))
+  .map((f) => f.replace(/\.(tsx?|jsx?)$/, ""))
+  .filter((stem) => stem !== "languages");
+
+test("the files checked are the app, not a handful of it", () => {
+  /* Guards the guard: a directory read that found nothing would pass
+     every test below in silence. */
+  assert.ok(APP_FILES.length >= 30, `only ${APP_FILES.length} app files found`);
+  for (const want of ["ArabicTrainer", "variables", "verbs", "review", "pronouns-editor", "number-system-editor"]) {
+    assert.ok(APP_FILES.includes(want), `${want} should be checked`);
+  }
+});
+
+/*
+ * The source with its comments taken out. A comment saying that أنا is *I*
+ * is an explanation, and the app's comments are full of them; what may not
+ * be in a file is a word of a language in its *code*. Block comments go
+ * whole — JSX's braced ones with them — and a line comment only where it
+ * starts its line or follows code, so "https://" inside a string survives.
+ */
+const codeOf = (/** @type {string} */ source) =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "")
+    .replace(/([;,{}()\]])\s*\/\/[^\n"'`]*$/gm, "$1");
 
 /*
  * And the composers, which are held to something stricter.
@@ -125,25 +159,35 @@ for (const file of APP_FILES) {
 /* Keyed by file, and only the files that hold any. */
 /** @type {Record<string, string[]>} */
 /* Keyed by the same extension-free name APP_FILES uses, so converting a
-   file does not silently empty its allowlist. */
+   file does not silently empty its allowlist. Nothing a learner meets is
+   here any more: the card sheet's placeholder now comes from the pack, and
+   the first screen's wordmark is the app's name, Taleb33. */
 const ALLOWED_SCRIPT = {
-  /* The card sheet's placeholder — "the form". Behind OWN_CARDS, so unreachable.
-     The importer's worked example used to be here too; it now comes from the
-     pack of whichever language is being learnt. */
-  ArabicTrainer: ["الشكل"],
-  /* The wordmark on the first screen: "vocabulary". */
-  spaces: ["مُفْرَدات"],
   /* Specimens, which are the point of a gallery. The third is the he-past
      of "to eat" — the form a dictionary lists a verb under, which is what a
      card with a name of its own is named instead of. */
   gallery: ["كِتَاب", "كُتُب", "أكل"],
   /* Examples of what each element holds, which are the point of the list. */
   "screen-elements": ["كِتاب", "الكتاب كبير", "كُتُب", "السَّلامُ عَلَيْكُم"],
+  /* Specimens of each text style, on the admin screen that lists them. */
+  "text-styles": ["كِتَاب", "الكِتَاب كَبِير", "اسْمِي لَيْلَى وَأَنَا مِن فِلَسْطِين"],
+};
+
+/*
+ * And Vietnamese, which a character range cannot find whole — it is the
+ * Latin alphabet — but whose words carry letters no English word does:
+ * ă â đ ê ô ơ ư, and the vowels with tone marks on them. A word holding one
+ * of those, in a file's code, is a word of the language.
+ */
+/** @type {Record<string, string[]>} */
+const ALLOWED_VIETNAMESE = {
+  /* The gallery's specimen of the language switch names the language. */
+  gallery: ["Huế"],
 };
 
 for (const file of APP_FILES) {
   test(`${file} holds no Arabic or Hebrew beyond the strings already accounted for`, async () => {
-    const source = await readFile(src(file), "utf8");
+    const source = codeOf(await readFile(src(file), "utf8"));
     const runs = [...new Set((source.match(/[\u0590-\u06FF][\u0590-\u06FF\s]*/g) || []).map((x) => x.trim()).filter(Boolean))];
     const unexpected = runs.filter((r) => !(ALLOWED_SCRIPT[file] || []).includes(r));
     assert.deepEqual(
@@ -154,6 +198,28 @@ for (const file of APP_FILES) {
     );
   });
 }
+
+for (const file of APP_FILES) {
+  test(`${file} holds no Vietnamese beyond the words already accounted for`, async () => {
+    const source = codeOf(await readFile(src(file), "utf8"));
+    const words = [...new Set(source.match(/\p{L}*[ăâđêôơưĂÂĐÊÔƠƯ\u1EA0-\u1EF9]\p{L}*/gu) || [])];
+    const unexpected = words.filter((w) => !(ALLOWED_VIETNAMESE[file] || []).includes(w));
+    assert.deepEqual(
+      unexpected,
+      [],
+      `${file} gained Vietnamese text: ${unexpected.join(", ")} — if it is a rule it belongs in the ` +
+        `language pack; if it is something to look at, add it to ALLOWED_VIETNAMESE`,
+    );
+  });
+}
+
+test("the scans see a language when it is there", () => {
+  /* The guard on the two scans above: comments are stripped before them,
+     and a stripper that ate code too would pass everything. */
+  assert.equal(codeOf('const a = "كتاب"; // كتاب').includes("كتاب"), true);
+  assert.equal(codeOf("/* كتاب */ const b = 1;").includes("كتاب"), false);
+  assert.equal(codeOf('const u = "https://x"; const v = "ơ";').includes("ơ"), true);
+});
 
 test("no composer holds a word of any language", async () => {
   const files = composerFiles();

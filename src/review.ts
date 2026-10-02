@@ -438,6 +438,9 @@ export interface Sentence {
   en: string;
   /** Which card stood in each hole, and the word it stood there as. */
   took: Record<string, { card: string; word: string }>;
+  /** Which form a hole's word is, in a word, where the English cannot say
+      — "feminine" for تعبانة in *I am tired today*. See aboutPersons. */
+  tags?: Record<string, string>;
 }
 
 /** Every sentence one part of a card makes today, or as many as are worth
@@ -496,6 +499,7 @@ export function sentencesOf(
       lat: String(filled.lat || "").trim(),
       en: String(filled.en || "").trim(),
       took: who,
+      ...(filled.tags ? { tags: filled.tags as Record<string, string> } : {}),
     });
   }
   return { id: String(part.id || (card && card.id) || ""), combos, cut: combos > limit, list };

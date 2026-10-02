@@ -4,6 +4,7 @@ import type {
   Lang, LangId, Millis, Question, SavedSession, Settings, User,
  VerbSpec, } from "./types.ts";
 import type { Node } from "./shared.tsx";
+import { say } from "./wording.ts";
 import {
   APP_COMMIT,
   APP_RELEASE,
@@ -1081,14 +1082,18 @@ export function fillersIn(unit: Form, key: string, settings: Settings): Filler[]
 export function lentTags(unit: Form | null | undefined, lang: Lang): string[] {
   const filled = unit ? ((unit as Record<string, any>).filled as Record<string, string> | undefined) : undefined;
   if (!filled) return [];
+  /* What a value said it was when it was put in — an adjective in
+     `{{adjective-is}}` is one of its own forms, chosen by person, and only
+     the value knows which. The card would name its own word instead. */
+  const told = ((unit as Record<string, any>).tags || {}) as Record<string, string>;
   const out: string[] = [];
-  for (const ref of Object.values(filled)) {
+  for (const [slot, ref] of Object.entries(filled)) {
     const found = ref ? VALUE_OWNER.get(ref) : null;
     if (!found) continue;
-    const label = lentLabel(found.form, found.card, LANGUAGES[String(found.card.lang || "")] || lang);
+    const label = told[slot] || lentLabel(found.form, found.card, LANGUAGES[String(found.card.lang || "")] || lang);
     if (!label) continue;
     const en = String(found.form.en || "").split("/")[0].trim();
-    const line = en ? `${en}: ${label}` : label;
+    const line = say("blankForm", { word: en, form: label });
     if (!out.includes(line)) out.push(line);
   }
   return out;
@@ -11093,7 +11098,7 @@ export default function ArabicTrainer() {
                           the pair. */}
                       {gaveLabel && (
                         <Help data-el="answer-grammar">
-                          {`You wrote the ${gaveLabel} one.`}
+                          {say("wroteForm", { form: gaveLabel })}
                         </Help>
                       )}
                       {/* Directly under the marked spelling it is talking
@@ -13132,7 +13137,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                       value={sb.ar}
                       onChange={(v) => setSub(i, "ar", v)}
                       mode={settings.keyboard}
-                      placeholder="الشكل"
+                      placeholder={langOf(settings).scriptNative}
                     />
 
                     <div className="at-inline">

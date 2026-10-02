@@ -733,6 +733,13 @@ export interface Value {
    */
   readings?: Record<string, string>;
   /**
+   * Which form it is, in words, where its English cannot say — an
+   * adjective standing in `{{adjective-is}}` reads *I am tired* whether it
+   * is تعبان or تعبانة, and this is "masculine" or "feminine". Shown
+   * beside the sentence, never written into it. See aboutPersons.
+   */
+  tag?: string;
+  /**
    * Whether it is a name — a person or a place — and so keeps its capital
    * wherever it stands in a sentence. See fitCase.
    */
@@ -1403,5 +1410,9 @@ export function fillForm<T extends WithSlots>(
     }));
   }
   out.filled = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.id || v.ar]));
+  /* And what a blank's value said it was, where its English could not —
+     read by the screen that names the words in a sentence's blanks. */
+  const tags = Object.entries(values).filter(([, v]) => v && v.tag);
+  if (tags.length) out.tags = Object.fromEntries(tags.map(([k, v]) => [k, v.tag]));
   return out as T;
 }

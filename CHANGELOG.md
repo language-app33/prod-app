@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.309 — 2 October 2026
+
+**Each language's grammar comes from that language, and exercises say it in words.**
+
+- Hebrew verbs now have a feminine for every person: "I", "we", plural
+  "you" and "they" each have a box for women beside the one for men, as
+  Arabic's "I" already does. Women learning Hebrew are no longer taught
+  the masculine form about themselves. Boxes already filled stay where
+  they were, under the masculine.
+- "I am tired" sentences no longer put "(m)" or "(f)" in the middle of
+  the sentence. The English reads "I am tired today", and the word
+  "masculine", "feminine" or "plural" is shown beside it. Teachers see
+  the same word when reviewing sentences. Typing the note is still
+  accepted.
+- In Vietnamese, phrases and sentences can say who a form is said to:
+  someone younger (em), a peer (anh / chị) or an elder (bác). A question
+  then says which one it wants. Nouns and other words are not asked.
+- Arabic and Hebrew teachers are no longer offered a "neutral" gender,
+  which neither language has. Cards that already carry one keep it.
+- The first screen shows the app's name, Taleb33, instead of an Arabic
+  word, whatever language you are learning.
+- Behind the scenes: the check that keeps one language's words out of the
+  rest of the app now covers every part of it, including Vietnamese.
+
 ## 0.308 — 2 October 2026
 
 **"I am tired" works with any adjective blank, not only "any adjective".**
