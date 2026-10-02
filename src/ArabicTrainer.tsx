@@ -13378,7 +13378,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
    ------------------------------------------------------------------ */
 
 const COUNT_CHOICES = [10, 20, 30, 50];
-const TIME_CHOICES = [2, 3, 5, 10];
+const TIME_CHOICES = [2, 5, 10, 15, 30];
 
 /* ------------------------------------------------------------------
    Full-screen: the sessions somebody kept

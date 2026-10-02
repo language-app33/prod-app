@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.310 — 2 October 2026
+## 0.311 — 2 October 2026
 
 **A session you build in Regular now picks cards the way the home screen does, and there is a new mode for cards you have not seen lately.**
 
@@ -26,6 +26,14 @@ and moves once per batch of work you would notice, not once per commit.
   about can still move up a level. If you have practised all the cards you
   picked in the last three days, it says so instead of starting.
 - Fix mistakes, Get started and Ultimate are unchanged.
+
+## 0.310 — 2 October 2026
+
+**Longer custom sessions.**
+
+- A session you build yourself can now run for 2, 5, 10, 15 or 30
+  minutes. The 3-minute choice is gone; sessions already saved with 3
+  minutes still run for 3.
 
 ## 0.309 — 2 October 2026
 
