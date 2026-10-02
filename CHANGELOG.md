@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.310 — 2 October 2026
+
+**A session you build in Regular now picks cards the way the home screen does, and there is a new mode for cards you have not seen lately.**
+
+- Regular, on Build a session, now works like the everyday session and
+  Prep mode, just limited to the cards you picked. Cards that are due come
+  first, words you are partway through learning come before the rest, and
+  new words come in only as fast as you clear the ones you have. Until now
+  it shuffled every card you picked, so the same decks gave a much wider
+  and less focused spread than the home screen did. With a time limit,
+  it plans about six questions a minute.
+- New mode on Build a session: **Not seen lately**. It asks about the
+  cards you picked that you have not practised in the last three days,
+  so new cards and older ones you have left alone come up together. Cards
+  that are already Cleared or Learnt are left out, so everything it asks
+  about can still move up a level. If you have practised all the cards you
+  picked in the last three days, it says so instead of starting.
+- Fix mistakes, Get started and Ultimate are unchanged.
+
 ## 0.309 — 2 October 2026
 
 **Each language's grammar comes from that language, and exercises say it in words.**

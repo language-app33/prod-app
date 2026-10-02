@@ -3037,7 +3037,40 @@ const MODES = {
     label: "Fix mistakes",
     blurb: "Only the cards you've slipped on in the last couple of attempts.",
   },
+  unseen: {
+    label: "Not seen lately",
+    blurb: "Cards you haven't practised in the last few days, new ones included — anything still climbing the levels.",
+  },
 };
+
+/*
+ * How long since a form was last answered before Not seen lately offers
+ * it: three days. Long enough that yesterday's words are not in it, short
+ * enough that a word from last week is.
+ */
+const UNSEEN_DAYS = 3;
+
+/*
+ * Is this form one Not seen lately should ask about? Not answered on any
+ * of its exercises in the last UNSEEN_DAYS — a form never answered at all
+ * is the plainest case — and not yet cleared, which takes learnt with it:
+ * the mode is for moving words up the levels, and a cleared word has no
+ * level left to climb, only reviews that have to come round on their own.
+ */
+function notSeenLately(unit: Form, settings: Settings) {
+  const st = (t: string) => stateOf(unit, t);
+  if (cleared(laddered(unit, settings), st)) return false;
+  const last = Math.max(0, ...Object.values(statesOf(unit)).map((x) => (x && x.updated) || 0));
+  return now() - last >= UNSEEN_DAYS * 86400000;
+}
+
+/*
+ * How many questions a timed session is given to work through: about one
+ * every ten seconds. Only Regular reads it, because it is the one mode
+ * whose cards are chosen to fit a length — the rest take everything picked
+ * and let the clock end it.
+ */
+const TIMED_PER_MINUTE = 6;
 
 /* Did this form go wrong in either of its last two outings? Read in the
    card's own language, and through stateOf, which answers for a key that
@@ -3858,14 +3891,33 @@ function everyTypeMode(mode: string) {
  * nothing to gain from drilling them — and the caller is told which cards
  * were skipped for that reason so it can say so.
  */
-export function buildManualSession({ items, settings, ids, mode, count }: {
+export function buildManualSession({ items, settings, ids, mode, count, minutes, perDay, systems }: {
   items: Item[];
   settings: Settings;
   ids: Set<string> | string[];
   mode: string;
   count?: number;
+  minutes?: number;
+  /** As buildSession takes them — Regular is dealt by it. */
+  perDay?: number;
+  systems?: SystemSet[];
 }) {
   const chosen = new Set(ids);
+  /*
+   * Regular is the everyday session over the cards picked: the same
+   * dealing the home screen and a prep do, narrowed to these cards the way
+   * a prep narrows it to its decks. What is due first, the words still
+   * climbing ahead of the rest, and new words let in only as fast as the
+   * learner clears them. It used to take every card picked, shuffled, with
+   * none of that — so the same decks gave a far wider and far less useful
+   * spread here than on the home screen. The other modes are for
+   * deliberately stepping outside the schedule, and keep their own rules.
+   */
+  if (mode === "regular") {
+    const budget = count && count < 999 ? count : minutes ? minutes * TIMED_PER_MINUTE : SESSION_SIZE;
+    const built = buildSession({ items, settings, inDeck: (it) => chosen.has(it.id), budget, perDay, systems });
+    return { ...built, manual: true, mode, learnt: [] as Item[] };
+  }
   const allowed = new Set(typesForMode(mode));
   /* Two types is the rule everywhere else, and it is what keeps a session
      from being one exercise repeated. Get started draws on the two gentle
@@ -3925,6 +3977,7 @@ export function buildManualSession({ items, settings, ids, mode, count }: {
         continue;
       }
       if (mode === "mistakes" && !hasRecentMistake(unit, settings)) continue;
+      if (mode === "unseen" && !notSeenLately(unit, settings)) continue;
       const usable = usableFor(unit);
       if (!usable.length) continue;
       anyUsable = true;
@@ -3945,7 +3998,13 @@ export function buildManualSession({ items, settings, ids, mode, count }: {
   if (!plans.length) {
     return {
       exercises: [],
-      reason: learnt.length ? "all-learnt" : mode === "mistakes" ? "no-mistakes" : "none-drillable",
+      reason: learnt.length
+        ? "all-learnt"
+        : mode === "mistakes"
+        ? "no-mistakes"
+        : mode === "unseen"
+        ? "no-unseen"
+        : "none-drillable",
       learnt,
     };
   }
@@ -8584,12 +8643,21 @@ export default function ArabicTrainer() {
     count?: number;
     minutes?: number;
   }) {
-    const built = buildManualSession({ items, settings, ids, mode, count });
+    /* Regular is dealt as the home screen deals, so it reads the cards the
+       home screen does: the language switch has its say over which words
+       count as in hand, exactly as it does for a prep. */
+    const built = buildManualSession({
+      items: mode === "regular" ? shown : items, settings, ids, mode, count, minutes, perDay, systems,
+    });
     setBuilding(false);
     if (!built.exercises.length) {
       flash(
         built.reason === "no-mistakes"
           ? "Nothing to fix — none of those have gone wrong recently"
+          : built.reason === "no-unseen"
+          ? "You've practised all of those in the last few days, or they're already cleared"
+          : built.reason === "nothing-due"
+          ? "Nothing new to bring in yet — what you're learning comes back shortly"
           : built.reason === "no-variety"
           ? "That needs at least two exercise types"
           : "Those cards don't have enough to practice yet"
