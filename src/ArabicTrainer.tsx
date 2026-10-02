@@ -220,6 +220,8 @@ import {
   FRONT_DOOR_CAP,
   roomForNew,
   inHandCap,
+  frontDoorCap,
+  byVariety,
   typicalDay,
   restingNow,
   throughDoor,
@@ -2916,6 +2918,34 @@ export function inHandFor(perDay?: number): number {
 const KEEN_POOL = 2;
 
 /*
+ * How many strangers this learner may hold at once — the front door, sized
+ * to how much they practise.
+ *
+ * A typical day reaches `perDay / PER_UNIT` words, and the door holds one
+ * for every DOOR_OUTINGS of them: ten for anybody doing up to about five
+ * sittings a day, as it always was, rising to twenty at about ten. See
+ * FRONT_DOOR_MAX. Exported for the pace simulation.
+ */
+export function frontDoorFor(perDay?: number): number {
+  return frontDoorCap((perDay || 0) / PER_UNIT);
+}
+
+/*
+ * What kind of card this is, for mixing the new cards a learner is given.
+ *
+ * Words by what the teacher says they are — a noun, a verb, a name — so a
+ * door's worth of strangers is not all one part of speech; then phrases,
+ * sentences, conversations and texts, each a kind of its own; and a number
+ * skill, which is none of those. See byVariety.
+ */
+export function varietyOf(it: Item, settings: Settings): string {
+  if (isRangeSkill(it)) return "skill";
+  if (isDialog(it)) return isText(it) ? "text" : "conversation";
+  const kind = kindOf(it, LANGUAGES[langIdOf(it, settings)] || langOf(settings));
+  return kind === "word" && it.category ? `word:${it.category}` : kind;
+}
+
+/*
  * More than two full sittings' worth of questions on a typical day: the
  * learner who comes back later the same day, so a review passed over now
  * is still reached before it goes stale. It decides one thing — whether
@@ -3414,18 +3444,24 @@ export function buildSession({
      * words hold their place and nothing new arrives, which is the same
      * protection without a rule of its own to keep in step.
      */
-    const room = roomForNew(handCounts(items, settings), inHandFor(perDay));
-    let newSeen = 0;
-    candidates = candidates.filter((c) => {
+    const room = roomForNew(handCounts(items, settings), inHandFor(perDay), frontDoorFor(perDay));
+    /* Which ones, mixed by kind against what is already in the front door
+       — see byVariety. Picked in the order they will be reached, so a
+       session with room for only some of them still takes a mix. */
+    const admitted = byVariety(
+      candidates.filter((c) => c.isNew && !c.urgent),
+      room,
+      candidates.filter((c) => c.climbing),
+      (c) => varietyOf(c.it, settings)
+    );
+    candidates = candidates.filter(
       /* Except one the learner asked for by name. Both rules above are the
          app protecting somebody from more new words than they can hold,
          and neither is worth telling a learner who has just pointed at a
          card that they cannot have it. It is one card, chosen on purpose,
          and the way to stop it is the way it started. */
-      if (!c.isNew || c.urgent) return true;
-      newSeen += 1;
-      return newSeen <= room;
-    });
+      (c) => !c.isNew || c.urgent
+    );
     /*
      * And a place admitted is a place kept.
      *
@@ -3445,7 +3481,7 @@ export function buildSession({
     candidates = candidates
       .filter((c) => c.urgent)
       .concat(
-        candidates.filter((c) => !c.urgent && c.isNew),
+        admitted,
         candidates.filter((c) => !c.urgent && !c.isNew)
       );
   }
@@ -4284,7 +4320,9 @@ export interface Workload {
  * cleared one, which waits only for its passes — the next when its review
  * comes round, and a couple of days for each after. And cards never met
  * come in at most FRONT_DOOR_CAP at a time, each group about a day behind
- * the last.
+ * the last. Ten even for a keen learner, whose door is wider (see
+ * frontDoorFor): a wider door clears each word more slowly, and measured,
+ * a hundred cards were all met at about the same day either way.
  */
 export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()): Workload {
   let left = 0;
@@ -8343,7 +8381,7 @@ export default function ArabicTrainer() {
          of them — the same reckoning buildSession does, so the two cannot
          come to disagree. */
       const fresh = pool.filter((it) => !waiting(it, false) && waiting(it, true)).length;
-      return met + Math.min(fresh, roomForNew(handCounts(items, settings), inHandFor(perDay)));
+      return met + Math.min(fresh, roomForNew(handCounts(items, settings), inHandFor(perDay), frontDoorFor(perDay)));
     },
     [settings, items, perDay]
   );

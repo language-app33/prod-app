@@ -4213,3 +4213,35 @@ Gender is not implied: a name says nothing reliable about it, and a
 sentence not asked is better than one asked wrong. Place is left alone
 for now; the owner asked about people.
 
+---
+
+## New cards are mixed by kind, evenly rather than in proportion
+
+**2 October 2026** · `src/scheduler.ts` (`byVariety`), `src/ArabicTrainer.tsx` (`varietyOf`)
+
+Which new cards a learner meets used to be the front of the due list,
+where every never-met card ranks the same and chance decides. That is a
+draw in proportion to the material: eighty nouns and twenty sentences
+meant roughly four nouns to every sentence, and nothing stopped a dozen
+strangers held at once being all one kind.
+
+Now each place at the front door goes to whichever kind is least
+represented among what is already there, which is an even mix rather
+than a proportional one.
+
+**Why even.** A proportional draw is what chance already gave on average;
+the complaint was that it gave nothing better than average, and on a deck
+that is mostly one kind the average is the problem. Even is what "mixed"
+means to a learner looking at a session.
+
+**What it costs.** A kind with few cards is used up early: five sentences
+in a deck of a hundred all arrive in the first day or two, and the deck's
+last weeks are whatever it held most of. A proportional rule would have
+avoided that and given the learner much less of what they asked for.
+
+**What counts as a kind** is what the teacher says a word is — noun,
+verb, name — and otherwise the card's own kind: phrase, sentence,
+conversation, text, number skill. A word nobody gave a part of speech is
+one kind of its own. Nothing finer: tags were considered and left out,
+because they are a teacher's filing, not a kind of thing to learn.
+

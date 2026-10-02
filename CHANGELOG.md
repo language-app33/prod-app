@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.304 — 2 October 2026
+
+**If you practise a lot, you see the same few cards less often, and new cards come in as a mix.**
+
+- Practising ten or more sessions a day, you can now be learning up to
+  20 new cards at once instead of 10, so your sessions spread over more
+  cards. The card you see most comes up about 10 times on a busy day
+  instead of 13 or 14. New cards take a day or two to clear instead of
+  under a day. At up to about five sessions a day, nothing changes.
+- New cards no longer come in as whatever your decks hold most of. Each
+  new card is taken from whichever kind you are learning least of right
+  now: nouns, verbs, adjectives and other kinds of word, phrases,
+  sentences, conversations. A deck of mostly nouns no longer opens with
+  nothing but nouns. A kind you have only a few cards of comes in sooner
+  than before.
+- Cards you mark high priority still come first, whatever their kind.
+
 ## 0.303 — 2 October 2026
 
 **The card search has a line of its own.**

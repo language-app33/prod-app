@@ -93,6 +93,29 @@ export const FRONT_DOOR_CAP = 10;
 export const IN_HAND_CAP = 60;
 
 /*
+ * And how far the front door widens for somebody who practises a lot.
+ *
+ * Ten strangers suit a learner who sits down a few times a day. Somebody
+ * sitting down fifteen times deals well over a hundred cards a day, and
+ * with the words still climbing going first (see `KEEN_DAY` in the app)
+ * those ten filled nearly every sitting: the same word thirteen or
+ * fourteen times in a day, measured, until it cleared and the next ten
+ * took its place. The material behind the door made no difference — a
+ * hundred cards waiting and three hundred looked the same.
+ *
+ * So the door is sized to keep each word in it at about `DOOR_OUTINGS`
+ * sittings a day — see `frontDoorCap` — and never narrower than ten, so
+ * nobody who practises less is paced any differently. Twenty is the
+ * ceiling, measured against the cost: at fifteen sittings a day it took the
+ * busiest word from about thirteen showings a day to about ten, and a word
+ * took a day and a half to clear instead of under one. Thirty bought one
+ * showing less for another half a day, and did nothing for words learnt
+ * three weeks on.
+ */
+export const FRONT_DOOR_MAX = 20;
+export const DOOR_OUTINGS = 5;
+
+/*
  * And how far the second pool grows for somebody who practises a lot.
  *
  * Sixty was measured against a learner who sits down once or twice a day,
@@ -965,15 +988,70 @@ export function throughDoor(
  * not yet fully settled. Both are counted over everything the learner
  * holds in this language, not over the deck in front of them — the deck is
  * what they chose to look at, the load is what they carry.
+ *
+ * `front` as an argument is how wide the door is for this learner — see
+ * `frontDoorCap`.
  */
 export function roomForNew(
   counts: { front: number; inHand: number },
   inHand: number = IN_HAND_CAP,
+  front: number = FRONT_DOOR_CAP,
 ): number {
   return Math.max(
     0,
-    Math.min(FRONT_DOOR_CAP - (counts.front || 0), inHand - (counts.inHand || 0)),
+    Math.min(front - (counts.front || 0), inHand - (counts.inHand || 0)),
   );
+}
+
+/**
+ * How wide the front door is, given how many words the learner's typical
+ * day reaches.
+ *
+ * One place for every `DOOR_OUTINGS` of them, so each word held there is
+ * still met that many times a day and clears in a day or two; between
+ * `FRONT_DOOR_CAP` and `FRONT_DOOR_MAX`. See those for why.
+ */
+export function frontDoorCap(wordsPerDay: number): number {
+  const reach = Math.round(Number.isFinite(wordsPerDay) ? wordsPerDay / DOOR_OUTINGS : 0);
+  return Math.min(FRONT_DOOR_MAX, Math.max(FRONT_DOOR_CAP, reach));
+}
+
+/**
+ * Which of some new cards to let in, so that what is let in is mixed.
+ *
+ * Left to the due order alone, a door's worth of new cards is a draw from
+ * whatever the material holds most of: a deck of eighty nouns and twenty
+ * sentences opened with eight nouns, and a learner could hold a dozen
+ * strangers that were all verbs. So each place goes to a card of whichever
+ * kind is least represented so far — among the words already in the front
+ * door (`held`) and those let in before it — and within a kind, and
+ * between kinds equally represented, to the one the order put first. The
+ * order is the due list's, chance included, so this decides which kinds
+ * come in and never which card of a kind.
+ *
+ * Returns the cards let in, in the order they were picked, which is the
+ * order a session that has room for only some of them reaches them in.
+ */
+export function byVariety<T>(
+  pool: T[],
+  room: number,
+  held: T[],
+  kindOf: (x: T) => string,
+): T[] {
+  const count = new Map<string, number>();
+  for (const x of held) count.set(kindOf(x), (count.get(kindOf(x)) || 0) + 1);
+  const left = pool.map((x) => ({ x, kind: kindOf(x) }));
+  const picked: T[] = [];
+  while (picked.length < room && left.length) {
+    let best = 0;
+    for (let i = 1; i < left.length; i += 1) {
+      if ((count.get(left[i].kind) || 0) < (count.get(left[best].kind) || 0)) best = i;
+    }
+    const [{ x, kind }] = left.splice(best, 1);
+    count.set(kind, (count.get(kind) || 0) + 1);
+    picked.push(x);
+  }
+  return picked;
 }
 
 /**

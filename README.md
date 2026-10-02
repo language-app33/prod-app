@@ -275,8 +275,33 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   word clears in about a day. Not below it: a once-a-day learner's reviews
   passed over are not reached later that day, and in the pace simulation
   they learnt nothing in two months with the rule applied to them.
-  `KEEN_DAY` and `KEEN_POOL` in `src/ArabicTrainer.tsx`. The front door
-  itself does not grow: nobody holds more than ten strangers at once.
+  `KEEN_DAY` and `KEEN_POOL` in `src/ArabicTrainer.tsx`.
+
+  **And the front door widens for them too, up to twenty.** With the words
+  climbing first, a door of ten filled nearly every sitting of somebody
+  practising fifteen times a day: the same word thirteen or fourteen times
+  in a day, and a course of three hundred cards looked no different from
+  one of a hundred, because what was waiting behind the door was never
+  dealt. So the door holds one word for every `DOOR_OUTINGS` a typical day
+  reaches — ten, as before, up to about five sittings a day, and twenty
+  from about ten. Measured, at fifteen sittings: the busiest word down to
+  about ten showings a day, and a word clearing in a day and a half
+  rather than under one. It is a modest gain, and the larger cause is
+  plainer — a day of fifteen sittings asks for more cards than a ladder
+  that is climbed by effort and kept by time will give it — but it is
+  the part the door can do. `FRONT_DOOR_MAX`, `DOOR_OUTINGS` and
+  `frontDoorCap` in `src/scheduler.ts`, `frontDoorFor` in the app.
+
+  **What comes through the door is mixed.** Each place goes to a card of
+  whichever kind is least represented among the words already in the
+  door and those let in before it — a noun, a verb, any other kind of word
+  by what the teacher says it is; a phrase, a sentence, a conversation, a
+  text, a number skill. Within a kind, the due order decides, chance and
+  all. Left to the due order alone, a door's worth of strangers was a draw
+  from whatever the material held most of, so a deck of nouns with a few
+  sentences opened with nouns. The cost is that a kind with only a few
+  cards in it comes in early. `byVariety` in `src/scheduler.ts`,
+  `varietyOf` in the app.
 
 - **A learner can prepare for a date.** Prep mode, under Progress, takes
   a name ("Start of class"), a day and the decks to have learnt by then,

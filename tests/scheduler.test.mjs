@@ -22,6 +22,8 @@ import {
   MATURE_DAYS,
   MASTERED_DAYS,
   FRONT_DOOR_CAP,
+  FRONT_DOOR_MAX,
+  DOOR_OUTINGS,
   IN_HAND_CAP,
   LEARN_STEPS,
   GRADUATE_DAYS,
@@ -55,6 +57,8 @@ import {
   standing,
   turnOf,
   roomForNew,
+  frontDoorCap,
+  byVariety,
   formatGap,
   dayKey,
   shuffled,
@@ -810,6 +814,35 @@ test("a new word is earned, by one of the words in hand being learnt", () => {
   assert.equal(roomForNew({ front: 0, inHand: IN_HAND_CAP }), 0, "too much in hand already");
   assert.equal(roomForNew({ front: 0, inHand: IN_HAND_CAP - 2 }), 2, "two places left in hand");
   assert.ok(IN_HAND_CAP > FRONT_DOOR_CAP, "the door is the narrower of the two");
+});
+
+test("the front door widens with practice, from ten to twenty", () => {
+  /* Ten for anybody who practises a few times a day, as it always was:
+     only a learner whose day reaches enough words to keep each one in a
+     wider door at DOOR_OUTINGS a day is given one. */
+  assert.equal(frontDoorCap(0), FRONT_DOOR_CAP, "nobody's door is narrower than ten");
+  assert.equal(frontDoorCap(45), FRONT_DOOR_CAP, "five sittings' words: still ten");
+  assert.equal(frontDoorCap(15 * DOOR_OUTINGS), 15, "one place per DOOR_OUTINGS words a day");
+  assert.equal(frontDoorCap(1000), FRONT_DOOR_MAX, "and never wider than the ceiling");
+  assert.equal(frontDoorCap(NaN), FRONT_DOOR_CAP, "a log that says nothing is read as nought");
+  assert.equal(roomForNew({ front: 12, inHand: 0 }, IN_HAND_CAP, FRONT_DOOR_MAX), FRONT_DOOR_MAX - 12,
+    "a wider door has room past the first ten");
+  assert.ok(FRONT_DOOR_MAX < IN_HAND_CAP, "and is still narrower than the hand");
+});
+
+test("new cards are let in mixed by kind, in the order given within a kind", () => {
+  const kind = (/** @type {string} */ x) => x[0];
+  /* Eight nouns ahead of everything else in the due order: left alone the
+     first four places would be all nouns. */
+  const pool = ["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "v1", "v2", "s1"];
+  assert.deepEqual(byVariety(pool, 4, [], kind), ["n1", "v1", "s1", "n2"]);
+  /* What is already held counts: two verbs in hand, so the verb waits. */
+  assert.deepEqual(byVariety(pool, 3, ["v0", "v9"], kind), ["n1", "s1", "n2"]);
+  /* Never more than the room, never more than there is. */
+  assert.deepEqual(byVariety(pool, 0, [], kind), []);
+  assert.equal(byVariety(pool, 50, [], kind).length, pool.length);
+  /* One kind only is the due order exactly. */
+  assert.deepEqual(byVariety(["a1", "a2", "a3"], 2, [], kind), ["a1", "a2"]);
 });
 
 test("a word is recognised when every rung of its first level is mastered", () => {
