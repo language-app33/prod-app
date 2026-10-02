@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.305 — 2 October 2026
+
+**Numbers and pronouns go in decks, a part at a time.**
+
+- An open deck in Teaching has a new line, "Numbers and pronouns", with
+  an "Add numbers or pronouns" button. It lists the parts of the
+  language's numbers (Numbers 0 to 10, 11 to 99, 100 to 999, over a
+  thousand, the three parts of counting things, and the parts of telling
+  the time) and its pronouns one by one. Tick the ones the deck teaches.
+- A number part brings the words it is built from: "Numbers 11 to 99"
+  brings the words for the tens and the units it needs. A part can be in
+  several decks.
+- Students now get numbers only through a deck. **Numbers in no deck no
+  longer reach anybody**, so a teacher needs to add them to a deck for
+  students to keep practising them. Nothing a student had learnt is lost:
+  it comes back as soon as the part is in one of their decks.
+- Number parts count like any other card in a deck: on the home screen's
+  deck choice, on Progress, and in prep.
+- "Counting things" is now three parts — 1 and 2, 3 to 10, and 11 to 20
+  — because the counted word changes shape at those points. A teacher who
+  has not written the plurals yet can already hand out "1 and 2". What a
+  student had learnt on counting things carries into all three.
+- A locked deck's numbers and pronouns can't be changed, like its cards.
+
 ## 0.304 — 2 October 2026
 
 **If you practise a lot, you see the same few cards less often, and new cards come in as a mix.**

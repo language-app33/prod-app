@@ -182,6 +182,10 @@ export const renameDeck = (deckId: string, title: string) => call("rename-deck",
 export const deleteDeck = (deckId: string) => call("delete-deck", { body: { deckId } });
 /* A locked deck keeps the cards it has: nothing added, nothing taken out. */
 export const lockDeck = (deckId: string, locked: boolean) => call("lock-deck", { body: { deckId, locked } });
+/* Which parts of the teacher's numbers a deck holds, by range id; the
+   whole list each time. */
+export const setDeckParts = (deckId: string, parts: string[]) =>
+  call("set-deck-parts", { body: { deckId, parts } });
 export const myCards = () => call("my-cards");
 /* The server calls this field "decks"; sending anything else means the
    card saves but never lands in a deck. */

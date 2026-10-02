@@ -296,6 +296,14 @@ let deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T
    the field, so this one does too. */
 /** @type {any[]} */
 let materialSystems = [];
+/* And the decks the quiet material sends beside them. A part of a
+   teacher's numbers reaches a learner only through a deck that holds it,
+   so a walk that meets numbers has to be sent one. */
+/** @type {any[]} */
+let materialDecks = [];
+/* What the deck screen's Numbers and pronouns asked the server to keep. */
+/** @type {any[]} */
+const savedParts = [];
 /* The accounts the first screen asked to have made, so a walk of it can
    check what was sent rather than only what the screen then showed. */
 /** @type {any[]} */
@@ -355,7 +363,7 @@ const fakeFetch = async (input, opts = {}) => {
       if (materialQuiet) {
         return json({
           ok: true, version: "v-quiet", teaches: true,
-          courses: [], decks: [], cards: [], systems: materialSystems,
+          courses: [], decks: materialDecks, cards: [], systems: materialSystems,
         });
       }
       const version = "v-abc";
@@ -429,6 +437,12 @@ const fakeFetch = async (input, opts = {}) => {
           ...(teachesTwo ? [{ ...viTeach, decks: [] }] : []),
         ],
       });
+    }
+    /* Which parts of the numbers a deck holds, as the screen saved them. */
+    if (action === "set-deck-parts") {
+      const body = JSON.parse(opts.body || "{}");
+      savedParts.push(body);
+      return json({ ok: true, parts: body.parts || [] });
     }
     if (action === "create-deck") {
       const body = JSON.parse(opts.body || "{}");
@@ -7535,6 +7549,30 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("and it comes back round to where it started rather than running out",
     !scale() && localStorage.getItem("arabic-trainer-tile-size") === "0",
     `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-tile-size")}`);
+
+  /* ---- and what a deck holds besides cards ----
+     Numbers are one document per language, so a deck takes them in parts,
+     by name, from a screen of their own. */
+  const addExtras = buttonNamed(/^Add numbers or pronouns$/);
+  check("an open deck offers to add numbers or pronouns", !!addExtras,
+    (document.body.textContent || "").includes("Numbers and pronouns") ? "(section, no button)" : "(no section)");
+  click(addExtras);
+  await sleep(300);
+  const partRow = (/** @type {RegExp} */ re) =>
+    [...document.querySelectorAll(".at-tickrow, label")].find((r) => re.test(r.textContent || ""));
+  check("and lists the parts of the numbers, counting things in three",
+    !!partRow(/Numbers 0 to 10/) && !!partRow(/Counting things: 1 and 2/) &&
+      !!partRow(/Counting things: 3 to 10/) && !!partRow(/Counting things: 11 to 20/) && !!partRow(/Telling the hour/),
+    [...document.querySelectorAll(".at-tickrow, label")].map((r) => (r.textContent || "").slice(0, 24)).join(" | ") || "(no list)");
+  const box = partRow(/Numbers 0 to 10/);
+  click(box && (box.querySelector("input") || box));
+  await sleep(150);
+  click(buttonNamed(/^Save$/));
+  await sleep(600);
+  const sent = savedParts[savedParts.length - 1];
+  check("and saving tells the server which parts the deck holds",
+    !!sent && sent.deckId === "d1" && JSON.stringify(sent.parts) === JSON.stringify(["numbers:0-10"]),
+    JSON.stringify(savedParts));
 }
 
 /* ---- a deck whose cards accept two spellings ----
@@ -7917,9 +7955,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      document side by side, told apart by what they hold rather than by a
      label. The app pairs them up itself. */
   materialSystems = [goldenNumbers, goldenTimes];
+  /* In a deck, every part of them, as a teacher would put them: numbers
+     in no deck reach nobody. */
+  materialDecks = [{
+    id: "dn", title: "Numbers deck", lang: "ar-PS", owner: "t-1", cardIds: [], cardCount: 0,
+    courseId: "c1", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 1,
+    parts: rangeSkills.map((/** @type {any} */ it) => it.range.id),
+  }];
   materialQuiet = true;
   localStorage.setItem("arabic-trainer:material", JSON.stringify({
-    handle: account.handle, courses: [], decks: [], systems: materialSystems,
+    handle: account.handle, courses: [], decks: materialDecks, systems: materialSystems,
     version: "v-numbers", at: Date.now(),
   }));
   /* The document starts empty on purpose: the cards and skills are the
@@ -8007,6 +8052,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   root4.unmount();
   host4.remove();
   materialSystems = [];
+  materialDecks = [];
   materialQuiet = false;
   await sleep(200);
 }

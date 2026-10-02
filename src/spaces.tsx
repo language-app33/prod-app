@@ -57,7 +57,7 @@ import {
   scriptVars } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
 import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
-import { fillersFor, groupPronouns, isPronounGroup, pickedCardIds } from "./card-facts.ts";
+import { fillersFor, groupPronouns, isPronounCard, isPronounGroup, pickedCardIds } from "./card-facts.ts";
 import type { PronounGroup } from "./card-facts.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
@@ -4404,6 +4404,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
      step, for the same reason. */
   const [pronouning, setPronouning] = useState<LangId | null>(null);
   const [pronounLang, setPronounLang] = useState<LangId | null>(null);
+  /* The open deck's numbers and pronouns, being chosen: null when the
+     screen is shut, and otherwise what is ticked on it so far — the parts
+     of the numbers by range id, and the pronoun cards by card id. */
+  const [deckExtras, setDeckExtras] = useState<{ parts: string[]; pronouns: string[] } | null>(null);
   /* And which language, where the teacher has more than one to choose
      from. The same two-step the New card button takes, for the same
      reason and through the same control. */
@@ -5844,6 +5848,99 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     </Screen>
   );
 
+  /* ---- what a deck can hold besides cards: parts of the numbers, and
+         pronouns ----
+     Numbers are one document per language and pronouns one screen, so
+     neither is a card a teacher would find in a list to add. This is the
+     one place a deck takes them: the parts of the numbers by name — 0 to
+     10, counting things 3 to 10, telling the hour — each bringing the
+     words it is built of, and the pronouns one person at a time. Nothing
+     of either reaches a student except through a deck. */
+  const numberPartsOf = (langId: LangId | undefined) => [
+    ...((composerFor(langId) || { ranges: () => [] }).ranges()),
+    ...((timeComposerFor(langId) || { ranges: () => [] }).ranges()),
+  ];
+  const pronounCardsOf = (langId: LangId | undefined): Card[] => {
+    const own = cards.filter((c) => isPronounCard(c) && c.lang === langId);
+    const group = groupPronouns(own).find(isPronounGroup);
+    const order = group ? group.members : [];
+    return order.map((id) => own.find((c) => c.id === id)).filter(Boolean) as Card[];
+  };
+  const extrasScreen = (d: Deck) => {
+    const langId = (langOfDeck(d) || {}).id || d.lang;
+    const parts = numberPartsOf(langId);
+    const pronouns = pronounCardsOf(langId);
+    const picked = deckExtras || { parts: [], pronouns: [] };
+    const toggle = (key: "parts" | "pronouns") => (id: string, on: boolean) =>
+      setDeckExtras({ ...picked, [key]: on ? picked[key].filter((x) => x !== id) : picked[key].concat([id]) });
+    return (
+      <Screen title="Numbers and pronouns" onBack={() => setDeckExtras(null)}>
+        <Notice kind="error">{error}</Notice>
+        {parts.length > 0 && (
+          <Section title="Numbers">
+            <Help>
+              Tick the parts this deck teaches. Each part brings the number words it needs. Students get
+              only the parts that are in one of their decks.
+            </Help>
+            <CheckList
+              options={parts.map((r) => ({ id: r.id, title: r.label }))}
+              chosen={picked.parts}
+              onToggle={toggle("parts")}
+            />
+          </Section>
+        )}
+        {pronouns.length > 0 && (
+          <Section title="Pronouns" className="at-mt5">
+            <CheckList
+              options={pronouns.map((c) => ({
+                id: c.id,
+                title: leadOf(c).en || leadOf(c).ar,
+                note: [leadOf(c).ar, leadOf(c).lat].filter(Boolean).join(" · "),
+              }))}
+              chosen={picked.pronouns}
+              onToggle={toggle("pronouns")}
+            />
+          </Section>
+        )}
+        {!parts.length && !pronouns.length && (
+          <Help>
+            Nothing to add yet. Write this language's numbers or pronouns from the Cards tab first.
+          </Help>
+        )}
+        <div className="at-row at-mt5">
+          <Button variant="ghost" icon="close" onClick={() => setDeckExtras(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            icon="check"
+            disabled={busy}
+            onClick={() =>
+              run(
+                async () => {
+                  const had = d.parts || [];
+                  const same = had.length === picked.parts.length && had.every((x) => picked.parts.includes(x));
+                  if (!same) await API.setDeckParts(d.id, picked.parts);
+                  for (const card of pronouns) {
+                    const inNow = card.decks || [];
+                    const want = picked.pronouns.includes(card.id);
+                    if (want === inNow.includes(d.id)) continue;
+                    absorbSaved(await API.saveCard(card, want ? inNow.concat([d.id]) : inNow.filter((x) => x !== d.id)));
+                  }
+                  setDeckExtras(null);
+                  await refresh();
+                },
+                "Saved"
+              )
+            }
+          >
+            Save
+          </Button>
+        </div>
+      </Screen>
+    );
+  };
+
   /* ---- an open deck takes over the screen, showing its cards the same
          way the Cards tab does ---- */
   if (openDeck) {
@@ -5852,6 +5949,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       setOpenDeck(null);
       return null;
     }
+    if (deckExtras) return extrasScreen(d);
     /* The deck's cards, through the same sort and the same filter the Cards
        tab uses — this screen showed them in whatever order they arrived and
        offered no way to narrow them at all. See deckView. */
@@ -5859,7 +5957,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     const mine = deckView ? deckView.mine : [];
     const listed = deckView ? deckView.listed : [];
     return (
-      <Screen title={d.title} onBack={() => { setOpenDeck(null); setCardAction(null); }}>
+      <Screen title={d.title} onBack={() => { setOpenDeck(null); setCardAction(null); setDeckExtras(null); }}>
             <Notice kind="error">{error}</Notice>
             <Help>
               {(langOfDeck(d) || {}).name} · {plural(held.length, "card")}
@@ -5875,6 +5973,47 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               <Help>
                 Tap a card to see it. Tap Select to add several to another deck, take them out, or delete them.
               </Help>
+            )}
+
+            {/* What it holds besides cards, and the way in to change it —
+                see extrasScreen. Said in a line rather than listed: the
+                pronouns are among the cards below already. */}
+            {(numberPartsOf((langOfDeck(d) || {}).id || d.lang).length > 0 ||
+              pronounCardsOf((langOfDeck(d) || {}).id || d.lang).length > 0) && (
+              <Section title="Numbers and pronouns" className="at-mt5">
+                <Help>
+                  {(() => {
+                    const all = numberPartsOf((langOfDeck(d) || {}).id || d.lang);
+                    const named = (d.parts || [])
+                      .map((id) => (all.find((r) => r.id === id) || { label: "" }).label)
+                      .filter(Boolean);
+                    const pron = pronounCardsOf((langOfDeck(d) || {}).id || d.lang).filter((c) =>
+                      (c.decks || []).includes(d.id)
+                    ).length;
+                    const said = named.concat(pron ? [plural(pron, "pronoun")] : []);
+                    return said.length ? said.join(" · ") : "None in this deck yet.";
+                  })()}
+                </Help>
+                {!d.locked && (
+                  <div className="at-row at-mt3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="add"
+                      onClick={() =>
+                        setDeckExtras({
+                          parts: d.parts || [],
+                          pronouns: pronounCardsOf((langOfDeck(d) || {}).id || d.lang)
+                            .filter((c) => (c.decks || []).includes(d.id))
+                            .map((c) => c.id),
+                        })
+                      }
+                    >
+                      Add numbers or pronouns
+                    </Button>
+                  </div>
+                )}
+              </Section>
             )}
 
             {/* The whole deck, whatever the list below is showing: what a

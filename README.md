@@ -932,6 +932,28 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   range is offered only once the whole of it can be said, so a system that
   stops at ten is a practice that counts to ten and stops.
 
+  **A deck holds the parts it teaches.** A system is one document per
+  language and not cards, so a deck cannot list it among its cards: it
+  names the ranges it teaches (`parts` on the deck, set through
+  `set-deck-parts`), and each learner's device files the matching skill,
+  and every word its askings are built of, under the deck's name —
+  `fileIntoDecks` and `wordsOfRange` in `src/numbers/generate.ts`. So 11
+  to 99 brings the tens and the units with it, and a word two decks need
+  is in both. **A part in no deck reaches nobody**: numbers used to go to
+  every learner of the language whatever their decks held, and now arrive
+  the way every other card does. What a learner had earned on a part
+  taken out is set aside by the fold like any card that leaves the
+  material, and is waiting when it comes back. The same screen ticks
+  pronouns in and out of the deck, one person at a time; those are
+  ordinary cards and simply join it.
+
+  **Counting things is three ranges, not one** — 1 and 2, 3 to 10, 11 to
+  20, where the counted word changes shape — so a teacher can hand them
+  out a lesson at a time, and a missing plural no longer holds back the
+  part that never needs one. `COUNTING_RANGES` in `src/numbers/types.ts`,
+  shared by Arabic and Hebrew; `handOnSplit` carries a learner's progress
+  on the old single range into each part.
+
   A box that has a word in it asks two more things about it — **how it
   sounds** and **a recording** — and both ride onto the card the word
   becomes, in the fields a card written by hand keeps them in. A

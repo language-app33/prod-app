@@ -53,7 +53,9 @@ test("a complete system opens every range it has", () => {
     "numbers:11-99",
     "numbers:100-999",
     "numbers:1000+",
-    "numbers:agreement",
+    "numbers:count-1-2",
+    "numbers:count-3-10",
+    "numbers:count-11-20",
     "time:hours",
     "time:quarters-halves",
     "time:fives",
@@ -68,7 +70,9 @@ test("a system with no clock opens its numbers and nothing else", () => {
     "numbers:11-99",
     "numbers:100-999",
     "numbers:1000+",
-    "numbers:agreement",
+    "numbers:count-1-2",
+    "numbers:count-3-10",
+    "numbers:count-11-20",
   ]);
   assert.deepEqual(openRanges(null, SYS), []);
   assert.deepEqual(openRanges(arComposer, null), []);
@@ -82,7 +86,7 @@ test("the stretches of the number line stop at the first hole", () => {
   const checks = rangeChecks(arComposer, holed);
   assert.deepEqual(
     checks.filter((c) => c.open).map((c) => c.range.id),
-    ["numbers:0-10", "numbers:agreement"],
+    ["numbers:0-10", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
   );
   /* And says what is in the way of the one that shut. */
   const shut = must(checks.find((c) => c.range.id === "numbers:11-99"), "11-99");
@@ -130,8 +134,9 @@ test("a missing face shuts nothing, because it still says something", () => {
   const thin = { ...SYS, lexemes: { ...SYS.lexemes } };
   thin.lexemes["unit.3"] = { slot: "unit.3", forms: { standalone: thin.lexemes["unit.3"].forms.standalone } };
   const check = must(
-    rangeChecks(arComposer, thin).find((c) => c.range.counted),
-    "agreement",
+    /* Three to ten, which is the part that says three. */
+    rangeChecks(arComposer, thin).find((c) => c.range.id === "numbers:count-3-10"),
+    "counting 3 to 10",
   );
   assert.equal(check.open, true);
   assert.ok(check.warnings.some((w) => w.code === "missing-form"), "and it is still reported");

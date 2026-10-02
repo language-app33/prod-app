@@ -883,6 +883,14 @@ export interface Deck {
   updated?: Millis;
   /** Which cards it holds is fixed until unlocked. What they say is not. */
   locked?: boolean;
+  /**
+   * The parts of the teacher's numbers it holds, by range id — 0 to 10,
+   * telling the hour. Numbers are one document per language rather than
+   * cards, so a deck names the parts and each learner's device files the
+   * matching skill, and the words it is built of, under the deck. See
+   * fileIntoDecks in numbers/generate.ts.
+   */
+  parts?: string[];
 }
 
 export interface Course {

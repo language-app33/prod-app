@@ -416,3 +416,28 @@ export interface Ask {
  * directory existed and it is unchanged.
  */
 export const NUMBER_CEILING = 9999999;
+
+/*
+ * Counting things, as three parts rather than one.
+ *
+ * The lines are where the counted word changes shape — in Arabic the
+ * singular after one, the dual for two, the plural from three to ten, the
+ * singular again from eleven — and they are the lines a teacher teaches
+ * along, so each is a part a deck can hold on its own. It was one range,
+ * 1 to 20, which also meant a teacher who had not yet written a plural
+ * held back the whole of it: a range opens only once all of it can be
+ * said. Hebrew changes at the same places, so both languages share these.
+ */
+export const COUNTING_RANGES: Range[] = [
+  { id: "numbers:count-1-2", kind: "numbers", label: "Counting things: 1 and 2", from: 1, to: 2, counted: true },
+  { id: "numbers:count-3-10", kind: "numbers", label: "Counting things: 3 to 10", from: 3, to: 10, counted: true },
+  { id: "numbers:count-11-20", kind: "numbers", label: "Counting things: 11 to 20", from: 11, to: 20, counted: true },
+];
+
+/**
+ * Which range a part was split out of, so a learner's progress on the
+ * one they had carries into each of the parts — see `handOnSplit`.
+ */
+export const SPLIT_FROM: Record<string, string> = Object.fromEntries(
+  COUNTING_RANGES.map((r) => [r.id, "numbers:agreement"]),
+);

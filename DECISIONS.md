@@ -4245,3 +4245,30 @@ conversation, text, number skill. A word nobody gave a part of speech is
 one kind of its own. Nothing finer: tags were considered and left out,
 because they are a teacher's filing, not a kind of thing to learn.
 
+---
+
+## Numbers reach a learner only through a deck
+
+**2 October 2026** · `src/numbers/generate.ts` (`fileIntoDecks`), `server/api/courses.js` (`set-deck-parts`)
+
+A teacher's numbers used to go to every student of the language, outside
+any deck. That meant they could not be handed out a part at a time, and a
+student could not prep for them, since prep is by deck.
+
+A deck now names the parts it holds, and a part in no deck is sent to
+nobody. The other choice was to keep sending parts in no deck to everyone
+and file the rest under their decks. That would have changed nothing for
+anyone on the day it shipped, which was its appeal; it was turned down
+because it leaves two ways for numbers to arrive, and a teacher who put
+0 to 10 in Week 1 would still find 11 to 99 on every student's device
+before Week 2.
+
+**What it costs.** On the day it ships, students of a teacher who has
+not put numbers in a deck stop being asked them. Their progress is set
+aside, not deleted, and comes back with the part.
+
+**Why parts, not words.** A deck names ranges — 0 to 10, telling the
+hour — rather than the words for *forty* and *seven*, because a number
+is built out of words, and a teacher picking words would have to know
+which ones each number needs. The words come along with the part.
+

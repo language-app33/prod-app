@@ -26,7 +26,7 @@ import { isOffline, watchNet } from "./net.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { generate, handOn } from "./numbers/generate.ts";
+import { fileIntoDecks, generate, handOn, handOnSplit } from "./numbers/generate.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -4094,8 +4094,8 @@ export async function pullCourses(
   }
 
   /*
-   * And the teachers' numbers, which are in no deck and arrive beside
-   * them.
+   * And the teachers' numbers, which arrive beside the decks and are filed
+   * into whichever of them holds a part of them.
    *
    * Read through the boundary reader first, so what is folded into
    * somebody's collection is the narrowed shape and not whatever came
@@ -4107,10 +4107,12 @@ export async function pullCourses(
   const now = Date.now();
   for (const set of systems) {
     const lang = LANGUAGES[set.numbers.languageId];
+    const composer = composerFor(set.numbers.languageId);
+    const timeComposer = timeComposerFor(set.numbers.languageId);
     const made = generate({
-      composer: composerFor(set.numbers.languageId),
+      composer,
       sys: set.numbers,
-      timeComposer: timeComposerFor(set.numbers.languageId),
+      timeComposer,
       timeSys: set.times,
       /* Filed under a name of its own in the card list, the way a deck's
          title files its cards: they are material, and a learner looking
@@ -4123,7 +4125,15 @@ export async function pullCourses(
        that card is a box now. See handOn, which reads what the migration
        wrote down and moves the schedule across — once, onto a card this
        device has never held. */
-    for (const item of handOn(made.items, items, set.numbers)) {
+    const handed = handOnSplit(handOn(made.items, items, set.numbers), items, parked, set.numbers.id);
+    /* And only the parts a deck holds, filed under that deck: numbers
+       arrive the way every other card does — see fileIntoDecks. A deck in
+       another language holds none of this system's. */
+    const holding = decks
+      .filter((d: Deck & { courseLanguage?: string }) => (d.lang || d.courseLanguage) === set.numbers.languageId)
+      .map((d: Deck) => ({ title: String(d.title || ""), parts: d.parts || [] }));
+    const filed = fileIntoDecks(handed, { composer, sys: set.numbers, timeComposer, timeSys: set.times }, holding);
+    for (const item of filed) {
       if (at.has(item.id)) continue;
       at.set(item.id, item);
       incoming.push(item);

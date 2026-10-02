@@ -954,6 +954,67 @@ test("a deck's phrases are sent with the cards that fill their variables", async
 });
 
 /*
+ * A deck holds parts of the numbers by name.
+ *
+ * Numbers are one document per language and not cards, so a deck cannot
+ * list them among its cards: it names the parts — 0 to 10, counting things
+ * 3 to 10 — and each student's device files them under it. What the
+ * server owes is to keep the list, keep it clean, refuse it on a locked
+ * deck, and move the version so a device that has the deck notices.
+ */
+test("a deck keeps the parts of the numbers it holds, and its students are told", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Huda" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Counting", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title: "Arabic numbers", language: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", { method: "POST", key, body: { deckId, courseId: course.json.course.id } });
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rami" } });
+  await api("/api/courses?action=assign-student", {
+    method: "POST", key, body: { courseId: course.json.course.id, handle: student.json.user.handle },
+  });
+  const first = await api("/api/courses?action=my-material", { key: student.json.key });
+
+  const set = await api("/api/courses?action=set-deck-parts", {
+    method: "POST", key,
+    body: { deckId, parts: ["numbers:0-10", "numbers:count-3-10", "numbers:0-10", "../../etc", 7, "numbers:1000+"] },
+  });
+  assert.equal(set.status, 200, JSON.stringify(set.json));
+  assert.deepEqual(set.json.parts, ["numbers:0-10", "numbers:count-3-10", "numbers:1000+"], "kept clean and once each");
+
+  const after = await api(`/api/courses?action=my-material&version=${first.json.version}`, { key: student.json.key });
+  assert.notEqual(after.json.unchanged, true, "the student's device was never told");
+  const sent = must((after.json.decks || []).find((/** @type {any} */ d) => d.id === deckId), "the deck");
+  assert.deepEqual(sent.parts, ["numbers:0-10", "numbers:count-3-10", "numbers:1000+"]);
+
+  /* Emptied, the list goes rather than staying as an empty one. */
+  await api("/api/courses?action=set-deck-parts", { method: "POST", key, body: { deckId, parts: [] } });
+  const emptied = await api("/api/courses?action=my-material", { key: student.json.key });
+  assert.equal(must((emptied.json.decks || []).find((/** @type {any} */ d) => d.id === deckId), "the deck").parts, undefined);
+
+  /* Locked is locked: which parts it holds is what it holds. */
+  await api("/api/courses?action=lock-deck", { method: "POST", key, body: { deckId, locked: true } });
+  const refused = await api("/api/courses?action=set-deck-parts", {
+    method: "POST", key, body: { deckId, parts: ["numbers:0-10"] },
+  });
+  assert.equal(refused.status, 409);
+  assert.equal(refused.json.error, "deck-locked");
+
+  /* And somebody else's deck is not theirs to change. */
+  const other = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Sami" } });
+  await api("/api/courses?action=lock-deck", { method: "POST", key, body: { deckId, locked: false } });
+  const theirs = await api("/api/courses?action=set-deck-parts", {
+    method: "POST", key: other.json.key, body: { deckId, parts: ["numbers:0-10"] },
+  });
+  assert.equal(theirs.status, 403);
+});
+
+/*
  * And the other two ways a blank names what fills it.
  *
  * A blank is filled four ways, and only one of them was ever bundled. A

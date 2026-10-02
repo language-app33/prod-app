@@ -28,8 +28,9 @@
  * edit, which is the failure this is written to avoid rather than one it
  * happens to escape.
  */
-import type { Item, Form, LangId, Millis } from "../types.ts";
+import type { Item, Form, LangId, Millis, Parked } from "../types.ts";
 import type {
+  Ask,
   Composer,
   FormKey,
   NumberSystem,
@@ -37,7 +38,8 @@ import type {
   TimeComposer,
   TimeSystem,
 } from "./types.ts";
-import { rangeChecks } from "./range.ts";
+import { askFor, rangeChecks, renderAsk, probeOf } from "./range.ts";
+import { SPLIT_FROM } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
 const safe = (s: string) => String(s).replace(/\|/g, "~");
@@ -426,4 +428,162 @@ export function handOn(fresh: Item[], held: Item[], sys: NumberSystem): Item[] {
     };
     return { ...item, forms };
   });
+}
+
+/* ---- a range split in parts ---- */
+
+/**
+ * What a learner had earned on a range that has since been split, handed
+ * to each of its parts.
+ *
+ * Counting things was one range and is three (see COUNTING_RANGES). The
+ * parts have ids of their own, so without this a learner who could count
+ * books would start each part from nothing. Same rules as handOn: only
+ * onto a part this device has never held, from the old range whether it
+ * is still here or set aside in the drawer, and nothing taken away.
+ */
+export function handOnSplit(
+  fresh: Item[],
+  held: Item[],
+  parked: Record<string, Parked>,
+  systemId: string,
+): Item[] {
+  const byId = new Map(held.map((i) => [i.id, i]));
+  return fresh.map((item) => {
+    const range = item.range;
+    const was = range ? SPLIT_FROM[range.id] : "";
+    if (!was || byId.has(item.id)) return item;
+    const oldId = rangeId(systemId, was);
+    const old = byId.get(oldId);
+    const states =
+      (old && old.forms[0] && old.forms[0].s) ||
+      ((parked[oldId] && parked[oldId].forms[`${oldId}-f0`]) || {}).s ||
+      {};
+    if (!Object.keys(states).length) return item;
+    const forms = item.forms.slice();
+    forms[0] = { ...forms[0], s: { ...states } };
+    return { ...item, forms };
+  });
+}
+
+/* ---- which deck a number is in ---- */
+
+/**
+ * The askings of a range worth reading for which words it uses.
+ *
+ * Every one, where there are few enough to say them all — up to 999, and
+ * every hour at every minute the range draws — and otherwise the probe
+ * that decides whether the range is open, with a few hundred draws beside
+ * it, which reach every word a thousand to a million is built of.
+ */
+function askingsOf(range: Range, sys: NumberSystem): Ask[] {
+  if (range.kind === "time") {
+    const minutes = range.marks && range.marks.length
+      ? range.marks
+      : Array.from({ length: 60 }, (_, m) => m);
+    const out: Ask[] = [];
+    for (let h = 0; h < 24; h += 1) {
+      for (const minute of minutes) {
+        out.push({ rangeId: range.id, kind: "time", value: h, minute, style: range.style || "colloquial", period: !!range.period });
+      }
+    }
+    return out;
+  }
+  const nouns = range.counted ? (sys.nouns || []).map((n) => n.id) : [undefined];
+  const values = range.to - range.from <= 1000
+    ? Array.from({ length: range.to - range.from + 1 }, (_, i) => range.from + i)
+    : probeOf(range).concat(
+        Array.from({ length: 300 }, (_, i) => askFor(range, `words ${i}`, sys).value),
+      );
+  return values.flatMap((value) =>
+    nouns.map((nounId) => ({ rangeId: range.id, kind: "numbers" as const, value, ...(nounId ? { nounId } : null) })),
+  );
+}
+
+/**
+ * The cards a range is built out of: every word that stands in one of its
+ * askings. A part put in a deck brings these with it — *forty* and
+ * *seven* come with 11 to 99 — so a learner is never asked a number whose
+ * words are in no deck they hold.
+ *
+ * `ids` is every card the system made, which is what a slot is matched
+ * against: a time is said partly in the clock's own words and partly in
+ * the numbers', and the slot alone does not say which.
+ */
+export function wordsOfRange(
+  range: Range,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  ids: Set<string>,
+): Set<string> {
+  const out = new Set<string>();
+  const numbersId = set.sys.id;
+  const timeId = set.timeSys ? set.timeSys.id : "";
+  for (const ask of askingsOf(range, set.sys)) {
+    const got = renderAsk(ask, set.composer, set.sys, set.timeComposer, set.timeSys);
+    for (const t of got.tokens) {
+      const candidates = t.override
+        ? [overrideId(numbersId, t.override)]
+        : t.slot
+        ? [
+            componentId(numbersId, t.slot),
+            timeId ? componentId(timeId, t.slot) : "",
+            /* A minute expression is written `minute.15` in a rendering and
+               made as `min.15` — see generate. */
+            timeId && t.slot.startsWith("minute.") ? componentId(timeId, `min.${t.slot.slice(7)}`) : "",
+          ]
+        : [];
+      for (const id of candidates) if (id && ids.has(id)) out.add(id);
+    }
+  }
+  return out;
+}
+
+/** A deck as far as filing numbers goes: its name, and the parts it holds. */
+export interface DeckParts {
+  title: string;
+  parts: string[];
+}
+
+/**
+ * A system's cards, filed under the decks that hold them — and the ones in
+ * no deck left out.
+ *
+ * A teacher puts a *part* in a deck — 0 to 10, telling the hour — and a
+ * deck reaches a learner's device as a tag on its cards, so that is what
+ * this writes: the part's skill gets the deck's name, and so does every
+ * word it is built of. A card in no deck is held back, not sent with a
+ * tag of nobody's: numbers used to reach every learner whatever their
+ * decks held, and now arrive the way every other card does. What a
+ * learner had earned on one held back is set aside by the fold, as for
+ * any card that leaves the material, and is waiting when it comes back.
+ *
+ * `decks` are the decks this learner holds in the system's language.
+ */
+export function fileIntoDecks(
+  items: Item[],
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  decks: DeckParts[],
+): Item[] {
+  const holding = decks.filter((d) => d.parts && d.parts.length);
+  if (!holding.length) return [];
+  const ids = new Set(items.map((it) => it.id));
+  const tags = new Map<string, Set<string>>();
+  const file = (id: string, title: string) => {
+    if (!tags.has(id)) tags.set(id, new Set());
+    (tags.get(id) as Set<string>).add(title);
+  };
+  const words = new Map<string, Set<string>>();
+  for (const it of items) {
+    const range = it.range;
+    if (!range) continue;
+    for (const deck of holding) {
+      if (!deck.parts.includes(range.id)) continue;
+      file(it.id, deck.title);
+      if (!words.has(range.id)) words.set(range.id, wordsOfRange(range, set, ids));
+      for (const id of words.get(range.id) as Set<string>) file(id, deck.title);
+    }
+  }
+  return items
+    .filter((it) => tags.has(it.id))
+    .map((it) => ({ ...it, tags: [...new Set(it.tags.concat([...(tags.get(it.id) as Set<string>)]))] }));
 }
