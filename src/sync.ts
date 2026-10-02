@@ -240,6 +240,12 @@ export function mergeData(local: Doc, remote: WireDoc | null): Doc {
     log[day] = Math.max(n, log[day] || 0);
   }
 
+  /* --- and the prep's share of it, by the same rule --- */
+  const prepLog = { ...(remote.prepLog || {}) };
+  for (const [day, n] of Object.entries(local.prepLog || {})) {
+    prepLog[day] = Math.max(n, prepLog[day] || 0);
+  }
+
   /* --- and what the ladder did, by the same rule, one count at a time.
      Adding them would double a day every time a device synced twice; the
      larger of the two is the honest answer, and it is what the cards
@@ -268,6 +274,7 @@ export function mergeData(local: Doc, remote: WireDoc | null): Doc {
     tombstones,
     parked,
     log,
+    prepLog,
     moves,
     settings: { ...local.settings, ...settings },
     settingsUpdated: Math.max(local.settingsUpdated || 0, remote.settingsUpdated || 0),
@@ -387,6 +394,7 @@ function forWire(data: Doc): Doc {
     tombstones: data.tombstones || {},
     parked: data.parked || {},
     log: data.log || {},
+    prepLog: data.prepLog || {},
     moves: data.moves || {},
     settings: data.settings,
     settingsUpdated: data.settingsUpdated || 0,

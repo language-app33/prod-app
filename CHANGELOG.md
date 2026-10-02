@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.306 — 2 October 2026
+
+**The prep tile counts only practice on your prep decks.**
+
+- "Today's sessions" on the prep tile now counts the exercises you answer
+  on cards in your prep decks, in any kind of session — the prep button,
+  Start session, Weak skills or a session you build yourself — shown as
+  sessions of 18. Practice on other decks no longer fills it.
+- "On track" is judged the same way: from your recent practice on the
+  prep decks, not all your practice.
+- The goal itself is unchanged: it was always worked out from what your
+  prep cards still need.
+- Counting starts with this release, so on the day it arrives "Today's
+  sessions" starts again from zero, and "On track" reads only from then.
+
 ## 0.305 — 2 October 2026
 
 **Numbers and pronouns go in decks, a part at a time.**

@@ -8218,6 +8218,9 @@ export default function ArabicTrainer() {
      may be in hand — see inHandFor. Read off the log every answer already
      writes, so it follows the learner without anything new to store. */
   const perDay = useMemo(() => typicalDay(data.log), [data.log]);
+  /* The same, over the prep's decks alone — the pace the prep tile holds
+     against its goal. See prepLog. */
+  const prepPerDay = useMemo(() => typicalDay(data.prepLog || {}), [data.prepLog]);
   /* What the question machinery reads: the device's cards, plus anything
      borrowed. Everything else in the app reads `items`, because nothing
      else should see a card that is not really here. */
@@ -8941,7 +8944,7 @@ export default function ArabicTrainer() {
       reset: at,
       updated: at,
     }));
-    persist({ ...data, items: cleared, log: {} });
+    persist({ ...data, items: cleared, log: {}, prepLog: {} });
     setSession(null);
     flash("Scheduling reset — nothing is due until you practice it");
   }
@@ -9872,6 +9875,8 @@ export default function ArabicTrainer() {
        function there and then rather than queuing it, so by the time this
        is read it holds what this answer actually moved. */
     let moving: { id: string; move: Move }[] = [];
+    const prep = prepOf(settings);
+    const forPrep = !!prep && prepDeckOf(prep.decks)(parentItem);
     persist((cur) => {
       const graded = gradeInto(cur.items, marks, {
         ...gradingFor(exercise, settings),
@@ -9908,8 +9913,7 @@ export default function ArabicTrainer() {
       return {
         ...cur,
         items: graded,
-        /* One question answered, however many words it marked. */
-        log: { ...cur.log, [day]: (cur.log[day] || 0) + 1 },
+        ...tallyAnswer(cur, day, forPrep),
         ...(stirred.length ? { moves: { ...(cur.moves || {}), [day]: tally } } : null),
       };
     });
@@ -10443,8 +10447,8 @@ export default function ArabicTrainer() {
                       prep={homePrep}
                       collection={shown}
                       settings={settings}
-                      perDay={perDay}
-                      today={(data.log || {})[dayKey()] || 0}
+                      perDay={prepPerDay}
+                      today={(data.prepLog || {})[dayKey()] || 0}
                     />
                   </div>
                 )}
@@ -14626,6 +14630,23 @@ export function prepStart(date: string): Millis {
 /** Whether a card is in any of the prep's decks. */
 export const prepDeckOf = (decks: string[]) => (it: Item) => (it.tags || []).some((t) => decks.includes(t));
 
+/**
+ * The day's counts with one more question answered: always the log, which
+ * counts all practice, and the prep's own count where the card asked is in
+ * the prep's decks — whatever kind of session asked it. One question
+ * however many words it marked. See prepLog.
+ */
+export function tallyAnswer(
+  doc: { log: Record<string, any>; prepLog?: Record<string, number> },
+  day: string,
+  forPrep: boolean,
+): { log: Record<string, any>; prepLog?: Record<string, number> } {
+  const log = { ...doc.log, [day]: (doc.log[day] || 0) + 1 };
+  if (!forPrep) return { log };
+  const prepLog = doc.prepLog || {};
+  return { log, prepLog: { ...prepLog, [day]: (prepLog[day] || 0) + 1 } };
+}
+
 /** Whole days from today to the prep's day: 1 is tomorrow. */
 export function prepDaysLeft(date: string, at: Millis = now()): number {
   return Math.round((prepStart(date) - dayOf(at)) / 86400000);
@@ -14823,8 +14844,9 @@ const PREP_DOTS = 8;
 
 /**
  * Today's sessions for the prep, and the sessions today that keep it on
- * track. Sessions are the log's questions over SESSION_SIZE, as the pace is,
- * and count all of today's practice.
+ * track. Sessions are questions over SESSION_SIZE, as the pace is — today's
+ * questions on the prep's own cards (`prepLog`), in any kind of session,
+ * because the goal is counted off those cards and nothing else.
  *
  * The rate readyFor gives shrinks as today's work is done, so read live it
  * would move the goal as the learner walks towards it. Today's goal puts

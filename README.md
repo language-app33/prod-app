@@ -316,7 +316,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   session holds. Under it, today's sessions against the day's goal
   (`prepToday`: the rate with today's sessions put back, so the goal does
   not shrink as it is worked towards), then the days left and whether the
-  learner's own pace gets them there.
+  learner's own pace gets them there. Both of those are read off
+  `prepLog`, a daily count of questions on cards in the prep's decks, kept
+  beside the log and merged the same way (`tallyAnswer`): the goal is
+  counted off those cards, so what is held against it is too, whichever
+  kind of session asked them. Read off the whole log, practice on another
+  deck filled today's sessions and moved the prep nowhere.
 - **A deck says when it could all be learnt — an estimate, by
   arithmetic.** A deck's tile under Progress opens the deck on a screen of
   its own: how far it has got, every card in it by where it stands, and two

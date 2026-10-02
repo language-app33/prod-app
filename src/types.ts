@@ -1317,6 +1317,18 @@ export interface Doc {
    * has been recorded.
    */
   moves?: Record<string, DayMoves>;
+  /**
+   * Questions answered each day on a card in the prep's decks, beside the
+   * count of every question in `log`.
+   *
+   * What the prep tile's "Today's sessions" and its pace are read from.
+   * They were read from `log`, which counts practice on any deck, while
+   * the goal beside them is counted off the prep's cards alone — so a
+   * session on another deck filled the count and moved the prep nowhere.
+   * Counted from the day it was introduced; absent before that, which
+   * reads as no prep practice yet.
+   */
+  prepLog?: Record<string, number>;
   /** Every document has them; EMPTY is where the defaults live. */
   settings: Settings;
   settingsUpdated?: Millis;
