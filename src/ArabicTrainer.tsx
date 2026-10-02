@@ -13745,11 +13745,11 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
           <div className="at-lengthor">or</div>
 
           <div className="at-lengthgroup">
-            <p className="at-label">Time</p>
+            <p className="at-label">Minutes</p>
             <Segmented
               size={null}
-              label="How long"
-              options={TIME_CHOICES.map((n) => ({ value: n, label: `${n} min` }))}
+              label="How many minutes"
+              options={TIME_CHOICES.map((n) => ({ value: n, label: String(n) }))}
               value={limitKind === "time" ? minutes : null}
               onChange={(n) => {
                 setLimitKind("time");

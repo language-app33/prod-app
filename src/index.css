@@ -412,6 +412,13 @@ button {
 .at-minicard .en { display:block; font-size:calc(12px * var(--tile, 1)); font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .at-lengthgroup { margin-bottom:14px; }
+/* The length is the one decision on this step, so its numbers are read
+   at a glance rather than squinted at. Bare numbers — the unit is in the
+   heading — which is what lets five of them stay this size on one row of
+   a phone. The type still grows with the track, as every segmented
+   row's does, from a larger floor to a larger ceiling. */
+.at-lengthgroup .at-seg { font-size: clamp(16px, calc(var(--seg) * 0.3), 24px);
+  min-height:52px; }
 .at-lengthor { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.1em;
   text-transform:uppercase; color: var(--faint); text-align:center; margin:6px 0 14px; }
 .at-handle { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:14px;

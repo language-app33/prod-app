@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.311 — 2 October 2026
+
+**Bigger numbers when choosing a session's length.**
+
+- On the last step of building a session, the number of questions and
+  the number of minutes are shown larger, on taller buttons. The time
+  choices are now headed "Minutes" and show just the number, so all five
+  still fit on one row of a phone.
+
 ## 0.310 — 2 October 2026
 
 **Longer custom sessions.**
