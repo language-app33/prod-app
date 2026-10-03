@@ -853,6 +853,26 @@ const clickNamed = (re) => {
 };
 /** @param {Element | null | undefined} el */
 const click = (el) => el && el.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
+/* The practice ticks under each form are folded since 0.322, under a
+   heading that says what is on. Opened wherever a check reads the ticks. */
+const openPractice = async () => {
+  for (const b of [...document.querySelectorAll('.at-drills > button.at-groupfold[aria-expanded="false"]')]) click(b);
+  await sleep(150);
+};
+/* A whole-card property is a toggle since 0.322: the group by its axis,
+   the button by its value's name. */
+const toggleGroup = (/** @type {string} */ axis) => /** @type {any} */ (
+  document.querySelector(`.at-segmented[aria-label="${axis}"]`) || null);
+const toggleNames = (/** @type {string} */ axis) =>
+  [...(toggleGroup(axis) ? toggleGroup(axis).querySelectorAll("button") : [])].map((b) => (b.textContent || "").trim());
+const toggleOn = (/** @type {string} */ axis) =>
+  [...(toggleGroup(axis) ? toggleGroup(axis).querySelectorAll('button[aria-pressed="true"]') : [])]
+    .map((b) => (b.textContent || "").trim()).join("");
+const pickToggle = async (/** @type {string} */ axis, /** @type {string} */ value) => {
+  click([...(toggleGroup(axis) ? toggleGroup(axis).querySelectorAll("button") : [])]
+    .find((b) => (b.textContent || "").trim() === value));
+  await sleep(200);
+};
 /** @param {RegExp} re */
 const buttonNamed = (re) =>
   [...document.querySelectorAll("button")].find((b) => re.test(b.textContent || ""));
@@ -4610,11 +4630,7 @@ const openPronounTables = async () => {
   await pickCardKind(/^Word or phrase/);
   await pickKind(/^Noun/);
   {
-    const kindAxis = () => /** @type {any} */ (
-      document.querySelector('[role="radiogroup"][aria-label="Person, animal or thing"]') || null);
-    click([...(kindAxis() ? kindAxis().querySelectorAll('input[type="radio"]') : [])]
-      .find((i) => i.getAttribute("aria-label") === "an animal"));
-    await sleep(250);
+    await pickToggle("Person, animal or thing", "Animal");
     const input = (/** @type {string} */ label) => /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
     const write = (/** @type {any} */ el, /** @type {string} */ value) => {
@@ -5871,6 +5887,7 @@ const openPronounTables = async () => {
           .find((r) => re.test(r.textContent || "")) : null;
         return row ? /** @type {any} */ (row.querySelector("input")) : null;
       };
+      await openPractice();
       check("a card in no group is a question of its own, like any other",
         !!ownTick(/On its own/) && ownTick(/On its own/).checked,
         ownTick(/On its own/) ? String(ownTick(/On its own/).checked) : "(no tick)");
@@ -5889,6 +5906,7 @@ const openPronounTables = async () => {
           !!formsRole && /A form is one shape of the word/.test(formsRole.textContent || "") &&
             !/main form of the card|Another form of the same card/.test(document.body.textContent || ""),
           formsRole ? (formsRole.textContent || "").trim() : "(no Forms heading)");
+        await openPractice();
         const drills = /** @type {any} */ (document.querySelector(".at-formtile.main .at-drills"));
         check("the practice ticks are explained once, under their heading, not in each tick",
           !!drills && /^Choose where this form comes up in practice\.( Inside sentence cards lets any sentence use it; each sentence chooses which kinds of form it wants\.)?$/.test(
@@ -5948,6 +5966,7 @@ const openPronounTables = async () => {
          the form goes off with it, where the teacher can see it and say
          otherwise. It used to be a hidden third state of a card-wide
          toggle nobody was shown. */
+      await openPractice();
       check("joining its first group stops it being asked on its own",
         !!ownTick(/On its own/) && !ownTick(/On its own/).checked,
         ownTick(/On its own/) ? String(ownTick(/On its own/).checked) : "(no tick)");
@@ -6045,6 +6064,7 @@ const openPronounTables = async () => {
       check("down to none, which is what an ordinary card is",
         ticked().length === 0 && fillNames().includes("friend"),
         ticked().join(", ") || "(none ticked)");
+      await openPractice();
       check("and leaving the last group makes it a question again",
         !!ownTick(/On its own/) && ownTick(/On its own/).checked,
         ownTick(/On its own/) ? String(ownTick(/On its own/).checked) : "(no tick)");
@@ -6111,6 +6131,7 @@ const openPronounTables = async () => {
        screen naming parts in the editor's own words; 0.179 asks it where
        the thing being drilled is. */
     {
+      await openPractice();
       const formBlock = [...document.querySelectorAll(".at-formblock")].find((b) =>
         /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
       const parts = formBlock ? [...formBlock.querySelectorAll(".at-part")] : [];
@@ -6118,17 +6139,19 @@ const openPronounTables = async () => {
          the top: the block above already says which form this is, and the
          others are named because they are additions to it. */
       check("a form is cut into subsections, and its own fields are the unnamed one",
-        parts.length >= 1 && !parts[0].querySelector(".at-groupline"),
-        parts.map((g) => ((g.querySelector(".at-groupline") || {}).textContent || "").trim() || "(unnamed)")
+        parts.length >= 1 && !parts[0].querySelector(":scope > .at-groupline"),
+        parts.map((g) => ((g.querySelector(":scope > .at-groupline") || {}).textContent || "").trim() || "(unnamed)")
           .join(" | ") || "(no subsections)");
       const drills = parts.length ? parts[0].querySelector(".at-drills") : null;
       check("an ordinary word says what of it is drilled, beside the word", !!drills,
         [...document.querySelectorAll(".at-formnum, .at-groupline")]
           .map((n) => n.textContent).join(" | "));
+      /* Its heading is the fold that opens it since 0.322; the name is the
+         heading's first line. */
+      const drillName = () => drills
+        ? ((drills.querySelector(".at-groupfold > span") || {}).textContent || "").trim() : "";
       check("named for what it answers about, which is this form",
-        !!drills && /^How this form can be practiced$/.test(
-          ((drills.querySelector(".at-drillhead") || {}).textContent || "").trim()),
-        drills ? ((drills.querySelector(".at-drillhead") || {}).textContent || "").trim() : "(no heading)");
+        /^How this form can be practiced$/.test(drillName()), drillName() || "(no heading)");
       const only = drills ? [...drills.querySelectorAll(".at-tickrow")] : [];
       check("two ticks — on its own, and inside sentence cards — both on",
         only.length === 2 && /On its own/.test(only[0].textContent || "") &&
@@ -6351,10 +6374,8 @@ const openPronounTables = async () => {
       /* What the card itself is asked, which since 0.191 is a line of
          radios under the kind of word rather than an axis on every
          answer. */
-      const cardAxis = () => /** @type {any} */ (
-        document.querySelector('[role="radiogroup"][aria-label="Person, animal or thing"]') || null);
-      const axisPicks = () => [...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
-        .map((i) => i.getAttribute("aria-label") || "");
+      const cardAxis = () => toggleGroup("Person, animal or thing");
+      const axisPicks = () => toggleNames("Person, animal or thing");
       const askAxes = async () => {
         click(grammarBtn());
         await sleep(200);
@@ -6398,16 +6419,15 @@ const openPronounTables = async () => {
          the plural as of the singular — so it is asked once, under the kind
          of word. And since 0.320 a noun's number is the box it is written
          in, so no answer of it is asked anything. */
-      const cardGender = () => /** @type {any} */ (
-        document.querySelector('[role="radiogroup"][aria-label="Gender"]') || null);
+      const cardGender = () => toggleGroup("Gender");
       check("a noun is asked whether it is a person, an animal or a thing, beside the kind of word it is",
         !!cardAxis() && !grammarBtn(),
         `${cardAxis() ? "asked once" : "not asked"} · answers ${grammarBtn() ? "asked their grammar" : "asked nothing"}`);
-      check("and it is one line of radios in the block that says what kind it is",
+      check("and it is one toggle in the block that says what kind it is",
         !!cardAxis() && !!cardAxis().closest(".at-formblock") &&
           /This card/.test(((cardAxis().closest(".at-formblock").querySelector(".at-formnum")) || {}).textContent || "") &&
-          ["a thing", "a person", "an animal"].every((v) => axisPicks().includes(v)),
-        axisPicks().join(" | ") || "(no radios)");
+          ["Thing", "Person", "Animal"].every((v) => axisPicks().includes(v)),
+        axisPicks().join(" | ") || "(no toggle)");
       /* A box per number, already marked, each with its own pronouns. */
       const nounBlocks = () => [...document.querySelectorAll(".at-formnum")]
         .map((n) => (n.textContent || "").trim());
@@ -6417,7 +6437,7 @@ const openPronounTables = async () => {
         nounBlocks().join(" | "));
       check("and a thing's gender is asked once, beside it, and may be left unset",
         !!cardGender() && !!cardGender().closest(".at-formblock") &&
-          [...cardGender().querySelectorAll('input[type="radio"]')].some((i) => i.getAttribute("aria-label") === "not set"),
+          toggleNames("Gender").includes("Not set"),
         cardGender() ? "asked" : "not asked");
       check("with no button to add a form beside the boxes",
         ![...document.querySelectorAll("button")].some((b) => /Add a form/.test(b.textContent || "")),
@@ -6425,22 +6445,15 @@ const openPronounTables = async () => {
       /* A thing until somebody says otherwise, and what they say is kept:
          it is one answer for the card, so there is nowhere else for it to
          be read back off. */
-      const axisOn = () => [...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
-        .filter((i) => /** @type {any} */ (i).checked)
-        .map((i) => i.getAttribute("aria-label") || "")
-        .join("");
-      check("and it starts as a thing, which is what most nouns are", axisOn() === "a thing", axisOn() || "(nothing chosen)");
-      click([...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
-        .find((i) => i.getAttribute("aria-label") === "a person"));
-      await sleep(200);
-      check("saying it is a person is the card's answer and stays said", axisOn() === "a person", axisOn() || "(nothing chosen)");
+      const axisOn = () => toggleOn("Person, animal or thing");
+      check("and it starts as a thing, which is what most nouns are", axisOn() === "Thing", axisOn() || "(nothing chosen)");
+      await pickToggle("Person, animal or thing", "Person");
+      check("saying it is a person is the card's answer and stays said", axisOn() === "Person", axisOn() || "(nothing chosen)");
       check("and a person has a masculine and a feminine side, and is not asked a gender",
         ["Masculine singular", "Masculine plural", "Feminine singular", "Feminine dual"].every((t) => nounBlocks().includes(t)) &&
           !cardGender(),
         nounBlocks().join(" | "));
-      click([...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
-        .find((i) => i.getAttribute("aria-label") === "a thing"));
-      await sleep(200);
+      await pickToggle("Person, animal or thing", "Thing");
 
       await pickKind(/^Adjective/);
       check("an adjective lays out the forms it takes beside a noun, and nothing else",
@@ -7131,6 +7144,7 @@ const openPronounTables = async () => {
       named.length === 2 && named[0] === "" && /^Its attached pronouns$/.test(named[1]) &&
         !!ends && !!ends.parentElement && ends.parentElement.closest(".at-part") === word,
       named.map((n) => n || "(unnamed)").join(" | ") || "(no subsections)");
+    await openPractice();
     const drillsIn = () => partsOf().map((g) => g.querySelector(":scope > .at-drills"));
     check("and each of them says for itself what is drilled",
       drillsIn().length === 2 && drillsIn().every(Boolean),

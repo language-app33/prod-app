@@ -2328,7 +2328,7 @@ function ReadBlanks({ card, lang, cards }: {
             <span className="at-groupcount">
               {combos ? plural(combos, "example") : "none yet"}
             </span>
-            <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+            <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
           </button>
           {open ? (
             asked.length ? (

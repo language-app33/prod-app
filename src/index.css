@@ -576,12 +576,12 @@ button {
 .at-deckdrop:focus-visible { outline:3px solid var(--brass); outline-offset:1px; }
 /* --faint rather than --line: a dashed edge is half absent to begin with,
    and the palette's rule colour leaves it invisible on the light theme. */
-.at-deckadd { display:inline-flex; align-items:center; gap:8px; min-height:48px;
+.at-deckadd, .at-tagadd { display:inline-flex; align-items:center; gap:8px; min-height:48px;
   padding-inline:18px; border-radius:999px; border:2px dashed var(--faint);
   background:none; color: var(--muted); font-family: var(--ui); font-size:14px;
   font-weight:700; text-align:start; }
-.at-deckadd:hover { border-color: var(--muted); color: var(--text); }
-.at-deckadd:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+.at-deckadd:hover, .at-tagadd:hover { border-color: var(--muted); color: var(--text); }
+.at-deckadd:focus-visible, .at-tagadd:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
 /* A deck in the list, which is a button saying what tapping it does rather
    than a tick saying what is already true. */
 .at-deckpicks { display:flex; flex-direction:column; gap:6px; }
@@ -1101,14 +1101,18 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    on the end and a chevron saying which way it goes. Its margin is
    written out rather than left to :not(:first-of-type), which counts
    buttons and paragraphs apart and would give this one no room. */
-.at-groupfold { display:flex; align-items:center; gap:8px; width:100%;
+/* The heading on its own line, what is in it under it, and the chevron
+   beside the two of them — a grid, so the markup stays name, count, icon
+   and only the layout says where each goes. */
+.at-groupfold { display:grid; grid-template-columns:minmax(0,1fr) auto;
+  column-gap:10px; row-gap:2px; align-items:center; width:100%;
   min-height:38px; margin:14px 0 8px; padding:0; border:0; background:none;
   cursor:pointer; text-align:start; color: var(--accent); }
-.at-groupfold > span:first-child { min-width:0; }
-.at-groupfold .at-groupcount { margin-inline-start:auto; flex:0 0 auto;
+.at-groupfold > span:first-child { min-width:0; grid-column:1; grid-row:1; }
+.at-groupfold .at-groupcount { grid-column:1; grid-row:2; justify-self:start;
   font-size:11px; font-weight:700; letter-spacing:0; text-transform:none;
   color: var(--muted); }
-.at-groupfold .at-ic { flex:0 0 auto; }
+.at-groupfold .at-ic { grid-column:2; grid-row:1 / span 2; }
 .at-groupfold:hover .at-groupcount { color: var(--text-soft); }
 .at-groupfold:focus-visible { outline:3px solid var(--brass); outline-offset:3px;
   border-radius: var(--r-sm); }

@@ -221,6 +221,8 @@ const PLACES: Record<string, [string, string]> = {
   PartBlock: [TEACH, "A language's number system · a section of a part's screen"],
   PartScreen: [TEACH, "A language's number system · one part, on a screen of its own"],
   WordGrid: [TEACH, "A language's number system · the words a part is built out of"],
+  FoldedBox: [TEACH, "Editing a card · a box most nouns leave empty, folded"],
+  GrammarToggles: [TEACH, "Editing a card · what is true of the whole word, as toggles"],
   TwoWordsBlock: [TEACH, "A language's number system · choosing one word before a noun where two were written"],
   CountedSection: [TEACH, "A language's number system · the noun cards a counting part counts"],
   PartDecks: [TEACH, "A language's number system · the decks that hold a part"],

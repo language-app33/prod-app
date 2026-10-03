@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.322 — 3 October 2026
+
+**Noun properties are toggles, and more of a card folds away.**
+
+- On a noun card, "Person, animal or thing" and "Gender" are now the same
+  toggle used for the theme in App preferences, instead of rows of round
+  buttons. Gender still starts with "Not set", so it can be left blank.
+- "How this form can be practiced" under each form now starts folded,
+  like "Its attached pronouns". Its heading says what is on — "on its
+  own · in sentences", or "not practised" — and tapping it opens the
+  ticks.
+- The "Plural after 3 to 10" box on Arabic noun cards is folded the same
+  way, since almost every noun leaves it empty. Its heading shows the word
+  written in it, or "none yet".
+- Every folded heading in the app now shows its summary ("none yet",
+  "3 of 8 written", "12 examples") on a line under its name, with a larger
+  arrow beside them.
+- "Add custom tags" on a card now looks exactly like "Add this card to a
+  deck": the same dotted outline, size and lettering.
+
 ## 0.321 — 3 October 2026
 
 **Palestinian numbers from three to nineteen have one word before a noun,

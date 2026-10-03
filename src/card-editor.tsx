@@ -276,6 +276,47 @@ function GrammarRadios({ dims, values, onPick, of, bare }: {
 }
 
 /*
+ * What is true of the whole card, one axis to a toggle.
+ *
+ * The same toggle App preferences sets the theme with: a card has one
+ * answer to each of these and a teacher sets it once, so it is asked the
+ * way a setting is rather than as a row of radios beside each answer's
+ * own grammar. Each axis under its own name; a value's name loses its
+ * article, which reads as a sentence in a list and as clutter on a button
+ * ("a thing" is *Thing*). An axis a language does not insist on starts
+ * with *Not set*, so a value chosen by mistake can be taken back.
+ */
+function GrammarToggles({ dims, values, onPick, bare }: {
+  dims: GrammarDim[];
+  values: Record<string, any>;
+  onPick: (field: string, value: string) => void;
+  /** Without the axis's name, where the caller's own label asks the
+      question. */
+  bare?: boolean;
+}) {
+  const name = (label: string) => {
+    const plain = String(label || "").replace(/^an? /i, "");
+    return plain.charAt(0).toUpperCase() + plain.slice(1);
+  };
+  return (
+    <div>
+      {dims.map((dim) => (
+        <Field key={dim.field} label={bare ? undefined : dim.label}>
+          <Segmented
+            label={dim.label}
+            options={(dim.required ? [] : [{ value: "", label: "Not set" }]).concat(
+              dim.options.map(([v, label]) => ({ value: v, label: name(label) })),
+            )}
+            value={String(values[dim.field] || "")}
+            onChange={(v) => onPick(dim.field, String(v))}
+          />
+        </Field>
+      ))}
+    </div>
+  );
+}
+
+/*
  * The same list, where the language also has a transliteration — and each
  * answer's own grammar.
  *
@@ -5529,7 +5570,7 @@ function WordGrammar({ lang, word }: { lang: Lang; word: WordDraft }) {
   if (genderDim) {
     return (
       <Field label={`${categoryLabel(lang, category) || "Word"} property`} className="at-mt3">
-        <GrammarRadios
+        <GrammarToggles
           dims={[...dims, { ...genderDim, required: false }]}
           values={{ ...cardGrammar(), gender: nounGender }}
           onPick={(field, value) => (field === "gender" ? setNounGender(value) : setCardDim(field, value))}
@@ -5553,7 +5594,7 @@ function WordGrammar({ lang, word }: { lang: Lang; word: WordDraft }) {
       lede={only ? only.help : ""}
       className="at-mt3"
     >
-      <GrammarRadios dims={dims} values={cardGrammar()} onPick={setCardDim} bare={!!only} />
+      <GrammarToggles dims={dims} values={cardGrammar()} onPick={setCardDim} bare={!!only} />
       {only ? null : (
         <Help>
           True of the whole card, its other forms included. It is what the
@@ -6748,7 +6789,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
     >
       {/* And whether this form is drilled, at the foot of the fields it is
           about rather than in a list at the bottom of the screen. */}
-      {drills && mine && <DrillChecks word={word} part={mine} />}
+      {drills && mine && <DrillChecks word={word} part={mine} fold />}
       {/* Whatever else belongs to this form — its table of attached
           pronouns — inside its panel, under its fields and their ticks. */}
       {children}
@@ -6757,6 +6798,33 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
     {i === 0 && <ReferenceField word={word} lang={lang} />}
   </div>
     </>
+  );
+}
+
+/*
+ * A box most cards leave empty, folded under its own name.
+ *
+ * The same heading-that-opens-it a form's attached pronouns use, so it
+ * reads as the same thing: what is in it said under the name, and one tap
+ * to open it. Folded from the start even where it is written, as the
+ * pronouns are: the word in it is on the heading.
+ */
+function FoldedBox({ title, said, children }: { title: string; said: string; children: Node }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="at-part at-foldedbox">
+      <button
+        type="button"
+        className="at-groupline at-groupfold"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{title}</span>
+        <span className="at-groupcount">{said || "none yet"}</span>
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
+      </button>
+      {open && children}
+    </div>
   );
 }
 
@@ -6821,7 +6889,7 @@ function PronounTable({ word, lang, index: i, form: f }: {
         <span className="at-groupcount">
           {written ? `${filled} of ${total} written` : "none yet"}
         </span>
-        <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
       </button>
       {open && (
       <>
@@ -6951,9 +7019,15 @@ const drillLede = (of: DrillOf): string =>
    allow it. */
 const LEND_LEDE = "Inside sentence cards lets any sentence use it; each sentence chooses which kinds of form it wants.";
 
-function DrillChecks({ word, part, label = "How this form can be practiced", of = "this form", lede = true }: {
+function DrillChecks({ word, part, label = "How this form can be practiced", of = "this form", lede = true, fold = false }: {
   word: WordDraft;
   part: AskPart;
+  /** Folded under a heading that opens it, the way a form's attached
+      pronouns are — for the ticks under each form, where a pair of them
+      and a paragraph about them under every box made a noun card a screen
+      of the same question. The heading says what is chosen, which is
+      the thing worth knowing without opening it. */
+  fold?: boolean;
   /* What the ticks are about, in the caller's words: one form under its
      own fields, and a table of them under the table. */
   label?: string;
@@ -6964,7 +7038,45 @@ function DrillChecks({ word, part, label = "How this form can be practiced", of 
   lede?: boolean;
 }) {
   const { canLend, setAskPart, setLendPart } = word;
+  const [open, setOpen] = useState(false);
   const chosen = [part.on ? "ask" : "", canLend && part.lends ? "lend" : ""].filter(Boolean);
+  if (fold) {
+    const said = [part.on ? "on its own" : "", canLend && part.lends ? "in sentences" : ""].filter(Boolean);
+    /* The same box the ticks have always been in, with the heading that
+       opens it in place of their name — so the ticks are where they were,
+       one tap further in. */
+    return (
+      <div className="at-drills">
+        <button
+          type="button"
+          className="at-groupline at-groupfold"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span>{label}</span>
+          <span className="at-groupcount">{said.length ? said.join(" · ") : "not practised"}</span>
+          <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
+        </button>
+        {open && lede ? (
+          <p className="at-hint at-drilllede">
+            {drillLede(of)}
+            {canLend ? " " + LEND_LEDE : null}
+          </p>
+        ) : null}
+        {open && (
+          <CheckList
+            options={[
+              { id: "ask", title: "On its own" },
+              ...(canLend ? [{ id: "lend", title: "Inside sentence cards" }] : []),
+            ]}
+            chosen={chosen}
+            onToggle={(id, wasOn) => (id === "ask" ? setAskPart : setLendPart)(part.id, !wasOn)}
+          />
+        )}
+        {open && !part.on && !(canLend && part.lends) && <Help>Kept and shown, and never asked or lent anywhere.</Help>}
+      </div>
+    );
+  }
   return (
     <div className="at-drills">
       {label ? <span className="at-drillhead">{label}</span> : null}
@@ -7278,9 +7390,13 @@ function TagList({ word, rows, maker, full, open, onOpen, onClose }: {
         </div>
       ) : null}
       <div>
-        <Button variant="ghost" size="sm" icon="add" onClick={onOpen}>
+        {/* Drawn as the deck button at the top of the card is — the same
+            dotted outline of something not there yet — because it is the
+            same act: putting this card somewhere it will be found. */}
+        <button type="button" className="at-tagadd" onClick={onOpen}>
+          <Icon name="add" size={17} />
           Add custom tags
-        </Button>
+        </button>
       </div>
       {open && (
         <TagSheet word={word} rows={rows} maker={maker} full={full} onClose={onClose} />
@@ -7982,7 +8098,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               <span className="at-groupcount">
                 {combos ? plural(combos, "example") : "none yet"}
               </span>
-              <Icon name={examplesOpen ? "chevronUp" : "chevronDown"} size={16} />
+              <Icon name={examplesOpen ? "chevronUp" : "chevronDown"} size={24} />
             </button>
             {examplesOpen && (asked.length > 0 ? (
               <>
@@ -8525,7 +8641,7 @@ function NounEditor({ word, lang, allCards, selfId }: {
         {nounBoxList.map((box) => {
           const i = box.key in nounPlaced.at ? nounPlaced.at[box.key] : -1;
           const f = i >= 0 ? forms[i] : emptyBox(box);
-          return (
+          const tile = (
             <FormBlock
               /* By the box and not by where its form sits: the card's own
                  word can change places with another box's (see leadFirst),
@@ -8551,6 +8667,14 @@ function NounEditor({ word, lang, allCards, selfId }: {
               {i >= 0 && !box.unasked && <PronounTable word={word} lang={lang} index={i} form={f} />}
             </FormBlock>
           );
+          /* A box nearly every noun leaves empty — the plural after three
+             to ten — folds under its own name, the way a form's pronouns
+             do, and says under it what is written. */
+          return box.unasked ? (
+            <FoldedBox key={box.key} title={box.title} said={String(f.ar || "").trim()}>
+              {tile}
+            </FoldedBox>
+          ) : tile;
         })}
         {nounPlaced.extras.map((i, k) => (
           <FormBlock
