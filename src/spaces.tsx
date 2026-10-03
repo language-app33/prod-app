@@ -5735,7 +5735,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
             setSystems((held) =>
               held ? { ...held, signed: { ...(held.signed || {}), [r.id]: r.signed } } : held,
             );
-          }, "Signed off — students get this version")
+          }, "Published")
         }
       />
     );

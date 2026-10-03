@@ -3595,6 +3595,10 @@ body.at-screening .at-chromebar { display:none; }
 /* The parts of the numbers, one tile each, and the line on each saying
    where it stands — green once a student can be asked it, the way the
    reach list it replaced coloured an open range. */
+/* Publish, and under it the one line worth reading about it: what the
+   students do not have yet. */
+.at-publish { display:flex; flex-direction:column; align-items:flex-start; gap:6px; margin:0 0 12px; }
+.at-publishnote { margin:0; font-size: var(--fs-sm); color: var(--brass); font-weight:600; }
 .at-numparts { display:flex; flex-direction:column; gap:8px; }
 .at-numstate { font-size:13px; color: var(--muted); margin:0; }
 .at-numstate[data-open] { color: var(--jade); }

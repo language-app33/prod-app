@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.318 — 3 October 2026
+
+**"Sign off" is now "Publish".**
+
+- On the number screen, the button that sends your numbers to students is
+  called Publish. Save keeps your changes for you; Publish is what
+  students get. Once published, the button reads "Published".
+- When students don't have your latest numbers yet, a line under the
+  button says so: "Unpublished changes", or "Not published yet" for
+  numbers that have never been published. If you have changes that aren't
+  saved yet, the line tells you to save them first.
+
 ## 0.317 — 3 October 2026
 
 **A part's screen looks and works like a card's, and every part has
