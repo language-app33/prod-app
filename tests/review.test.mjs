@@ -538,7 +538,7 @@ test("a student is asked it the way the teacher's list shows it", () => {
  * A Person card is one person unless it says more, and always a person:
  * ليلى with her number left blank takes تعبانة, and a family marked plural
  * takes تعبانين — the plural that only people take. Its gender is never
- * guessed: رامي with none is asked beside no verb person, and since 0.318
+ * guessed: رامي with none is asked beside no verb person, and since 0.320
  * beside no adjective either, which used to take the masculine for him.
  */
 test("a person is singular unless it says otherwise, and always a person", () => {

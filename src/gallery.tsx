@@ -210,7 +210,7 @@ const PLACES: Record<string, [string, string]> = {
   ContextReport: [TEACH, "A deck · how much of it appears in phrases"],
   PronounsEditor: [TEACH, "A language's pronouns, written once"],
   NumberSystemEditor: [TEACH, "A language's number system"],
-  SignOff: [TEACH, "A language's number system · signing a version off for students"],
+  PublishBar: [TEACH, "A language's number system · publishing a version for students"],
   ReviewLine: [TEACH, "A card · where its sentences stand with review"],
   ReviewScreen: [TEACH, "Reviewing a card's sentences"],
   OverCeiling: [TEACH, "Reviewing a card's sentences · too many to read"],

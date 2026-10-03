@@ -4318,6 +4318,17 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   click(row ? row.querySelector("input") : null);
   await sleep(320);
 };
+/* A form's table of attached pronouns is folded inside the form's own
+   panel since 0.319, under a heading that opens it — so a check that reads
+   its boxes opens every one first. */
+const pronounFolds = () => [...document.querySelectorAll(".at-formtile .at-groupfold")]
+  .filter((b) => /^Its /.test(((b.querySelector("span") || {}).textContent) || ""));
+const openPronounTables = async () => {
+  for (const b of pronounFolds()) {
+    if (b.getAttribute("aria-expanded") !== "true") click(b);
+  }
+  await sleep(150);
+};
 
 /* ---- a conversation, opened by the teacher who wrote it ----
    Opening one from Teaching > Cards put the word editor up: one script
@@ -6354,6 +6365,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       };
 
       await pickKind(/^Preposition/);
+      await openPronounTables();
       check("a preposition takes the pronouns on its end, and is asked no number or gender",
         boxes(/attached pronouns · me$/).length > 0 && !grammarBtn() && !boxes(/for past · he$/).length,
         `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
@@ -6381,9 +6393,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !cardAxis(), cardAxis() ? "the kind block asks it anyway" : "not asked");
 
       await pickKind(/^Noun/);
+      await openPronounTables();
       /* Person, animal or thing is one fact about the card — as true of
          the plural as of the singular — so it is asked once, under the kind
-         of word. And since 0.318 a noun's number is the box it is written
+         of word. And since 0.320 a noun's number is the box it is written
          in, so no answer of it is asked anything. */
       const cardGender = () => /** @type {any} */ (
         document.querySelector('[role="radiogroup"][aria-label="Gender"]') || null);
@@ -6652,6 +6665,24 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     saved().map((r) => (r.textContent || "").slice(0, 24)).join(" | "));
   await pickKind(/^Noun/);
 
+  /* The table is the form's, so it is inside the form's own panel — the
+     one its fields are in — and folded there under a heading that opens
+     it, which is what keeps a card with a plural from being two screens
+     of boxes. */
+  const folds = pronounFolds();
+  check("each form's attached pronouns sit inside that form's own panel",
+    folds.length === 2 && folds.every((b) => {
+      const panel = b.closest(".at-part");
+      const outer = panel && panel.parentElement ? panel.parentElement.closest(".at-part") : null;
+      return !!outer && !!outer.querySelector(":scope > .at-formhead");
+    }),
+    `${folds.length} folds`);
+  check("and are folded away until opened",
+    folds.length > 0 && folds.every((b) => b.getAttribute("aria-expanded") === "false") &&
+      ![...document.querySelectorAll("input")].some((i) => /attached pronouns/.test(i.getAttribute("aria-label") || "")),
+    folds.map((b) => b.getAttribute("aria-expanded")).join(" | ") || "(no folds)");
+  await openPronounTables();
+
   const attachedCell = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
@@ -6711,7 +6742,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     attachedCell("Arabic for past · he") ? "both tables are up" : "one table at a time");
   /* The word's own block stays. A verb whose dictionary form is a cell
      replaces it; an attached pronoun is a form of the word, not a
-     stand-in for it. And since 0.318 a noun's blocks are its boxes: the
+     stand-in for it. And since 0.320 a noun's blocks are its boxes: the
      word is the singular, and the plural it carried is in the plural's. */
   const blockOrder = () =>
     [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
@@ -6733,6 +6764,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     blockOrder().join(" | "));
   typeIn(attachedCell("Arabic for dual"), "كتابين");
   await sleep(300);
+  await openPronounTables();
   check("and writing in it makes it a form, with a table of its own",
     !!attachedCell("Arabic for dual") && attachedCell("Arabic for dual").value === "كتابين" &&
       !!attachedCell("Arabic for form 3 · attached pronouns · me"),
@@ -7031,6 +7063,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const box = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
+  await openPronounTables();
   const me = box("Arabic for attached pronouns · me");
   check("a saved word with pronouns on its end opens on its pronouns",
     !!me && me.value === "قلمي", me ? `"${me.value}"` : "no such box");
@@ -7076,20 +7109,29 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      looking at the pronoun table they had just filled in had to scroll
      past everything else to a line called "Its attached pronouns" and work
      out that it meant the table above. Now each subsection asks for
-     itself, at its own foot: the word, and the pronouns on the end of it. */
+     itself, at its own foot: the word, and the pronouns on the end of it —
+     which since 0.319 is a subsection inside the word's, folded under a
+     heading of its own. */
   {
-    /* A noun's own word is its singular's box since 0.318. */
+    /* A noun's own word is its singular's box since 0.320. */
     const partsOf = () => {
       const block = [...document.querySelectorAll(".at-formblock")].find((b) =>
         /^Singular$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
       return block ? [...block.querySelectorAll(".at-part")] : [];
     };
-    const named = partsOf().map((g) =>
-      ((g.querySelector(".at-groupline") || {}).textContent || "").trim());
-    check("the form is cut into the word and the pronouns on its end",
-      named.length === 2 && named[0] === "" && /^Its attached pronouns$/.test(named[1]),
+    /* A subsection's own heading, and not one inside it: the pronouns'
+       panel sits in the word's, and its fold is a heading the word's
+       panel holds but is not named by. A fold's count is not its name. */
+    const named = partsOf().map((g) => {
+      const head = g.querySelector(":scope > .at-groupline");
+      return head ? (((head.querySelector("span") || head).textContent) || "").trim() : "";
+    });
+    const [word, ends] = partsOf();
+    check("the form is cut into the word and the pronouns on its end, inside the word's panel",
+      named.length === 2 && named[0] === "" && /^Its attached pronouns$/.test(named[1]) &&
+        !!ends && !!ends.parentElement && ends.parentElement.closest(".at-part") === word,
       named.map((n) => n || "(unnamed)").join(" | ") || "(no subsections)");
-    const drillsIn = () => partsOf().map((g) => g.querySelector(".at-drills"));
+    const drillsIn = () => partsOf().map((g) => g.querySelector(":scope > .at-drills"));
     check("and each of them says for itself what is drilled",
       drillsIn().length === 2 && drillsIn().every(Boolean),
       drillsIn().map((d) => !!d).join(", "));

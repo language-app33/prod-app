@@ -939,7 +939,7 @@ test("what a kind of word lays out, and what it is asked about, is the category'
   assert.deepEqual(fields(""), dimsOf(ar).map((d) => d.field));
   assert.deepEqual(fields("particle"), dimsOf(ar).map((d) => d.field));
   /* Hebrew has no person-or-thing rule for agreement, but it is asked
-     there too since 0.318: it is what gives a person or an animal a
+     there too since 0.320: it is what gives a person or an animal a
      masculine and a feminine side. Still within the pack's list. */
   assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "noun").map((d) => d.field), ["number", "gender", "human"]);
   assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "person").map((d) => d.field), ["number", "gender"]);

@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.318 — 3 October 2026
+## 0.320 — 3 October 2026
 
 **Noun cards come with a box for each form, and people and animals have a
 masculine and a feminine side.**
@@ -37,6 +37,31 @@ masculine and a feminine side.**
 - Counting uses the plural and pair form from the same side as the word
   it counts, so a card holding both masculine and feminine plurals is
   counted correctly.
+
+## 0.319 — 3 October 2026
+
+**On a noun card, each form's attached pronouns now sit inside that form's
+panel and fold away.**
+
+- The table of pronouns on the end of a word (my book, your book …) used
+  to stand as a separate panel under each form. It is now inside the
+  form's own panel, under its fields and its practice ticks, so it reads as
+  part of that form.
+- The table starts folded. Its heading says how many of its boxes are
+  written, for example "3 of 8 written", or "none yet". Tap the heading to
+  open it and again to fold it.
+
+## 0.318 — 3 October 2026
+
+**"Sign off" is now "Publish".**
+
+- On the number screen, the button that sends your numbers to students is
+  called Publish. Save keeps your changes for you; Publish is what
+  students get. Once published, the button reads "Published".
+- When students don't have your latest numbers yet, a line under the
+  button says so: "Unpublished changes", or "Not published yet" for
+  numbers that have never been published. If you have changes that aren't
+  saved yet, the line tells you to save them first.
 
 ## 0.317 — 3 October 2026
 

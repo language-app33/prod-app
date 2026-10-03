@@ -6727,11 +6727,12 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
       {/* And whether this form is drilled, at the foot of the fields it is
           about rather than in a list at the bottom of the screen. */}
       {drills && mine && <DrillChecks word={word} part={mine} />}
+      {/* Whatever else belongs to this form — its table of attached
+          pronouns — inside its panel, under its fields and their ticks. */}
+      {children}
     </FormFields>
 
     {i === 0 && <ReferenceField word={word} lang={lang} />}
-
-    {children}
   </div>
     </>
   );
@@ -6744,6 +6745,8 @@ function PronounTable({ word, lang, index: i, form: f }: {
   form: Record<string, any>;
 }) {
   const { forms, parts, shownSpec, cells, setCells, mintCell, setRecordingCell } = word;
+  /* Whether the table is open. Folded to start with — see below. */
+  const [open, setOpen] = useState(false);
   if (!shownSpec || !shownSpec.perForm) return null;
   const of = i === 0 ? "" : String(f.id || "");
   /* This table's own line of what is drilled. Absent while the table is
@@ -6751,9 +6754,11 @@ function PronounTable({ word, lang, index: i, form: f }: {
      these wait on that word being known, so there would be nothing for a
      tick to open. See askParts. */
   const mine = parts.find((p) => p.id === `table:${of}`);
-  const written = cellsIn({ subs: cells }, shownSpec, of).some(
+  const filled = cellsIn({ subs: cells }, shownSpec, of).filter(
     (c) => String(c.ar || "").trim() || String(c.en || "").trim(),
-  );
+  ).length;
+  const written = filled > 0;
+  const total = tensesOf(shownSpec).length * personsOf(shownSpec).length;
   /* ---- the pronouns this form takes on its end ----
 
       Part of the form rather than a section beside it, which is
@@ -6772,10 +6777,32 @@ function PronounTable({ word, lang, index: i, form: f }: {
       The same component the verb's table uses, because it is
       the same thing: cells of a table over the card's own
       sub-forms. Inline, so the eye reads it as belonging to the
-      block it is in. */
+      block it is in.
+
+      Inside the form's own panel since 0.319, rather than a panel
+      beside it in the form's tile — the table is the form's, so it
+      sits in the form's subsection, under its fields and ticks. And
+      folded, with the same heading-that-opens-it the filled examples
+      use: a table of eight or more rows under every form made a card
+      with a plural two screens of boxes before anything else on it,
+      and the heading says how much of it is written, which is the
+      thing worth knowing without opening it. */
   return (
     <div className="at-part">
-      <p className="at-groupline">Its {shownSpec.label || "table"}</p>
+      <button
+        type="button"
+        className="at-groupline at-groupfold"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>Its {shownSpec.label || "table"}</span>
+        <span className="at-groupcount">
+          {written ? `${filled} of ${total} written` : "none yet"}
+        </span>
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+      </button>
+      {open && (
+      <>
       <VerbTable
         inline
         lang={lang}
@@ -6815,6 +6842,8 @@ function PronounTable({ word, lang, index: i, form: f }: {
           that word being known.
         </p>
       ) : null}
+      </>
+      )}
     </div>
   );
 }
@@ -6834,7 +6863,7 @@ function AddFormButton({ word }: { word: WordDraft }) {
         an accepted answer, written beside the one it is an
         alternative to, and never a form of its own.
 
-        A noun is not offered one since 0.318: its forms are its boxes,
+        A noun is not offered one since 0.320: its forms are its boxes,
         one per number and a side per gender — see NounEditor. What is
         left on the attached editor is a preposition.
 

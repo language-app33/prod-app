@@ -122,18 +122,24 @@ function stable(value: unknown): string {
   return JSON.stringify(value === undefined ? null : value);
 }
 
-/* ---- signing a version off ---- */
+/* ---- publishing a version ---- */
 
 /**
  * Where a system stands with its students, and the button that moves it.
  *
  * A language's numbers run to the millions and nobody can read them all,
- * so what a teacher signs off is the sample on this screen — one of every
- * shape the language can get wrong — and *Try a number* for anything else.
- * Students are sent the version last signed off; an edit waits for the
- * next sign-off rather than reaching them unread.
+ * so what a teacher publishes is what they have checked on this screen —
+ * the sample, and *Check a number* for anything else. Students are sent
+ * the version last published; a save is the teacher's own working copy and
+ * waits for the next Publish rather than reaching them unread.
+ *
+ * It was called signing off, which said what the teacher was doing and not
+ * what it did, beside a Save button that sounded like the thing that
+ * reached students. So it is one button, Publish, and a line under it only
+ * when there is something the students do not have yet — which is the one
+ * thing worth knowing about it at a glance.
  */
-function SignOff({
+function PublishBar({
   kind,
   system,
   signed,
@@ -151,25 +157,28 @@ function SignOff({
   if (!system || !system.id || !onSignOff) return null;
   const what = kind === "times" ? "times" : "numbers";
   const said = signed && Object.prototype.hasOwnProperty.call(signed, system.id) ? signed[system.id] : undefined;
-  if (said === system.rev) {
-    return (
-      <Notice kind="ok">
-        {`Signed off. Students get these ${what} as they are saved now.`}
-      </Notice>
-    );
-  }
-  const note =
-    said === undefined
-      ? `Students get these ${what} as saved. Check the list below and sign off. After that, changes reach students only when you sign off again.`
-      : said === null
-        ? `Students don't get these ${what} yet. Check the list below, then sign off.`
-        : `You've changed these ${what} since you last signed off. Students still get the signed-off version until you sign off again.`;
+  const published = said === system.rev;
+  /* Absent is a system nobody has edited since publishing existed, which
+     students get as it is saved — there is nothing waiting, and nothing
+     to say until it is edited. */
+  const line = unsaved
+    ? "Unpublished changes: save them, then publish."
+    : said === null
+      ? `Not published yet: students don't get these ${what}.`
+      : said !== undefined && !published
+        ? "Unpublished changes: students still get the version you last published."
+        : "";
   return (
-    <div className="at-reviewbanner">
-      <span>{unsaved ? `${note} Save your changes first.` : note}</span>
-      <Button size="sm" variant="primary" disabled={unsaved || busy} onClick={() => onSignOff(kind, system)}>
-        Sign off
+    <div className="at-publish">
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={published || unsaved || busy}
+        onClick={() => onSignOff(kind, system)}
+      >
+        {published ? "Published" : "Publish"}
       </Button>
+      {line ? <p className="at-publishnote">{line}</p> : null}
     </div>
   );
 }
@@ -406,7 +415,7 @@ export function NumberSystemEditor({
         onChange={setTab}
       />
 
-      <SignOff
+      <PublishBar
         kind={tab}
         system={tab === "times" ? times : numbers}
         signed={signed}
