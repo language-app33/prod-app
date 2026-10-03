@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.317 — 3 October 2026
+
+**On a noun card, each form's attached pronouns now sit inside that form's
+panel and fold away.**
+
+- The table of pronouns on the end of a word (my book, your book …) used
+  to stand as a separate panel under each form. It is now inside the
+  form's own panel, under its fields and its practice ticks, so it reads as
+  part of that form.
+- The table starts folded. Its heading says how many of its boxes are
+  written, for example "3 of 8 written", or "none yet". Tap the heading to
+  open it and again to fold it.
+
 ## 0.316 — 3 October 2026
 
 **The number screen is organised by part, counting uses your noun cards,

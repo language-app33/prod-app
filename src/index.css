@@ -1081,6 +1081,12 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    answer the question the panel above them poses, so they are separated
    from it the way the panel is separated from its neighbours. */
 .at-drills { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+/* A subsection inside a subsection — a form's table of attached pronouns,
+   in the form's own panel. Raised off the well it sits in, so the two
+   hairlines read as one panel within another rather than two wells
+   stacked, and parted from the ticks above it as they are from the
+   fields. */
+.at-part > .at-part { margin-top:12px; background: var(--raised); }
 /* Except the first one under a heading of its own. The rule is there to
    part the ticks from the fields they are the foot of; the practice
    section has no fields above them, so it drew a line between a heading
