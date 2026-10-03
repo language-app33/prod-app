@@ -28,6 +28,8 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
     ["leave-session", "The ✕ at the top left, which offers to end the session.", ""],
     ["session-count", "How far through you are, or the clock in a timed session.", "3 / 20 · 4:35"],
     ["session-progress", "The bar beside it, which fills as the session goes on.", ""],
+    ["session-pause", "The small button after the bar in a timed session, which stops the clock and starts it again.", ""],
+    ["session-paused", "What stands in for the question while a timed session is paused, with the way to carry on.", "Paused · Carry on"],
   ]],
   [QUESTION, [
     ["question-instruction", "The line telling you what to do. The same shape in every exercise.", "Write in English"],

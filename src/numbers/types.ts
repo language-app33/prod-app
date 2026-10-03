@@ -91,11 +91,12 @@ export interface Lexeme {
 /**
  * A noun the agreement exercise counts.
  *
- * Here rather than read off the teacher's noun cards because no card
- * carries a dual: the grammar axis this app declares is singular, plural
- * or neither. Reading real cards waits on that axis gaining a dual, which
- * is append-only work and on the backlog; until then the handful of nouns
- * an exercise needs are written where the numbers are.
+ * Read off the teacher's own noun cards — see nouns.ts — since 0.316: a
+ * noun's answers can say singular, plural and dual, which was the one
+ * thing that kept them out. The list a system used to carry of its own is
+ * gone, and a system's `nouns` is filled in from the cards wherever it is
+ * rendered rather than stored. The clock's word for *minute* is still one
+ * of these, written on the clock, because it is not a card anybody keeps.
  */
 export interface CountedNoun {
   id: string;
@@ -104,6 +105,12 @@ export interface CountedNoun {
   pl: string;
   gender: "m" | "f";
   en: string;
+  /** The English of the plural, where the card says it — *children*,
+      which no rule makes out of *child*. */
+  enPl?: string;
+  /** Whether it is a person or a thing, as the card says, so what stands
+      beside a counted phrase in a sentence agrees with it. */
+  human?: string;
 }
 
 /** What a teacher may hand-correct: one number, or one number in one
@@ -138,6 +145,14 @@ export interface NumberSystem {
   /** A recording for a whole number the composer would otherwise build
       out of parts — keyed like an override. */
   curatedAudio?: Record<string, string[]>;
+  /**
+   * The blanks each part of the numbers fills, by the part's id —
+   * `numbers:0-10` → `["age"]`. A sentence card with `{{age}}` in it is
+   * filled with a number from that part, written out by the composer, and
+   * a counting part fills it with a number and a thing counted. The names
+   * share the namespace every blank does; see fillerCards in generate.ts.
+   */
+  fills?: Record<string, string[]>;
   /** Which cards this system was seeded from, by slot or override key.
       Written once by the migration and read by a device deciding whose
       progress a component card inherits. */

@@ -425,3 +425,31 @@ test("what a learner earned counting things carries into each of its three parts
   assert.deepEqual(byId(held, rangeId(SYS.id, "numbers:0-10")).forms[0].s, {});
 });
 
+
+/* ---- the language's own figures ---- */
+
+test("a card for one number carries it in the language's own figures, and no other card does", async () => {
+  const { LANGUAGES } = await import("../src/languages.ts");
+  const numerals = must(LANGUAGES["ar-PS"].numerals, "Arabic's figures");
+  const { items } = made({ numerals });
+  const three = byId(items, componentId(SYS.id, "unit.3"));
+  assert.equal(three.numeral, "٣");
+  for (const it of items) {
+    if (!it.numeral) continue;
+    assert.ok(/^[٠-٩٬]+$/.test(it.numeral), `${it.id} carries ${it.numeral}`);
+  }
+  assert.ok(items.filter(isRangeSkill).every((it) => !it.numeral), "a skill is not one number");
+  /* A pack without figures of its own leaves every card as it was. */
+  assert.ok(made().items.every((it) => !("numeral" in it)));
+});
+
+test("Arabic writes its figures digit for digit, with its own thousands mark", async () => {
+  const { LANGUAGES } = await import("../src/languages.ts");
+  const write = must(LANGUAGES["ar-PS"].numerals, "Arabic's figures");
+  assert.equal(write(0), "٠");
+  assert.equal(write(40), "٤٠");
+  assert.equal(write(1000), "١٬٠٠٠");
+  assert.equal(write(2000000), "٢٬٠٠٠٬٠٠٠");
+  assert.equal(write(-1), "");
+  assert.equal(LANGUAGES["vi-Hue"].numerals, undefined);
+});

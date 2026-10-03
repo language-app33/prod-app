@@ -3410,6 +3410,74 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and every one of them actually started", openings.length === 6, `${openings.length} started`);
 }
 
+/* ---- pausing a timed session ----
+   A clock that cannot be stopped turns a knock at the door into lost
+   minutes. Pausing holds the countdown and the bar where they are and
+   hides the question, so the pause is not free thinking time; carrying on
+   picks up with the same time left. A counted session has nothing to
+   pause, so it offers nothing. */
+{
+  click(buttonNamed(/^Start session$/));
+  await sleep(400);
+  check("a counted session has no pause, because nothing is running out",
+    !!document.querySelector(".at-instruction") && !document.querySelector('[data-el="session-pause"]'));
+  click(document.querySelector('[data-el="leave-session"]'));
+  await sleep(150);
+  click(buttonNamed(/^Leave$/));
+  await sleep(300);
+
+  click(buttonNamed(/Build a session|Choose what to practice|Pick cards/));
+  await sleep(300);
+  click([...document.querySelectorAll(".at-modecard")].find((b) => /Regular/.test(b.textContent || "")));
+  await sleep(60);
+  clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
+  await sleep(150);
+  click([...document.querySelectorAll(".at-tagpickmain")].find((b) => /Introductions/.test(b.textContent || "")));
+  await sleep(80);
+  clickNamed(/^(Next|Choose at least one card)$/);
+  await sleep(150);
+  const groups = [...document.querySelectorAll(".at-lengthgroup")];
+  const minutesGroup = groups.find((g) => /Minutes/.test(g.textContent || ""));
+  click(minutesGroup && [...minutesGroup.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "2"));
+  await sleep(60);
+  clickNamed(/^(Start|Choose a length)$/);
+  await sleep(400);
+
+  const clockText = () => ((document.querySelector('[data-el="session-count"]') || {}).textContent || "").trim();
+  const pauseBtn = () => document.querySelector('[data-el="session-pause"]');
+  check("a timed session counts down and offers a pause beside the bar",
+    /^\d+:\d\d$/.test(clockText()) && !!pauseBtn(), `${clockText()} / ${pauseBtn() ? "pause" : "no pause"}`);
+
+  click(pauseBtn());
+  await sleep(100);
+  const held = clockText();
+  const root = document.querySelector(".at");
+  check("pausing hides the question and says it is paused",
+    !!root && root.classList.contains("paused") && !!document.querySelector('[data-el="session-paused"]'),
+    root ? root.className : "no root");
+  check("and the pause button turns into play",
+    (pauseBtn() || { getAttribute: () => null }).getAttribute("aria-label") === "Carry on",
+    (pauseBtn() || { getAttribute: () => "no button" }).getAttribute("aria-label") || "");
+  await sleep(1600);
+  check("while paused the clock does not move", clockText() === held, `${held} then ${clockText()}`);
+
+  click(buttonNamed(/^Carry on$/));
+  await sleep(100);
+  check("carrying on brings the question back with the time it had",
+    !!root && !root.classList.contains("paused") && clockText() === held &&
+      !!document.querySelector(".at-instruction"),
+    `${held} then ${clockText()}`);
+  await sleep(1600);
+  check("and the clock runs again", clockText() !== held, `${held} then ${clockText()}`);
+
+  click(document.querySelector('[data-el="leave-session"]'));
+  await sleep(150);
+  click(buttonNamed(/^Leave$/));
+  await sleep(300);
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+}
+
 /* ---- a word, and the phrase it turns up in ----
    The seeded course holds كتاب and "الكتاب كبير", and the phrase says it
    teaches the word. What that link is worth is the whole of this block:
@@ -7748,12 +7816,39 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const saves = /** @type {{ kind: string, sys: any }[]} */ ([]);
   const system = emptyNumberSystem("n1", "lena", "ar-PS", Date.now(), 1);
 
+  /* The decks in the language, as the teaching space hands them over, and
+     what was asked of them: a part ticked on its own screen is the same
+     setting a deck's own screen writes. */
+  const deckCalls = /** @type {[string, string, boolean][]} */ ([]);
+  const decks = [
+    { id: "d1", title: "Lesson 1", parts: [] },
+    { id: "d2", title: "Lesson 2", parts: ["numbers:0-10"] },
+    { id: "d3", title: "Old lesson", parts: [], locked: true },
+  ];
+  /* And one noun card, which is what a counting part counts — no list of
+     nouns is written on this screen any more. Its words are the golden
+     system's, so this file holds none. */
+  const { readFileSync: readGoldenNouns } = await import("node:fs");
+  const goldNoun = JSON.parse(readGoldenNouns(path.resolve("tests/golden/ar-PS.numbers.json"), "utf8")).system.nouns[0];
+  const nounCards = [{
+    id: "c-book", lang: "ar-PS", category: "noun",
+    forms: [
+      { ar: goldNoun.sg, en: "book", lat: "", number: "singular", gender: "masculine" },
+      { ar: goldNoun.pl, en: "books", lat: "", number: "plural", gender: "masculine" },
+    ],
+  }];
+
   const draw = (/** @type {any} */ numbers) =>
     editorRoot.render(
       React.createElement(NumberSystemEditor, {
         lang: LANGUAGES["ar-PS"],
         numbers,
         times: null,
+        cards: nounCards,
+        decks,
+        onDeckPart: (/** @type {string} */ deckId, /** @type {string} */ rangeId, /** @type {boolean} */ on) => {
+          deckCalls.push([deckId, rangeId, on]);
+        },
         onSave: (/** @type {string} */ kind, /** @type {any} */ sys) => {
           saves.push({ kind, sys });
         },
@@ -7767,10 +7862,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      the div this mounted into, and looking there would find an empty
      screen that is in fact drawn and working.
 
-     Named, because this walk steps through three of them: the grid, the
-     screen one number is written out on, and the one a number is tried on.
-     Asking for "the screen" would find whichever was drawn first and quietly
-     pass while the wrong one was up. */
+     Named, because this walk steps through several of them: the parts, one
+     part, the screen one number is written out on, and the one a number is
+     checked on. Asking for "the screen" would find whichever was drawn
+     first and quietly pass while the wrong one was up. */
   const screenNamed = (/** @type {string} */ name) =>
     document.querySelector(`.at-screen[aria-label="${name}"]`);
   const panel = () => screenNamed("Number system") || host;
@@ -7782,23 +7877,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     const all = [...document.querySelectorAll(".at-screen")];
     return all[all.length - 1] || host;
   };
-
-  draw(system);
-  await sleep(200);
-  check("the number system's editor opens on a grid of boxes",
-    panel().querySelectorAll(".at-numrow").length > 20,
-    `${panel().querySelectorAll(".at-numrow").length} rows`);
-  check("and says nothing can be asked yet",
-    /waiting on|not yet/.test(panel().textContent || ""),
-    (panel().textContent || "").slice(0, 160).replace(/\s+/g, " "));
-
-  /* One word typed into a box, and the line for that number says it. The
-     preview is the composer itself, so there is nothing here that could be
-     right while what a student meets is wrong. */
   const boxNamed = (/** @type {string} */ name) =>
     [...up().querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === name);
   const buttonIn = (/** @type {RegExp} */ re) =>
     [...up().querySelectorAll("button")].find((b) => re.test((b.textContent || "").trim()));
+  const tileNamed = (/** @type {string} */ name) =>
+    [...up().querySelectorAll(".at-deckcard")].find((t) => (t.querySelector(".at-decktitle") || {}).textContent === name);
   const typeIn = (/** @type {any} */ box, /** @type {string} */ text) => {
     const setValue = must(
       Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
@@ -7807,31 +7891,62 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     must(setValue, "the input's value setter").call(box, text);
     box.dispatchEvent(new w.Event("input", { bubbles: true }));
   };
+  const goBack = async () => {
+    click(buttonIn(/^Back$/) || (up().querySelector && up().querySelector(".at-back")));
+    await sleep(250);
+  };
+
+  draw(system);
+  await sleep(200);
+  const tiles = [...panel().querySelectorAll(".at-numparts .at-deckcard")];
+  check("the number system's editor opens on its parts, one button each",
+    tiles.length >= 7 && !!tileNamed("Numbers 0 to 10") && !!tileNamed("Numbers 11 to 99"),
+    tiles.map((t) => (t.textContent || "").trim()).join(" | "));
+  check("and each says what it is waiting for",
+    /waiting on/.test((tileNamed("Numbers 0 to 10") || {}).textContent || ""),
+    ((tileNamed("Numbers 0 to 10") || {}).textContent || "").trim());
+  check("with no boxes on the main screen any more",
+    panel().querySelectorAll(".at-numrow").length === 0,
+    `${panel().querySelectorAll(".at-numrow").length} rows`);
+  check("and the things-to-count list gone",
+    !/Things to count/.test(panel().textContent || ""));
+  const order = (panel().textContent || "");
+  check("check a number sits above what a student will be asked",
+    order.indexOf("Check a number") > -1 && order.indexOf("Check a number") < order.indexOf("What a student will be asked"),
+    `${order.indexOf("Check a number")} · ${order.indexOf("What a student will be asked")}`);
+
+  /* One part opens on a screen of its own, with the words it is the first
+     to need. */
+  click(tileNamed("Numbers 0 to 10"));
+  await sleep(250);
+  check("a part opens on a screen of its own",
+    !!screenNamed("Numbers 0 to 10"),
+    ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
+  check("which holds the boxes for one to ten and none of the tens",
+    up().querySelectorAll(".at-numrow").length === 11 && !boxNamed("40, counting"),
+    `${up().querySelectorAll(".at-numrow").length} rows`);
 
   const sevenBox = boxNamed("7, counting");
   check("and every box is named by the number it is and the face of it",
     !!sevenBox,
-    [...panel().querySelectorAll("input")].slice(0, 4)
+    [...up().querySelectorAll("input")].slice(0, 4)
       .map((i) => i.getAttribute("aria-label")).join(" | "));
   if (sevenBox) {
     typeIn(sevenBox, "sab3a");
     await sleep(200);
   }
 
-  const rows = [...panel().querySelectorAll(".at-numsamplerow")];
+  /* One word typed into a box, and the line for that number says it. The
+     preview is the composer itself, so there is nothing here that could be
+     right while what a student meets is wrong. */
+  const rows = [...up().querySelectorAll(".at-numsamplerow")];
   const seven = rows.find((r) => (r.querySelector(".at-numfig") || {}).textContent === "7");
-  check("a word typed into a box is what the preview says for that number",
+  check("a word typed into a box is what the part's own list says for that number",
     !!seven && /sab3a/.test(seven.textContent || ""),
     seven ? (seven.textContent || "").trim() : `${rows.length} preview rows`);
-
-  /* A number the system cannot finish yet is marked as such, greyed,
-     rather than showing the half of it it managed as though that were the
-     answer. Nothing else on the screen is written down twice, so a row
-     that looked finished would be the screen saying this language calls
-     47 "seven". */
-  const partRows = [...panel().querySelectorAll(".at-numsamplerow[data-part]")];
+  const partRows = [...up().querySelectorAll(".at-numsamplerow[data-part]")];
   check("a number it cannot say in full yet says so on the line",
-    partRows.length > 10 && /not yet/.test((partRows[0] || {}).textContent || ""),
+    partRows.length > 5 && /not yet/.test((partRows[0] || {}).textContent || ""),
     `${partRows.length} of ${rows.length} marked · ${((partRows[0] || {}).textContent || "").trim()}`);
   check("and the one it can say is not marked",
     !!seven && !seven.hasAttribute("data-part"),
@@ -7842,7 +7957,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const sevenLat = boxNamed("Transliteration for 7, counting");
   check("a box with a word in it asks how the word sounds",
     !!sevenLat,
-    [...panel().querySelectorAll("input")].map((i) => i.getAttribute("aria-label"))
+    [...up().querySelectorAll("input")].map((i) => i.getAttribute("aria-label"))
       .filter((l) => l && /Transliteration/.test(l)).slice(0, 3).join(" | ") || "(none asked)");
   check("and an empty box is not asked, because there is nothing to sound like",
     !boxNamed("Transliteration for 8, counting"));
@@ -7851,8 +7966,37 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     await sleep(200);
   }
 
-  /* A line that is wrong is tapped, and that is a screen of its own now
-     rather than a block unfolding under the list. */
+  /* The decks that hold the part: the same setting as a deck's own
+     screen, so ticking one here is a call the space saves straight away. */
+  const tick = (/** @type {string} */ title) =>
+    [...up().querySelectorAll(".at-tickrow")].find((r) => (r.textContent || "").includes(title));
+  check("the part lists the decks in its language, ticked where they hold it",
+    !!tick("Lesson 1") && !(/** @type {any} */ (must(tick("Lesson 1"), "Lesson 1").querySelector("input"))).checked &&
+      !!(/** @type {any} */ (must(tick("Lesson 2"), "Lesson 2").querySelector("input"))).checked,
+    [...up().querySelectorAll(".at-tickrow")].map((r) => (r.textContent || "").trim()).join(" | "));
+  check("and a locked deck cannot be ticked",
+    !!(/** @type {any} */ (must(tick("Old lesson"), "Old lesson").querySelector("input"))).disabled);
+  click(must(tick("Lesson 1"), "Lesson 1").querySelector("input"));
+  await sleep(150);
+  check("ticking a deck asks for the part to be put in it",
+    JSON.stringify(deckCalls[deckCalls.length - 1]) === JSON.stringify(["d1", "numbers:0-10", true]),
+    JSON.stringify(deckCalls));
+
+  /* And the blanks it fills. */
+  const blankBox = boxNamed("A blank this part fills");
+  check("the part has a box for a blank it fills", !!blankBox);
+  if (blankBox) {
+    typeIn(blankBox, "Age");
+    await sleep(150);
+    click(buttonIn(/^Add$/));
+    await sleep(200);
+  }
+  check("and a name added there is shown as a blank",
+    [...up().querySelectorAll(".at-numblank .at-blankname")].some((b) => b.textContent === "age"),
+    [...up().querySelectorAll(".at-blankname")].map((b) => b.textContent).join(" | ") || "(none)");
+
+  /* A line that is wrong is tapped, and that is a screen of its own rather
+     than a block unfolding under the list. */
   click(seven);
   await sleep(250);
   check("tapping a line opens a screen for writing that number out",
@@ -7876,16 +8020,32 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   if (keep) {
     click(keep);
     await sleep(250);
-    check("which puts the grid back with it filed among the numbers you wrote out",
-      !!screenNamed("Number system") && /Numbers you wrote out/.test(panel().textContent || ""),
-      (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    check("which goes back to the part, with it filed among the numbers you wrote out",
+      !!screenNamed("Numbers 0 to 10") && /Numbers you wrote out/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
 
-  /* And the third screen: type a number, see it said. */
-  click(buttonIn(/^Try a number$/));
+  /* A counting part counts the teacher's noun cards, and says what the
+     rest are missing. */
+  await goBack();
+  click(tileNamed("Counting things: 3 to 10"));
   await sleep(250);
-  check("there is a screen for trying a number out",
-    !!screenNamed("Try a number"),
+  check("a counting part lists the noun cards it counts",
+    !!screenNamed("Counting things: 3 to 10") && /Things counted/.test(up().textContent || "") && /book/.test(up().textContent || ""),
+    (up().textContent || "").slice(0, 240).replace(/\s+/g, " "));
+  await goBack();
+  click(tileNamed("Counting things: 1 and 2"));
+  await sleep(250);
+  check("and one that needs a pair form says which noun has none",
+    /no pair form/.test(up().textContent || ""),
+    (up().textContent || "").slice(0, 300).replace(/\s+/g, " "));
+  await goBack();
+
+  /* And the last screen: type a number, see it said. */
+  click(buttonIn(/^Check a number$/));
+  await sleep(250);
+  check("there is a screen for checking a number",
+    !!screenNamed("Check a number"),
     ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
   const tryBox = boxNamed("A number to try, in figures");
   check("with one box, for figures", !!tryBox);
@@ -7901,10 +8061,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /waiting on/.test(up().textContent || ""),
       (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
-  click(buttonIn(/^Back$/) || (up().querySelector && up().querySelector(".at-back")));
-  await sleep(250);
-  check("and coming back leaves the grid as it was",
-    !!screenNamed("Number system") && panel().querySelectorAll(".at-numrow").length > 20);
+  await goBack();
+  check("and coming back leaves the parts as they were",
+    !!screenNamed("Number system") && panel().querySelectorAll(".at-numparts .at-deckcard").length >= 7);
 
   const save = buttonIn(/^Save$/);
   check("and the footer offers to save once something has changed", !!save);
@@ -7922,6 +8081,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       saved
         ? `${JSON.stringify(saved.sys.lexemes["unit.7"])} · ${JSON.stringify(saved.sys.overrides)}`
         : "nothing saved");
+    check("and the blank the part fills, and no list of nouns",
+      !!saved && JSON.stringify(saved.sys.fills) === JSON.stringify({ "numbers:0-10": ["age"] }) && saved.sys.nouns.length === 0,
+      saved ? `${JSON.stringify(saved.sys.fills)} · ${saved.sys.nouns.length} nouns` : "nothing saved");
   }
 
   editorRoot.unmount();

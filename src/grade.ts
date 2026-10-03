@@ -85,7 +85,9 @@ export interface Verdict {
  * treating it as a blank is what sat such a card at a one-day interval for
  * ever — see reschedule, which gives it a floor.
  */
-const NEARLY = ["near", "harakat", "missing"];
+/* "ending" is an English answer a plural or a verb ending away from right:
+   the word is known, the form is not. See onlyEnding. */
+const NEARLY = ["near", "harakat", "missing", "ending"];
 
 /**
  * What the answer counts as.

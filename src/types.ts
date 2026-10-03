@@ -539,6 +539,19 @@ export interface Lang {
   /** And how it tells the time, which is a separate answer: a language
       may build numbers and have nobody yet who knows its clock. */
   times?: import("./numbers/types.ts").TimeComposer | null;
+  /**
+   * How this language writes a number in figures, where it has figures of
+   * its own — ٣ for 3 in Arabic — rather than the ones English uses.
+   *
+   * A function rather than ten characters, because not every numbering is
+   * a digit swapped for a digit, and a pack that has one of those can say
+   * so here without anything else having to change. "" for a number it
+   * cannot write. Here and not beside the composer, because the figures
+   * are the language's own letters and src/numbers/ holds none of those.
+   * A pack without one writes its numbers the way English does, and its
+   * number cards carry no figures of their own.
+   */
+  numerals?: (n: number) => string;
 }
 
 /**
@@ -1235,6 +1248,15 @@ export type Item = {
    * schedule — see src/numbers/generate.ts.
    */
   range?: SkillRange;
+  /**
+   * The number a card out of a number system stands for, in the figures
+   * its language writes numbers in — ٣ on the card for *three*.
+   *
+   * Written by the generation from the pack's `numerals`, so a language
+   * whose figures are the ones English uses has none, and neither does a
+   * card that is not one number: *hundred*, *and*, *a quarter past*.
+   */
+  numeral?: string;
   /**
    * The learner has asked for this card.
    *

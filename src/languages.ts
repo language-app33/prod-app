@@ -819,6 +819,17 @@ export function editDistance(a: string, b: string) {
    is none the wiser; every other pack gets this one.
    ------------------------------------------------------------------ */
 
+/*
+ * Punctuation a phone types for you, which the plain-ASCII lists in each
+ * language's marking did not know about. Phones turn ' and " into curly
+ * ones as you type, so "it’s" was one letter out of "it's" and “yes” was
+ * wrong outright. Punctuation is never what an answer is marked on: every
+ * language's marking removes this as well as its own list, and long
+ * dashes stand for a space, as hyphens already did.
+ */
+export const TYPED_PUNCT = /[‘’‚‛“”„‟‹›…¿¡]/g;
+export const TYPED_DASH = /[\u2010\u2011\u2012\u2013\u2014\u2015]/g;
+
 /* Sentence-ending punctuation, Latin and Arabic. */
 const SENTENCE_MARK = /[.!?،؛؟]/;
 
@@ -1289,7 +1300,7 @@ export function normViet(s: string, { stripTones }: { stripTones?: boolean }) {
      untouched, and it is not folded into d — the rules promise that typing
      d for đ is marked wrong, and for a while this line quietly broke that
      promise by doing exactly the folding it said it didn't. */
-  x = x.replace(/[.,!?;:'"()[\]]/g, "").replace(/[-\u2010\u2013_]/g, " ");
+  x = x.replace(/[.,!?;:'"()[\]]/g, "").replace(TYPED_PUNCT, "").replace(/[-_]/g, " ").replace(TYPED_DASH, " ");
   return x.replace(/\s+/g, " ").trim().normalize("NFC");
 }
 
@@ -2690,7 +2701,7 @@ export function normHe(s: string, { stripNiqqud, foldFinals }: { stripNiqqud?: b
     ? x.replace(NIQQUD, "")
     : x.replace(HE_MARK_RUN, (_, base, marks) => base + marks.split("").sort().join(""));
   if (foldFinals) x = x.replace(HE_FINALS, (c) => HE_FINAL_OF[c]);
-  return x.replace(HE_PUNCT, "").replace(/\s+/g, " ").trim();
+  return x.replace(HE_PUNCT, "").replace(TYPED_PUNCT, "").replace(TYPED_DASH, " ").replace(/\s+/g, " ").trim();
 }
 
 /* The same two-stage judgement as Arabic: the letters first, and only if
@@ -2922,6 +2933,16 @@ export const LANGUAGES: Record<LangId, Lang> = {
        src/numbers/ar-PS.ts, which holds the rule and not one word of it. */
     composer: composerFor("ar-PS"),
     times: timeComposerFor("ar-PS"),
+    /* Arabic's own figures, ٠ to ٩, which are what a learner meets on a
+       price or a bus: the digit for the digit, and the Arabic thousands
+       mark where English writes a comma. */
+    numerals: (n) =>
+      Number.isInteger(n) && n >= 0
+        ? n
+            .toString()
+            .replace(/\B(?=(\d{3})+$)/g, "٬")
+            .replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)])
+        : "",
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
     verdicts: {
@@ -3425,7 +3446,7 @@ export function normAr(
       .replace(/\u0621/g, "");
   }
   if (foldTaMarbuta) x = x.replace(/\u0629/g, "\u0647");
-  return x.replace(AR_PUNCT, "").replace(/\s+/g, " ").trim();
+  return x.replace(AR_PUNCT, "").replace(TYPED_PUNCT, "").replace(TYPED_DASH, " ").replace(/\s+/g, " ").trim();
 }
 
 /* Articles a learner may or may not type. Dropped before comparing, so
@@ -3435,8 +3456,8 @@ const LEADING = /^(to|the|a|an)\s+/;
 export function normEn(s: string) {
   let x = stripInvisible(s).trim().toLowerCase();
   x = x.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  x = x.replace(/[-\u2010\u2013\u2014_/]/g, " "); // hyphenation is not a spelling test
-  x = x.replace(/[.,!?;:'"()[\]]/g, "").replace(/\s+/g, " ").trim();
+  x = x.replace(/[-_/]/g, " ").replace(TYPED_DASH, " "); // hyphenation is not a spelling test
+  x = x.replace(/[.,!?;:'"()[\]]/g, "").replace(TYPED_PUNCT, "").replace(/\s+/g, " ").trim();
   return x.replace(LEADING, "");
 }
 
@@ -3446,8 +3467,8 @@ export function normTr(s: string) {
   let x = stripInvisible(s).trim().toLowerCase();
   x = x.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // ā -> a, ṣ -> s
   x = x.replace(/[ʿʾʼʻ'`‘’]/g, ""); // ayn, hamza, apostrophes
-  x = x.replace(/[-‐–_]/g, " ");
-  x = x.replace(/[.,!?;:"()[\]]/g, "");
+  x = x.replace(/[-_]/g, " ").replace(TYPED_DASH, " ");
+  x = x.replace(/[.,!?;:"()[\]]/g, "").replace(TYPED_PUNCT, "");
   return x.replace(/\s+/g, " ").trim();
 }
 
@@ -3499,6 +3520,11 @@ export function checkEn(given: string, expected: string) {
      little more. */
   const unnoted = normEn(String(given).replace(PERSON_NOTE, ""));
   if (unnoted !== g && forms.includes(unnoted)) return { ok: true, reason: "exact" };
+  /* Before the slip rule, because a dropped s is one letter and is not a
+     slip: "photo" for "photos" is the singular for the plural, and "live"
+     for "she lives" is the wrong person. A learner reported being marked
+     right for exactly that. */
+  if (forms.some((e) => onlyEnding(g, e))) return { ok: false, reason: "ending" };
   if (forms.some((e) => tight(e).length >= EN_SLIP_MIN && editDistance(g, e) === 1))
     return { ok: true, reason: "typo" };
   const near = forms.some((e) => editDistance(g, e) <= Math.max(1, Math.round(e.length * 0.25)) && sameWords(g, e));
@@ -3524,6 +3550,29 @@ export function checkEn(given: string, expected: string) {
  * dropped, or two run together — there is nothing to line up, and the
  * whole-answer measure above stands on its own, as before.
  */
+/*
+ * Whether two English answers differ only in an s, es or ies on the end of
+ * one word: photo / photos, box / boxes, city / cities, live / lives.
+ *
+ * That ending is grammar — one or many, I or she — so it is never a typo,
+ * however short the step from one to the other. It is a near miss: the
+ * word is known, the form is not. A doubled s is left alone, so "glas" for
+ * "glass" is still the slip it looks like.
+ */
+export function onlyEnding(given: string, expected: string): boolean {
+  const mine = given.split(" ");
+  const theirs = expected.split(" ");
+  if (mine.length !== theirs.length) return false;
+  const differ = mine.map((w, i) => [w, theirs[i]]).filter(([a, b]) => a !== b);
+  if (differ.length !== 1) return false;
+  const [a, b] = differ[0];
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  if (!short) return false;
+  if (long === short + "s") return !long.endsWith("ss");
+  if (long === short + "es") return true;
+  return short.endsWith("y") && long === short.slice(0, -1) + "ies";
+}
+
 function sameWords(given: string, expected: string): boolean {
   const mine = given.split(" ");
   const theirs = expected.split(" ");
@@ -3855,6 +3904,8 @@ export function verdictText(result: Record<string, any>, lang?: Lang) {
   if (result.reason === "harakat") return verdictWord(lang, "partial");
   if (result.reason === "missing") return verdictWord(lang, "missing");
   if (result.reason === "near") return verdictWord(lang, "near");
+  if (result.reason === "ending")
+    return "Nearly — but the ending changes the meaning (one or more, I or she), so it is not counted as a typo.";
   return "Not quite";
 }
 

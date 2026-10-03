@@ -4369,3 +4369,44 @@ teacher to fill. The addressee tag on a Huế form is long beside a word
 in the card list. Feedback lines that name a form are whole sentences with
 gaps (`src/wording.ts`), which changes nothing on screen today and is
 there for the day the app's own wording is translated.
+
+## Counting reads the noun cards, and a number lends itself like a name
+
+**3 October 2026** · `src/numbers/nouns.ts`; `countable` in `src/numbers/range.ts`; `homesOf` and `fillerCards` in `src/numbers/generate.ts`; `PartScreen` in `src/number-system-editor.tsx`
+
+Three choices made together, because the number screen was rebuilt around
+the parts of the numbers (0 to 10, 11 to 99, counting things…) and each
+part needed somewhere to stand.
+
+**The nouns a counting question counts are the teacher's noun cards.** A
+system used to carry its own short list, because no card could say a word
+was a pair; one can since 0.207. The stored list is no longer read and is
+dropped on the next save. A system's `nouns` is filled in wherever it is
+rendered — from the teacher's cards on their screen, and from the course
+cards a learner holds on theirs, so a learner is only asked to count words
+they are being taught. The cost: a teacher whose nouns lack a plural, a
+pair form or a gender has counting parts that stay shut until those cards
+are finished, and the part's screen says which. A noun is judged per part
+by rendering it (`countable`), so a noun without a pair form still counts
+from three; judging the whole list at once, as before, would have let one
+unfinished card hold every counting part shut for good.
+
+**Which part a box sits on is worked out, not declared.** Each part's
+numbers are built from a stand-in system with every box filled in with its
+own slot name, and a box goes to the first part whose numbers use it. A
+composer that changes how it builds a number moves its boxes with it, and
+Huế's 11 to 99, built only out of the words for one to ten, ends up with no
+boxes of its own — which is the truth, and its screen says so.
+
+**A part fills a sentence's blank the way a name does.** A part names
+blanks (`fills` on the system); a sentence with one of them is filled with
+a number from that part, written out by the composer, and a counting part
+fills it with a number and a noun in agreement. The numbers are made into
+cards that are borrowed and never asked (`drill: false`), so they climb
+with the sentence through the frame's own record of having met them — the
+rule `valuesAt` already had for names — rather than through the part's own
+schedule. Reading the part's schedule instead was considered and turned
+down: a sentence answered right would then have had to credit a skill whose
+questions it did not ask. Each part lends at most `FILLERS_PER_PART`
+numbers, spread over it and the same on every device, so the sentences a
+teacher reviews are the ones a learner is asked.

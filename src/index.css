@@ -227,6 +227,16 @@ button {
 .at-count { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.05em;
   color: var(--muted); white-space:nowrap; }
 .at-headline .at-progress { flex:1; margin-bottom:0; }
+/* Pause on a timed session: the same round outline as the way out at the
+   other end of the line, smaller, because it is used less. */
+.at-pause { flex-shrink:0; width:28px; height:28px; border-radius:999px; cursor:pointer;
+  background:none; border:2px solid var(--line); color: var(--muted); padding:0;
+  display:inline-flex; align-items:center; justify-content:center; }
+.at-pause:hover { color: var(--text); border-color: var(--muted); }
+.at-pause[aria-pressed="true"] { color: var(--jade); border-color: var(--jade); }
+.at.paused .at-exercise { display:none; }
+.at-pausednote { display:flex; flex-direction:column; align-items:center; gap:14px;
+  padding:48px 16px; text-align:center; }
 /* The question line, identical on every exercise.
    Its size, weight and colour never varied — but its height did: "Fill the
    gap" is one line and "Listen, then write it in arabic script" is two, so
@@ -3582,6 +3592,16 @@ body.at-screening .at-chromebar { display:none; }
 /* And the one box on the try-it screen, which is the whole of that
    screen's input and is read as figures. */
 .at-numtry { font-family: var(--mono); font-size:20px; font-variant-numeric: tabular-nums; }
+/* The parts of the numbers, one tile each, and the line on each saying
+   where it stands — green once a student can be asked it, the way the
+   reach list it replaced coloured an open range. */
+.at-numparts { display:flex; flex-direction:column; gap:8px; }
+.at-numstate { font-size:13px; color: var(--muted); margin:0; }
+.at-numstate[data-open] { color: var(--jade); }
+/* The blanks a part fills: each name as a blank is drawn everywhere, with
+   the button that takes it off beside it. */
+.at-numblanks { display:flex; flex-wrap:wrap; gap:8px; }
+.at-numblank { display:inline-flex; align-items:center; gap:4px; }
 @media (max-width: 560px) {
   .at-numlabel { flex:0 0 100%; padding-top:0; }
   .at-numfig { flex:0 0 68px; }
