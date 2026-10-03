@@ -41,8 +41,16 @@ import type {
 import { MINUTE_MARKS } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { blocking, rangeChecks, seeded } from "./numbers/range.ts";
+import { figureOf } from "./numbers/generate.ts";
 import { Button, Help, Meta, Notice, Screen, Section, Segmented, plural } from "./shared.tsx";
 import { RecordingScreen, ScriptInput } from "./card-editor.tsx";
+
+/** A box's number in the language's own figures, under the one it is
+    called by — "" where the pack has none or the box is not one number. */
+function numeralFor(lang: Lang, label: string): string {
+  const n = figureOf(label);
+  return lang.numerals && n != null ? lang.numerals(n) : "";
+}
 
 /* ---- what a preview shows ---- */
 
@@ -507,6 +515,13 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord, on
               <div className="at-numrow" key={slot.slot}>
                 <div className="at-numlabel">
                   <span className="at-numfig">{slot.label}</span>
+                  {numeralFor(lang, slot.label) ? (
+                    <Meta>
+                      <span lang={lang.id} dir={lang.direction}>
+                        {numeralFor(lang, slot.label)}
+                      </span>
+                    </Meta>
+                  ) : null}
                   {slot.hint ? <Meta>{slot.hint}</Meta> : null}
                 </div>
                 <div className="at-numboxes">

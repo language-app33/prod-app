@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 3 October 2026
+
+**Number cards show the number in the language's own figures.**
+
+- A card for a number out of a teacher's number system now also shows
+  that number the way the language writes it in figures. In Palestinian
+  Arabic the card for three shows ٣, forty shows ٤٠, and a thousand
+  shows ١٬٠٠٠. It is listed as "In figures" when you open the card, for
+  teachers and students alike.
+- The number system screen shows the same figure under each number a
+  teacher fills in.
+- Which figures a language uses is part of that language's settings, so
+  a language added later can have its own. Huế Vietnamese and Hebrew
+  write numbers with the same figures as English, so their cards are
+  unchanged.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**

@@ -2682,7 +2682,10 @@ function ReadKind({ card, lang }: { card: Record<string, any>; lang: Lang }) {
   const lead = leadOf(card) as Record<string, any>;
   const perCard = dimsSaid(lead).filter((dim) => dim.perCard);
   const name = String(card.name || "").trim();
-  if (!kind && !worth && !name && !perCard.length && !isSentence(card)) return null;
+  /* The number a card out of a number system stands for, as its language
+     writes it in figures — the thing a learner meets on a price tag. */
+  const numeral = String(card.numeral || "").trim();
+  if (!kind && !worth && !numeral && !name && !perCard.length && !isSentence(card)) return null;
   return (
     <section className="at-panel">
       <p className="at-eyebrow">What it is</p>
@@ -2695,6 +2698,13 @@ function ReadKind({ card, lang }: { card: Record<string, any>; lang: Lang }) {
       {isSentence(card) ? <ReadRow label="Shape">{A_SENTENCE}</ReadRow> : null}
       <ReadRow label="Listed as">{name ? <Written text={name} /> : null}</ReadRow>
       <ReadRow label="Worth">{worth}</ReadRow>
+      <ReadRow label="In figures">
+        {numeral ? (
+          <span lang={lang.id} dir={lang.direction}>
+            {numeral}
+          </span>
+        ) : null}
+      </ReadRow>
       {perCard.map((dim) => (
         <ReadRow key={dim.field} label={dim.label}>
           {dimText(dim, lead[dim.field])}
@@ -4119,6 +4129,9 @@ export async function pullCourses(
          for the word for forty should find it where they look for words. */
       tag: `${(lang && lang.name) || set.numbers.languageId} numbers`,
       now,
+      /* And the number each card stands for, in the language's own
+         figures where it has them — ٣ on the card for three. */
+      numerals: lang && lang.numerals,
     });
     /* And a learner who could already read the word for forty off the
        card their teacher wrote is not asked it again from scratch because

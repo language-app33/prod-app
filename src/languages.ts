@@ -2933,6 +2933,16 @@ export const LANGUAGES: Record<LangId, Lang> = {
        src/numbers/ar-PS.ts, which holds the rule and not one word of it. */
     composer: composerFor("ar-PS"),
     times: timeComposerFor("ar-PS"),
+    /* Arabic's own figures, ٠ to ٩, which are what a learner meets on a
+       price or a bus: the digit for the digit, and the Arabic thousands
+       mark where English writes a comma. */
+    numerals: (n) =>
+      Number.isInteger(n) && n >= 0
+        ? n
+            .toString()
+            .replace(/\B(?=(\d{3})+$)/g, "٬")
+            .replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)])
+        : "",
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
     verdicts: {

@@ -98,9 +98,27 @@ interface Made {
   faces: { key: FormKey; text: string; label: string; lat?: string; audio?: string[] }[];
   en: string;
   note?: string;
+  /** The number in the language's own figures, where it has them. */
+  numeral?: string;
   tag: string;
   now: Millis;
 }
+
+/**
+ * The number a box or a written-out number stands for, read off what it is
+ * called — "3", "1,000", or an override's "300|construct.f" — and null for
+ * a box that is not one number, like *hundred* or *and*.
+ */
+export function figureOf(label: string): number | null {
+  const plain = String(label || "").split("|")[0].trim();
+  return /^\d{1,3}(,\d{3})*$|^\d+$/.test(plain) ? Number(plain.replace(/,/g, "")) : null;
+}
+
+/** That number in the pack's own figures, or "" where it has none. */
+const numeralOf = (label: string, write?: ((n: number) => string) | null): string => {
+  const n = figureOf(label);
+  return write && n != null ? String(write(n) || "") : "";
+};
 
 /**
  * A card from one slot's words.
@@ -133,6 +151,7 @@ function cardOf(made: Made): Item {
     tags: [made.tag],
     forms,
     ...(made.note ? { note: made.note } : null),
+    ...(made.numeral ? { numeral: made.numeral } : null),
     /* Where it came from, which is what a refresh matches on and what the
        card's own screen says instead of offering an edit. */
     source: { systemId: made.systemId, slot: made.slot },
@@ -160,9 +179,12 @@ export interface GenerateOpts {
   /** What the cards are filed under in a learner's list. */
   tag: string;
   now: Millis;
+  /** How the language writes a number in its own figures, where it does —
+      the pack's `numerals`. */
+  numerals?: ((n: number) => string) | null;
 }
 
-export function generate({ composer, sys, timeComposer, timeSys, tag, now }: GenerateOpts): Generated {
+export function generate({ composer, sys, timeComposer, timeSys, tag, now, numerals }: GenerateOpts): Generated {
   if (!composer || !sys) return { items: [], checks: [] };
   const lang = sys.languageId;
   const items: Item[] = [];
@@ -191,6 +213,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
         faces,
         en: spec.label,
         note: spec.hint,
+        numeral: numeralOf(spec.label, numerals),
         tag,
         now,
       }),
@@ -219,6 +242,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
         ],
         en: digits,
         note: face ? labelForFace(face as FormKey) : undefined,
+        numeral: numeralOf(digits, numerals),
         tag,
         now,
       }),
