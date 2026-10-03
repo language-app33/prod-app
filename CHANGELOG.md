@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.317 — 3 October 2026
+## 0.319 — 3 October 2026
 
 **On a noun card, each form's attached pronouns now sit inside that form's
 panel and fold away.**
@@ -20,6 +20,38 @@ panel and fold away.**
 - The table starts folded. Its heading says how many of its boxes are
   written, for example "3 of 8 written", or "none yet". Tap the heading to
   open it and again to fold it.
+
+## 0.318 — 3 October 2026
+
+**"Sign off" is now "Publish".**
+
+- On the number screen, the button that sends your numbers to students is
+  called Publish. Save keeps your changes for you; Publish is what
+  students get. Once published, the button reads "Published".
+- When students don't have your latest numbers yet, a line under the
+  button says so: "Unpublished changes", or "Not published yet" for
+  numbers that have never been published. If you have changes that aren't
+  saved yet, the line tells you to save them first.
+
+## 0.317 — 3 October 2026
+
+**A part's screen looks and works like a card's, and every part has
+ready-made blank tags.**
+
+- On each part of the number screen, Decks is now the first section, and
+  it works exactly as it does on a card: the decks holding the part are
+  pills, and "Add this part to a deck" opens the same list of decks. It
+  still saves straight away and stays in step with the deck's own screen.
+- The sections on a part's screen are headed the way a card's are.
+- Each part now has fixed tags for blanks in sentence cards, shown under
+  "Filling blanks" the way a card's default tags are: {{0-10}},
+  {{11-99}}, {{100-999}} and {{1000-plus}}, plus {{number}} for a number
+  from any of them. The counting parts have {{count-1-2}}, {{count-3-10}}
+  and {{count-11-20}}, plus {{count}} for any of them; these fill the blank
+  with a number and a noun together, in the right form and order. The tags
+  can't be changed, and nothing needs setting up: write one into a sentence
+  card and it works. The names you could type in yourself in 0.316 are
+  gone.
 
 ## 0.316 — 3 October 2026
 
