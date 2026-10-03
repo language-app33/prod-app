@@ -4587,6 +4587,48 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the scene"));
   await sleep(350);
 
+  /* ---- a person written from either side ----
+
+     A noun for a person or an animal has a masculine and a feminine side,
+     and either alone is a card: a teacher who knows the feminine and not
+     the masculine writes that and saves. The card's own word goes where
+     the words are — see leadFirst — so the box written in is the card's
+     own and Save comes alive, with the masculine left empty. */
+  await leaveScreen();
+  await newCard();
+  await pickCardKind(/^Word or phrase/);
+  await pickKind(/^Noun/);
+  {
+    const kindAxis = () => /** @type {any} */ (
+      document.querySelector('[role="radiogroup"][aria-label="Person, animal or thing"]') || null);
+    click([...(kindAxis() ? kindAxis().querySelectorAll('input[type="radio"]') : [])]
+      .find((i) => i.getAttribute("aria-label") === "an animal"));
+    await sleep(250);
+    const input = (/** @type {string} */ label) => /** @type {any} */ ([...document.querySelectorAll("input")]
+      .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
+    const write = (/** @type {any} */ el, /** @type {string} */ value) => {
+      if (!el) return;
+      must(must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "the value descriptor").set,
+        "the value setter").call(el, value);
+      el.dispatchEvent(new w.Event("input", { bubbles: true }));
+    };
+    write(input("Arabic for feminine singular"), "قطة");
+    await sleep(200);
+    write(input("English for feminine singular"), "cat");
+    await sleep(250);
+    const tileOf = (/** @type {string} */ title) => [...document.querySelectorAll(".at-formblock")].find((b) =>
+      ((b.querySelector(".at-formnum") || {}).textContent || "").trim() === title) || null;
+    const fem = tileOf("Feminine singular");
+    const masc = tileOf("Masculine singular");
+    check("an animal written only in the feminine is the card's own word, and can be saved",
+      !!fem && fem.classList.contains("main") && !!masc && !masc.classList.contains("main") &&
+        (input("Arabic for feminine singular") || {}).value === "قطة" &&
+        (input("Arabic for masculine singular") || {}).value === "" &&
+        !!buttonNamed(/^Save$/) && !/** @type {any} */ (buttonNamed(/^Save$/)).disabled,
+      `feminine ${fem && fem.classList.contains("main") ? "is" : "is not"} the word · ` +
+        `save ${buttonNamed(/^Save$/) && !/** @type {any} */ (buttonNamed(/^Save$/)).disabled ? "on" : "off"}`);
+  }
+
   await leaveScreen();
   await newCard();
   await pickCardKind(/^Word or phrase/);
@@ -6299,7 +6341,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          radios under the kind of word rather than an axis on every
          answer. */
       const cardAxis = () => /** @type {any} */ (
-        document.querySelector('[role="radiogroup"][aria-label="Person or thing"]') || null);
+        document.querySelector('[role="radiogroup"][aria-label="Person, animal or thing"]') || null);
       const axisPicks = () => [...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
         .map((i) => i.getAttribute("aria-label") || "");
       const askAxes = async () => {
@@ -6333,28 +6375,40 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !tables().length && !!grammarBtn(), `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
       const nameAxes = grammarBtn() ? await askAxes() : [];
       check("and not whether it is a person or a thing",
-        nameAxes.includes("Number") && nameAxes.includes("Gender") && !nameAxes.includes("Person or thing"),
+        nameAxes.includes("Number") && nameAxes.includes("Gender") && !nameAxes.includes("Person, animal or thing"),
         nameAxes.join(" | ") || "(no axes)");
       check("which is asked of nothing that is not asked it",
         !cardAxis(), cardAxis() ? "the kind block asks it anyway" : "not asked");
 
       await pickKind(/^Noun/);
-      const nounAxes = grammarBtn() ? await askAxes() : [];
-      /* Person or thing is one fact about the card — as true of the plural
-         as of the singular — so it is asked once, under the kind of word,
-         and not of each accepted answer of each form. */
-      check("a noun is asked whether it is a person or a thing, beside the kind of word it is",
-        !!cardAxis() && !nounAxes.includes("Person or thing"),
-        `${cardAxis() ? "asked once" : "not asked"} · answer axes ${nounAxes.join(" | ") || "(none)"}`);
-      check("and it is one line of radios, a thing or a person, in the block that says what kind it is",
+      /* Person, animal or thing is one fact about the card — as true of
+         the plural as of the singular — so it is asked once, under the kind
+         of word. And since 0.318 a noun's number is the box it is written
+         in, so no answer of it is asked anything. */
+      const cardGender = () => /** @type {any} */ (
+        document.querySelector('[role="radiogroup"][aria-label="Gender"]') || null);
+      check("a noun is asked whether it is a person, an animal or a thing, beside the kind of word it is",
+        !!cardAxis() && !grammarBtn(),
+        `${cardAxis() ? "asked once" : "not asked"} · answers ${grammarBtn() ? "asked their grammar" : "asked nothing"}`);
+      check("and it is one line of radios in the block that says what kind it is",
         !!cardAxis() && !!cardAxis().closest(".at-formblock") &&
           /This card/.test(((cardAxis().closest(".at-formblock").querySelector(".at-formnum")) || {}).textContent || "") &&
-          ["a thing", "a person"].every((v) => axisPicks().includes(v)),
+          ["a thing", "a person", "an animal"].every((v) => axisPicks().includes(v)),
         axisPicks().join(" | ") || "(no radios)");
-      check("while its number and gender stay with the answer they are about",
-        nounAxes.includes("Number") && nounAxes.includes("Gender") &&
-          boxes(/attached pronouns · me$/).length > 0,
-        nounAxes.join(" | ") || "(no axes)");
+      /* A box per number, already marked, each with its own pronouns. */
+      const nounBlocks = () => [...document.querySelectorAll(".at-formnum")]
+        .map((n) => (n.textContent || "").trim());
+      check("its forms are a box for each number, the singular first, each with the pronouns on its end",
+        ["Singular", "Plural", "Dual"].every((t) => nounBlocks().includes(t)) &&
+          !!boxes(/^Arabic for plural$/).length && boxes(/attached pronouns · me$/).length > 0,
+        nounBlocks().join(" | "));
+      check("and a thing's gender is asked once, beside it, and may be left unset",
+        !!cardGender() && !!cardGender().closest(".at-formblock") &&
+          [...cardGender().querySelectorAll('input[type="radio"]')].some((i) => i.getAttribute("aria-label") === "not set"),
+        cardGender() ? "asked" : "not asked");
+      check("with no button to add a form beside the boxes",
+        ![...document.querySelectorAll("button")].some((b) => /Add a form/.test(b.textContent || "")),
+        "an Add a form button is shown");
       /* A thing until somebody says otherwise, and what they say is kept:
          it is one answer for the card, so there is nowhere else for it to
          be read back off. */
@@ -6367,6 +6421,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         .find((i) => i.getAttribute("aria-label") === "a person"));
       await sleep(200);
       check("saying it is a person is the card's answer and stays said", axisOn() === "a person", axisOn() || "(nothing chosen)");
+      check("and a person has a masculine and a feminine side, and is not asked a gender",
+        ["Masculine singular", "Masculine plural", "Feminine singular", "Feminine dual"].every((t) => nounBlocks().includes(t)) &&
+          !cardGender(),
+        nounBlocks().join(" | "));
+      click([...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
+        .find((i) => i.getAttribute("aria-label") === "a thing"));
+      await sleep(200);
 
       await pickKind(/^Adjective/);
       check("an adjective lays out the forms it takes beside a noun, and nothing else",
@@ -6650,29 +6711,32 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     attachedCell("Arabic for past · he") ? "both tables are up" : "one table at a time");
   /* The word's own block stays. A verb whose dictionary form is a cell
      replaces it; an attached pronoun is a form of the word, not a
-     stand-in for it. */
+     stand-in for it. And since 0.318 a noun's blocks are its boxes: the
+     word is the singular, and the plural it carried is in the plural's. */
   const blockOrder = () =>
     [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
-  check("while the word itself keeps its own block, being what these are forms of",
-    blockOrder().includes("Form 1"), blockOrder().join(" | "));
-  /* And a form can be added again, which 0.130 took away on the grounds
-     that the plural is "a second table rather than one more form". True,
-     and the conclusion should have been to give it one: adding a form now
-     adds the word and the eight pronouns on the end of it. */
+  check("while the word itself keeps its own block, the singular's, and its plural is in the plural's",
+    blockOrder().includes("Singular") && blockOrder().includes("Plural") &&
+      !!attachedCell("Arabic for singular") && attachedCell("Arabic for singular").value === "كتاب" &&
+      !!attachedCell("Arabic for plural") && !!attachedCell("Arabic for plural").value,
+    blockOrder().join(" | "));
+  /* No form is added beside the boxes — they are the forms, and a second
+     spelling is a second accepted answer — but an empty box is there to be
+     written in, and is never asked until it is. */
   const addForm = () => [...document.querySelectorAll("button")]
     .find((b) => /^Add a form$/.test((b.textContent || "").trim()));
-  check("a form can be added beside them again", !!addForm(),
-    addForm() ? "offered" : "no such button");
-  click(addForm());
+  check("no form is added beside the boxes", !addForm(), addForm() ? "offered" : "none");
+  check("while an empty box says it is never asked, and has no table yet",
+    !!attachedCell("Arabic for dual") && attachedCell("Arabic for dual").value === "" &&
+      [...document.querySelectorAll(".at-formrole")].some((n) => /Empty — never asked/.test(n.textContent || "")) &&
+      !attachedCell("Arabic for form 3 · attached pronouns · me"),
+    blockOrder().join(" | "));
+  typeIn(attachedCell("Arabic for dual"), "كتابين");
   await sleep(300);
-  check("and what it adds is a word and a table of its own",
-    blockOrder().includes("Form 3") &&
+  check("and writing in it makes it a form, with a table of its own",
+    !!attachedCell("Arabic for dual") && attachedCell("Arabic for dual").value === "كتابين" &&
       !!attachedCell("Arabic for form 3 · attached pronouns · me"),
     blockOrder().join(" | "));
-  /* The forms it already carries stay: they are saved either way, and
-     hiding one would read as having lost it. */
-  check("while a form the card already had is still on screen",
-    blockOrder().includes("Form 2"), blockOrder().join(" | "));
 
   const plainHere = () => {
     const row = saved().find((r) => /^Something else/.test((r.textContent || "").trim()));
@@ -7014,9 +7078,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      out that it meant the table above. Now each subsection asks for
      itself, at its own foot: the word, and the pronouns on the end of it. */
   {
+    /* A noun's own word is its singular's box since 0.318. */
     const partsOf = () => {
       const block = [...document.querySelectorAll(".at-formblock")].find((b) =>
-        /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+        /^Singular$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
       return block ? [...block.querySelectorAll(".at-part")] : [];
     };
     const named = partsOf().map((g) =>

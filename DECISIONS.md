@@ -4414,3 +4414,74 @@ down: a sentence answered right would then have had to credit a skill whose
 questions it did not ask. Each part lends at most `FILLERS_PER_PART`
 numbers, spread over it and the same on every device, so the sentences a
 teacher reviews are the ones a learner is asked.
+
+---
+
+## A noun is laid out in boxes, and a person or an animal has two sides
+
+**3 October 2026** · `nounLayoutOf`, `nounBoxes`, `placeNounForms`,
+`stampNounForms`, `leadFirst` and `NounEditor` in `src/card-editor.tsx`;
+`GRAMMAR.human` in `src/languages.ts`; `genderUnsaid` in `src/verbs.ts`;
+`readNounCard` in `src/numbers/nouns.ts`
+
+The owner asked why a noun card was not preset the way an adjective is.
+Not with an adjective's boxes: an adjective changes with the noun beside
+it, and a noun does not change gender — كتاب has no feminine. What a noun
+changes is its number, so a noun card is one box per number the language
+offers (singular, plural, dual), already marked. A person or an animal is
+the exception the owner raised next: معلم and معلمة, قط and قطة. Those
+get the same boxes twice, a masculine side and a feminine one.
+
+**The question that decides it was already on the card.** Person or thing
+was asked of every noun in Arabic, for agreement. It gained a third answer,
+an animal, which agrees as a thing does (a plural of animals takes the
+feminine singular) and is laid out as a person is. Hebrew is asked it too
+now; nothing in Hebrew agrees with it, so there it only chooses the layout.
+
+**Nothing new is stored.** A box is read off the number and gender a form
+already carries, on every render, so a stored card opens with its marked
+forms in their boxes and a form marked plural moves into the plural box
+the moment it says so. What a box adds is written onto the form on save
+(`stampNounForms`), and taken off its answers, where an answer's own
+grammar would otherwise win. A form whose answers disagree with each other
+is left exactly as it was, in a box or not: marking it would be saying one
+thing about two words. A form that fits no free box is shown under the
+boxes with its grammar still asked, so nothing a card carries is hidden.
+
+**An empty box is not a form.** It is drawn from a blank and becomes a form
+on the first keystroke (`fillBox`). Six empty forms on every person, each
+with a table of pronouns, would have been six things for the save to drop
+and for every list of the card's parts to step over. The block is keyed by
+its box rather than by where its form sits, so it is not redrawn under the
+teacher's fingers when it becomes real.
+
+**Either side alone is a card.** The card's own word is the first form and
+has to be written. Where it is empty and a box further down is not, the two
+change places (`leadFirst`), pronouns and all; the empty one stays in its
+box and is not saved. On an existing card this only happens if the teacher
+empties the card's own word, which moves that word's progress to the form
+that takes its place — the one case where this can shift a schedule, and
+an unusual thing to do to a card that is in use.
+
+**"Add a form" went, for the reason an adjective never had it**: the boxes
+are the forms, and a second spelling is a second accepted answer. A
+one-of-them word (تفاحة beside تفاح) is better as its own card, and the
+form a noun takes after the numbers three to ten belongs to counting.
+
+**A gender nobody said is not guessed.** An adjective beside a singular
+noun with no gender took the word itself — the masculine — so an
+unfinished feminine noun was met beside the wrong form. Now, where saying
+either gender would have picked a different form, the sentence is not
+asked with that word (`genderUnsaid`), which is what a verb beside it
+already did. Where the gender changes nothing — a dual, a plural of things
+— nothing waits. This reaches a Person card with no gender as well: رامي
+with none used to take تعبان and now takes nothing until he is given one.
+
+**Counting reads the right side.** A card holding both plurals was counted
+with the first plural written, which could be the other side's;
+`readNounCard` now takes the plural and pair of the singular's own gender.
+Counting the feminine side as nouns of its own was left for later.
+
+**Revisit if** a language turns up whose nouns change for something the
+boxes do not cover, or if teachers start writing unit nouns (تفاحة) on the
+same card as their collective — that would be a case for a box of its own.

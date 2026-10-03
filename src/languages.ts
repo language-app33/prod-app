@@ -1686,30 +1686,35 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     ],
     brief: { masculine: "m.", feminine: "f.", neutral: "n." },
   },
-  /* Whether a noun is a person or a thing. Not a way of telling its forms
-     apart — nothing is ever asked "the person one" — but the fact that
-     decides what agrees with it: in Arabic a plural of things takes the
-     feminine singular adjective (كتب كبيرة) and a plural of people the
-     plural (معلمين كبار). Animals count as things. Silent on every tag,
-     which `short` says; starts as a thing, because most nouns are. */
+  /* Whether a noun is a person, an animal or a thing. Not a way of telling
+     its forms apart — nothing is ever asked "the person one" — but two
+     facts follow from it. What agrees with it: in Arabic a plural of things
+     takes the feminine singular adjective (كتب كبيرة) and a plural of
+     people the plural (معلمين كبار), and an animal agrees as a thing does.
+     And how its forms are laid out: a person or an animal comes in a
+     masculine and a feminine — معلم and معلمة, قط and قطة — so its card has
+     a side for each, where a thing has one gender for the whole word. See
+     nounBoxes in card-editor.tsx. Silent on every tag, which `short` says;
+     starts as a thing, because most nouns are. */
   human: {
-    label: "Person or thing",
+    label: "Person, animal or thing",
     field: "human",
     required: true,
-    help: "Specify here what kind of noun this is, so adjectives in sentence cards can use the correct form.",
+    help: "People and animals get a masculine and a feminine side. A thing has one gender for the whole word.",
     options: [
       ["thing", "a thing"],
       ["person", "a person"],
+      ["animal", "an animal"],
     ],
     default: "thing",
     /* A fact about the word and not about one of its spellings: كتاب and
        its plural كتب are both things, and so is either way of spelling
        either of them. Asked once beside the kind of word — see perCard. */
     perCard: true,
-    short: { thing: "", person: "" },
+    short: { thing: "", person: "", animal: "" },
     /* Silent on a tag and never silent in the picker — the article is what
        goes, not the word. */
-    brief: { thing: "thing", person: "person" },
+    brief: { thing: "thing", person: "person", animal: "animal" },
   },
   /* Who a form is said to: a greeting or a thank-you that changes with
      whether the listener is younger, a peer or an elder.
@@ -1994,6 +1999,10 @@ const AR_AGREEMENT: VerbSpec = {
       picks: [
         { number: "singular", gender: "feminine" },
         { number: "plural", human: "thing" },
+        /* And a plural of animals, which agrees as a plural of things
+           does — قطط كبيرة. An animal is told apart from a thing only so
+           that its card can have a feminine side. */
+        { number: "plural", human: "animal" },
       ],
     },
     { id: "plural", label: "plural", picks: { number: "plural", human: "person" } },
@@ -2894,7 +2903,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     grammarOptions: {
       number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
-      human: [["thing", "a thing"], ["person", "a person"]],
+      human: [["thing", "a thing"], ["person", "a person"], ["animal", "an animal"]],
     },
     /* A verb is marked for who is doing it and when, so its forms are laid
        out on those two axes. The tenses are in the order they are taught,
@@ -3182,12 +3191,16 @@ export const LANGUAGES: Record<LangId, Lang> = {
     ],
     translitLabel: "Transliteration",
     /* Nouns carry number and gender, and adjectives agree with both —
-       the same two axes Arabic declares. */
-    grammar: ["number", "gender"],
+       the same two axes Arabic declares. And whether a noun is a person,
+       an animal or a thing: nothing in Hebrew agrees with that, but it is
+       what gives a noun's card a masculine and a feminine side — תלמיד and
+       תלמידה — so it is asked here too. */
+    grammar: ["number", "gender", "human"],
     /* Two genders, and a dual for the nouns that have one — שעתיים. */
     grammarOptions: {
       number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
+      human: [["thing", "a thing"], ["person", "a person"], ["animal", "an animal"]],
     },
     /* Marked for twelve persons, every one with a gender of its own —
        see HE_SUBJECT_PERSONS. The rows are its own:

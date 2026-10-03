@@ -8,6 +8,36 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.318 — 3 October 2026
+
+**Noun cards come with a box for each form, and people and animals have a
+masculine and a feminine side.**
+
+- A noun card now asks whether the word is a person, an animal or a
+  thing. Hebrew nouns are asked this too; before, only Arabic ones were.
+- A thing (book, hour) has a box for the word, one for its plural and one
+  for its pair form. Its gender is chosen once, for the whole word.
+- A person or an animal (teacher, cat) has the same three boxes twice:
+  once masculine and once feminine. Either side alone is enough to save
+  the card, so a word you only know in the feminine can be written on
+  its own.
+- The boxes are already marked, so there is no need to mark each form
+  as plural or pair by hand any more. An empty box is never asked.
+- "Add a form" is gone from noun cards. A second spelling of the same
+  form goes in that form's box as another accepted answer.
+- Cards you already have open with their forms in the right boxes. A
+  form that fits no empty box is still shown underneath, and nothing is
+  lost.
+- In sentences, animals agree the way things do.
+- A thing's gender can be left unset when you don't know it. Sentences
+  and counting questions that would need it then leave the word out
+  until it is set. Before, an adjective next to such a word was always
+  given its masculine form, which was wrong for feminine words. The same
+  now applies to a person's name with no gender set.
+- Counting uses the plural and pair form from the same side as the word
+  it counts, so a card holding both masculine and feminine plurals is
+  counted correctly.
+
 ## 0.317 — 3 October 2026
 
 **A part's screen looks and works like a card's, and every part has

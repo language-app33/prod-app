@@ -938,9 +938,11 @@ test("what a kind of word lays out, and what it is asked about, is the category'
   /* A kind nobody has said, or a pack that says nothing, is asked everything the pack has. */
   assert.deepEqual(fields(""), dimsOf(ar).map((d) => d.field));
   assert.deepEqual(fields("particle"), dimsOf(ar).map((d) => d.field));
-  /* Hebrew has no person-or-thing rule, so the shared list's "human" is
-     not asked there — the category's list is within the pack's. */
-  assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "noun").map((d) => d.field), ["number", "gender"]);
+  /* Hebrew has no person-or-thing rule for agreement, but it is asked
+     there too since 0.318: it is what gives a person or an animal a
+     masculine and a feminine side. Still within the pack's list. */
+  assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "noun").map((d) => d.field), ["number", "gender", "human"]);
+  assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "person").map((d) => d.field), ["number", "gender"]);
   assert.deepEqual(dimsFor(LANGUAGES["vi-Hue"], "adjective"), []);
   /* Huế names the same table the other two do and declares none of it, so
      an adjective there is the word and whatever forms a teacher writes.

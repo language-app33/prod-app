@@ -66,8 +66,8 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
   const id = str(card.id);
   if (!id) return null;
   let sg: { text: string; en: string; gender: string; human: string } | null = null;
-  let pl: { text: string; en: string } | null = null;
-  let dual = "";
+  const pls: { text: string; en: string; gender: string }[] = [];
+  const duals: { text: string; gender: string }[] = [];
   let gender = "";
   let human = "";
   formsOf(card).forEach((form: Held, at: number) => {
@@ -81,16 +81,27 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
       if (h && !human) human = h;
       const en = firstOf(form.en);
       if (number === "plural") {
-        if (!pl) pl = { text, en };
+        pls.push({ text, en, gender: g });
       } else if (number === "dual") {
-        if (!dual) dual = text;
+        duals.push({ text, gender: g });
       } else if (!sg && (number === "singular" || at === 0)) {
         sg = { text, en, gender: g, human: h };
       }
     }
   });
   const one = sg as { text: string; en: string; gender: string; human: string } | null;
-  const many = pl as { text: string; en: string } | null;
+  /* The plural and the pair of the singular's own side. A person or an
+     animal can carry a masculine and a feminine plural on one card, and the first
+     plural written is not necessarily the masculine's, so one counted as
+     "three teachers" has to be the plural of the word it counts. One that
+     says no gender is anybody's. */
+  const sameSide = <T extends { gender: string }>(list: T[]): T | null => {
+    const side = one ? one.gender : "";
+    return list.find((x) => !side || !x.gender || x.gender === side) || null;
+  };
+  const many = sameSide(pls);
+  const pair = sameSide(duals);
+  const dual = pair ? pair.text : "";
   /* The singular's own gender where it says one — a noun is the gender of
      its singular — and otherwise whatever any of its answers said. */
   const g = (one && one.gender) || gender;

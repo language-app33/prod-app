@@ -79,6 +79,33 @@ test("a card that is not a noun is not read, and one short of a form says which"
   assert.equal(must(noDual.noun, "noun").dual, undefined);
 });
 
+test("a person with both sides is counted with the plural and pair of its own word's side", () => {
+  /* A card for a teacher carries the masculine and the feminine, and the
+     feminine plural may well have been written first. Counting the
+     masculine singular with it would say "three teachers" in two genders
+     at once. Placeholders rather than words: what is tested is which
+     answer is taken. */
+  const card = {
+    id: "teacher", lang: "ar-PS", category: "noun",
+    forms: [
+      { ar: "M-SG", en: "teacher", lat: "", number: "singular", gender: "masculine", human: "person" },
+      { ar: "F-SG", en: "teacher", lat: "", number: "singular", gender: "feminine", human: "person" },
+      { ar: "F-PL", en: "teachers", lat: "", number: "plural", gender: "feminine", human: "person" },
+      { ar: "F-DU", en: "two teachers", lat: "", number: "dual", gender: "feminine", human: "person" },
+      { ar: "M-PL", en: "teachers", lat: "", number: "plural", gender: "masculine", human: "person" },
+      { ar: "M-DU", en: "two teachers", lat: "", number: "dual", gender: "masculine", human: "person" },
+    ],
+  };
+  const noun = must(must(readNounCard(card), "teacher").noun, "noun");
+  assert.equal(noun.sg, "M-SG");
+  assert.equal(noun.pl, "M-PL");
+  assert.equal(noun.dual, "M-DU");
+  assert.equal(noun.gender, "m");
+  /* A plural that says no gender is anybody's, as it always was. */
+  const plain = { ...card, forms: [card.forms[0], { ...card.forms[2], gender: "" }] };
+  assert.equal(must(must(readNounCard(plain), "plain").noun, "noun").pl, "F-PL");
+});
+
 test("the nouns of one language come back in the order of their ids, whatever order the cards are in", () => {
   const cards = [nounCard("girl"), { ...nounCard("book"), lang: "he-IL" }, nounCard("book")];
   assert.deepEqual(readNouns(cards, "ar-PS").map((r) => r.id), ["book", "girl"]);

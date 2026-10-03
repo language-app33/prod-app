@@ -614,12 +614,35 @@ export function agreedValue(
 ): { id?: string; ar: string; en: string; lat: string } | null {
   const rows = tensesOf(spec);
   if (rows.length !== 1) return own;
-  const person = personFor(spec, partner ? partner.grammar : null);
-  if (!person) return own;
+  const grammar = partner ? partner.grammar : null;
+  const person = personFor(spec, grammar);
+  if (!person) return genderUnsaid(spec, grammar) ? null : own;
   const cell = cellAt(card, rows[0].id, person.id);
   if (!cell || !String(cell.ar || "").trim()) return null;
   return { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
 }
+
+/*
+ * Whether the word beside an agreeing one left out the one thing that
+ * would have chosen its form.
+ *
+ * A noun whose gender nobody has said is a noun the app cannot pair with
+ * an adjective: كتاب wants كبير and ساعة wants كبيرة, and with no gender
+ * the word itself — the masculine — used to be taken, so a feminine noun
+ * nobody had finished was met beside the wrong form. Now, where saying
+ * either gender would have picked a column, the sentence is not asked
+ * with that word until the gender is set — the rule a verb beside such a
+ * noun already followed, since neither *he* nor *she* picks it. A gender
+ * that would have changed nothing — a dual, a plural of things — leaves
+ * the word as it was.
+ */
+const genderUnsaid = (
+  spec: VerbSpec | null | undefined,
+  grammar: Record<string, unknown> | null | undefined,
+): boolean => {
+  if (!grammar || str(grammar.gender)) return false;
+  return ["masculine", "feminine"].some((gender) => !!personFor(spec, { ...grammar, gender }));
+};
 
 /**
  * The form a sentence should stand in its verb's place, this time round.
