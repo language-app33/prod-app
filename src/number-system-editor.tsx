@@ -43,13 +43,11 @@ import { MINUTE_MARKS } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { blocking, probeOf, rangeChecks, seeded } from "./numbers/range.ts";
 import type { RangeCheck } from "./numbers/range.ts";
-import { figureOf, homesOf } from "./numbers/generate.ts";
+import { figureOf, homesOf, partTags } from "./numbers/generate.ts";
 import { readNouns, withNouns } from "./numbers/nouns.ts";
 import type { ReadNoun } from "./numbers/nouns.ts";
-import { refClash, slotName } from "./variables.ts";
-import { categoriesOf } from "./languages.ts";
-import { Button, CheckList, Help, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
-import { RecordingScreen, ScriptInput } from "./card-editor.tsx";
+import { Button, Help, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
+import { DeckSwitch, RecordingScreen, ScriptInput } from "./card-editor.tsx";
 
 /** A box's number in the language's own figures, under the one it is
     called by — "" where the pack has none or the box is not one number. */
@@ -195,8 +193,7 @@ export interface EditorProps {
   signed?: Record<string, number | null>;
   /** Sign off the version the server holds. */
   onSignOff?: (kind: "numbers" | "times", system: NumberSystem | TimeSystem) => void;
-  /** The teacher's cards: the noun cards are what counting counts, and
-      every card's names are what a part's blank has to be free of. */
+  /** The teacher's cards: the noun cards are what counting counts. */
   cards?: Record<string, unknown>[];
   /** The decks in this language, for which hold each part. */
   decks?: PartDeck[];
@@ -387,7 +384,6 @@ export function NumberSystemEditor({
         render={(n, ctx) => composer.render(n, counted, ctx)}
         nouns={nounCards}
         decks={decks}
-        cards={cards}
         footer={footer}
         onRecord={(slot, key) => setRecording({ slot, key })}
         onWrite={setWriting}
@@ -461,6 +457,25 @@ export interface PartDeck {
   title: string;
   parts: string[];
   locked?: boolean;
+  cardCount?: number;
+}
+
+/**
+ * A section of a part's screen, headed the way every section of a card's
+ * editor is: its name, and under it what it is for. The same classes, on
+ * a screen with the same ruling — see `.at-screen.cardform` — so the two
+ * screens a teacher moves between read as one design.
+ */
+function PartBlock({ title, role, children }: { title: string; role?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className="at-formblock">
+      <div className="at-formhead">
+        <span className="at-formnum">{title}</span>
+        {role ? <span className="at-formrole">{role}</span> : null}
+      </div>
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -639,7 +654,7 @@ function SampleRows({ lang, draft, values, render, onWrite }: {
  * and one tap away.
  */
 function PartScreen({
-  lang, draft, setDraft, check, checks, homes, labels, slots, render, nouns, decks, cards, footer,
+  lang, draft, setDraft, check, checks, homes, labels, slots, render, nouns, decks, footer,
   onRecord, onWrite, onOpen, onDeckPart, onClose,
 }: {
   lang: Lang;
@@ -654,8 +669,6 @@ function PartScreen({
   /** The teacher's noun cards in this language, read for counting. */
   nouns: ReadNoun[];
   decks: PartDeck[];
-  /** The teacher's cards, for telling whether a blank's name is free. */
-  cards: Record<string, unknown>[];
   footer: React.ReactNode;
   onRecord: (slot: string, key: FormKey) => void;
   onWrite: (key: string) => void;
@@ -688,50 +701,61 @@ function PartScreen({
         return Number.isFinite(n) && n >= range.from && n <= range.to;
       });
 
-  return (
-    <Screen title={range.label} onBack={onClose} footer={footer}>
-      <p className="at-numstate at-mt3" data-open={check.open ? "" : undefined}>
+  /* Where it stands, and the way to the earlier part it is waiting on —
+     at the head of the part's own words, which is what it is about. */
+  const standing = (
+    <>
+      <p className="at-numstate" data-open={check.open ? "" : undefined}>
         {check.open ? "Ready: a student can be asked anything in this part." : `Not asked yet — ${status}.`}
       </p>
       {waitingFor ? (
-        <div className="at-row">
+        <div className="at-row at-mt3">
           <Button size="sm" onClick={() => onOpen(waitingFor.range.id)}>
             {`Open ${waitingFor.range.label}`}
           </Button>
         </div>
       ) : null}
+    </>
+  );
+
+  return (
+    <Screen title={range.label} onBack={onClose} footer={footer} className="cardform">
+      {/* First, as a card's editor puts them near the top: where this part
+          goes decides whether anybody is ever asked it. */}
+      <PartDecks range={range} decks={decks} onDeckPart={onDeckPart} />
 
       {range.counted ? (
-        <CountedSection lang={lang} range={range} nouns={nouns} render={render} />
+        <CountedSection lang={lang} range={range} nouns={nouns} render={render} standing={standing} />
       ) : (
-        <Section title="Words" className="at-mt5">
-          {own.length ? (
-            <WordGrid lang={lang} draft={draft} setDraft={setDraft} slots={own} onRecord={onRecord} />
-          ) : (
-            <Help>
-              Nothing new to write here: {range.label.toLowerCase()} is built out of the words in{" "}
-              {earlier.length ? earlier.map((c) => c.range.label.toLowerCase()).join(" and ") : "the other parts"},
-              including the forms they take inside a bigger number.
-            </Help>
-          )}
-        </Section>
+        <PartBlock title="Words" role="The words this part is the first to need. Parts after it build on them.">
+          {standing}
+          <div className="at-mt5">
+            {own.length ? (
+              <WordGrid lang={lang} draft={draft} setDraft={setDraft} slots={own} onRecord={onRecord} />
+            ) : (
+              <Help>
+                Nothing new to write here: {range.label.toLowerCase()} is built out of the words in{" "}
+                {earlier.length ? earlier.map((c) => c.range.label.toLowerCase()).join(" and ") : "the other parts"},
+                including the forms they take inside a bigger number.
+              </Help>
+            )}
+          </div>
+        </PartBlock>
       )}
 
       {range.counted ? null : (
-        <Section
+        <PartBlock
           title="What a student will be asked"
-          lede="Tap any line to write it out yourself, where the app has it wrong."
-          className="at-mt5"
+          role="Tap any line to write it out yourself, where the app has it wrong."
         >
           <SampleRows lang={lang} draft={draft} values={probeOf(range)} render={render} onWrite={onWrite} />
-        </Section>
+        </PartBlock>
       )}
 
       {written.length ? (
-        <Section
+        <PartBlock
           title="Numbers you wrote out"
-          lede="Tap one to change what it says, or to put it back the way the app builds it."
-          className="at-mt5"
+          role="Tap one to change what it says, or to put it back the way the app builds it."
         >
           <div className="at-numsample">
             {written.map(([key, over]) => (
@@ -744,12 +768,10 @@ function PartScreen({
               </button>
             ))}
           </div>
-        </Section>
+        </PartBlock>
       ) : null}
 
-      <PartDecks range={range} decks={decks} onDeckPart={onDeckPart} />
-
-      <PartBlanks lang={lang} range={range} draft={draft} setDraft={setDraft} cards={cards} />
+      <PartTags range={range} open={check.open} />
     </Screen>
   );
 }
@@ -834,9 +856,11 @@ const GAP_LABEL: Record<string, string> = {
  * to the one question a teacher has about it: which of my nouns will be
  * counted, and what is the rest missing.
  */
-function CountedSection({ lang, range, nouns, render }: {
+function CountedSection({ lang, range, nouns, render, standing }: {
   lang: Lang;
   range: Range;
+  /** Where the part stands, said at the head of the section. */
+  standing?: React.ReactNode;
   nouns: ReadNoun[];
   render: (n: number, ctx?: { noun?: CountedNoun }) => { text: string; warnings: { code: string; slot?: string; detail?: string }[] };
 }) {
@@ -861,12 +885,12 @@ function CountedSection({ lang, range, nouns, render }: {
      what the line below has to ask for: a gap a noun can have here. */
   const pairs = rows.some((r) => r.gaps.includes(GAP_LABEL.dual)) || rows.some((r) => !!(r.read.noun && r.read.noun.dual));
   return (
-    <Section title="Things counted" className="at-mt5">
-      <Help>
-        Counting uses your noun cards: any noun card in {lang.name} with its singular, its
-        plural{pairs ? ", its pair form" : ""} and its gender written. Write or finish one on the
-        Cards tab and it is counted here — nothing to copy across.
-      </Help>
+    <PartBlock
+      title="Things counted"
+      role={`Counting uses your noun cards: any noun card in ${lang.name} with its singular, its plural${pairs ? ", its pair form" : ""} and its gender written. Write or finish one on the Cards tab and it is counted here — nothing to copy across.`}
+    >
+      {standing}
+      <div className="at-mt5" />
       {counted.length ? (
         <div className="at-numsample">
           {counted.map(({ read, said }) => (
@@ -895,7 +919,7 @@ function CountedSection({ lang, range, nouns, render }: {
           </div>
         </>
       ) : null}
-    </Section>
+    </PartBlock>
   );
 }
 
@@ -915,116 +939,69 @@ function PartDecks({ range, decks, onDeckPart }: {
 }) {
   if (!onDeckPart) return null;
   return (
-    <Section title="Decks" className="at-mt5">
-      <Help>
-        Students are asked this part when it is in one of their decks. Ticking a deck here is the
-        same as ticking this part on that deck&apos;s Numbers and pronouns screen, and is saved
-        straight away.
-      </Help>
-      <CheckList
-        options={decks.map((d) => ({
-          id: d.id,
-          title: d.title,
-          ...(d.locked ? { disabled: true, note: "Locked — unlock the deck to change what it holds" } : null),
-        }))}
+    <PartBlock
+      title="Decks"
+      role="Manage what decks this part belongs to. The same as ticking it on a deck's Numbers and pronouns screen, and saved straight away."
+    >
+      <DeckSwitch
+        of="part"
+        decks={decks}
         chosen={decks.filter((d) => (d.parts || []).includes(range.id)).map((d) => d.id)}
         onToggle={(id, wasOn) => onDeckPart(id, range.id, !wasOn)}
-        empty="No deck in this language yet."
       />
-    </Section>
+    </PartBlock>
   );
 }
 
 /**
- * The blanks this part fills.
+ * The blanks this part fills, said the way a card's editor says a card's:
+ * a section called Filling blanks, and under it the tags it answers to.
  *
- * A name here is a blank a sentence card can leave — `{{age}}` — and a
- * sentence with it is met with a number from this part, written out; a
- * counting part fills it with a number and a thing counted. The names
- * share the one namespace every blank does, so a name a card, a group or
- * a kind of word already answers to is refused here with what holds it,
- * the way the card editor refuses it.
+ * Only default tags, because a part's are not chosen — see partTags. They
+ * are here to be read: a teacher writing a sentence card needs to know
+ * that `{{0-10}}` or `{{number}}` is a blank that will hold a number, and
+ * this is where they would look for what a part can be borrowed as.
  */
-function PartBlanks({ lang, range, draft, setDraft, cards }: {
-  lang: Lang;
-  range: Range;
-  draft: NumberSystem;
-  setDraft: (f: (d: NumberSystem) => NumberSystem) => void;
-  cards: Record<string, unknown>[];
-}) {
-  const [typed, setTyped] = useState("");
-  const names = (draft.fills || {})[range.id] || [];
-  const name = slotName(typed);
-  const kinds = categoriesOf(lang).map((c) => c.id);
-  const clash = (() => {
-    if (!name) return "";
-    for (const [part, list] of Object.entries(draft.fills || {})) {
-      if (part !== range.id && list.includes(name)) return "another part of the numbers fills it already";
-    }
-    if (names.includes(name)) return "this part fills it already";
-    const held = refClash(name, cards, "", kinds);
-    if (!held) return "";
-    if (held.kind === "category") return "it is a kind of word, filled by every card of that kind";
-    if (held.kind === "card") return "a card already has that ID";
-    return "a group of cards already answers to it";
-  })();
-  const add = () => {
-    if (!name || clash) return;
-    setDraft((d) => withPartFills(d, range.id, names.concat([name])));
-    setTyped("");
-  };
+function PartTags({ range, open }: { range: Range; open: boolean }) {
+  const [own, general] = partTags(range);
+  const what = (name: string) =>
+    name === general
+      ? range.counted
+        ? "Any number of things, from any counting part"
+        : "Any number, from any part"
+      : range.counted
+        ? `A number and a thing counted, from ${range.label.toLowerCase()}`
+        : `A number from ${range.label.toLowerCase()}`;
   return (
-    <Section title="Fills blanks" className="at-mt5">
-      <Help>
-        Name a blank and any sentence card with that blank in it is filled with a number from this
-        part, written out in full — <i>I am {"{{age}}"}</i>.
-        {range.counted ? " Here that is a number and a thing counted: a noun from above, in the form the number calls for." : ""}{" "}
-        Students get it once you save and sign off.
-      </Help>
-      {names.length ? (
-        <div className="at-numblanks at-mt3">
-          {names.map((n) => (
-            <span className="at-numblank" key={n}>
-              <span className="at-blankname">{n}</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setDraft((d) => withPartFills(d, range.id, names.filter((x) => x !== n)))}
-              >
-                Remove
-              </Button>
-            </span>
-          ))}
+    <PartBlock title="Filling blanks" role="How this part can be used to fill blanks in sentence cards">
+      <div className="at-part">
+        <p className="at-groupline">The part&rsquo;s tags</p>
+        <Help>
+          Wherever a sentence card has a blank for one of these tags, this part fills it with one of
+          its numbers, written out{range.counted ? ", and a noun in the form the number calls for" : ""}.
+        </Help>
+        <div className="at-ticklist at-cardtags">
+          <p className="at-eyebrow">Default tags</p>
+          <Help>These follow from the part, and are the same in every language.</Help>
+          <div className="at-tagchips">
+            {[own, general].map((name) => (
+              <span className="at-tagchip" key={name} title={what(name)}>
+                {name}
+              </span>
+            ))}
+          </div>
+          {!open ? (
+            <p className="at-hint">
+              Nothing fills them from this part until it is ready, so a sentence asking for{" "}
+              <span className="at-blankname">{own}</span> waits for it.
+            </p>
+          ) : null}
         </div>
-      ) : null}
-      <div className="at-row at-mt3">
-        <input
-          className="at-input"
-          value={typed}
-          placeholder={range.counted ? "things" : "age"}
-          aria-label="A blank this part fills"
-          onChange={(e) => setTyped(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") add();
-          }}
-        />
-        <Button size="sm" disabled={!name || !!clash} onClick={add}>
-          Add
-        </Button>
       </div>
-      {clash ? <Meta>{`Not free: ${clash}.`}</Meta> : null}
-    </Section>
+    </PartBlock>
   );
 }
 
-/** The names a part fills, written into the draft; none takes the entry
-    away. */
-export function withPartFills(sys: NumberSystem, rangeId: string, names: string[]): NumberSystem {
-  const fills = { ...(sys.fills || {}) };
-  if (names.length) fills[rangeId] = names;
-  else delete fills[rangeId];
-  return { ...sys, fills: Object.keys(fills).length ? fills : undefined, updated: Date.now() };
-}
 
 /* ---- the clock ---- */
 

@@ -1947,10 +1947,16 @@ function PickSheet({ title, lede, className = "", onClose, children }: {
  * line long and belongs near the top, beside what kind of card this is:
  * both are facts about the card rather than about its words.
  */
-function DeckSwitch({ decks, chosen, onToggle }: {
-  decks: Deck[];
+export function DeckSwitch({ decks, chosen, onToggle, of = "card" }: {
+  /* Only what is shown of a deck: a card's editor hands over whole decks,
+     and the number screen hands over the decks a part of the numbers can
+     go in. */
+  decks: Pick<Deck, "id" | "title" | "locked" | "cardCount">[];
   chosen: string[];
   onToggle: (id: string, wasOn: boolean) => void;
+  /** What is being put in decks, as the row and the sheet name it — a
+      card, or a part of a language's numbers. */
+  of?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -1977,7 +1983,7 @@ function DeckSwitch({ decks, chosen, onToggle }: {
             ) : (
               <button
                 className="at-deckdrop"
-                aria-label={`Take this card out of ${d.title}`}
+                aria-label={`Take this ${of} out of ${d.title}`}
                 onClick={() => onToggle(d.id, true)}
               >
                 <Icon name="close" size={16} />
@@ -1997,12 +2003,12 @@ function DeckSwitch({ decks, chosen, onToggle }: {
             onClick={() => setOpen(true)}
           >
             <Icon name="add" size={17} />
-            {inThese.length ? "Another deck" : "Add this card to a deck"}
+            {inThese.length ? "Another deck" : `Add this ${of} to a deck`}
           </button>
         )}
 
         {!all.length && (
-          <Help>You have no decks yet. Make one under Decks, then this card can go in it.</Help>
+          <Help>{`You have no decks yet. Make one under Decks, then this ${of} can go in it.`}</Help>
         )}
       </div>
 
@@ -2011,7 +2017,7 @@ function DeckSwitch({ decks, chosen, onToggle }: {
       {open && (
         <PickSheet
           title="Decks"
-          lede="Choose the decks this card belongs to."
+          lede={`Choose the decks this ${of} belongs to.`}
           className="at-decksheet"
           onClose={() => setOpen(false)}
         >
@@ -2042,7 +2048,7 @@ function DeckSwitch({ decks, chosen, onToggle }: {
               );
             })}
           </div>
-          <Help>A student sees this card only where it is in a deck their course uses.</Help>
+          <Help>{`A student sees this ${of} only where it is in a deck their course uses.`}</Help>
         </PickSheet>
       )}
     </div>

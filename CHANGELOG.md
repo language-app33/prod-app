@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.317 — 3 October 2026
+
+**A part's screen looks and works like a card's, and every part has
+ready-made blank tags.**
+
+- On each part of the number screen, Decks is now the first section, and
+  it works exactly as it does on a card: the decks holding the part are
+  pills, and "Add this part to a deck" opens the same list of decks. It
+  still saves straight away and stays in step with the deck's own screen.
+- The sections on a part's screen are headed the way a card's are.
+- Each part now has fixed tags for blanks in sentence cards, shown under
+  "Filling blanks" the way a card's default tags are: {{0-10}},
+  {{11-99}}, {{100-999}} and {{1000-plus}}, plus {{number}} for a number
+  from any of them. The counting parts have {{count-1-2}}, {{count-3-10}}
+  and {{count-11-20}}, plus {{count}} for any of them; these fill the blank
+  with a number and a noun together, in the right form and order. The tags
+  can't be changed, and nothing needs setting up: write one into a sentence
+  card and it works. The names you could type in yourself in 0.316 are
+  gone.
+
 ## 0.316 — 3 October 2026
 
 **The number screen is organised by part, counting uses your noun cards,

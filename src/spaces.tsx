@@ -5717,7 +5717,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
            the part's end. */
         decks={decks
           .filter((d) => (langOfDeck(d) || { id: "" }).id === numbering)
-          .map((d) => ({ id: d.id, title: String(d.title || ""), parts: d.parts || [], locked: !!d.locked }))}
+          .map((d) => ({ id: d.id, title: String(d.title || ""), parts: d.parts || [], locked: !!d.locked, cardCount: d.cardCount || 0 }))}
         onDeckPart={(deckId, rangeId, on) =>
           run(async () => {
             const d = decks.find((x) => x.id === deckId);

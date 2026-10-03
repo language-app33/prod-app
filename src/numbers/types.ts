@@ -145,14 +145,6 @@ export interface NumberSystem {
   /** A recording for a whole number the composer would otherwise build
       out of parts — keyed like an override. */
   curatedAudio?: Record<string, string[]>;
-  /**
-   * The blanks each part of the numbers fills, by the part's id —
-   * `numbers:0-10` → `["age"]`. A sentence card with `{{age}}` in it is
-   * filled with a number from that part, written out by the composer, and
-   * a counting part fills it with a number and a thing counted. The names
-   * share the namespace every blank does; see fillerCards in generate.ts.
-   */
-  fills?: Record<string, string[]>;
   /** Which cards this system was seeded from, by slot or override key.
       Written once by the migration and read by a device deciding whose
       progress a component card inherits. */

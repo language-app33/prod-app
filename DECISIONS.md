@@ -4398,8 +4398,12 @@ composer that changes how it builds a number moves its boxes with it, and
 Huế's 11 to 99, built only out of the words for one to ten, ends up with no
 boxes of its own — which is the truth, and its screen says so.
 
-**A part fills a sentence's blank the way a name does.** A part names
-blanks (`fills` on the system); a sentence with one of them is filled with
+**A part fills a sentence's blank the way a name does.** A part answers
+to fixed tags (`partTags`: its own, like `0-10`, and `number` or `count`) —
+chosen names on the system were tried in 0.316 and replaced in 0.317,
+since a tag a teacher has to invent is one more thing to get wrong and
+the same tags in every language can be written into any sentence without
+setting anything up. A sentence with one of them is filled with
 a number from that part, written out by the composer, and a counting part
 fills it with a number and a noun in agreement. The numbers are made into
 cards that are borrowed and never asked (`drill: false`), so they climb

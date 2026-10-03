@@ -7966,34 +7966,41 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     await sleep(200);
   }
 
-  /* The decks that hold the part: the same setting as a deck's own
-     screen, so ticking one here is a call the space saves straight away. */
-  const tick = (/** @type {string} */ title) =>
-    [...up().querySelectorAll(".at-tickrow")].find((r) => (r.textContent || "").includes(title));
-  check("the part lists the decks in its language, ticked where they hold it",
-    !!tick("Lesson 1") && !(/** @type {any} */ (must(tick("Lesson 1"), "Lesson 1").querySelector("input"))).checked &&
-      !!(/** @type {any} */ (must(tick("Lesson 2"), "Lesson 2").querySelector("input"))).checked,
-    [...up().querySelectorAll(".at-tickrow")].map((r) => (r.textContent || "").trim()).join(" | "));
-  check("and a locked deck cannot be ticked",
-    !!(/** @type {any} */ (must(tick("Old lesson"), "Old lesson").querySelector("input"))).disabled);
-  click(must(tick("Lesson 1"), "Lesson 1").querySelector("input"));
+  /* The decks that hold the part, first on its screen and chosen the way a
+     card's decks are: the decks it is in as pills, and a sheet to add it
+     to another. The same setting as a deck's own screen, so a pick here is
+     a call the space saves straight away. */
+  const heads = [...up().querySelectorAll(".at-formhead .at-formnum")].map((h) => h.textContent);
+  check("the part's sections are headed as a card's are, decks first",
+    up().classList.contains("cardform") && heads[0] === "Decks" && heads.includes("Words"),
+    heads.join(" | "));
+  const pills = [...up().querySelectorAll(".at-deckpill .nm")].map((p) => p.textContent);
+  check("the decks that hold the part are pills",
+    JSON.stringify(pills) === JSON.stringify(["Lesson 2"]),
+    pills.join(" | ") || "(no pills)");
+  click(up().querySelector(".at-deckadd"));
+  await sleep(200);
+  const pick = (/** @type {string} */ title) =>
+    [...document.querySelectorAll(".at-deckpick")].find((r) => (r.textContent || "").includes(title));
+  check("and another is added from the same sheet a card uses",
+    !!pick("Lesson 1") && !!pick("Lesson 2") && (/** @type {any} */ (must(pick("Old lesson"), "Old lesson"))).disabled,
+    [...document.querySelectorAll(".at-deckpick")].map((r) => (r.textContent || "").trim()).join(" | ") || "(no sheet)");
+  click(must(pick("Lesson 1"), "Lesson 1"));
   await sleep(150);
-  check("ticking a deck asks for the part to be put in it",
+  check("picking a deck asks for the part to be put in it",
     JSON.stringify(deckCalls[deckCalls.length - 1]) === JSON.stringify(["d1", "numbers:0-10", true]),
     JSON.stringify(deckCalls));
+  const shut = document.querySelector('.at-sheet[aria-label="Decks"] .at-iconbtn, .at-sheet[aria-label="Decks"] button[aria-label="Close"]');
+  click(shut);
+  await sleep(150);
 
-  /* And the blanks it fills. */
-  const blankBox = boxNamed("A blank this part fills");
-  check("the part has a box for a blank it fills", !!blankBox);
-  if (blankBox) {
-    typeIn(blankBox, "Age");
-    await sleep(150);
-    click(buttonIn(/^Add$/));
-    await sleep(200);
-  }
-  check("and a name added there is shown as a blank",
-    [...up().querySelectorAll(".at-numblank .at-blankname")].some((b) => b.textContent === "age"),
-    [...up().querySelectorAll(".at-blankname")].map((b) => b.textContent).join(" | ") || "(none)");
+  /* And the blanks it fills: two fixed tags, said the way a card's
+     default tags are, and nothing to type. */
+  const tags = [...up().querySelectorAll(".at-tagchips .at-tagchip")].map((t) => t.textContent);
+  check("the part shows the tags it fills blanks under, as a card shows its default tags",
+    JSON.stringify(tags) === JSON.stringify(["0-10", "number"]) && /Filling blanks/.test(up().textContent || ""),
+    tags.join(" | ") || "(no tags)");
+  check("and they cannot be changed", !boxNamed("A blank this part fills") && !buttonIn(/^Add$/));
 
   /* A line that is wrong is tapped, and that is a screen of its own rather
      than a block unfolding under the list. */
@@ -8081,9 +8088,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       saved
         ? `${JSON.stringify(saved.sys.lexemes["unit.7"])} · ${JSON.stringify(saved.sys.overrides)}`
         : "nothing saved");
-    check("and the blank the part fills, and no list of nouns",
-      !!saved && JSON.stringify(saved.sys.fills) === JSON.stringify({ "numbers:0-10": ["age"] }) && saved.sys.nouns.length === 0,
-      saved ? `${JSON.stringify(saved.sys.fills)} · ${saved.sys.nouns.length} nouns` : "nothing saved");
+    check("and no list of nouns",
+      !!saved && saved.sys.nouns.length === 0,
+      saved ? `${saved.sys.nouns.length} nouns` : "nothing saved");
   }
 
   editorRoot.unmount();

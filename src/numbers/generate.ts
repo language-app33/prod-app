@@ -690,13 +690,35 @@ export const fillerId = (systemId: string, rangeId: string, value: number, nounI
    them — what an adjective beside a counted phrase agrees with. */
 const NUMBER_OF: Record<string, string> = { sg: "singular", dual: "dual", pl: "plural" };
 
+/** The tag every plain part answers to, and the one every counting part
+    does: `{{number}}` is any number at all, `{{count}}` any number of
+    things. */
+export const NUMBER_TAG = "number";
+export const COUNT_TAG = "count";
+
+/**
+ * The blanks a part fills: its own tag, and the general one.
+ *
+ * Fixed rather than chosen, and read off the part's id, so a teacher can
+ * write `{{0-10}}` or `{{number}}` into a sentence card and know what
+ * stands there without setting anything up — and so the names are the same
+ * for every teacher and every language. Counting parts answer to `count`
+ * rather than `number`: a sentence that says *I have {{number}}* wants
+ * *47*, and handing it *3 books* half the time would make a different
+ * sentence of it.
+ */
+export function partTags(range: Range): string[] {
+  const own = range.id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
+  return [own, range.counted ? COUNT_TAG : NUMBER_TAG];
+}
+
 /**
  * The numbers each part puts into the sentences that ask for it, as cards
  * a blank can be filled from.
  *
- * A part names the blanks it fills — `fills` on the system — and a
- * sentence with one of them in it is met with a number from that part,
- * written out in full by the composer: *I am {{age}}* as *I am 34*. A
+ * A part answers to its tags — see partTags — and a sentence with one of
+ * them in it is met with a number from that part, written out in full by
+ * the composer: *I am {{0-10}}* as *I am 7*. A
  * counting part fills its blank with a number and a thing counted, both
  * agreeing — *I have {{things}}* as *I have 3 books*, with the plural, the
  * dual or the singular the number calls for — and says which of those it
@@ -714,12 +736,12 @@ const NUMBER_OF: Record<string, string> = { sg: "singular", dual: "dual", pl: "p
  * name nobody has written.
  */
 export function fillerCards(composer: Composer | null, sys: NumberSystem | null, now: Millis = 0): Item[] {
-  if (!composer || !sys || !sys.fills) return [];
+  if (!composer || !sys) return [];
   const out: Item[] = [];
   const open = new Set(rangeChecks(composer, sys).filter((c) => c.open).map((c) => c.range.id));
   for (const range of composer.ranges()) {
-    const names = (sys.fills[range.id] || []).filter(Boolean);
-    if (!names.length || range.kind !== "numbers" || !open.has(range.id)) continue;
+    if (range.kind !== "numbers" || !open.has(range.id)) continue;
+    const names = partTags(range);
     const nouns = range.counted ? countable(range, composer, sys) : [];
     /* Every pairing the part could make, then an even spread of them —
        drawn once from the system and the part, so the same on every
