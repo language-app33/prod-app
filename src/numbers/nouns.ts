@@ -68,6 +68,7 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
   let sg: { text: string; en: string; gender: string; human: string } | null = null;
   const pls: { text: string; en: string; gender: string }[] = [];
   const duals: { text: string; gender: string }[] = [];
+  const counteds: { text: string; gender: string }[] = [];
   let gender = "";
   let human = "";
   formsOf(card).forEach((form: Held, at: number) => {
@@ -84,6 +85,8 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
         pls.push({ text, en, gender: g });
       } else if (number === "dual") {
         duals.push({ text, gender: g });
+      } else if (number === "counted") {
+        counteds.push({ text, gender: g });
       } else if (!sg && (number === "singular" || at === 0)) {
         sg = { text, en, gender: g, human: h };
       }
@@ -102,6 +105,9 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
   const many = sameSide(pls);
   const pair = sameSide(duals);
   const dual = pair ? pair.text : "";
+  /* And the plural after three to ten, where the noun has one of its own —
+     days, months. Most have none, and are counted with their plural. */
+  const afterThree = sameSide(counteds);
   /* The singular's own gender where it says one — a noun is the gender of
      its singular — and otherwise whatever any of its answers said. */
   const g = (one && one.gender) || gender;
@@ -117,6 +123,7 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
     sg: one.text,
     pl: many.text,
     ...(dual ? { dual } : null),
+    ...(afterThree ? { plCounted: afterThree.text } : null),
     gender: sex as "m" | "f",
     en,
     ...(many.en && many.en !== en ? { enPl: many.en } : null),

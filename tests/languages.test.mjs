@@ -1224,8 +1224,19 @@ test("each pack offers only the grammar its language has", () => {
     must(dimsOf(LANGUAGES[id]).find((d) => d.field === axis), `${id} ${axis}`).options.map(([v]) => v);
   for (const id of ["ar-PS", "he-IL"]) {
     assert.deepEqual(values(id, "gender"), ["masculine", "feminine"], id);
-    assert.deepEqual(values(id, "number"), ["singular", "plural", "dual", "na"], id);
   }
+  /* Arabic has a plural a few nouns take only after three to ten — days,
+     months — and Hebrew has none. */
+  assert.deepEqual(values("ar-PS", "number"), ["singular", "plural", "counted", "dual", "na"]);
+  assert.deepEqual(values("he-IL", "number"), ["singular", "plural", "dual", "na"]);
+  /* It is a noun's, and offered on nothing else that is asked its number. */
+  const offered = (/** @type {string} */ kind) =>
+    must(dimsFor(LANGUAGES["ar-PS"], kind).find((d) => d.field === "number"), kind).options.map(([v]) => v);
+  assert.ok(offered("noun").includes("counted"));
+  for (const kind of ["pronoun", "person", "place", "name"]) {
+    assert.deepEqual(offered(kind), ["singular", "plural", "dual", "na"], kind);
+  }
+  assert.equal(labelFor({ number: "counted", gender: "masculine" }, LANGUAGES["ar-PS"]), "pl. 3–10 m.");
   /* And what is stored is never narrowed: a value outside the pack's list
      is still kept, and a tag still reads it. */
   assert.equal(dimValues({ gender: "neutral" }).gender, "neutral");

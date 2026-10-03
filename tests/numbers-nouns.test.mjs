@@ -54,6 +54,16 @@ function nounCard(id, has = {}) {
 
 /* ---- reading a card ---- */
 
+test("a noun card's plural after three to ten is read with the rest", () => {
+  const card = nounCard("book");
+  /* A made-up word: what is tested is that it is read, not what it is. */
+  card.forms.push({ ar: "P", en: "", lat: "", number: "counted", gender: "masculine" });
+  const noun = must(must(readNounCard(card), "book").noun, "noun");
+  assert.equal(noun.plCounted, "P");
+  /* And a card without one has none, rather than an empty one. */
+  assert.equal("plCounted" in must(must(readNounCard(nounCard("book")), "book").noun, "noun"), false);
+});
+
 test("a noun card is read for its singular, plural, pair form and gender", () => {
   const read = must(readNounCard(nounCard("book", { enPl: "books" })), "book");
   assert.deepEqual(read.missing, []);

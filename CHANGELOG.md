@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.321 — 3 October 2026
+
+**Palestinian numbers from three to nineteen have one word before a noun,
+and nouns like "days" have a box for the plural they take after a number.**
+
+- In Palestinian Arabic, three to nineteen say the same word before a
+  masculine and a feminine noun: five boys and five girls both start with
+  خمس. The number screen used to ask for two words, one for each gender,
+  and picked between them. It now asks for one, labelled "before a noun".
+  One and two still have a masculine and a feminine box, because they do
+  change.
+- If you wrote two different words for a number before, the number screen
+  tells you, shows both, and lets you tap the one you say. Until you do,
+  your students are asked exactly what they were asked before. If you
+  wrote the same word twice, or only filled one box, nothing changes and
+  you are not asked.
+- Arabic noun cards have a new box under the plural: "Plural after 3 to
+  10". It is for the few nouns whose plural changes after three to ten,
+  like days (تيام rather than أيام) or months. Leave it empty for every
+  other noun. When it is filled, counting from three to ten uses it, so
+  five days comes out as خمس تيام. Eleven and up are unaffected.
+- What you write in that box is not asked on its own or used in sentences,
+  only in counting. You can switch that on with its ticks if you want.
+- The "Counting things: 3 to 10" screen mentions the new box, and the
+  hint on the thousands box now says to write it the way it is said after
+  three to ten.
+- A counting question still expects the first spelling written in a box.
+  A second spelling you add is not yet accepted in counting questions.
+
 ## 0.320 — 3 October 2026
 
 **Noun cards come with a box for each form, and people and animals have a

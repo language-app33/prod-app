@@ -341,6 +341,20 @@ export interface GrammarDim {
    */
   perCard?: boolean;
   retired?: boolean;
+  /**
+   * What is particular about one value, where something is.
+   *
+   * Arabic's plural after three to ten is the case this exists for: a box
+   * on a noun card and nothing anywhere else, a line under that box saying
+   * which nouns want it, and not a word to be asked on its own — it is
+   * said inside a counted phrase, *khams tiyyām*, and nowhere else.
+   *
+   *   * `onlyOn` — the kinds of word it is offered on; absent is all.
+   *   * `help` — said under the box it is the number of.
+   *   * `unasked` — a form of it starts switched off in practice; the
+   *     ticks are still there to switch it on.
+   */
+  optionRules?: Record<string, { onlyOn?: string[]; help?: string; unasked?: boolean }>;
 }
 
 /* ---- a language ----

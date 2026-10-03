@@ -38,6 +38,7 @@ import type {
   SlotSpec,
   TimeSystem,
   TimeStyle,
+  TwoWords,
 } from "./numbers/types.ts";
 import { MINUTE_MARKS } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
@@ -47,6 +48,7 @@ import { figureOf, homesOf, partTags } from "./numbers/generate.ts";
 import { readNouns, withNouns } from "./numbers/nouns.ts";
 import type { ReadNoun } from "./numbers/nouns.ts";
 import { Button, Help, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
+import { dimsFor } from "./languages.ts";
 import { DeckSwitch, RecordingScreen, ScriptInput } from "./card-editor.tsx";
 
 /** A box's number in the language's own figures, under the one it is
@@ -106,6 +108,11 @@ const FACE_LABEL: Record<string, string> = {
   "construct.f": "before a feminine noun",
   company: "inside a bigger number",
 };
+
+/* What one box is called: the language's own name for it where it has
+   one — Arabic's single word before a noun — and the shared name else. */
+const faceLabel = (slot: SlotSpec, key: FormKey): string =>
+  (slot.faceLabels && slot.faceLabels[key]) || FACE_LABEL[key] || key;
 
 /* A document as a string that two copies of it agree on whatever order
    their keys were written in. */
@@ -217,7 +224,12 @@ export function NumberSystemEditor({
   const composer = composerFor(lang.id);
   const timeComposer = timeComposerFor(lang.id);
   const [tab, setTab] = useState<"numbers" | "times">("numbers");
-  const [draft, setDraft] = useState<NumberSystem>(numbers);
+  /* What was saved, with anything a composer has since folded into fewer
+     boxes folded — see Composer.tidy. The screen opens on it and compares
+     against it, so opening is not an unsaved change and the next save
+     stores the tidy shape. */
+  const base = useMemo(() => (composer && composer.tidy ? composer.tidy(numbers) : numbers), [composer, numbers]);
+  const [draft, setDraft] = useState<NumberSystem>(base);
   const [clock, setClock] = useState<TimeSystem | null>(times);
   /* Which box is being recorded into, as the slot and the face. One
      recorder, pointed wherever it was asked for — two would be two live
@@ -278,11 +290,23 @@ export function NumberSystemEditor({
   const slotSpecs = useMemo(() => (composer ? composer.requiredSlots() : []), [composer]);
   const labels = useMemo(() => new Map(slotSpecs.map((s) => [s.slot, s.label])), [slotSpecs]);
   const checks = useMemo(() => (composer ? rangeChecks(composer, counted) : []), [composer, counted]);
+  /* Boxes that used to be two, where the teacher wrote a different word in
+     each — see TwoWords. Asked on the part each number is in, and named on
+     the front screen so nobody has to go looking. */
+  const twoWords = useMemo(
+    () => (composer && composer.twoWords ? composer.twoWords(draft) : []),
+    [composer, draft],
+  );
+  const keepOne = (q: TwoWords, keep: "masculine" | "feminine") => {
+    if (!composer || !composer.keepOne) return;
+    const settle = composer.keepOne;
+    setDraft((d) => settle(d, q, keep));
+  };
 
   /* Compared by content rather than by how the keys happen to be ordered:
      what the server hands back is read into a fresh object, whose keys
      need not come in the order the one being edited has them. */
-  const dirty = stable(draft) !== stable(numbers) || stable(clock) !== stable(times);
+  const dirty = stable(draft) !== stable(base) || stable(clock) !== stable(times);
 
   if (!composer) {
     return (
@@ -346,6 +370,7 @@ export function NumberSystemEditor({
         lang={lang}
         draft={draft}
         forKey={writing}
+        slots={slotSpecs}
         render={(n, sys) => composer.render(n, sys)}
         onKeep={(text, lat) => {
           setDraft((d) => withOverride(d, writing, text, lat));
@@ -391,6 +416,8 @@ export function NumberSystemEditor({
         labels={labels}
         slots={slotSpecs}
         render={(n, ctx) => composer.render(n, counted, ctx)}
+        twoWords={twoWords.filter((q) => q.n >= open.range.from && q.n <= open.range.to)}
+        onKeepOne={keepOne}
         nouns={nounCards}
         decks={decks}
         footer={footer}
@@ -432,6 +459,7 @@ export function NumberSystemEditor({
           homes={homes}
           labels={labels}
           render={(n) => composer.render(n, counted)}
+          twoWords={twoWords}
           onOpen={setPart}
           onWrite={setWriting}
           onCheck={() => setTrying(true)}
@@ -537,13 +565,15 @@ export function partStatus(
   return before ? `waiting on ${before.range.label}` : waitingOn(check.warnings);
 }
 
-function NumbersTab({ lang, draft, checks, homes, labels, render, onOpen, onWrite, onCheck }: {
+function NumbersTab({ lang, draft, checks, homes, labels, render, twoWords, onOpen, onWrite, onCheck }: {
   lang: Lang;
   draft: NumberSystem;
   checks: RangeCheck[];
   homes: Map<string, string>;
   labels: Map<string, string>;
   render: (n: number) => { text: string; warnings: { code: string; slot?: string }[] };
+  /** Boxes that used to be two and still hold two different words. */
+  twoWords: TwoWords[];
   /** Open one part's own screen. */
   onOpen: (rangeId: string) => void;
   /** Write this number out by hand, on a screen of its own. */
@@ -553,6 +583,10 @@ function NumbersTab({ lang, draft, checks, homes, labels, render, onOpen, onWrit
   const [extra, setExtra] = useState<number[]>([]);
   const shown = useMemo(() => SAMPLE.concat(extra), [extra]);
   const parts = checks.filter((c) => c.range.kind === "numbers");
+  /* The parts that hold a question about two words, in their own order. */
+  const asking = parts.filter(
+    (c) => !c.range.counted && twoWords.some((q) => q.n >= c.range.from && q.n <= c.range.to),
+  );
 
   return (
     <>
@@ -562,6 +596,19 @@ function NumbersTab({ lang, draft, checks, homes, labels, render, onOpen, onWrit
         and with the tens anything up to ninety-nine. <b>Nothing here has to be finished</b> —
         whatever is written works, and each part says what it is still waiting for.
       </Help>
+
+      {asking.length ? (
+        <Notice kind="warn">
+          {`For ${plural(twoWords.length, "number")} you wrote one word before a masculine noun and another before a feminine one. ${lang.name} uses the same word before both, so there is now one box. Choose the word you say in ${asking.map((c) => c.range.label.toLowerCase()).join(" and ")}. Until you do, your students are asked exactly what they were before.`}
+          <div className="at-row at-mt3">
+            {asking.map((c) => (
+              <Button key={c.range.id} size="sm" onClick={() => onOpen(c.range.id)}>
+                {`Open ${c.range.label}`}
+              </Button>
+            ))}
+          </div>
+        </Notice>
+      ) : null}
 
       <Section title="Parts" className="at-mt5">
         <div className="at-numparts">
@@ -663,7 +710,7 @@ function SampleRows({ lang, draft, values, render, onWrite }: {
  * and one tap away.
  */
 function PartScreen({
-  lang, draft, setDraft, check, checks, homes, labels, slots, render, nouns, decks, footer,
+  lang, draft, setDraft, check, checks, homes, labels, slots, render, twoWords, onKeepOne, nouns, decks, footer,
   onRecord, onWrite, onOpen, onDeckPart, onClose,
 }: {
   lang: Lang;
@@ -675,6 +722,10 @@ function PartScreen({
   labels: Map<string, string>;
   slots: SlotSpec[];
   render: (n: number, ctx?: { noun?: CountedNoun }) => { text: string; warnings: { code: string; slot?: string; detail?: string }[] };
+  /** Boxes in this part that used to be two and still hold two different
+      words, and the answer to one. */
+  twoWords: TwoWords[];
+  onKeepOne: (q: TwoWords, keep: "masculine" | "feminine") => void;
   /** The teacher's noun cards in this language, read for counting. */
   nouns: ReadNoun[];
   decks: PartDeck[];
@@ -733,6 +784,10 @@ function PartScreen({
           goes decides whether anybody is ever asked it. */}
       <PartDecks range={range} decks={decks} onDeckPart={onDeckPart} />
 
+      {!range.counted && twoWords.length ? (
+        <TwoWordsBlock lang={lang} questions={twoWords} onKeep={onKeepOne} />
+      ) : null}
+
       {range.counted ? (
         <CountedSection lang={lang} range={range} nouns={nouns} render={render} standing={standing} />
       ) : (
@@ -786,6 +841,61 @@ function PartScreen({
 }
 
 /**
+ * The words a teacher wrote for a box that used to be two, and the
+ * question of which one they say.
+ *
+ * Arabic's three to nineteen had a box before a masculine noun and another
+ * before a feminine one until 0.321. The dialect says one word before
+ * both, so a teacher who wrote two different words is shown them and taps
+ * theirs. Nothing is chosen for them: under the written language's rule
+ * the feminine box held the dialect's word as often as the masculine one,
+ * so neither is a safe guess, and until they choose, their students are
+ * asked what they were asked before.
+ */
+function TwoWordsBlock({ lang, questions, onKeep }: {
+  lang: Lang;
+  questions: TwoWords[];
+  onKeep: (q: TwoWords, keep: "masculine" | "feminine") => void;
+}) {
+  const said = (text: string) => (
+    <span lang={lang.id} dir={lang.direction}>
+      {text || "the app's own word"}
+    </span>
+  );
+  return (
+    <PartBlock
+      title="One word before a noun"
+      role={`You wrote one word before a masculine noun and another before a feminine one. ${lang.name} uses the same word before both. Tap the one you say; it is used before every noun. Until you choose, nothing changes for your students.`}
+    >
+      <div className="at-numgrid">
+        {questions.map((q) => (
+          <div className="at-numrow" key={q.key}>
+            <div className="at-numlabel">
+              <span className="at-numfig">{q.n}</span>
+              {q.kind === "correction" ? <Meta>a number you wrote out</Meta> : null}
+            </div>
+            <div className="at-numboxes">
+              <div className="at-numcell">
+                <Meta>{FACE_LABEL["construct.m"]}</Meta>
+                <Button size="sm" onClick={() => onKeep(q, "masculine")}>
+                  {said(q.masculine)}
+                </Button>
+              </div>
+              <div className="at-numcell">
+                <Meta>{FACE_LABEL["construct.f"]}</Meta>
+                <Button size="sm" onClick={() => onKeep(q, "feminine")}>
+                  {said(q.feminine)}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </PartBlock>
+  );
+}
+
+/**
  * The boxes for some slots: a word per face, and once there is one, how it
  * sounds and a recording of it.
  */
@@ -814,11 +924,11 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord }: {
           <div className="at-numboxes">
             {slot.formKeys.map((key) => (
               <div className="at-numcell" key={key}>
-                {slot.formKeys.length > 1 ? <Meta>{FACE_LABEL[key] || key}</Meta> : null}
+                {slot.formKeys.length > 1 ? <Meta>{faceLabel(slot, key)}</Meta> : null}
                 <ScriptInput
                   lang={lang}
                   value={(draft.lexemes[slot.slot] || { forms: {} }).forms[key] || ""}
-                  label={`${slot.label}, ${FACE_LABEL[key] || key}`}
+                  label={`${slot.label}, ${faceLabel(slot, key)}`}
                   compact
                   onChange={(v) => setDraft((d) => withWord(d, slot.slot, key, v))}
                 />
@@ -827,7 +937,7 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord }: {
                     <LatInput
                       lang={lang}
                       value={(draft.lexemes[slot.slot].lat || {})[key] || ""}
-                      of={`${slot.label}, ${FACE_LABEL[key] || key}`}
+                      of={`${slot.label}, ${faceLabel(slot, key)}`}
                       onChange={(v) => setDraft((d) => withLat(d, slot.slot, key, v))}
                     />
                     <Button size="sm" onClick={() => onRecord(slot.slot, key)}>
@@ -893,10 +1003,16 @@ function CountedSection({ lang, range, nouns, render, standing }: {
   /* Whether this language counts two with a noun's pair form, which is
      what the line below has to ask for: a gap a noun can have here. */
   const pairs = rows.some((r) => r.gaps.includes(GAP_LABEL.dual)) || rows.some((r) => !!(r.read.noun && r.read.noun.dual));
+  /* Where the language has a plural a few nouns take only after three to
+     ten — days, months — and this part reaches those numbers, the line
+     says where it is written: on the noun's own card. */
+  const number = dimsFor(lang, "noun").find((d) => d.field === "number");
+  const afterThree =
+    range.from <= 10 && range.to >= 3 && !!number && number.options.some(([v]) => v === "counted");
   return (
     <PartBlock
       title="Things counted"
-      role={`Counting uses your noun cards: any noun card in ${lang.name} with its singular, its plural${pairs ? ", its pair form" : ""} and its gender written. Write or finish one on the Cards tab and it is counted here — nothing to copy across.`}
+      role={`Counting uses your noun cards: any noun card in ${lang.name} with its singular, its plural${pairs ? ", its pair form" : ""} and its gender written. Write or finish one on the Cards tab and it is counted here — nothing to copy across.${afterThree ? " A noun whose plural changes after three to ten, like days or months, has a box for that on its card, under the plural." : ""}`}
     >
       {standing}
       <div className="at-mt5" />
@@ -1428,10 +1544,12 @@ const digitsOf = (key: string): number => Number(String(key).split("|")[0]);
  * override taken out, so it is the app's own attempt and not an echo of
  * the correction being written.
  */
-function WrittenOutScreen({ lang, draft, forKey, render, onKeep, onClose }: {
+function WrittenOutScreen({ lang, draft, forKey, slots, render, onKeep, onClose }: {
   lang: Lang;
   draft: NumberSystem;
   forKey: string;
+  /** The language's boxes, for what this face is called in it. */
+  slots: SlotSpec[];
   render: (n: number, sys: NumberSystem) => { text: string };
   onKeep: (text: string, lat: string) => void;
   onClose: () => void;
@@ -1441,6 +1559,8 @@ function WrittenOutScreen({ lang, draft, forKey, render, onKeep, onClose }: {
   const [lat, setLat] = useState((had && had.lat) || "");
   const value = digitsOf(forKey);
   const face = String(forKey).split("|")[1] || "";
+  const box = slots.find((s) => s.label === String(value) && s.formKeys.includes(face as FormKey));
+  const faceName = face ? (box ? faceLabel(box, face as FormKey) : FACE_LABEL[face] || face) : "";
   /* The app's own answer, with the correction taken out of the way. */
   const built = Number.isFinite(value) ? render(value, withOverride(draft, forKey, "")).text : "";
   const changed = text.trim() !== (had ? had.text : "") || lat.trim() !== ((had && had.lat) || "");
@@ -1463,7 +1583,7 @@ function WrittenOutScreen({ lang, draft, forKey, render, onKeep, onClose }: {
       <Help>
         Whatever is written here is what a student is asked, for this number and wherever it
         turns up inside a bigger one. Clear the box and the app goes back to building it.
-        {face ? ` This is the form used ${FACE_LABEL[face] || face}.` : ""}
+        {faceName ? ` This is the form used ${faceName}.` : ""}
       </Help>
 
       <Section title="What the app says now" className="at-mt5">

@@ -4485,3 +4485,64 @@ Counting the feminine side as nouns of its own was left for later.
 **Revisit if** a language turns up whose nouns change for something the
 boxes do not cover, or if teachers start writing unit nouns (تفاحة) on the
 same card as their collective — that would be a case for a box of its own.
+
+---
+
+## Palestinian three to nineteen have one word before a noun
+
+**3 October 2026** · `src/numbers/ar-PS.ts`, `src/numbers/nouns.ts`, `src/languages.ts` (`optionRules`), `src/number-system-editor.tsx` (`TwoWordsBlock`)
+
+The number screen asked for three to nineteen twice before a noun: once
+before a masculine noun and once before a feminine one, and picked between
+them by the noun's gender. That is the written language's rule — ثلاثة
+كتب, ثلاث بنات — and not the dialect's, which says خمس ولاد and خمس بنات
+with the same word. A teacher writing the dialect typed it twice and their
+students saw it twice, under two labels that suggested a difference; a
+teacher writing the written forms had the written language's agreement
+taught as the dialect.
+
+**One box.** Three to nineteen take `standalone` and `construct.m`, and
+`construct.m` is labelled *before a noun* through `SlotSpec.faceLabels`, so
+Hebrew — whose three to ten do change with the noun's gender, and which
+shares the face — keeps its own labels. The word stays stored where it
+was, so a learner's progress on that face of a number card carries over.
+
+**What was written in two is not guessed between.** Most systems hold the
+same word in both boxes, or one box only, and read as one word with no
+question asked (`beforeNoun`). One that holds two different words is not
+settled by the app: under the written rule the box before a *feminine*
+noun held the dialect's word, so keeping the masculine one by default
+would usually keep the wrong one. The teacher is shown both and taps
+theirs (`twoWordsBeforeNoun`, `keepOneWord`), and until they do, their
+students are asked exactly what they were asked before. A correction
+written for one gender (`3|construct.f`) is the same question about a
+whole number. The number screen opens on the system with everything that
+is not a question folded into the one box (`tidyBeforeNoun`), so a word
+kept only in the old feminine box shows where it is used, and a stale copy
+cannot turn into a question when the box it copied is changed later.
+Nothing is migrated on the server; a system nobody opens keeps its old
+behaviour indefinitely, which is the cost.
+
+**The t of days and months is the noun's.** A few nouns take a t after
+three to ten that they have nowhere else — خمس تيام beside أيام, تشهر,
+تلاف. Historically it was the numeral's feminine ending; in the Levant it
+is heard as the start of a special plural, and where it is written in
+Arabic script it is written on the noun. Some textbooks transcribe it on
+the numeral in Latin letters (*ḫamest‿iyyām*), which is the same sound. So
+it is a box on the noun's card, *Plural after 3 to 10*, Arabic only and
+offered on nouns only (`GrammarDim.optionRules`), read by counting as
+`CountedNoun.plCounted` and used for three to ten alone. A form in it
+starts out of practice and out of sentences: it is said inside a counted
+phrase and nowhere else. Thousands were already handled: the thousands box
+is only used after three to ten. This replaces 0.320's note that such a
+form "belongs to counting".
+
+**Not done.** A counting question still expects one answer — the first
+spelling in each box — so a second accepted spelling of the plural or of
+this box is not accepted in a counted phrase. That was true of the plural
+before and is unchanged. And the t can only be written on the noun; a
+teacher who wants it on the numeral in Arabic script would need a second
+box, which was weighed and left out until someone asks.
+
+**Revisit if** a teacher asks for خمست أيام spelt that way, or for a
+counted phrase to accept more than one spelling.

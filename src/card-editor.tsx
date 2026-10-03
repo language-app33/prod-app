@@ -3130,6 +3130,10 @@ export interface NounBox {
       the card's. */
   gender: string;
   title: string;
+  /** Said under the box, where its number has something to say. */
+  help?: string;
+  /** Whether a form written into it starts out of practice. */
+  unasked?: boolean;
 }
 
 /**
@@ -3164,13 +3168,25 @@ const sidesOf = (dims: GrammarDim[]): [string, string][] =>
 export function nounBoxes(lang: Lang | null | undefined, layout: NounLayout): NounBox[] {
   if (!layout) return [];
   const dims = answerDims(lang, "noun");
-  const numbers = ((dims.find((d) => d.field === "number") || { options: [] }).options as [string, string][])
-    .filter(([v]) => v !== "na");
+  const dim = dims.find((d) => d.field === "number");
+  const numbers = ((dim || { options: [] }).options as [string, string][]).filter(([v]) => v !== "na");
+  /* What a value says about its box — Arabic's plural after three to ten
+     has a line under it and is not asked on its own. */
+  const extra = (v: string) => {
+    const rule = (dim && dim.optionRules && dim.optionRules[v]) || {};
+    return { ...(rule.help ? { help: rule.help } : null), ...(rule.unasked ? { unasked: true } : null) };
+  };
   if (layout === "single") {
-    return numbers.map(([v, label]) => ({ key: v, number: v, gender: "", title: cap(label) }));
+    return numbers.map(([v, label]) => ({ key: v, number: v, gender: "", title: cap(label), ...extra(v) }));
   }
   return sidesOf(dims).flatMap(([g, side]) =>
-    numbers.map(([v, label]) => ({ key: `${g}:${v}`, number: v, gender: g, title: cap(`${side} ${label}`) })),
+    numbers.map(([v, label]) => ({
+      key: `${g}:${v}`,
+      number: v,
+      gender: g,
+      title: cap(`${side} ${label}`),
+      ...extra(v),
+    })),
   );
 }
 
@@ -4786,12 +4802,18 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
    * parts to step over. The box is drawn from this, and the first thing
    * typed makes it real — see fillBox.
    */
-  const emptyBox = (box: NounBox): Record<string, any> => ({
-    ...blankForm(),
-    ...cardGrammar(),
-    number: box.number,
-    gender: nounLayout === "paired" ? box.gender : nounGenderOf(forms),
-  });
+  const emptyBox = (box: NounBox): Record<string, any> => {
+    const form = {
+      ...blankForm(),
+      ...cardGrammar(),
+      number: box.number,
+      gender: nounLayout === "paired" ? box.gender : nounGenderOf(forms),
+    };
+    /* A box whose word is only said inside something bigger — the plural
+       after three to ten, inside a counted phrase — starts out of practice
+       on its own and out of sentences. Its ticks are still there. */
+    return box.unasked ? setPartFlags(form, false, false) : form;
+  };
   const fillBox = (box: NounBox, next: Record<string, any>) =>
     settle(forms.concat([{ ...emptyBox(box), ...next, id: formName(forms) }]));
   /* A thing's gender, which is the card's: on every form in a box, and off
@@ -8515,7 +8537,7 @@ function NounEditor({ word, lang, allCards, selfId }: {
               index={i}
               form={f}
               title={box.title}
-              role={i < 0 ? "Empty — never asked." : ""}
+              role={box.help ? box.help : i < 0 ? "Empty — never asked." : ""}
               of={box.title.toLowerCase()}
               canCopy={false}
               /* Already marked: the box says what it is. A card whose answers
@@ -8524,7 +8546,9 @@ function NounEditor({ word, lang, allCards, selfId }: {
               dims={i >= 0 && !formSays(f) ? undefined : []}
               onFill={(next) => fillBox(box, next)}
             >
-              {i >= 0 && <PronounTable word={word} lang={lang} index={i} form={f} />}
+              {/* Not under a box whose word is only said inside a counted
+                  phrase: nobody says "my tiyyām". */}
+              {i >= 0 && !box.unasked && <PronounTable word={word} lang={lang} index={i} form={f} />}
             </FormBlock>
           );
         })}

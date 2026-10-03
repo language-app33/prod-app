@@ -2701,11 +2701,36 @@ test("a noun is laid out in boxes, with two sides for a person or an animal", ()
      in a language that marks no number on one. */
   assert.equal(nounLayoutOf(arPS(), "preposition", "thing"), "");
   assert.equal(nounLayoutOf(LANGUAGES["vi-Hue"], "noun", "thing"), "");
-  assert.deepEqual(nounBoxes(arPS(), "single").map((/** @type {any} */ b) => b.title), ["Singular", "Plural", "Dual"]);
-  assert.deepEqual(nounBoxes(arPS(), "paired").map((/** @type {any} */ b) => b.title), [
-    "Masculine singular", "Masculine plural", "Masculine dual",
-    "Feminine singular", "Feminine plural", "Feminine dual",
+  assert.deepEqual(nounBoxes(arPS(), "single").map((/** @type {any} */ b) => b.title), [
+    "Singular", "Plural", "Plural after 3 to 10", "Dual",
   ]);
+  assert.deepEqual(nounBoxes(arPS(), "paired").map((/** @type {any} */ b) => b.title), [
+    "Masculine singular", "Masculine plural", "Masculine plural after 3 to 10", "Masculine dual",
+    "Feminine singular", "Feminine plural", "Feminine plural after 3 to 10", "Feminine dual",
+  ]);
+  /* Hebrew has no plural of its own after a number, so no such box. */
+  assert.deepEqual(nounBoxes(LANGUAGES["he-IL"], "single").map((/** @type {any} */ b) => b.title), ["Singular", "Plural", "Dual"]);
+});
+
+test("Arabic's plural after three to ten says which nouns want it, and is not asked on its own", () => {
+  /* Days and months take a t after three to ten that they have nowhere
+     else. The box says so under it, and a form written into it is said
+     inside a counted phrase rather than drilled as a word of its own. */
+  const boxes = nounBoxes(arPS(), "single");
+  const counted = must(boxes.find((/** @type {any} */ b) => b.number === "counted"), "the box");
+  assert.match(String(counted.help), /three to ten/);
+  assert.equal(counted.unasked, true);
+  for (const b of boxes.filter((/** @type {any} */ b) => b.number !== "counted")) {
+    assert.equal(b.help, undefined, b.title);
+    assert.equal(b.unasked, undefined, b.title);
+  }
+  /* And a form already in it sits in it. */
+  const forms = [
+    { ar: "يوم", en: "day", lat: "", number: "singular", gender: "masculine" },
+    { id: "f1", ar: "أيام", en: "days", lat: "", number: "plural", gender: "masculine" },
+    { id: "f2", ar: "تيام", en: "days", lat: "", number: "counted", gender: "masculine" },
+  ];
+  assert.deepEqual(placeNounForms(forms, boxes, "single").at, { singular: 0, plural: 1, counted: 2 });
 });
 
 test("a form goes into the box its number and gender say, and the rest are kept under them", () => {

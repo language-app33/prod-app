@@ -199,7 +199,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
       .map((key) => ({
         key,
         text: String(lex.forms[key] || "").trim(),
-        label: labelForFace(key),
+        label: (spec.faceLabels && spec.faceLabels[key]) || labelForFace(key),
         lat: (lex.lat || {})[key],
         audio: (lex.audio || {})[key],
       }))
