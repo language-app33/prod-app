@@ -26,7 +26,7 @@
  * the numerals that agree with a feminine word are written. The tab says
  * so rather than opening onto boxes that would render nothing.
  */
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { Lang } from "./types.ts";
 import type {
   CountedNoun,
@@ -34,15 +34,21 @@ import type {
   MinuteExpr,
   NumberSystem,
   Period,
+  Range,
   SlotSpec,
   TimeSystem,
   TimeStyle,
 } from "./numbers/types.ts";
 import { MINUTE_MARKS } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
-import { blocking, rangeChecks, seeded } from "./numbers/range.ts";
-import { figureOf } from "./numbers/generate.ts";
-import { Button, Help, Meta, Notice, Screen, Section, Segmented, plural } from "./shared.tsx";
+import { blocking, probeOf, rangeChecks, seeded } from "./numbers/range.ts";
+import type { RangeCheck } from "./numbers/range.ts";
+import { figureOf, homesOf } from "./numbers/generate.ts";
+import { readNouns, withNouns } from "./numbers/nouns.ts";
+import type { ReadNoun } from "./numbers/nouns.ts";
+import { refClash, slotName } from "./variables.ts";
+import { categoriesOf } from "./languages.ts";
+import { Button, CheckList, Help, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
 import { RecordingScreen, ScriptInput } from "./card-editor.tsx";
 
 /** A box's number in the language's own figures, under the one it is
@@ -189,9 +195,19 @@ export interface EditorProps {
   signed?: Record<string, number | null>;
   /** Sign off the version the server holds. */
   onSignOff?: (kind: "numbers" | "times", system: NumberSystem | TimeSystem) => void;
+  /** The teacher's cards: the noun cards are what counting counts, and
+      every card's names are what a part's blank has to be free of. */
+  cards?: Record<string, unknown>[];
+  /** The decks in this language, for which hold each part. */
+  decks?: PartDeck[];
+  /** Put a part in a deck or take it out — saved at once, as a deck's own
+      screen saves it. */
+  onDeckPart?: (deckId: string, rangeId: string, on: boolean) => void;
 }
 
-export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy, signed, onSignOff }: EditorProps) {
+export function NumberSystemEditor({
+  lang, numbers, times, onSave, onClose, busy, signed, onSignOff, cards = [], decks = [], onDeckPart,
+}: EditorProps) {
   const composer = composerFor(lang.id);
   const timeComposer = timeComposerFor(lang.id);
   const [tab, setTab] = useState<"numbers" | "times">("numbers");
@@ -215,6 +231,18 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
    */
   const [writing, setWriting] = useState<string | null>(null);
   const [trying, setTrying] = useState(false);
+  /* And the part of the numbers open on its own screen, by range id. */
+  const [part, setPart] = useState<string | null>(null);
+
+  /*
+   * The draft with the things it counts, which are the teacher's noun
+   * cards rather than anything in the draft — see nouns.ts. Everything
+   * that renders reads this; everything that edits writes the draft, so
+   * what is saved never carries them.
+   */
+  const nounCards = useMemo(() => readNouns(cards, lang.id), [cards, lang.id]);
+  const nouns = useMemo(() => nounCards.flatMap((r) => (r.noun ? [r.noun] : [])), [nounCards]);
+  const counted = useMemo(() => withNouns(draft, nouns), [draft, nouns]);
 
   /*
    * What a save hands back, taken into the copy being edited.
@@ -239,6 +267,12 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
     setClock((c) => (c && tId ? { ...c, id: tId, owner: tOwner, rev: tRev, created: tCreated, updated: tUpdated } : c));
   }, [tId, tOwner, tRev, tCreated, tUpdated]);
 
+  /* Which part each box belongs to, and what each box is called. */
+  const homes = useMemo(() => (composer ? homesOf(composer) : new Map<string, string>()), [composer]);
+  const slotSpecs = useMemo(() => (composer ? composer.requiredSlots() : []), [composer]);
+  const labels = useMemo(() => new Map(slotSpecs.map((s) => [s.slot, s.label])), [slotSpecs]);
+  const checks = useMemo(() => (composer ? rangeChecks(composer, counted) : []), [composer, counted]);
+
   /* Compared by content rather than by how the keys happen to be ordered:
      what the server hands back is read into a fresh object, whose keys
      need not come in the order the one being edited has them. */
@@ -261,7 +295,7 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
      empty tab. */
   const hourReady = (() => {
     for (let h = 1; h <= 12; h += 1) {
-      const said = composer.render(h, draft, { gender: "f" });
+      const said = composer.render(h, counted, { gender: "f" });
       if (!said.text || blocking(said.warnings).length) return false;
     }
     return true;
@@ -320,8 +354,9 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
     return (
       <TryItScreen
         lang={lang}
-        draft={draft}
-        render={(n, ctx) => composer.render(n, draft, ctx)}
+        draft={counted}
+        labels={labels}
+        render={(n, ctx) => composer.render(n, counted, ctx)}
         onWrite={(key) => {
           setTrying(false);
           setWriting(key);
@@ -331,16 +366,40 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
     );
   }
 
+  const footer = (
+    <Button variant="primary" wide disabled={!dirty || busy} onClick={save}>
+      {dirty ? "Save" : "Nothing to save"}
+    </Button>
+  );
+
+  const open = part ? checks.find((c) => c.range.id === part) || null : null;
+  if (open) {
+    return (
+      <PartScreen
+        lang={lang}
+        draft={draft}
+        setDraft={setDraft}
+        check={open}
+        checks={checks}
+        homes={homes}
+        labels={labels}
+        slots={slotSpecs}
+        render={(n, ctx) => composer.render(n, counted, ctx)}
+        nouns={nounCards}
+        decks={decks}
+        cards={cards}
+        footer={footer}
+        onRecord={(slot, key) => setRecording({ slot, key })}
+        onWrite={setWriting}
+        onOpen={setPart}
+        onDeckPart={onDeckPart}
+        onClose={() => setPart(null)}
+      />
+    );
+  }
+
   return (
-    <Screen
-      title="Number system"
-      onBack={onClose}
-      footer={
-        <Button variant="primary" wide disabled={!dirty || busy} onClick={save}>
-          {dirty ? "Save" : "Nothing to save"}
-        </Button>
-      }
-    >
+    <Screen title="Number system" onBack={onClose} footer={footer}>
       <Segmented
         label="What to write"
         options={[
@@ -364,13 +423,13 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
         <NumbersTab
           lang={lang}
           draft={draft}
-          setDraft={setDraft}
-          slots={composer.requiredSlots()}
-          render={(n, ctx) => composer.render(n, draft, ctx)}
-          checks={rangeChecks(composer, draft)}
-          onRecord={(slot, key) => setRecording({ slot, key })}
+          checks={checks}
+          homes={homes}
+          labels={labels}
+          render={(n) => composer.render(n, counted)}
+          onOpen={setPart}
           onWrite={setWriting}
-          onTry={() => setTrying(true)}
+          onCheck={() => setTrying(true)}
         />
       ) : (
         <TimesTab
@@ -395,48 +454,114 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
 
 /* ---- numbers ---- */
 
-function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord, onWrite, onTry }: {
+/** A deck as this screen needs it: what it is called, which parts of the
+    numbers it holds, and whether its contents are locked. */
+export interface PartDeck {
+  id: string;
+  title: string;
+  parts: string[];
+  locked?: boolean;
+}
+
+/**
+ * Where one part stands, in a few words a tile can carry.
+ *
+ * "ready", or what it is waiting for — and where that is a word another
+ * part holds, which part: 11 to 99 cannot be said without seven, and the
+ * box for seven is on 0 to 10's screen, not this one. A counting part is
+ * waiting on a noun rather than a word, and says which face no noun has
+ * yet.
+ */
+export function partStatus(
+  check: RangeCheck,
+  checks: RangeCheck[],
+  homes: Map<string, string>,
+  labels: Map<string, string>,
+): string {
+  if (check.open) return "ready";
+  const stops = blocking(check.warnings as never) as { code: string; slot?: string; detail?: string }[];
+  if (check.range.counted) {
+    if (stops.some((w) => w.detail === "no nouns to count")) return "waiting on a noun to count";
+    const faces = [...new Set(
+      stops.filter((w) => w.code === "missing-noun-form").map((w) => String(w.detail || "").split(".").pop() || ""),
+    )]
+      .map((f) => ({ sg: "singular", dual: "pair form", pl: "plural" } as Record<string, string>)[f])
+      .filter(Boolean);
+    /* A number word missing is said the way any part says it, below. */
+    if (faces.length && !stops.some((w) => w.slot)) return `waiting on a noun with its ${faces.join(" and ")}`;
+  }
+  const partLabel = (id: string) => {
+    const at = checks.find((c) => c.range.id === id);
+    return at ? at.range.label : id;
+  };
+  const missing = [...new Set(stops.map((w) => w.slot || "").filter(Boolean))];
+  const borrowed = missing.filter((slot) => homes.get(slot) && homes.get(slot) !== check.range.id);
+  const own = missing.filter((slot) => !borrowed.includes(slot));
+  const named = (slots: string[]) =>
+    slots.length > 2
+      ? `${slots.slice(0, 2).map((s) => labels.get(s) || s).join(", ")} and ${slots.length - 2} more`
+      : slots.map((s) => labels.get(s) || s).join(" and ");
+  if (borrowed.length) {
+    const first = homes.get(borrowed[0]) || "";
+    const there = borrowed.filter((s) => homes.get(s) === first);
+    return `waiting on ${partLabel(first)}: ${named(there)}`;
+  }
+  if (own.length) return `waiting on ${named(own)}`;
+  /* Nothing of its own missing, and still shut: an earlier part is, and
+     the parts open in order. */
+  const before = checks.find((c) => !c.range.counted && !c.open && c.range.kind === "numbers" && c !== check);
+  return before ? `waiting on ${before.range.label}` : waitingOn(check.warnings);
+}
+
+function NumbersTab({ lang, draft, checks, homes, labels, render, onOpen, onWrite, onCheck }: {
   lang: Lang;
   draft: NumberSystem;
-  setDraft: (f: (d: NumberSystem) => NumberSystem) => void;
-  slots: SlotSpec[];
-  render: (n: number, ctx?: { noun?: CountedNoun; gender?: "m" | "f" }) => { text: string; warnings: { code: string; slot?: string }[] };
-  checks: ReturnType<typeof rangeChecks>;
-  onRecord: (slot: string, key: FormKey) => void;
+  checks: RangeCheck[];
+  homes: Map<string, string>;
+  labels: Map<string, string>;
+  render: (n: number) => { text: string; warnings: { code: string; slot?: string }[] };
+  /** Open one part's own screen. */
+  onOpen: (rangeId: string) => void;
   /** Write this number out by hand, on a screen of its own. */
   onWrite: (key: string) => void;
-  onTry: () => void;
+  onCheck: () => void;
 }) {
   const [extra, setExtra] = useState<number[]>([]);
-
-  const groups: { id: string; slots: SlotSpec[] }[] = [];
-  for (const slot of slots) {
-    const at = groups.find((g) => g.id === slot.group);
-    if (at) at.slots.push(slot);
-    else groups.push({ id: slot.group, slots: [slot] });
-  }
-
   const shown = useMemo(() => SAMPLE.concat(extra), [extra]);
+  const parts = checks.filter((c) => c.range.kind === "numbers");
 
   return (
     <>
       <Help>
-        Write the words {lang.name} builds its numbers out of and the app makes the rest. With
-        one to ten it can ask anything up to ten; add the tens and it can ask anything up to
-        ninety-nine. <b>Nothing here has to be finished</b> — whatever is written works, and the
-        list below says what the rest is waiting for.
+        Write the words {lang.name} builds its numbers out of and the app makes the rest. Each part
+        below opens on its own words: with one to ten written the app can ask anything up to ten,
+        and with the tens anything up to ninety-nine. <b>Nothing here has to be finished</b> —
+        whatever is written works, and each part says what it is still waiting for.
       </Help>
 
-      <Section title="What can be asked" className="at-mt5">
-        <div className="at-bandlist">
-          {checks.map((check) => (
-            <div className="at-bandrow" key={check.range.id} data-open={check.open ? "" : undefined}>
-              <span className="at-bandname">{check.range.label}</span>
-              <Meta>{check.open ? "ready" : waitingOn(check.warnings)}</Meta>
-            </div>
+      <Section title="Parts" className="at-mt5">
+        <div className="at-numparts">
+          {parts.map((check) => (
+            <Tile
+              key={check.range.id}
+              title={check.range.label}
+              meta={
+                <span className="at-numstate" data-open={check.open ? "" : undefined}>
+                  {partStatus(check, checks, homes, labels)}
+                </span>
+              }
+              onOpen={() => onOpen(check.range.id)}
+            />
           ))}
         </div>
       </Section>
+
+      {/* Above the list rather than under it: the list answers "is this
+          right" for thirty numbers somebody else chose, and this answers
+          it for the one the teacher is actually wondering about. */}
+      <div className="at-row at-mt5">
+        <Button onClick={onCheck}>Check a number</Button>
+      </div>
 
       <Section
         title="What a student will be asked"
@@ -451,51 +576,165 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord, on
         }
         className="at-mt5"
       >
-        <div className="at-numsample">
-          {shown.map((value, i) => {
-            const said = render(value);
-            const key = String(value);
-            /* A number the system cannot finish yet still shows what it
-               got, because that is what tells a teacher which box to go
-               and fill — but it is marked, and quietly greyed. Half of
-               forty-seven is the word for seven, and a row that showed it
-               like any other would be the screen saying this language
-               calls 47 "seven". */
-            const part = !said.text || blocking(said.warnings as never).length > 0;
-            return (
-              <button
-                className="at-numsamplerow at-tappable"
-                key={`${value}-${i}`}
-                data-part={part ? "" : undefined}
-                onClick={() => onWrite(key)}
-              >
-                <span className="at-numfig">{value.toLocaleString("en")}</span>
-                <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
-                  {said.text || "—"}
-                </span>
-                {draft.overrides[key] ? <Meta>yours</Meta> : part ? <Meta>not yet</Meta> : null}
-              </button>
-            );
-          })}
-        </div>
-        {/* Under the list rather than beside its title: the header takes
-            one small control, and this is the more useful of the two —
-            the list answers "is this right" for thirty numbers somebody
-            else chose, and this answers it for the one you are actually
-            wondering about. */}
-        <div className="at-row">
-          <Button onClick={onTry}>Try a number</Button>
-        </div>
+        <SampleRows lang={lang} draft={draft} values={shown} render={render} onWrite={onWrite} />
       </Section>
+    </>
+  );
+}
 
-      {Object.keys(draft.overrides).length ? (
+/**
+ * A list of numbers as a student will be asked them, each one a way into
+ * writing it out by hand.
+ *
+ * A number the system cannot finish yet still shows what it got, because
+ * that is what tells a teacher which box to go and fill — but it is
+ * marked, and quietly greyed. Half of forty-seven is the word for seven,
+ * and a row that showed it like any other would be the screen saying this
+ * language calls 47 "seven".
+ */
+function SampleRows({ lang, draft, values, render, onWrite }: {
+  lang: Lang;
+  draft: NumberSystem;
+  values: number[];
+  render: (n: number) => { text: string; warnings: { code: string; slot?: string }[] };
+  onWrite: (key: string) => void;
+}) {
+  return (
+    <div className="at-numsample">
+      {values.map((value, i) => {
+        const said = render(value);
+        const key = String(value);
+        const part = !said.text || blocking(said.warnings as never).length > 0;
+        return (
+          <button
+            className="at-numsamplerow at-tappable"
+            key={`${value}-${i}`}
+            data-part={part ? "" : undefined}
+            onClick={() => onWrite(key)}
+          >
+            <span className="at-numfig">{value.toLocaleString("en")}</span>
+            <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
+              {said.text || "—"}
+            </span>
+            {draft.overrides[key] ? <Meta>yours</Meta> : part ? <Meta>not yet</Meta> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---- one part ---- */
+
+/**
+ * One part of the numbers, on a screen of its own: the words it is the
+ * first to need, what it says with them, the numbers written out by hand
+ * inside it, the decks that hold it and the blanks it fills.
+ *
+ * The words used to be one long grid of every box the language has, under
+ * a list of what could be asked; the list said *11 to 99 is waiting on
+ * forty* and the box for forty was somewhere below the fold. Here the
+ * part is the way in, and the boxes it is waiting on are the ones on its
+ * screen — or, where they belong to an earlier part, that part is named
+ * and one tap away.
+ */
+function PartScreen({
+  lang, draft, setDraft, check, checks, homes, labels, slots, render, nouns, decks, cards, footer,
+  onRecord, onWrite, onOpen, onDeckPart, onClose,
+}: {
+  lang: Lang;
+  draft: NumberSystem;
+  setDraft: (f: (d: NumberSystem) => NumberSystem) => void;
+  check: RangeCheck;
+  checks: RangeCheck[];
+  homes: Map<string, string>;
+  labels: Map<string, string>;
+  slots: SlotSpec[];
+  render: (n: number, ctx?: { noun?: CountedNoun }) => { text: string; warnings: { code: string; slot?: string; detail?: string }[] };
+  /** The teacher's noun cards in this language, read for counting. */
+  nouns: ReadNoun[];
+  decks: PartDeck[];
+  /** The teacher's cards, for telling whether a blank's name is free. */
+  cards: Record<string, unknown>[];
+  footer: React.ReactNode;
+  onRecord: (slot: string, key: FormKey) => void;
+  onWrite: (key: string) => void;
+  onOpen: (rangeId: string) => void;
+  onDeckPart?: (deckId: string, rangeId: string, on: boolean) => void;
+  onClose: () => void;
+}) {
+  const range = check.range;
+  const own = slots.filter((s) => homes.get(s.slot) === range.id);
+  const status = partStatus(check, checks, homes, labels);
+  /* The earlier part this one is waiting on, where it is one, so the way
+     to it is a button rather than a hunt. */
+  const waitingFor = (() => {
+    if (check.open) return null;
+    const stops = blocking(check.warnings as never) as { slot?: string }[];
+    for (const w of stops) {
+      const home = w.slot ? homes.get(w.slot) : "";
+      if (home && home !== range.id) return checks.find((c) => c.range.id === home) || null;
+    }
+    return null;
+  })();
+  /* Built from the parts before it alone — Huế's 11 to 99. */
+  const before = checks.filter((c) => c.range.kind === "numbers" && !c.range.counted);
+  const earlier = before.slice(0, Math.max(0, before.findIndex((c) => c.range.id === range.id)));
+
+  const written = range.counted
+    ? []
+    : Object.entries(draft.overrides).filter(([key]) => {
+        const n = digitsOf(key);
+        return Number.isFinite(n) && n >= range.from && n <= range.to;
+      });
+
+  return (
+    <Screen title={range.label} onBack={onClose} footer={footer}>
+      <p className="at-numstate at-mt3" data-open={check.open ? "" : undefined}>
+        {check.open ? "Ready: a student can be asked anything in this part." : `Not asked yet — ${status}.`}
+      </p>
+      {waitingFor ? (
+        <div className="at-row">
+          <Button size="sm" onClick={() => onOpen(waitingFor.range.id)}>
+            {`Open ${waitingFor.range.label}`}
+          </Button>
+        </div>
+      ) : null}
+
+      {range.counted ? (
+        <CountedSection lang={lang} range={range} nouns={nouns} render={render} />
+      ) : (
+        <Section title="Words" className="at-mt5">
+          {own.length ? (
+            <WordGrid lang={lang} draft={draft} setDraft={setDraft} slots={own} onRecord={onRecord} />
+          ) : (
+            <Help>
+              Nothing new to write here: {range.label.toLowerCase()} is built out of the words in{" "}
+              {earlier.length ? earlier.map((c) => c.range.label.toLowerCase()).join(" and ") : "the other parts"},
+              including the forms they take inside a bigger number.
+            </Help>
+          )}
+        </Section>
+      )}
+
+      {range.counted ? null : (
+        <Section
+          title="What a student will be asked"
+          lede="Tap any line to write it out yourself, where the app has it wrong."
+          className="at-mt5"
+        >
+          <SampleRows lang={lang} draft={draft} values={probeOf(range)} render={render} onWrite={onWrite} />
+        </Section>
+      )}
+
+      {written.length ? (
         <Section
           title="Numbers you wrote out"
           lede="Tap one to change what it says, or to put it back the way the app builds it."
           className="at-mt5"
         >
           <div className="at-numsample">
-            {Object.entries(draft.overrides).map(([key, over]) => (
+            {written.map(([key, over]) => (
               <button className="at-numsamplerow at-tappable" key={key} onClick={() => onWrite(key)}>
                 <span className="at-numfig">{key}</span>
                 <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
@@ -508,156 +747,283 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord, on
         </Section>
       ) : null}
 
-      {groups.map((group) => (
-        <Section key={group.id} title={group.id} className="at-mt5">
-          <div className="at-numgrid">
-            {group.slots.map((slot) => (
-              <div className="at-numrow" key={slot.slot}>
-                <div className="at-numlabel">
-                  <span className="at-numfig">{slot.label}</span>
-                  {numeralFor(lang, slot.label) ? (
-                    <Meta>
-                      <span lang={lang.id} dir={lang.direction}>
-                        {numeralFor(lang, slot.label)}
-                      </span>
-                    </Meta>
-                  ) : null}
-                  {slot.hint ? <Meta>{slot.hint}</Meta> : null}
-                </div>
-                <div className="at-numboxes">
-                  {slot.formKeys.map((key) => (
-                    <div className="at-numcell" key={key}>
-                      {slot.formKeys.length > 1 ? <Meta>{FACE_LABEL[key] || key}</Meta> : null}
-                      <ScriptInput
-                        lang={lang}
-                        value={(draft.lexemes[slot.slot] || { forms: {} }).forms[key] || ""}
-                        label={`${slot.label}, ${FACE_LABEL[key] || key}`}
-                        compact
-                        onChange={(v) => setDraft((d) => withWord(d, slot.slot, key, v))}
-                      />
-                      {(draft.lexemes[slot.slot] || { forms: {} }).forms[key] ? (
-                        <>
-                          <LatInput
-                            lang={lang}
-                            value={(draft.lexemes[slot.slot].lat || {})[key] || ""}
-                            of={`${slot.label}, ${FACE_LABEL[key] || key}`}
-                            onChange={(v) => setDraft((d) => withLat(d, slot.slot, key, v))}
-                          />
-                          <Button size="sm" onClick={() => onRecord(slot.slot, key)}>
-                            {((draft.lexemes[slot.slot].audio || {})[key] || []).length
-                              ? "Recording ✓"
-                              : "Record"}
-                          </Button>
-                        </>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      ))}
+      <PartDecks range={range} decks={decks} onDeckPart={onDeckPart} />
 
-      <NounsSection lang={lang} draft={draft} setDraft={setDraft} render={render} />
-    </>
+      <PartBlanks lang={lang} range={range} draft={draft} setDraft={setDraft} cards={cards} />
+    </Screen>
   );
 }
 
 /**
- * The things a counting question counts.
- *
- * Written here rather than read off the teacher's noun cards, and that is
- * a shortcut with a reason: no card in this app carries a dual, because
- * the grammar axis it declares is singular, plural or neither. Reading
- * real cards waits on that axis gaining one, which is append-only work
- * and on the backlog; a handful of nouns written where the numbers are
- * keeps the counting question honest in the meantime.
+ * The boxes for some slots: a word per face, and once there is one, how it
+ * sounds and a recording of it.
  */
-function NounsSection({ lang, draft, setDraft, render }: {
+function WordGrid({ lang, draft, setDraft, slots, onRecord }: {
   lang: Lang;
   draft: NumberSystem;
   setDraft: (f: (d: NumberSystem) => NumberSystem) => void;
-  render: (n: number, ctx?: { noun?: CountedNoun }) => { text: string };
+  slots: SlotSpec[];
+  onRecord: (slot: string, key: FormKey) => void;
 }) {
-  const set = (i: number, patch: Partial<CountedNoun>) =>
-    setDraft((d) => ({
-      ...d,
-      nouns: d.nouns.map((n, at) => (at === i ? { ...n, ...patch } : n)),
-    }));
-
   return (
-    <Section
-      title="Things to count"
-      lede="Three or four everyday words is plenty. They are what the counting questions ask about."
-      action={
-        <Button
-          size="sm"
-          onClick={() =>
-            setDraft((d) => ({
-              ...d,
-              nouns: d.nouns.concat([
-                { id: `noun${d.nouns.length + 1}`, sg: "", pl: "", gender: "m", en: "" },
-              ]),
-            }))
-          }
-        >
-          Add one
-        </Button>
-      }
-      className="at-mt5"
-    >
-      {!draft.nouns.length ? (
-        <Help>
-          Nothing to count yet, so the counting questions are not asked. One noun is enough to
-          start them.
-        </Help>
-      ) : null}
-      {draft.nouns.map((noun, i) => (
-        <div className="at-numrow" key={noun.id}>
+    <div className="at-numgrid">
+      {slots.map((slot) => (
+        <div className="at-numrow" key={slot.slot}>
           <div className="at-numlabel">
-            <input
-              className="at-input"
-              value={noun.en}
-              placeholder="book"
-              aria-label="What it is in English"
-              onChange={(e) => set(i, { en: e.target.value })}
-            />
-            <Meta>{render(3, { noun }).text || "—"}</Meta>
+            <span className="at-numfig">{slot.label}</span>
+            {numeralFor(lang, slot.label) ? (
+              <Meta>
+                <span lang={lang.id} dir={lang.direction}>
+                  {numeralFor(lang, slot.label)}
+                </span>
+              </Meta>
+            ) : null}
+            {slot.hint ? <Meta>{slot.hint}</Meta> : null}
           </div>
           <div className="at-numboxes">
-            {(["sg", "dual", "pl"] as const).map((form) => (
-              <div className="at-numcell" key={form}>
-                <Meta>{form === "sg" ? "one" : form === "dual" ? "two (where there is a dual)" : "several"}</Meta>
+            {slot.formKeys.map((key) => (
+              <div className="at-numcell" key={key}>
+                {slot.formKeys.length > 1 ? <Meta>{FACE_LABEL[key] || key}</Meta> : null}
                 <ScriptInput
                   lang={lang}
-                  value={noun[form] || ""}
-                  label={`${noun.en || noun.id}, ${form}`}
+                  value={(draft.lexemes[slot.slot] || { forms: {} }).forms[key] || ""}
+                  label={`${slot.label}, ${FACE_LABEL[key] || key}`}
                   compact
-                  onChange={(v) => set(i, { [form]: v })}
+                  onChange={(v) => setDraft((d) => withWord(d, slot.slot, key, v))}
                 />
+                {(draft.lexemes[slot.slot] || { forms: {} }).forms[key] ? (
+                  <>
+                    <LatInput
+                      lang={lang}
+                      value={(draft.lexemes[slot.slot].lat || {})[key] || ""}
+                      of={`${slot.label}, ${FACE_LABEL[key] || key}`}
+                      onChange={(v) => setDraft((d) => withLat(d, slot.slot, key, v))}
+                    />
+                    <Button size="sm" onClick={() => onRecord(slot.slot, key)}>
+                      {((draft.lexemes[slot.slot].audio || {})[key] || []).length
+                        ? "Recording ✓"
+                        : "Record"}
+                    </Button>
+                  </>
+                ) : null}
               </div>
             ))}
-            <Segmented
-              label="Gender"
-              options={[
-                { value: "m" as const, label: "masculine" },
-                { value: "f" as const, label: "feminine" },
-              ]}
-              value={noun.gender}
-              onChange={(g) => set(i, { gender: g })}
-            />
-            <Button
-              size="sm"
-              onClick={() => setDraft((d) => ({ ...d, nouns: d.nouns.filter((_, at) => at !== i) }))}
-            >
-              Remove
-            </Button>
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** What a noun card is missing, in the words the screen uses for it. */
+const GAP_LABEL: Record<string, string> = {
+  singular: "no singular",
+  plural: "no plural",
+  gender: "no gender",
+  sg: "no singular",
+  pl: "no plural",
+  dual: "no pair form",
+};
+
+/**
+ * The things a counting part counts: the teacher's noun cards.
+ *
+ * There used to be a list of nouns written on this screen, because no
+ * card could say a word was a pair; a card can, so the list went and the
+ * cards are read instead — see nouns.ts. What is left here is the answer
+ * to the one question a teacher has about it: which of my nouns will be
+ * counted, and what is the rest missing.
+ */
+function CountedSection({ lang, range, nouns, render }: {
+  lang: Lang;
+  range: Range;
+  nouns: ReadNoun[];
+  render: (n: number, ctx?: { noun?: CountedNoun }) => { text: string; warnings: { code: string; slot?: string; detail?: string }[] };
+}) {
+  const probe = probeOf(range);
+  const shownAt = probe.length ? probe[Math.min(probe.length - 1, 2)] : range.from;
+  const rows = nouns.map((read) => {
+    if (!read.noun) return { read, ok: false, gaps: read.missing.map((m) => GAP_LABEL[m] || m), said: "" };
+    const noun = read.noun;
+    const gaps = new Set<string>();
+    for (const n of probe) {
+      for (const w of blocking(render(n, { noun }).warnings as never) as { code: string; detail?: string }[]) {
+        const face = String(w.detail || "").split(".").pop() || "";
+        if (w.code === "missing-noun-form") gaps.add(GAP_LABEL[face] || face);
+        else gaps.add("a number word");
+      }
+    }
+    return { read, ok: !gaps.size, gaps: [...gaps], said: render(shownAt, { noun }).text };
+  });
+  const counted = rows.filter((r) => r.ok);
+  const short = rows.filter((r) => !r.ok);
+  /* Whether this language counts two with a noun's pair form, which is
+     what the line below has to ask for: a gap a noun can have here. */
+  const pairs = rows.some((r) => r.gaps.includes(GAP_LABEL.dual)) || rows.some((r) => !!(r.read.noun && r.read.noun.dual));
+  return (
+    <Section title="Things counted" className="at-mt5">
+      <Help>
+        Counting uses your noun cards: any noun card in {lang.name} with its singular, its
+        plural{pairs ? ", its pair form" : ""} and its gender written. Write or finish one on the
+        Cards tab and it is counted here — nothing to copy across.
+      </Help>
+      {counted.length ? (
+        <div className="at-numsample">
+          {counted.map(({ read, said }) => (
+            <div className="at-numsamplerow" key={read.id}>
+              <span className="at-numfig">{read.en || read.id}</span>
+              <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
+                {said || "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Notice kind="warn">No noun card can be counted here yet.</Notice>
+      )}
+      {short.length ? (
+        <>
+          <p className="at-eyebrow at-mt5">{`Not counted here · ${short.length}`}</p>
+          <div className="at-bandlist">
+            {short.slice(0, 40).map(({ read, gaps }) => (
+              <div className="at-bandrow" key={read.id}>
+                <span className="at-bandname">{read.en || read.id}</span>
+                <Meta>{gaps.join(", ")}</Meta>
+              </div>
+            ))}
+            {short.length > 40 ? <Meta>{`and ${short.length - 40} more`}</Meta> : null}
+          </div>
+        </>
+      ) : null}
     </Section>
   );
+}
+
+/**
+ * The decks that hold this part.
+ *
+ * The same thing a deck's own *Numbers and pronouns* screen sets — which
+ * parts it holds — reached from the other end, so the two are one setting
+ * and not two to keep in step: ticking here is ticking there. It is saved
+ * the moment it is ticked, as it is on the deck's screen, and that is why
+ * it sits apart from the words above, which wait for Save.
+ */
+function PartDecks({ range, decks, onDeckPart }: {
+  range: Range;
+  decks: PartDeck[];
+  onDeckPart?: (deckId: string, rangeId: string, on: boolean) => void;
+}) {
+  if (!onDeckPart) return null;
+  return (
+    <Section title="Decks" className="at-mt5">
+      <Help>
+        Students are asked this part when it is in one of their decks. Ticking a deck here is the
+        same as ticking this part on that deck&apos;s Numbers and pronouns screen, and is saved
+        straight away.
+      </Help>
+      <CheckList
+        options={decks.map((d) => ({
+          id: d.id,
+          title: d.title,
+          ...(d.locked ? { disabled: true, note: "Locked — unlock the deck to change what it holds" } : null),
+        }))}
+        chosen={decks.filter((d) => (d.parts || []).includes(range.id)).map((d) => d.id)}
+        onToggle={(id, wasOn) => onDeckPart(id, range.id, !wasOn)}
+        empty="No deck in this language yet."
+      />
+    </Section>
+  );
+}
+
+/**
+ * The blanks this part fills.
+ *
+ * A name here is a blank a sentence card can leave — `{{age}}` — and a
+ * sentence with it is met with a number from this part, written out; a
+ * counting part fills it with a number and a thing counted. The names
+ * share the one namespace every blank does, so a name a card, a group or
+ * a kind of word already answers to is refused here with what holds it,
+ * the way the card editor refuses it.
+ */
+function PartBlanks({ lang, range, draft, setDraft, cards }: {
+  lang: Lang;
+  range: Range;
+  draft: NumberSystem;
+  setDraft: (f: (d: NumberSystem) => NumberSystem) => void;
+  cards: Record<string, unknown>[];
+}) {
+  const [typed, setTyped] = useState("");
+  const names = (draft.fills || {})[range.id] || [];
+  const name = slotName(typed);
+  const kinds = categoriesOf(lang).map((c) => c.id);
+  const clash = (() => {
+    if (!name) return "";
+    for (const [part, list] of Object.entries(draft.fills || {})) {
+      if (part !== range.id && list.includes(name)) return "another part of the numbers fills it already";
+    }
+    if (names.includes(name)) return "this part fills it already";
+    const held = refClash(name, cards, "", kinds);
+    if (!held) return "";
+    if (held.kind === "category") return "it is a kind of word, filled by every card of that kind";
+    if (held.kind === "card") return "a card already has that ID";
+    return "a group of cards already answers to it";
+  })();
+  const add = () => {
+    if (!name || clash) return;
+    setDraft((d) => withPartFills(d, range.id, names.concat([name])));
+    setTyped("");
+  };
+  return (
+    <Section title="Fills blanks" className="at-mt5">
+      <Help>
+        Name a blank and any sentence card with that blank in it is filled with a number from this
+        part, written out in full — <i>I am {"{{age}}"}</i>.
+        {range.counted ? " Here that is a number and a thing counted: a noun from above, in the form the number calls for." : ""}{" "}
+        Students get it once you save and sign off.
+      </Help>
+      {names.length ? (
+        <div className="at-numblanks at-mt3">
+          {names.map((n) => (
+            <span className="at-numblank" key={n}>
+              <span className="at-blankname">{n}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDraft((d) => withPartFills(d, range.id, names.filter((x) => x !== n)))}
+              >
+                Remove
+              </Button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="at-row at-mt3">
+        <input
+          className="at-input"
+          value={typed}
+          placeholder={range.counted ? "things" : "age"}
+          aria-label="A blank this part fills"
+          onChange={(e) => setTyped(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") add();
+          }}
+        />
+        <Button size="sm" disabled={!name || !!clash} onClick={add}>
+          Add
+        </Button>
+      </div>
+      {clash ? <Meta>{`Not free: ${clash}.`}</Meta> : null}
+    </Section>
+  );
+}
+
+/** The names a part fills, written into the draft; none takes the entry
+    away. */
+export function withPartFills(sys: NumberSystem, rangeId: string, names: string[]): NumberSystem {
+  const fills = { ...(sys.fills || {}) };
+  if (names.length) fills[rangeId] = names;
+  else delete fills[rangeId];
+  return { ...sys, fills: Object.keys(fills).length ? fills : undefined, updated: Date.now() };
 }
 
 /* ---- the clock ---- */
@@ -1173,9 +1539,10 @@ function WrittenOutScreen({ lang, draft, forKey, render, onKeep, onClose }: {
  * all says what it is waiting for and offers the one thing that always
  * works — writing it out by hand.
  */
-function TryItScreen({ lang, draft, render, onWrite, onClose }: {
+function TryItScreen({ lang, draft, labels, render, onWrite, onClose }: {
   lang: Lang;
   draft: NumberSystem;
+  labels?: Map<string, string>;
   render: (n: number, ctx?: { noun?: CountedNoun; gender?: "m" | "f" }) => {
     text: string;
     warnings: { code: string; slot?: string; detail?: string }[];
@@ -1213,7 +1580,7 @@ function TryItScreen({ lang, draft, render, onWrite, onClose }: {
   );
 
   return (
-    <Screen title="Try a number" onBack={onClose}>
+    <Screen title="Check a number" onBack={onClose}>
       <Help>
         Type any number up to seven figures and see exactly what a student would be asked. It is
         the same words the app would use in a question — nothing here is a preview of something
@@ -1248,7 +1615,7 @@ function TryItScreen({ lang, draft, render, onWrite, onClose }: {
             </div>
             {stops.length ? (
               <Notice kind="warn">
-                This one is not finished: {waitingOn(said ? said.warnings : [])}. A student is not
+                This one is not finished: {waitingOn(said ? said.warnings : [], labels)}. A student is not
                 asked anything the app cannot say in full.
               </Notice>
             ) : null}
@@ -1264,7 +1631,7 @@ function TryItScreen({ lang, draft, render, onWrite, onClose }: {
               className="at-mt5"
             >
               <div className="at-numsample">
-                {draft.nouns.map((noun) =>
+                {draft.nouns.slice(0, 8).map((noun) =>
                   line(noun.en || noun.id, render(value, { noun }).text),
                 )}
               </div>
@@ -1407,13 +1774,18 @@ export function withTimeAudio(sys: TimeSystem, slot: string, clips: string[]): T
  * is named and the rest are counted — the second is usually the first
  * again, further along the number line.
  */
-export function waitingOn(warnings: { code: string; slot?: string; detail?: string }[]): string {
+export function waitingOn(
+  warnings: { code: string; slot?: string; detail?: string }[],
+  /* What each box is called on the screen — "7", "hundred" — where the
+     caller has it, rather than the name the composer files it under. */
+  labels?: Map<string, string>,
+): string {
   const stops = blocking(warnings as never);
   if (!stops.length) return "not yet";
   const first = stops[0];
   if (first.code === "missing-noun-form" && first.detail === "no nouns to count") {
     return "waiting on something to count";
   }
-  const name = first.slot || first.detail || "a word";
+  const name = (first.slot && labels && labels.get(first.slot)) || first.slot || first.detail || "a word";
   return stops.length > 1 ? `waiting on ${name} and ${plural(stops.length - 1, "more word")}` : `waiting on ${name}`;
 }

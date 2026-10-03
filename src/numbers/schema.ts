@@ -35,6 +35,7 @@ import type {
   TimeSystem,
 } from "./types.ts";
 import { FORM_KEYS, MINUTE_MARKS } from "./types.ts";
+import { slotName } from "../variables.ts";
 
 /* ---- the smallest readers ---- */
 
@@ -63,6 +64,7 @@ export const LIMITS = {
   slots: 400,
   overrides: 2000,
   nouns: 60,
+  fills: 6,
   periods: 24,
   clips: 12,
 };
@@ -214,18 +216,28 @@ export function readNoun(v: unknown): CountedNoun | null {
   };
 }
 
-const readNouns = (v: unknown): CountedNoun[] => {
-  if (!Array.isArray(v)) return [];
-  const seen = new Set<string>();
-  const out: CountedNoun[] = [];
-  for (const raw of v) {
-    if (out.length >= LIMITS.nouns) break;
-    const noun = readNoun(raw);
-    if (!noun || seen.has(noun.id)) continue;
-    seen.add(noun.id);
-    out.push(noun);
+/* ---- the blanks a part fills ---- */
+
+/** A part of the numbers, by id — the same test the server puts a deck's
+    parts through. */
+const PART_ID = /^numbers:[a-z0-9+-]{1,40}$/;
+
+/**
+ * Which blanks each part fills: names narrowed the way every blank's name
+ * is, a few per part, and nothing for a part with none.
+ */
+const readFills = (v: unknown): Record<string, string[]> | undefined => {
+  if (!isObj(v)) return undefined;
+  const out: Record<string, string[]> = {};
+  let any = false;
+  for (const [part, raw] of Object.entries(v)) {
+    if (!PART_ID.test(part) || !Array.isArray(raw)) continue;
+    const names = [...new Set(raw.map((n) => slotName(n)).filter(Boolean))].slice(0, LIMITS.fills);
+    if (!names.length) continue;
+    out[part] = names;
+    any = true;
   }
-  return out;
+  return any ? out : undefined;
 };
 
 /* ---- the two documents ---- */
@@ -267,7 +279,12 @@ export function readNumberSystem(v: unknown): NumberSystem | null {
     composerVersion: num(v.composerVersion, 0),
     lexemes: readLexemes(v.lexemes),
     overrides: readOverrides(v.overrides, (k) => OVERRIDE_KEY.test(k)),
-    nouns: readNouns(v.nouns),
+    /* The list of things to count a system used to carry is not read:
+       counting reads the teacher's noun cards since 0.316, and a list
+       nobody can see or edit any more is not kept alive by being echoed
+       back on every save. See nouns.ts. */
+    nouns: [],
+    ...(readFills(v.fills) ? { fills: readFills(v.fills) } : null),
     audioPolicy: readPolicy(v.audioPolicy),
     ...(readCurated(v.curatedAudio, (k) => OVERRIDE_KEY.test(k))
       ? { curatedAudio: readCurated(v.curatedAudio, (k) => OVERRIDE_KEY.test(k)) }

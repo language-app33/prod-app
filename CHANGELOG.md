@@ -8,6 +8,42 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.316 — 3 October 2026
+
+**The number screen is organised by part, counting uses your noun cards,
+and numbers can fill blanks in sentences.**
+
+- The number screen now opens on one button per part: Numbers 0 to 10,
+  11 to 99, 100 to 999, over a thousand, and the three counting parts.
+  Each button says whether that part is ready or what it is still waiting
+  for. When the gap is a word from an earlier part, it names that part, for
+  example "waiting on Numbers 0 to 10: 7".
+- Tapping a part opens its own screen with only the words it is the first
+  to need: one to ten under 0 to 10, the teens, the tens and "and" under
+  11 to 99, and so on. The screen also shows what a student will be asked
+  in that part and the numbers you wrote out by hand within it. In Huế
+  Vietnamese, 11 to 99 has nothing new to write, and its screen says so.
+- Each part's screen lists the decks in that language with a tick for the
+  ones that hold the part. This is the same setting as the deck's own
+  Numbers and pronouns screen: tick it in either place and the other shows
+  it. It saves straight away.
+- Each part can name blanks it fills. A sentence card with that blank, for
+  example "I am {{age}}", is then asked with a number from that part
+  written out. A counting part fills its blank with a number and a noun
+  that agree, such as "I have 3 books", and an adjective after it agrees
+  too. Students get this once you save and sign off the numbers. Numbers
+  in sentences are met the way names are: first in the easiest questions,
+  then further up as the sentence is learnt.
+- "Try a number" is now "Check a number". It sits on the main number
+  screen, just above "What a student will be asked", which stays at the
+  bottom.
+- The "Things to count" list is gone. Counting now uses your noun cards:
+  any noun with its singular, plural and gender, plus its pair form in
+  Arabic for the number two. A student is only asked to count nouns from
+  their own courses. Each counting part lists the nouns it will count, and
+  says what the others are missing, such as "no plural" or "no pair form".
+  Nouns that were only on the old list are no longer counted.
+
 ## 0.315 — 3 October 2026
 
 **Number cards show the number in the language's own figures.**

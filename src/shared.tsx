@@ -25,6 +25,7 @@ import { isOffline, watchNet } from "./net.ts";
    naming a language — see src/numbers/. */
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
+import { setsWithNouns } from "./numbers/nouns.ts";
 import type { SystemSet } from "./numbers/generate.ts";
 import { fileIntoDecks, generate, handOn, handOnSplit } from "./numbers/generate.ts";
 
@@ -4113,7 +4114,10 @@ export async function pullCourses(
    * wrote — and skills, which go into the same fold everything else does
    * and so keep whatever the learner has earned on them.
    */
-  const systems = pairSystems(r.systems || []);
+  /* Counting reads the nouns the courses hold — see nouns.ts — so the
+     sets are given them before anything is generated: whether a counting
+     part can be asked at all depends on them. */
+  const systems = setsWithNouns(pairSystems(r.systems || []), incoming as unknown as Record<string, unknown>[]);
   const now = Date.now();
   for (const set of systems) {
     const lang = LANGUAGES[set.numbers.languageId];

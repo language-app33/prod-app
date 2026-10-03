@@ -3592,6 +3592,16 @@ body.at-screening .at-chromebar { display:none; }
 /* And the one box on the try-it screen, which is the whole of that
    screen's input and is read as figures. */
 .at-numtry { font-family: var(--mono); font-size:20px; font-variant-numeric: tabular-nums; }
+/* The parts of the numbers, one tile each, and the line on each saying
+   where it stands — green once a student can be asked it, the way the
+   reach list it replaced coloured an open range. */
+.at-numparts { display:flex; flex-direction:column; gap:8px; }
+.at-numstate { font-size:13px; color: var(--muted); margin:0; }
+.at-numstate[data-open] { color: var(--jade); }
+/* The blanks a part fills: each name as a blank is drawn everywhere, with
+   the button that takes it off beside it. */
+.at-numblanks { display:flex; flex-wrap:wrap; gap:8px; }
+.at-numblank { display:inline-flex; align-items:center; gap:4px; }
 @media (max-width: 560px) {
   .at-numlabel { flex:0 0 100%; padding-top:0; }
   .at-numfig { flex:0 0 68px; }
