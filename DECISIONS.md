@@ -4398,8 +4398,12 @@ composer that changes how it builds a number moves its boxes with it, and
 Huế's 11 to 99, built only out of the words for one to ten, ends up with no
 boxes of its own — which is the truth, and its screen says so.
 
-**A part fills a sentence's blank the way a name does.** A part names
-blanks (`fills` on the system); a sentence with one of them is filled with
+**A part fills a sentence's blank the way a name does.** A part answers
+to fixed tags (`partTags`: its own, like `0-10`, and `number` or `count`) —
+chosen names on the system were tried in 0.316 and replaced in 0.317,
+since a tag a teacher has to invent is one more thing to get wrong and
+the same tags in every language can be written into any sentence without
+setting anything up. A sentence with one of them is filled with
 a number from that part, written out by the composer, and a counting part
 fills it with a number and a noun in agreement. The numbers are made into
 cards that are borrowed and never asked (`drill: false`), so they climb
@@ -4410,3 +4414,135 @@ down: a sentence answered right would then have had to credit a skill whose
 questions it did not ask. Each part lends at most `FILLERS_PER_PART`
 numbers, spread over it and the same on every device, so the sentences a
 teacher reviews are the ones a learner is asked.
+
+---
+
+## A noun is laid out in boxes, and a person or an animal has two sides
+
+**3 October 2026** · `nounLayoutOf`, `nounBoxes`, `placeNounForms`,
+`stampNounForms`, `leadFirst` and `NounEditor` in `src/card-editor.tsx`;
+`GRAMMAR.human` in `src/languages.ts`; `genderUnsaid` in `src/verbs.ts`;
+`readNounCard` in `src/numbers/nouns.ts`
+
+The owner asked why a noun card was not preset the way an adjective is.
+Not with an adjective's boxes: an adjective changes with the noun beside
+it, and a noun does not change gender — كتاب has no feminine. What a noun
+changes is its number, so a noun card is one box per number the language
+offers (singular, plural, dual), already marked. A person or an animal is
+the exception the owner raised next: معلم and معلمة, قط and قطة. Those
+get the same boxes twice, a masculine side and a feminine one.
+
+**The question that decides it was already on the card.** Person or thing
+was asked of every noun in Arabic, for agreement. It gained a third answer,
+an animal, which agrees as a thing does (a plural of animals takes the
+feminine singular) and is laid out as a person is. Hebrew is asked it too
+now; nothing in Hebrew agrees with it, so there it only chooses the layout.
+
+**Nothing new is stored.** A box is read off the number and gender a form
+already carries, on every render, so a stored card opens with its marked
+forms in their boxes and a form marked plural moves into the plural box
+the moment it says so. What a box adds is written onto the form on save
+(`stampNounForms`), and taken off its answers, where an answer's own
+grammar would otherwise win. A form whose answers disagree with each other
+is left exactly as it was, in a box or not: marking it would be saying one
+thing about two words. A form that fits no free box is shown under the
+boxes with its grammar still asked, so nothing a card carries is hidden.
+
+**An empty box is not a form.** It is drawn from a blank and becomes a form
+on the first keystroke (`fillBox`). Six empty forms on every person, each
+with a table of pronouns, would have been six things for the save to drop
+and for every list of the card's parts to step over. The block is keyed by
+its box rather than by where its form sits, so it is not redrawn under the
+teacher's fingers when it becomes real.
+
+**Either side alone is a card.** The card's own word is the first form and
+has to be written. Where it is empty and a box further down is not, the two
+change places (`leadFirst`), pronouns and all; the empty one stays in its
+box and is not saved. On an existing card this only happens if the teacher
+empties the card's own word, which moves that word's progress to the form
+that takes its place — the one case where this can shift a schedule, and
+an unusual thing to do to a card that is in use.
+
+**"Add a form" went, for the reason an adjective never had it**: the boxes
+are the forms, and a second spelling is a second accepted answer. A
+one-of-them word (تفاحة beside تفاح) is better as its own card, and the
+form a noun takes after the numbers three to ten belongs to counting.
+
+**A gender nobody said is not guessed.** An adjective beside a singular
+noun with no gender took the word itself — the masculine — so an
+unfinished feminine noun was met beside the wrong form. Now, where saying
+either gender would have picked a different form, the sentence is not
+asked with that word (`genderUnsaid`), which is what a verb beside it
+already did. Where the gender changes nothing — a dual, a plural of things
+— nothing waits. This reaches a Person card with no gender as well: رامي
+with none used to take تعبان and now takes nothing until he is given one.
+
+**Counting reads the right side.** A card holding both plurals was counted
+with the first plural written, which could be the other side's;
+`readNounCard` now takes the plural and pair of the singular's own gender.
+Counting the feminine side as nouns of its own was left for later.
+
+**Revisit if** a language turns up whose nouns change for something the
+boxes do not cover, or if teachers start writing unit nouns (تفاحة) on the
+same card as their collective — that would be a case for a box of its own.
+
+---
+
+## Palestinian three to nineteen have one word before a noun
+
+**3 October 2026** · `src/numbers/ar-PS.ts`, `src/numbers/nouns.ts`, `src/languages.ts` (`optionRules`), `src/number-system-editor.tsx` (`TwoWordsBlock`)
+
+The number screen asked for three to nineteen twice before a noun: once
+before a masculine noun and once before a feminine one, and picked between
+them by the noun's gender. That is the written language's rule — ثلاثة
+كتب, ثلاث بنات — and not the dialect's, which says خمس ولاد and خمس بنات
+with the same word. A teacher writing the dialect typed it twice and their
+students saw it twice, under two labels that suggested a difference; a
+teacher writing the written forms had the written language's agreement
+taught as the dialect.
+
+**One box.** Three to nineteen take `standalone` and `construct.m`, and
+`construct.m` is labelled *before a noun* through `SlotSpec.faceLabels`, so
+Hebrew — whose three to ten do change with the noun's gender, and which
+shares the face — keeps its own labels. The word stays stored where it
+was, so a learner's progress on that face of a number card carries over.
+
+**What was written in two is not guessed between.** Most systems hold the
+same word in both boxes, or one box only, and read as one word with no
+question asked (`beforeNoun`). One that holds two different words is not
+settled by the app: under the written rule the box before a *feminine*
+noun held the dialect's word, so keeping the masculine one by default
+would usually keep the wrong one. The teacher is shown both and taps
+theirs (`twoWordsBeforeNoun`, `keepOneWord`), and until they do, their
+students are asked exactly what they were asked before. A correction
+written for one gender (`3|construct.f`) is the same question about a
+whole number. The number screen opens on the system with everything that
+is not a question folded into the one box (`tidyBeforeNoun`), so a word
+kept only in the old feminine box shows where it is used, and a stale copy
+cannot turn into a question when the box it copied is changed later.
+Nothing is migrated on the server; a system nobody opens keeps its old
+behaviour indefinitely, which is the cost.
+
+**The t of days and months is the noun's.** A few nouns take a t after
+three to ten that they have nowhere else — خمس تيام beside أيام, تشهر,
+تلاف. Historically it was the numeral's feminine ending; in the Levant it
+is heard as the start of a special plural, and where it is written in
+Arabic script it is written on the noun. Some textbooks transcribe it on
+the numeral in Latin letters (*ḫamest‿iyyām*), which is the same sound. So
+it is a box on the noun's card, *Plural after 3 to 10*, Arabic only and
+offered on nouns only (`GrammarDim.optionRules`), read by counting as
+`CountedNoun.plCounted` and used for three to ten alone. A form in it
+starts out of practice and out of sentences: it is said inside a counted
+phrase and nowhere else. Thousands were already handled: the thousands box
+is only used after three to ten. This replaces 0.320's note that such a
+form "belongs to counting".
+
+**Not done.** A counting question still expects one answer — the first
+spelling in each box — so a second accepted spelling of the plural or of
+this box is not accepted in a counted phrase. That was true of the plural
+before and is unchanged. And the t can only be written on the noun; a
+teacher who wants it on the numeral in Arabic script would need a second
+box, which was weighed and left out until someone asks.
+
+**Revisit if** a teacher asks for خمست أيام spelt that way, or for a
+counted phrase to accept more than one spelling.

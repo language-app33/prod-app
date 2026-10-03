@@ -48,7 +48,8 @@ await build({
 const { shapeOf, shapeChoices, shapeLabel, categoryChoices, categoryOffers, tableFor,
   initialForms, initialCells, initialCategory, initialFrames, storedFormsOf, asideOf, tableCellsOf,
   canSaveWord, canSaveVerb, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked,
-  partLends, setPartFlags, keptNotAsked } =
+  partLends, setPartFlags, keptNotAsked,
+  nounLayoutOf, nounBoxes, placeNounForms, stampNounForms, leadFirst, formSays } =
   await import(path.join(out, "card-editor.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
@@ -2680,4 +2681,154 @@ test("nothing but the door reads a card's forms out of subs", () => {
     }
   }
   assert.deepEqual(found, [], `these read a card's forms directly — ask formsOf or subFormsOf instead:\n${found.join("\n")}`);
+});
+
+/* ---- a noun's boxes ----
+
+   One box per shape of the word, already marked, and a side for each
+   gender where the noun is a person or an animal. Read off the number and
+   gender the forms already carry, so nothing about a stored card changes
+   until it is saved. */
+
+const arPS = () => LANGUAGES["ar-PS"];
+
+test("a noun is laid out in boxes, with two sides for a person or an animal", () => {
+  assert.equal(nounLayoutOf(arPS(), "noun", "thing"), "single");
+  assert.equal(nounLayoutOf(arPS(), "noun", "person"), "paired");
+  assert.equal(nounLayoutOf(arPS(), "noun", "animal"), "paired");
+  assert.equal(nounLayoutOf(LANGUAGES["he-IL"], "noun", "person"), "paired");
+  /* Not a preposition, though it takes the same endings, and not a noun
+     in a language that marks no number on one. */
+  assert.equal(nounLayoutOf(arPS(), "preposition", "thing"), "");
+  assert.equal(nounLayoutOf(LANGUAGES["vi-Hue"], "noun", "thing"), "");
+  assert.deepEqual(nounBoxes(arPS(), "single").map((/** @type {any} */ b) => b.title), [
+    "Singular", "Plural", "Plural after 3 to 10", "Dual",
+  ]);
+  assert.deepEqual(nounBoxes(arPS(), "paired").map((/** @type {any} */ b) => b.title), [
+    "Masculine singular", "Masculine plural", "Masculine plural after 3 to 10", "Masculine dual",
+    "Feminine singular", "Feminine plural", "Feminine plural after 3 to 10", "Feminine dual",
+  ]);
+  /* Hebrew has no plural of its own after a number, so no such box. */
+  assert.deepEqual(nounBoxes(LANGUAGES["he-IL"], "single").map((/** @type {any} */ b) => b.title), ["Singular", "Plural", "Dual"]);
+});
+
+test("Arabic's plural after three to ten says which nouns want it, and is not asked on its own", () => {
+  /* Days and months take a t after three to ten that they have nowhere
+     else. The box says so under it, and a form written into it is said
+     inside a counted phrase rather than drilled as a word of its own. */
+  const boxes = nounBoxes(arPS(), "single");
+  const counted = must(boxes.find((/** @type {any} */ b) => b.number === "counted"), "the box");
+  assert.match(String(counted.help), /three to ten/);
+  assert.equal(counted.unasked, true);
+  for (const b of boxes.filter((/** @type {any} */ b) => b.number !== "counted")) {
+    assert.equal(b.help, undefined, b.title);
+    assert.equal(b.unasked, undefined, b.title);
+  }
+  /* And a form already in it sits in it. */
+  const forms = [
+    { ar: "يوم", en: "day", lat: "", number: "singular", gender: "masculine" },
+    { id: "f1", ar: "أيام", en: "days", lat: "", number: "plural", gender: "masculine" },
+    { id: "f2", ar: "تيام", en: "days", lat: "", number: "counted", gender: "masculine" },
+  ];
+  assert.deepEqual(placeNounForms(forms, boxes, "single").at, { singular: 0, plural: 1, counted: 2 });
+});
+
+test("a form goes into the box its number and gender say, and the rest are kept under them", () => {
+  const boxes = nounBoxes(arPS(), "paired");
+  const forms = [
+    /* The card's own word, which says no number: it is the singular. */
+    { ar: "معلم", en: "teacher", lat: "", number: "na", gender: "masculine", human: "person" },
+    /* A plural that says no gender is on the word's side. */
+    { id: "f1", ar: "معلمين", en: "teachers", lat: "", number: "plural", gender: "", human: "person" },
+    { id: "f2", ar: "معلمة", en: "teacher", lat: "", number: "singular", gender: "feminine", human: "person" },
+    /* A second claim on a filled box, and a form marked nothing. */
+    { id: "f3", ar: "معلمون", en: "teachers", lat: "", number: "plural", gender: "masculine", human: "person" },
+    { id: "f4", ar: "تعليم", en: "teaching", lat: "", number: "na", gender: "", human: "person" },
+    /* An empty form in no box is not shown at all. */
+    { id: "f5", ar: "", en: "", lat: "", number: "na", gender: "", human: "person" },
+  ];
+  const placed = placeNounForms(forms, boxes, "paired");
+  assert.deepEqual(placed.at, { "masculine:singular": 0, "masculine:plural": 1, "feminine:singular": 2 });
+  assert.deepEqual(placed.extras, [3, 4]);
+  /* On a thing there is one side, and the feminine singular is a second
+     claim on the singular. */
+  const single = placeNounForms(forms, nounBoxes(arPS(), "single"), "single");
+  assert.deepEqual(single.at, { singular: 0, plural: 1 });
+  assert.deepEqual(single.extras, [2, 3, 4]);
+});
+
+test("a form whose answers disagree is in no box, unless it is the card's own word", () => {
+  const mixed = { id: "f1", ar: "كتاب / كتب", en: "book", lat: "", answers: [
+    { text: "كتاب", lat: "", number: "singular" }, { text: "كتب", lat: "", number: "plural" },
+  ] };
+  assert.equal(formSays(mixed), null);
+  const boxes = nounBoxes(arPS(), "single");
+  const placed = placeNounForms([{ ar: "قلم", en: "pen", lat: "" }, mixed], boxes, "single");
+  assert.deepEqual(placed.at, { singular: 0 });
+  assert.deepEqual(placed.extras, [1]);
+  /* The card's own word always has a box, by its first answer — and is
+     saved exactly as it was, because marking it would be saying one thing
+     about two words. */
+  const lead = { ...mixed, id: undefined };
+  assert.deepEqual(placeNounForms([lead], boxes, "single").at, { singular: 0 });
+  assert.deepEqual(stampNounForms([lead], boxes, "single", "masculine")[0], lead);
+});
+
+test("saving marks every box as the box it is, and a thing's gender goes on all of them", () => {
+  const forms = [
+    { ar: "ساعة", en: "hour", lat: "", number: "na", gender: "", answers: [{ text: "ساعة", lat: "", gender: "feminine" }] },
+    { id: "f1", ar: "ساعات", en: "hours", lat: "", number: "plural", gender: "" },
+    { id: "f2", ar: "ساعتين", en: "two hours", lat: "", number: "dual", gender: "masculine" },
+  ];
+  const boxes = nounBoxes(arPS(), "single");
+  const out = stampNounForms(forms, boxes, "single", "feminine");
+  assert.deepEqual(out.map((/** @type {any} */ f) => [f.number, f.gender]), [["singular", "feminine"], ["plural", "feminine"], ["dual", "feminine"]]);
+  /* Off the answers too, where an answer's own would win over the form's. */
+  assert.deepEqual(out[0].answers, [{ text: "ساعة", lat: "" }]);
+  /* A person's sides are the boxes': nothing is taken from the card. */
+  const person = stampNounForms(
+    [{ ar: "قطة", en: "cat", lat: "", number: "singular", gender: "feminine", human: "animal" }],
+    nounBoxes(arPS(), "paired"), "paired", "",
+  );
+  assert.equal(person[0].gender, "feminine");
+  /* Nothing is touched on a card that is not laid out in boxes. */
+  assert.equal(stampNounForms(forms, [], "", "feminine"), forms);
+});
+
+test("on a person, either side alone is a card: the word moves to the box with something in it", () => {
+  const forms = [
+    { ar: "", en: "", lat: "", number: "singular", gender: "masculine", human: "animal" },
+    { id: "f1", ar: "قطة", en: "cat", lat: "", number: "singular", gender: "feminine", human: "animal" },
+  ];
+  const cells = [
+    { id: "c1", of: "f1", row: "attached", col: "me", ar: "قطتي", en: "my cat", lat: "" },
+    { id: "c2", of: "", row: "attached", col: "me", ar: "", en: "", lat: "" },
+  ];
+  const moved = leadFirst(forms, cells, [0, 1]);
+  assert.equal(moved.forms[0].ar, "قطة");
+  assert.equal(moved.forms[0].gender, "feminine");
+  assert.equal(moved.forms[0].id, undefined, "the card's own word has no name of its own");
+  assert.equal(moved.forms[1].id, "f1");
+  assert.equal(moved.forms[1].ar, "");
+  /* The pronouns go with the word they are on the end of. */
+  assert.equal(must(moved.cells.find((/** @type {any} */ c) => c.id === "c1"), "c1").of, "");
+  assert.equal(must(moved.cells.find((/** @type {any} */ c) => c.id === "c2"), "c2").of, "f1");
+  /* Nothing moves while the word itself is written, or where nothing in a
+     box is. */
+  const written = [{ ...forms[0], ar: "قط", en: "cat" }, forms[1]];
+  assert.equal(leadFirst(written, cells, [0, 1]).forms, written);
+  assert.equal(leadFirst(forms, cells, [0]).forms, forms);
+});
+
+test("a noun opened from storage reads its old grammar into the boxes, and saves it marked", () => {
+  /* The twoGenders shape of the smoke harness: a teacher's masculine and
+     feminine, written before the boxes, both singular. */
+  const stored = /** @type {any} */ ({
+    id: "k1", ar: "مدرس", en: "teacher", lat: "", number: "singular", gender: "masculine", human: "person",
+    category: "noun", subs: [{ id: "s1", ar: "مدرسة", en: "teacher", lat: "", number: "singular", gender: "feminine" }],
+  });
+  const forms = initialForms(stored, null);
+  const placed = placeNounForms(forms, nounBoxes(arPS(), "paired"), "paired");
+  assert.deepEqual(placed.at, { "masculine:singular": 0, "feminine:singular": 1 });
+  assert.deepEqual(placed.extras, []);
 });

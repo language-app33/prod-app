@@ -8,6 +8,130 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.322 — 3 October 2026
+
+**Noun properties are toggles, and more of a card folds away.**
+
+- On a noun card, "Person, animal or thing" and "Gender" are now the same
+  toggle used for the theme in App preferences, instead of rows of round
+  buttons. Gender still starts with "Not set", so it can be left blank.
+- "How this form can be practiced" under each form now starts folded,
+  like "Its attached pronouns". Its heading says what is on — "on its
+  own · in sentences", or "not practised" — and tapping it opens the
+  ticks.
+- The "Plural after 3 to 10" box on Arabic noun cards is folded the same
+  way, since almost every noun leaves it empty. Its heading shows the word
+  written in it, or "none yet".
+- Every folded heading in the app now shows its summary ("none yet",
+  "3 of 8 written", "12 examples") on a line under its name, with a larger
+  arrow beside them.
+- "Add custom tags" on a card now looks exactly like "Add this card to a
+  deck": the same dotted outline, size and lettering.
+
+## 0.321 — 3 October 2026
+
+**Palestinian numbers from three to nineteen have one word before a noun,
+and nouns like "days" have a box for the plural they take after a number.**
+
+- In Palestinian Arabic, three to nineteen say the same word before a
+  masculine and a feminine noun: five boys and five girls both start with
+  خمس. The number screen used to ask for two words, one for each gender,
+  and picked between them. It now asks for one, labelled "before a noun".
+  One and two still have a masculine and a feminine box, because they do
+  change.
+- If you wrote two different words for a number before, the number screen
+  tells you, shows both, and lets you tap the one you say. Until you do,
+  your students are asked exactly what they were asked before. If you
+  wrote the same word twice, or only filled one box, nothing changes and
+  you are not asked.
+- Arabic noun cards have a new box under the plural: "Plural after 3 to
+  10". It is for the few nouns whose plural changes after three to ten,
+  like days (تيام rather than أيام) or months. Leave it empty for every
+  other noun. When it is filled, counting from three to ten uses it, so
+  five days comes out as خمس تيام. Eleven and up are unaffected.
+- What you write in that box is not asked on its own or used in sentences,
+  only in counting. You can switch that on with its ticks if you want.
+- The "Counting things: 3 to 10" screen mentions the new box, and the
+  hint on the thousands box now says to write it the way it is said after
+  three to ten.
+- A counting question still expects the first spelling written in a box.
+  A second spelling you add is not yet accepted in counting questions.
+
+## 0.320 — 3 October 2026
+
+**Noun cards come with a box for each form, and people and animals have a
+masculine and a feminine side.**
+
+- A noun card now asks whether the word is a person, an animal or a
+  thing. Hebrew nouns are asked this too; before, only Arabic ones were.
+- A thing (book, hour) has a box for the word, one for its plural and one
+  for its pair form. Its gender is chosen once, for the whole word.
+- A person or an animal (teacher, cat) has the same three boxes twice:
+  once masculine and once feminine. Either side alone is enough to save
+  the card, so a word you only know in the feminine can be written on
+  its own.
+- The boxes are already marked, so there is no need to mark each form
+  as plural or pair by hand any more. An empty box is never asked.
+- "Add a form" is gone from noun cards. A second spelling of the same
+  form goes in that form's box as another accepted answer.
+- Cards you already have open with their forms in the right boxes. A
+  form that fits no empty box is still shown underneath, and nothing is
+  lost.
+- In sentences, animals agree the way things do.
+- A thing's gender can be left unset when you don't know it. Sentences
+  and counting questions that would need it then leave the word out
+  until it is set. Before, an adjective next to such a word was always
+  given its masculine form, which was wrong for feminine words. The same
+  now applies to a person's name with no gender set.
+- Counting uses the plural and pair form from the same side as the word
+  it counts, so a card holding both masculine and feminine plurals is
+  counted correctly.
+
+## 0.319 — 3 October 2026
+
+**On a noun card, each form's attached pronouns now sit inside that form's
+panel and fold away.**
+
+- The table of pronouns on the end of a word (my book, your book …) used
+  to stand as a separate panel under each form. It is now inside the
+  form's own panel, under its fields and its practice ticks, so it reads as
+  part of that form.
+- The table starts folded. Its heading says how many of its boxes are
+  written, for example "3 of 8 written", or "none yet". Tap the heading to
+  open it and again to fold it.
+
+## 0.318 — 3 October 2026
+
+**"Sign off" is now "Publish".**
+
+- On the number screen, the button that sends your numbers to students is
+  called Publish. Save keeps your changes for you; Publish is what
+  students get. Once published, the button reads "Published".
+- When students don't have your latest numbers yet, a line under the
+  button says so: "Unpublished changes", or "Not published yet" for
+  numbers that have never been published. If you have changes that aren't
+  saved yet, the line tells you to save them first.
+
+## 0.317 — 3 October 2026
+
+**A part's screen looks and works like a card's, and every part has
+ready-made blank tags.**
+
+- On each part of the number screen, Decks is now the first section, and
+  it works exactly as it does on a card: the decks holding the part are
+  pills, and "Add this part to a deck" opens the same list of decks. It
+  still saves straight away and stays in step with the deck's own screen.
+- The sections on a part's screen are headed the way a card's are.
+- Each part now has fixed tags for blanks in sentence cards, shown under
+  "Filling blanks" the way a card's default tags are: {{0-10}},
+  {{11-99}}, {{100-999}} and {{1000-plus}}, plus {{number}} for a number
+  from any of them. The counting parts have {{count-1-2}}, {{count-3-10}}
+  and {{count-11-20}}, plus {{count}} for any of them; these fill the blank
+  with a number and a noun together, in the right form and order. The tags
+  can't be changed, and nothing needs setting up: write one into a sentence
+  card and it works. The names you could type in yourself in 0.316 are
+  gone.
+
 ## 0.316 — 3 October 2026
 
 **The number screen is organised by part, counting uses your noun cards,

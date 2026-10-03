@@ -24,7 +24,7 @@ import { arComposer } from "../src/numbers/ar-PS.ts";
 import { heComposer } from "../src/numbers/he-IL.ts";
 import { countedNouns, readNounCard, readNouns, setsWithNouns, withNouns } from "../src/numbers/nouns.ts";
 import { countable, rangeChecks } from "../src/numbers/range.ts";
-import { fillerCards, FILLERS_PER_PART, homesOf } from "../src/numbers/generate.ts";
+import { fillerCards, FILLERS_PER_PART, homesOf, partTags } from "../src/numbers/generate.ts";
 import { fillersFor } from "../src/card-facts.ts";
 import { LANGUAGES } from "../src/languages.ts";
 
@@ -54,6 +54,16 @@ function nounCard(id, has = {}) {
 
 /* ---- reading a card ---- */
 
+test("a noun card's plural after three to ten is read with the rest", () => {
+  const card = nounCard("book");
+  /* A made-up word: what is tested is that it is read, not what it is. */
+  card.forms.push({ ar: "P", en: "", lat: "", number: "counted", gender: "masculine" });
+  const noun = must(must(readNounCard(card), "book").noun, "noun");
+  assert.equal(noun.plCounted, "P");
+  /* And a card without one has none, rather than an empty one. */
+  assert.equal("plCounted" in must(must(readNounCard(nounCard("book")), "book").noun, "noun"), false);
+});
+
 test("a noun card is read for its singular, plural, pair form and gender", () => {
   const read = must(readNounCard(nounCard("book", { enPl: "books" })), "book");
   assert.deepEqual(read.missing, []);
@@ -77,6 +87,33 @@ test("a card that is not a noun is not read, and one short of a form says which"
   const noDual = must(readNounCard(nounCard("book", { dual: false })), "book");
   assert.deepEqual(noDual.missing, []);
   assert.equal(must(noDual.noun, "noun").dual, undefined);
+});
+
+test("a person with both sides is counted with the plural and pair of its own word's side", () => {
+  /* A card for a teacher carries the masculine and the feminine, and the
+     feminine plural may well have been written first. Counting the
+     masculine singular with it would say "three teachers" in two genders
+     at once. Placeholders rather than words: what is tested is which
+     answer is taken. */
+  const card = {
+    id: "teacher", lang: "ar-PS", category: "noun",
+    forms: [
+      { ar: "M-SG", en: "teacher", lat: "", number: "singular", gender: "masculine", human: "person" },
+      { ar: "F-SG", en: "teacher", lat: "", number: "singular", gender: "feminine", human: "person" },
+      { ar: "F-PL", en: "teachers", lat: "", number: "plural", gender: "feminine", human: "person" },
+      { ar: "F-DU", en: "two teachers", lat: "", number: "dual", gender: "feminine", human: "person" },
+      { ar: "M-PL", en: "teachers", lat: "", number: "plural", gender: "masculine", human: "person" },
+      { ar: "M-DU", en: "two teachers", lat: "", number: "dual", gender: "masculine", human: "person" },
+    ],
+  };
+  const noun = must(must(readNounCard(card), "teacher").noun, "noun");
+  assert.equal(noun.sg, "M-SG");
+  assert.equal(noun.pl, "M-PL");
+  assert.equal(noun.dual, "M-DU");
+  assert.equal(noun.gender, "m");
+  /* A plural that says no gender is anybody's, as it always was. */
+  const plain = { ...card, forms: [card.forms[0], { ...card.forms[2], gender: "" }] };
+  assert.equal(must(must(readNounCard(plain), "plain").noun, "noun").pl, "F-PL");
 });
 
 test("the nouns of one language come back in the order of their ids, whatever order the cards are in", () => {
@@ -138,39 +175,49 @@ test("each box is on the screen of the first part that needs it", () => {
 
 /* ---- numbers standing in sentences ---- */
 
-test("a part that names a blank fills it with its numbers, written out", () => {
-  const sys = { ...SYS, nouns: [], fills: { "numbers:0-10": ["age"] } };
-  const made = fillerCards(arComposer, sys);
+/** The fillers one part lends. @param {any[]} made @param {string} part */
+const of = (made, part) => made.filter((c) => c.source && c.source.slot === `fill:${part}`);
+
+test("each part answers to a tag of its own and a general one, the same in every language", () => {
+  const tags = (/** @type {any} */ composer) => composer.ranges().filter((/** @type {any} */ r) => r.kind === "numbers").map(partTags);
+  assert.deepEqual(tags(arComposer), [
+    ["0-10", "number"], ["11-99", "number"], ["100-999", "number"], ["1000-plus", "number"],
+    ["count-1-2", "count"], ["count-3-10", "count"], ["count-11-20", "count"],
+  ]);
+  assert.deepEqual(tags(heComposer), tags(arComposer));
+});
+
+test("a part fills its tags with its numbers, written out", () => {
+  const sys = { ...SYS, nouns: [] };
+  const made = of(fillerCards(arComposer, sys), "numbers:0-10");
   assert.equal(made.length, 11, "the whole of 0 to 10");
   for (const card of made) {
-    assert.deepEqual(card.fills, ["age"]);
+    assert.deepEqual(card.fills, ["0-10", "number"]);
     assert.equal(card.drill, false, "borrowed by a sentence, never asked on its own");
     assert.equal(card.kind, "phrase", "kept out of {{word}}");
     assert.ok(card.forms[0].ar);
   }
   assert.deepEqual(made.map((c) => c.forms[0].en), ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
   /* The same numbers on every device: made twice, the same ids. */
-  assert.deepEqual(fillerCards(arComposer, sys).map((c) => c.id), made.map((c) => c.id));
-  /* A part with no blanks named lends nothing. */
-  assert.deepEqual(fillerCards(arComposer, { ...SYS, nouns: [] }), []);
+  assert.deepEqual(of(fillerCards(arComposer, sys), "numbers:0-10").map((c) => c.id), made.map((c) => c.id));
+  /* And with no nouns, no counting part lends anything. */
+  assert.equal(fillerCards(arComposer, sys).filter((c) => (c.fills || []).includes("count")).length, 0);
 });
 
 test("a bigger part lends an even spread of itself, not its first dozen", () => {
-  const made = fillerCards(arComposer, { ...SYS, nouns: [], fills: { "numbers:11-99": ["price"] } });
+  const made = of(fillerCards(arComposer, { ...SYS, nouns: [] }), "numbers:11-99");
   assert.ok(made.length > 0 && made.length <= FILLERS_PER_PART);
   const values = made.map((c) => Number(c.forms[0].en));
   assert.ok(Math.max(...values) - Math.min(...values) > 40, `${values} is bunched up`);
 });
 
 test("a counting part fills its blank with a number and a thing, saying which number the thing is", () => {
-  const sys = withNouns(
-    { ...SYS, nouns: [], fills: { "numbers:count-3-10": ["things"] } },
-    countedNouns([nounCard("book"), nounCard("girl")], "ar-PS"),
-  );
-  const made = fillerCards(arComposer, sys);
+  const sys = withNouns({ ...SYS, nouns: [] }, countedNouns([nounCard("book"), nounCard("girl")], "ar-PS"));
+  const made = of(fillerCards(arComposer, sys), "numbers:count-3-10");
   assert.ok(made.length > 0);
   for (const card of made) {
     const form = /** @type {any} */ (card.forms[0]);
+    assert.deepEqual(card.fills, ["count-3-10", "count"]);
     assert.match(form.en, /^\d+ (book|girl)s$/);
     assert.equal(form.number, "plural", "three to ten count the plural");
     assert.ok(["masculine", "feminine"].includes(form.gender));
@@ -178,15 +225,15 @@ test("a counting part fills its blank with a number and a thing, saying which nu
 });
 
 test("a sentence asking for a part's blank is shown the part's numbers on the teacher's screen", () => {
-  const sys = { ...SYS, nouns: [], fills: { "numbers:0-10": ["age"] } };
-  const sentence = { id: "s1", lang: "ar-PS", sentence: true, forms: [{ ar: "{{age}}", en: "I am {{age}}", lat: "" }] };
+  const sys = { ...SYS, nouns: [] };
+  const sentence = { id: "s1", lang: "ar-PS", sentence: true, forms: [{ ar: "{{0-10}}", en: "I am {{0-10}}", lat: "" }] };
   const pool = /** @type {any[]} */ ([sentence, ...fillerCards(arComposer, sys)]);
   const got = fillersFor(sentence.forms[0], pool, LANGUAGES["ar-PS"]);
-  assert.equal(got.age.length, 11);
-  assert.equal(got.age[3].en, "3");
+  assert.equal(got["0-10"].length, 11);
+  assert.equal(got["0-10"][3].en, "3");
 });
 
 test("a part that cannot be said yet lends nothing to the sentences that ask for it", () => {
-  const sys = { ...SYS, nouns: [], lexemes: {}, fills: { "numbers:0-10": ["age"] } };
+  const sys = { ...SYS, nouns: [], lexemes: {} };
   assert.deepEqual(fillerCards(arComposer, sys), []);
 });

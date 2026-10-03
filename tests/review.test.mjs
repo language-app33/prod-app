@@ -538,7 +538,8 @@ test("a student is asked it the way the teacher's list shows it", () => {
  * A Person card is one person unless it says more, and always a person:
  * ليلى with her number left blank takes تعبانة, and a family marked plural
  * takes تعبانين — the plural that only people take. Its gender is never
- * guessed: رامي with none is asked beside no verb person.
+ * guessed: رامي with none is asked beside no verb person, and since 0.320
+ * beside no adjective either, which used to take the masculine for him.
  */
 test("a person is singular unless it says otherwise, and always a person", () => {
   const person = (/** @type {string} */ id, /** @type {string} */ word, /** @type {Record<string, string>} */ said) => ({
@@ -548,7 +549,7 @@ test("a person is singular unless it says otherwise, and always a person", () =>
   const card = { ...todayCard, id: "F", forms: [frame] };
   const pool = [card, tiredCard(), person("Layla", "ليلى", { gender: "feminine" }), person("Family", "العيلة", { number: "plural" }), person("Rami", "رامي", {})];
   const made = sentencesOf(card, frame, pool, ar).list.map((s) => s.ar);
-  assert.deepEqual(made.sort(), ["العيلة تعبانين", "رامي تعبان", "ليلى تعبانة"].sort());
+  assert.deepEqual(made.sort(), ["العيلة تعبانين", "ليلى تعبانة"].sort());
 });
 
 /*
@@ -561,18 +562,17 @@ test("a sentence asking for a part of the numbers is filled with one of its numb
   const sys = {
     ...JSON.parse(readFileSync(new URL("./golden/ar-PS.numbers.json", import.meta.url), "utf8")).system,
     nouns: [],
-    fills: { "numbers:0-10": ["age"] },
   };
   const item = {
     id: "A", lang: "ar-PS", kind: "phrase", tags: [], created: 1, sentence: true,
-    forms: [{ id: "A", ar: "{{age}}", en: "I am {{age}}", lat: "", lang: "ar-PS", s: {} }],
+    forms: [{ id: "A", ar: "{{0-10}}", en: "I am {{0-10}}", lat: "", lang: "ar-PS", s: {} }],
   };
   installIndexes([item], settings, [{ numbers: sys, times: null }]);
   const unit = must(castQuestion([item], { id: "A", subId: null, type: "ar2en" }), "the question");
   assert.equal(unit.en, "I am 0", "the first number of the part, on the first turn");
   assert.equal(unit.ar, sys.lexemes["unit.0"].forms.standalone);
-  /* And without the part naming it, the blank has nothing behind it. */
-  installIndexes([item], settings, [{ numbers: { ...sys, fills: undefined }, times: null }]);
+  /* And with no number system to draw from, the blank has nothing behind it. */
+  installIndexes([item], settings, []);
   const bare = must(castQuestion([item], { id: "A", subId: null, type: "ar2en" }), "the question");
-  assert.match(String(bare.ar), /\{\{age\}\}/);
+  assert.match(String(bare.ar), /\{\{0-10\}\}/);
 });

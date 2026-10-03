@@ -353,21 +353,7 @@ test("an empty system is a system, and reads back as itself", () => {
 
 /* ---- the blanks a part fills ---- */
 
-test("the blanks each part fills come through narrowed, and anything else does not", () => {
-  const got = must(
-    readNumberSystem({
-      ...good(),
-      fills: {
-        "numbers:0-10": ["Age", "age", " my age ", ""],
-        "numbers:count-3-10": ["things"],
-        "time:hours": ["clock"],
-        "not a part": ["x"],
-        "numbers:11-99": "age",
-      },
-    }),
-    "sys",
-  );
-  assert.deepEqual(got.fills, { "numbers:0-10": ["age", "myage"], "numbers:count-3-10": ["things"] });
-  assert.deepEqual(readNumberSystem(got), got);
-  assert.equal(must(readNumberSystem({ ...good(), fills: { "numbers:0-10": [] } }), "sys").fills, undefined);
+test("a system carries no blank names of its own: a part's tags are fixed", () => {
+  const got = must(readNumberSystem({ ...good(), fills: { "numbers:0-10": ["age"] } }), "sys");
+  assert.equal(/** @type {any} */ (got).fills, undefined);
 });
