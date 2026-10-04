@@ -6,7 +6,7 @@
  * working that out read the verb's whole table again for every one of its
  * cells — for every sentence, for every question type, after every answer.
  * Moving on from an answer took three times as long as it had, and longer
- * the more verbs and sentences a learner held. 0.331 keeps three answers
+ * the more verbs and sentences a learner held. 0.333 keeps three answers
  * rather than working them out again: the filled cells of each row of a
  * card's table, which words each blank of each sentence admits, and each
  * pack's tables.
@@ -263,7 +263,7 @@ test("a large collection is dealt in under a second", () => {
      one can stand in a blank. Fresh cards each time, which is the dearest
      case — the app's own launch — since nothing about them is remembered
      yet. Setting this up and dealing it took about seven seconds before
-     0.331 and takes about a quarter of a second now; the bar is set well
+     0.333 and takes about a quarter of a second now; the bar is set well
      clear of both, so a slow machine does not fail it and the old cost
      would. */
   const times = [];
