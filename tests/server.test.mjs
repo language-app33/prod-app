@@ -2868,6 +2868,61 @@ test("a teacher's numbers reach their students, and the version moves when a wor
   assert.equal(nothing.json.unchanged, true);
 });
 
+/*
+ * Numbers saved under the Publish button, which is gone.
+ *
+ * Before Save published, a system's first save recorded "nothing published
+ * yet", and students got nothing until Publish was pressed. The button went
+ * and the record stayed: a deck holding only numbers reached its students
+ * as a deck with nothing in it, and nothing on the teacher's screen said
+ * why. A save is what students get, whenever it was made.
+ */
+test("numbers saved before Save published still reach students, as last saved", async () => {
+  const teacher = await anAdmin("Rafa");
+  const course = await aCourse(teacher.key, "Testing");
+  const deck = (await api("/api/courses?action=create-deck", {
+    method: "POST", key: teacher.key, body: { title: "Numbers", lang: "ar-PS" },
+  })).json.deck;
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key: teacher.key, body: { deckId: deck.id, courseId: course.id },
+  });
+  const student = await someone("Nour");
+  await api("/api/courses?action=join-course", { method: "POST", key: student.key, body: { code: course.code } });
+
+  const saved = (await api("/api/courses?action=save-system", {
+    method: "POST", key: teacher.key, body: { kind: "numbers", system: numberSystem() },
+  })).json.system;
+  const { getStore } = await import("../server/store.js");
+  const store = getStore("arabic-courses");
+
+  /* Never published: what a first save wrote before Save published. */
+  await store.set(`syssigned:${saved.id}`, JSON.stringify({
+    rev: null, at: Date.now(), by: teacher.handle, system: null,
+  }));
+  const unpublished = await api("/api/courses?action=my-material", { key: student.key });
+  assert.equal(unpublished.status, 200, unpublished.text);
+  assert.deepEqual(
+    unpublished.json.systems.map((/** @type {any} */ s) => s.id),
+    [saved.id],
+    "the numbers were never sent, so a deck of numbers held nothing",
+  );
+
+  /* Published once, then saved again before Save published: the later
+     save is what was last saved, and so what is sent. */
+  await store.set(`numsys:${saved.id}`, JSON.stringify({
+    ...saved,
+    rev: 2,
+    lexemes: { ...saved.lexemes, "unit.1": { slot: "unit.1", forms: { standalone: "wahad" } } },
+  }));
+  await store.set(`syssigned:${saved.id}`, JSON.stringify({
+    rev: 1, at: Date.now(), by: teacher.handle, system: saved,
+  }));
+  const behind = await api("/api/courses?action=my-material", { key: student.key });
+  assert.equal(behind.json.systems[0].rev, 2);
+  assert.equal(behind.json.systems[0].lexemes["unit.1"].forms.standalone, "wahad");
+  assert.notEqual(behind.json.version, unpublished.json.version, "and the device is told to fetch it");
+});
+
 test("a system in a language nobody is learning is not sent", async () => {
   const teacher = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Tariq" } });
   const tkey = teacher.json.key;

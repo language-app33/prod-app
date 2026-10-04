@@ -4623,6 +4623,14 @@ device or a server from before this reads it as it always did, and
 `sign-system` is kept for a build that still calls it. What is given up
 is a teacher saving work in progress without students seeing it.
 
+*0.348:* students are now sent the saved system itself, and the signed
+record is no longer read. While it was, a system last saved before Save
+published, and never published, reached no student. It held a "nothing
+published" record that only the gone Publish button could replace, and
+a deck holding only numbers arrived empty. A system published and edited
+since before the change is sent as last saved too, because a save is
+what students get.
+
 **The number screen lists; other screens edit.** Its only control was
 Save, and everything it saved was edited somewhere else. Each part, the
 clock, and the numbers written out by hand ("Correct how a number is

@@ -268,9 +268,10 @@ const K = {
   timeSys: (id) => `timesys:${id}`,
   /**
    * The version of a number or time system its teacher last signed off,
-   * kept whole: what students are sent while later edits wait. Absent on a
-   * system nobody has edited since sign-off existed, which is sent as it
-   * stands. See sign-system.
+   * kept whole. It was what students were sent while later edits waited;
+   * since a save signs itself, students are sent the saved system and
+   * this is only written, for a build that still reads it. See
+   * save-system and my-material.
    * @param {string} id
    */
   sysSigned: (id) => `syssigned:${id}`,
@@ -2785,25 +2786,23 @@ export default async (req) => {
          already tidied. The version was taken a step earlier; where this
          moved anything it moves again, and the device fetches once more. */
       await Promise.all(teacherHandles.map((h) => liftTags(h)));
-      const current = (
+      /*
+       * Each as its teacher last saved it, because a save is what students
+       * get — see save-system.
+       *
+       * This used to send the version last signed off, and nothing at all
+       * where nothing had been. Since Save publishes, every save signs
+       * itself, so the two differ only for a system last saved before that
+       * — under a Publish button that is gone. A system written then and
+       * never published reached no student, with no button left to send
+       * it and nothing on the teacher's screen to say so: a deck holding
+       * only numbers was a deck with nothing in it, and its students were
+       * told there was nothing to practise. The sign-off record is still
+       * written, for a build that reads it; nothing here does.
+       */
+      const systems = (
         await Promise.all(teacherHandles.map((h) => systemsOf(h, langs)))
       ).flat();
-      /* Each as its teacher last signed it off — see sign-system. The one
-         on disk where it has not been edited since sign-off existed, and
-         none at all where nothing has been signed yet. */
-      const signs = await readManyJson(
-        store,
-        current.map((/** @type {any} */ sys) => K.sysSigned(String(sys.id))),
-        EVENTUAL,
-      );
-      const systems = current
-        .map((/** @type {any} */ sys, /** @type {number} */ i) => {
-          const sign = signs[i];
-          if (!sign) return sys;
-          if (Number(sign.rev) === Number(sys.rev)) return sys;
-          return sign.system || null;
-        })
-        .filter(Boolean);
       /** @type {[string, number][]} */
       const systemsAt = systems.map((/** @type {any} */ sys) => [sys.id, Number(sys.rev) || 0]);
       const version = materialVersion(courseRows, deckRows, fillsAt, systemsAt);

@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.348 — 4 October 2026
+
+**Numbers saved before Save started publishing now reach students.**
+
+- Fixed: a course whose deck holds only numbers could leave its students
+  with "Nothing to practice yet". This happened when the teacher's numbers
+  were last saved before 0.325, when students only got numbers after the
+  Publish button was pressed. If they were never published, students
+  got nothing. The Publish button is gone, so nothing on the teacher's
+  screen showed this and there was no way to send them.
+- Students now always get the numbers as the teacher last saved them,
+  whenever that was. Numbers that were published and then changed and
+  saved before 0.325 now reach students as changed too.
+
 ## 0.347 — 4 October 2026
 
 **A course's page shows the decks its students actually get.**
