@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.331 — 4 October 2026
+
+**The app is quick again.**
+
+- Moving on to the next question, starting a session, opening the app
+  and opening Progress are about three times quicker. They had slowed
+  down since 0.262, when a verb in a sentence began agreeing with the
+  word beside it, and they slowed down more the more verbs and sentences
+  a collection held. They are now as quick as they were before that, or
+  a little quicker.
+- The lists of the sentences a card makes, in the card editor and in
+  Review sentences, are quicker too.
+- Nothing about what is asked, how an answer is marked or how progress is
+  saved has changed.
+
 ## 0.330 — 4 October 2026
 
 **Numbers are learnt word by word, and a numbers deck asks only numbers.**

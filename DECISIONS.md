@@ -4703,3 +4703,73 @@ have not climbed see it pause. Reading what is known walks every asking
 of every range (tens of milliseconds), so the result is cached against
 the system and the set of words known, and is only read again when a
 word crosses into recognised.
+
+---
+
+## What a sentence's blanks admit is worked out once, and kept
+
+**4 October 2026** · `filledRow` behind `rowLead` in `src/verbs.ts`; `ASKED_IN` and `askedIn` in `src/ArabicTrainer.tsx`; `TABLES_OF` behind `tablesOf` in `src/languages.ts`; `reviewPool` in `src/review.ts`; `fillersFor` and `whyStarved` in `src/card-facts.ts`; `tests/blank-pools.test.mjs`
+
+**Why.** The owner found the app much slower over a few days. Timed on a
+generated collection of about 750 cards (nouns, adjectives, verbs with
+their tables, phrases, two-blank sentences, conversations, numbers and
+times), moving on from an answer took 1.29 s against 0.40 s a week before,
+starting a session 1.69 s against 0.35 s, launch 1.56 s against 0.69 s and
+Progress 0.49 s against 0.15 s. Every release was timed back to 26
+September, and the step is one commit: 0.262, a verb in a sentence agreeing
+with the blank beside it. `askedIn` lost its early return, so every
+sentence with two blanks now filters every word that could fill them, and
+each verb cell asks `isRowLead`, which rebuilt the verb's whole table to
+answer — once per cell, per sentence, per question type, and again after
+every answer, since an answer changes the cards and every index is rebuilt
+from them. About seventy per cent of moving on from an answer was spent
+there. The cost grew faster than the collection: half the cards was 2.3
+times slower than before, all of them 3.2 times.
+
+**What it is.** Three answers kept rather than worked out again. The
+filled cells of each row of a card's table, held against the card object.
+Which of a blank's words each sentence admits, held against the sentence's
+form, the list it was filtered from and the language a card with none of
+its own is read in, and thrown away whenever the indexes it reads are. And
+each pack's tables, held against the pack. The teacher's lists read a
+frame's blanks once per call where they read them once per word. Moving on
+from an answer is now 0.34 s on the same collection, starting a session
+0.27 s, launch 0.71 s and Progress 0.18 s.
+
+**Why keeping them is safe.** A kept answer goes wrong when what it was
+read from changes underneath it, or when it depends on something it was
+not kept against. Nothing in the app writes into a card where it stands:
+the editor, an answer, a sync and a course refresh all hand back a new
+object, so a changed card is one the row cache has never seen. A pack's
+tables are declared once and never written, and nothing that reads a
+blank's words changes the list it is handed. The one thing found that the
+blanks' answer was not kept against is the language on screen, which a
+question in another language moves part-way through a render without any
+index being rebuilt; it is kept against that, as `TYPE_CACHE` already is.
+The fixed build was compared with 0.330 on the same cards — what every
+form can be asked, every card's standing, every kind of session and every
+sentence filled, as loaded, after edits, after answers and across a
+language switch, and the teacher's lists — and nothing differed; the same
+comparison does catch a build without the language check. A full session
+walked on both, with the clock held still, asked the same questions and
+saved the same progress. `tests/blank-pools.test.mjs` fails if an edited
+verb stops reaching its sentences, if the language check goes, or if
+dealing a large collection takes a second again.
+
+**What it costs.** The rule that nothing writes into a card in place was
+a habit; the row cache now depends on it, and says so where it is kept.
+Memory is a few small maps per verb and per sentence, released with the
+cards.
+
+**Found and left alone.** How far each word has climbed (`valueReachOf`)
+is worked out part-way through setting up the indexes, before the verb
+cells still behind their row's gate and the owners of the lent words are
+set, so it reads those as the previous setting up left them. The indexes
+built when the app opens can therefore fill a blank a little differently
+from the same cards set up a second time. It has only been seen in a
+collection made up to look for it. And `TYPE_CACHE` is kept
+against a form's own language rather than the one a card with no language
+is read in, which matters only to a learner of two languages holding cards
+saved before cards said which language they were in. Both are the same in
+0.330 and unchanged by this; each would be a change to what is dealt, not
+to how fast, and is left for a decision of its own.

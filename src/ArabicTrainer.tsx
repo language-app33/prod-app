@@ -982,12 +982,27 @@ let TYPE_CACHE: WeakMap<Form, { lang: LangId; types: string[] }> = new WeakMap()
    types, because it reads the same indexes they do. */
 let SCENE_FILLS: WeakMap<Item, Map<string, Record<string, Record<string, Value>> | null>> = new WeakMap();
 
+/*
+ * And which of a blank's words each sentence admits — see askedIn — kept
+ * for as long as the indexes it reads hold, and thrown away with them.
+ *
+ * Asked once per question type, per count the home screen keeps, per
+ * sentence, after every answer; and since 0.262 the answer walks every word
+ * that could fill the blank, so it is worth working out once. Kept against
+ * the sentence's form and the list it was filtered from, and against the
+ * language a card with none of its own is read in — the same reason
+ * TYPE_CACHE keeps one: the question on screen moves that language in the
+ * middle of a render, without any of the setters below being called.
+ */
+let ASKED_IN: WeakMap<Form, Map<string, { list: Value[]; lang: LangId; out: Value[] }>> = new WeakMap();
+
 /* Thrown away whole rather than picked over: the setters below run
    together, in a handful of lines, and what each of them changes reaches
    most of the answers in here. */
 function forgetTypes() {
   TYPE_CACHE = new WeakMap();
   SCENE_FILLS = new WeakMap();
+  ASKED_IN = new WeakMap();
 }
 
 /* Exported, with the key it is filed under, so a test can say "these words
@@ -1063,6 +1078,8 @@ let VALUE_OWNER: Map<string, { card: Item; form: Form }> = new Map();
 function setValueOwner(map: Map<string, { card: Item; form: Form }>) {
   VALUE_OWNER = map || new Map();
   SCENE_FILLS = new WeakMap();
+  /* Which words a blank admits is read off the cards they came from. */
+  ASKED_IN = new WeakMap();
 }
 
 /* What a value has climbed, for valuesAt. A value nothing knows about
@@ -1211,13 +1228,24 @@ function askedIn(unit: Form, slot: string, list: Value[]): Value[] {
      stands in it once per tense, since the subject picks the person. */
   const agrees = !!partnerOf(unit, slotsOf(unit), slot);
   if (!rows.length && !agrees) return list;
+  /* Worked out once while the indexes hold — see ASKED_IN. */
+  const fallback = activeLang().id;
+  let mine = ASKED_IN.get(unit);
+  const held = mine && mine.get(slot);
+  if (held && held.list === list && held.lang === fallback) return held.out;
   const admits = (lang: Lang) => blankAdmits(lang, () => rows, () => agrees);
-  return list.filter((value) => {
+  const out = list.filter((value) => {
     const owner = VALUE_OWNER.get(refOf(value));
     if (!owner) return true;
     const lang = LANGUAGES[String(owner.card.lang || "")] || activeLang();
     return admits(lang)(owner.card, owner.form, slot);
   });
+  if (!mine) {
+    mine = new Map();
+    ASKED_IN.set(unit, mine);
+  }
+  mine.set(slot, { list, lang: fallback, out });
+  return out;
 }
 
 /*

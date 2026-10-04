@@ -573,10 +573,51 @@ export function rowLead(
   lent: (cell: Form) => boolean = () => true,
   of: string = "",
 ): Form | null {
-  const filled = tableOf(card, spec, of)
-    .filter((c) => c.row === str(row) && c.form && str(c.form.ar))
-    .map((c) => c.form as Form);
+  const filled = filledRow(card, spec, row, of);
   return filled.find((cell) => lent(cell)) || filled[0] || null;
+}
+
+/*
+ * The filled cells of one row of a card's table, kept with the card.
+ *
+ * A sentence's blank asks rowLead of every cell of every verb that could
+ * stand in it, and the trainer asks about every blank of every sentence
+ * each time it works out what can be dealt — after every answer. Building
+ * the whole table again for each of those cells is what made 0.262 and
+ * everything after it three times slower to move on from an answer: a
+ * verb's table was read once per cell, per sentence, per question type.
+ *
+ * Held against the card object itself. Nothing in the app edits a card in
+ * place — an edit, an answer, a sync and a course refresh all hand back a
+ * new object — so a card that changes is a card this has never seen, and
+ * the old answer goes with the old object. Something that wrote into a
+ * card where it stands would be read stale here, so nothing may; the
+ * edit the app does make is walked in tests/blank-pools.test.mjs.
+ */
+const FILLED_ROWS: WeakMap<object, WeakMap<object, Map<string, Form[]>>> = new WeakMap();
+function filledRow(card: unknown, spec: VerbSpec | null | undefined, row: string, of: string): Form[] {
+  const read = () =>
+    tableOf(card, spec, of)
+      .filter((c) => c.row === str(row) && c.form && str(c.form.ar))
+      .map((c) => c.form as Form);
+  if (!card || typeof card !== "object" || !spec) return read();
+  let bySpec = FILLED_ROWS.get(card);
+  if (!bySpec) {
+    bySpec = new WeakMap();
+    FILLED_ROWS.set(card, bySpec);
+  }
+  let rows = bySpec.get(spec);
+  if (!rows) {
+    rows = new Map();
+    bySpec.set(spec, rows);
+  }
+  const key = `${str(row)}\u0000${str(of)}`;
+  let held = rows.get(key);
+  if (!held) {
+    held = read();
+    rows.set(key, held);
+  }
+  return held;
 }
 
 /** Whether this cell is the one that stands for its row — see rowLead. */
