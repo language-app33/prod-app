@@ -911,10 +911,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   builds them out of, each with the faces it wears — written on one screen
   and never a card: the teacher reaches it from **Teaching → Cards**, the
   `#` in the list's toolbar. Its first screen only lists — the parts of
-  the numbers (0 to 9, 10 to 19, 20 to 99, 100 to 999, 1,000 and over,
-  and counting things), the clock, and the numbers written out by hand —
-  and each opens on a screen of its own, which is where it is edited and
-  saved. A language and not a deck, because the words are the
+  the numbers (0 to 9, 10 to 19, 20 to 99, 100 to 999, 1,000 and over),
+  the clock, and the numbers written out by hand — and each opens on a
+  screen of its own, which is where it is edited and saved. A part's words
+  are a panel per number, the way a card's editor puts each form in a
+  panel, and under each number's boxes is how it counts a thing — read
+  only, made of the boxes above and the teacher's noun cards. A language and not a deck, because the words are the
   language's.
 
   **The lexicon is data; the composition is code.** There is no rule
@@ -940,8 +942,8 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
 
   On a learner's device a system is **cards and skills**: one card per word
   the teacher wrote, with the faces under it as a table, and a **range**
-  per stretch that can be asked — counting to ten, counting things,
-  telling the hour, to the minute, which part of the day. A range holds a
+  per stretch that can be asked — 0 to 9, 10 to 19 and so on, telling the
+  hour, to the minute, which part of the day. A range holds a
   schedule and climbs the ladder like a card and has no words on it: the
   number or the time is made up when the question is dealt and thrown away
   with the sitting. A right answer says two things and files both — that
@@ -973,6 +975,20 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   range is offered only once the whole of it can be said, so a system that
   stops at ten is a practice that counts to ten and stops.
 
+  **The number line is learnt bottom up.** 10 to 19 is said out of the
+  words 0 to 9 teaches, so a stretch is not asked until the one below it
+  is *cleared* — the ladder's own word, read off its own keys — and every
+  one under that too. Until then the stretch is held back the way a verb's
+  unopened row is (`stretchBefore` in `src/numbers/generate.ts`, read by
+  `quietUnits`), so it keeps its place and its schedule and opens the
+  moment the one below clears; a stretch below that slips back off
+  cleared shuts it again until it is recovered. Only a stretch the learner
+  actually has is waited on — a deck that teaches 10 to 19 alone is not
+  held behind a 0 to 9 nobody sent — and the clock is not a stretch of
+  the number line and waits on nothing. Cleared, here, is on a stretch's
+  number questions alone: its counting question never holds the stretch
+  above back (`stretchOpen` in the app).
+
   **A deck holds the parts it teaches.** A system is one document per
   language and not cards, so a deck cannot list it among its cards: it
   names the ranges it teaches (`parts` on the deck, set through
@@ -988,12 +1004,21 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   pronouns in and out of the deck, one person at a time; those are
   ordinary cards and simply join it.
 
-  **Counting things is three ranges, not one** — 1 and 2, 3 to 10, 11 to
-  20, where the counted word changes shape — so a teacher can hand them
-  out a lesson at a time, and a missing plural no longer holds back the
-  part that never needs one. `COUNTING_RANGES` in `src/numbers/types.ts`,
-  shared by Arabic and Hebrew; `handOnSplit` carries a learner's progress
-  on the old single range into each part.
+  **Counting things is a question each stretch asks, not a part of its
+  own.** *How would you say this? · 3 books* stands on the top of a
+  stretch's ladder beside writing the number out, drawn from the same
+  stretch with a noun beside it (`countingOf`), and it joins the stretch's
+  questions once one of the teacher's noun cards can be counted across all
+  of it — never holding the stretch's other questions back
+  (`RangeCheck.counting`). A language with nothing to agree, like Huế,
+  counts nothing (`counts` on the range). It was three parts of its own
+  until 0.336; a deck that held one holds the stretch it went into
+  (`partsNow`), what a learner had earned on one is handed to that stretch
+  by `handOnCounting` and folded in beneath their own schedules, and a
+  sentence written with `{{count-3-10}}` is still filled from the
+  stretch's counted phrases. Whether a noun can be counted turns on its
+  gender and which of its faces are written, never on its words, so nouns
+  are checked once per kind (`countingWarnings`).
 
   A box that has a word in it asks two more things about it — **how it
   sounds** and **a recording** — and both ride onto the card the word

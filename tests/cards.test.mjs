@@ -65,7 +65,7 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { localIdFor, cardToItem, serverCardId, foldCourses } = await import(path.join(out, "shared.js"));
+const { localIdFor, cardToItem, serverCardId, foldCourses, deckSize } = await import(path.join(out, "shared.js"));
 
 /* And which recording a question leads with, which is a plain function of a
    card's progress and belongs with the rest of them. The trainer is bundled
@@ -1130,6 +1130,34 @@ test("a form's progress follows the form, not its place in the list", () => {
   assert.equal(out.forms[1].s.ar2en, undefined, "the new form starts fresh");
   assert.equal(out.forms[2].s.ar2en.reps, 3, "and each of the others keeps its own");
   assert.equal(out.forms[3].s.ar2en.reps, 9);
+});
+
+test("a schedule handed on goes under the learner's own, and is never stored as such", () => {
+  /* Counting things moved from parts of its own into the stretches, which
+     a learner already holds with schedules of their own — so what they
+     earned counting is handed on as `carried`, for the exercises the
+     stretch has nothing on. See handOnCounting. */
+  const count = (/** @type {number} */ reps) => ({ phase: "review", reps });
+  const had = [
+    { id: "sys:n1:range:numbers:0-9", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:0-9-f0", ar: "", en: "", s: { num2fig: count(3) } }] },
+    { id: "sys:n1:range:numbers:10-19", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:10-19-f0", ar: "", en: "", s: { count2phrase: count(8) } }] },
+  ];
+  const fresh = [
+    { id: "sys:n1:range:numbers:0-9", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:0-9-f0", ar: "", en: "", s: {}, carried: { count2phrase: count(5) } }] },
+    { id: "sys:n1:range:numbers:10-19", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:10-19-f0", ar: "", en: "", s: {}, carried: { count2phrase: count(1) } }] },
+    /* And a stretch the device has never held. */
+    { id: "sys:n1:range:numbers:20-99", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:20-99-f0", ar: "", en: "", s: {}, carried: { count2phrase: count(2) } }] },
+  ];
+  const [low, teens, tens] = foldCourses(had, fresh).items;
+  assert.deepEqual(low.forms[0].s, { num2fig: count(3), count2phrase: count(5) }, "added beside the learner's own");
+  assert.deepEqual(teens.forms[0].s, { count2phrase: count(8) }, "and never over one");
+  assert.deepEqual(tens.forms[0].s, { count2phrase: count(2) }, "taken whole by a stretch never held");
+  for (const it of [low, teens, tens]) assert.equal("carried" in it.forms[0], false, `${it.id} stores what it carried`);
 });
 
 test("a card the learner asked for stays asked for when the teacher edits it", () => {
@@ -2831,4 +2859,15 @@ test("a noun opened from storage reads its old grammar into the boxes, and saves
   const placed = placeNounForms(forms, nounBoxes(arPS(), "paired"), "paired");
   assert.deepEqual(placed.at, { "masculine:singular": 0, "feminine:singular": 1 });
   assert.deepEqual(placed.extras, []);
+});
+
+/* A deck of numbers holds parts, not cards, and used to say "0 cards" for
+   it — the teacher had just added them and the deck said it was empty. */
+test("a deck's size counts its number parts beside its cards", () => {
+  assert.equal(deckSize({ cardCount: 0 }), "0 cards");
+  assert.equal(deckSize({ cardCount: 1, parts: [] }), "1 card");
+  assert.equal(deckSize({ cardCount: 0, parts: ["numbers:0-10", "time:hours"] }), "2 number parts");
+  assert.equal(deckSize({ cardCount: 5, parts: ["numbers:0-10"] }), "5 cards · 1 number part");
+  /* An open deck counts the cards it has in hand rather than the record's. */
+  assert.equal(deckSize({ cardCount: 9, parts: ["numbers:0-10"] }, 3), "3 cards · 1 number part");
 });

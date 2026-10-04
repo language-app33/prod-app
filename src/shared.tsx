@@ -27,7 +27,7 @@ import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
 import { setsWithNouns } from "./numbers/nouns.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { fileIntoDecks, generate, handOn, handOnSplit } from "./numbers/generate.ts";
+import { fileIntoDecks, generate, handOn, handOnCounting, handOnSplit } from "./numbers/generate.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -378,6 +378,22 @@ function ClipRow({ hash, label, index, onRemove, load }: {
 export function plural(n: number, one: string, many?: string) {
   const word = n === 1 ? one : many || `${one}s`;
   return `${n} ${word}`;
+}
+
+/**
+ * How much a deck holds, said on the deck: its cards and its number parts.
+ *
+ * A part is not a card — it is one skill on the teacher's numbers, held by
+ * the deck as an id (Deck.parts) — so counting cardIds alone left a deck
+ * of numbers saying "0 cards". The parts are said beside the cards rather
+ * than added into them, and a deck of nothing but parts leaves the
+ * "0 cards" off.
+ */
+export function deckSize(d: { cardCount?: number; parts?: string[] }, cards = d.cardCount || 0) {
+  const parts = (d.parts || []).length;
+  if (!parts) return plural(cards, "card");
+  const said = plural(parts, "number part");
+  return cards ? `${plural(cards, "card")} · ${said}` : said;
 }
 
 /* --- Button -------------------------------------------------------
@@ -4128,10 +4144,6 @@ export async function pullCourses(
       sys: set.numbers,
       timeComposer,
       timeSys: set.times,
-      /* Filed under a name of its own in the card list, the way a deck's
-         title files its cards: they are material, and a learner looking
-         for the word for forty should find it where they look for words. */
-      tag: `${(lang && lang.name) || set.numbers.languageId} numbers`,
       now,
       /* And the number each card stands for, in the language's own
          figures where it has them — ٣ on the card for three. */
@@ -4142,7 +4154,12 @@ export async function pullCourses(
        that card is a box now. See handOn, which reads what the migration
        wrote down and moves the schedule across — once, onto a card this
        device has never held. */
-    const handed = handOnSplit(handOn(made.items, items, set.numbers), items, parked, set.numbers.id);
+    const handed = handOnCounting(
+      handOnSplit(handOn(made.items, items, set.numbers), items, parked, set.numbers.id),
+      items,
+      parked,
+      set.numbers.id,
+    );
     /* And only the parts a deck holds, filed under that deck: numbers
        arrive the way every other card does — see fileIntoDecks. A deck in
        another language holds none of this system's. */
@@ -4231,9 +4248,13 @@ function foldForms<T extends Form>(had: T[], fresh: T[]): T[] {
     if (at >= 0) taken.add(at);
     return mate;
   });
-  return fresh.map((f, i) => {
+  return fresh.map((one, i) => {
+    /* What a card no longer made handed on to this one — see
+       handOnCounting. Under the learner's own schedules, never over one,
+       and never stored itself. */
+    const { carried, ...f } = one;
     const mate = matched[i] || (taken.has(i) ? null : had[i]);
-    if (!mate) return f;
+    if (!mate) return (carried ? { ...f, s: { ...carried, ...(f.s || {}) } } : f) as T;
     /*
      * The schedule, and the other thing a form carries that the learner
      * earned rather than the teacher wrote: how far each of a frame's
@@ -4247,7 +4268,8 @@ function foldForms<T extends Form>(had: T[], fresh: T[]): T[] {
      * asked, and a form the teacher has just written has none to bring.
      */
     const met = mergeMet(f.met, mate.met);
-    return { ...f, s: mate.s || f.s, ...(met ? { met } : null) };
+    const s = mate.s || f.s;
+    return { ...f, s: carried ? { ...carried, ...(s || {}) } : s, ...(met ? { met } : null) } as T;
   });
 }
 
@@ -4316,6 +4338,17 @@ const compactStates = (s?: Record<string, ExerciseState>): Record<string, Exerci
   return out;
 };
 
+/* A card the device does not hold yet, with anything handed on to its
+   forms taken into their schedules — see handOnCounting — rather than
+   left on them to be stored. */
+const uncarried = (item: Item): Item =>
+  formsOf(item).some((f) => f.carried)
+    ? {
+        ...item,
+        forms: formsOf(item).map(({ carried, ...f }) => (carried ? { ...f, s: { ...carried, ...(f.s || {}) } } : f)),
+      }
+    : item;
+
 /* Fold fresh course cards into the person's cards: progress kept, wording
    taken from the teacher, withdrawn cards named so they can be tombstoned —
    and their progress set aside rather than thrown away. */
@@ -4366,7 +4399,7 @@ export function foldCourses(items: Item[], incoming: Item[], parked: Record<stri
     } else {
       /* A card the device has never held — or one that went away and has
          come back, whose work was set aside rather than thrown out. */
-      kept.push(withProgress(fresh, parked[fresh.id]));
+      kept.push(withProgress(uncarried(fresh), parked[fresh.id]));
     }
   }
 

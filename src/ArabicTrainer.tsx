@@ -187,13 +187,14 @@ import type { LangChoice } from "./lang-choice.ts";
    naming one. See src/numbers/. */
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import type { Ask, Token } from "./numbers/types.ts";
+import { countingOf } from "./numbers/types.ts";
 import {
   confusableTimes,
   confusablesOf,
   renderAsk,
 } from "./numbers/range.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { askingsKnown, askKnown, cardsOfToken, fillerCards, isFromSystem, isRangeSkill, systemFor } from "./numbers/generate.ts";
+import { askingsKnown, askKnown, cardsOfToken, fillerCards, isFromSystem, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
@@ -1473,6 +1474,18 @@ export function easedUnits(items: Item[], settings: Settings): Set<string> {
   return out;
 }
 
+/* Whether a stretch of the number line has every stretch under it cleared.
+   On its numbers alone: counting a thing is a question a stretch asks too,
+   and it never holds anything back — not the stretch, and not the one
+   above it. See countingOf. */
+function stretchOpen(card: Item, items: Item[], lang: Lang): boolean {
+  const below = stretchBefore(card, items);
+  if (!below) return true;
+  const unit = below.forms[0];
+  const plain = availableTypes(unit, lang).filter((t) => !((specOf(t) && specOf(t).needs) || []).includes("rangeCounted"));
+  return !!unit && cleared(plain, (t) => statesOf(unit)[t]) && stretchOpen(below, items, lang);
+}
+
 /* What a table's cells wait on, where it says nothing: the word, which is
    the rule every one-row table has followed since there was one. */
 const waitsOnWord = (spec: VerbSpec): boolean => (spec.gate || "word") === "word";
@@ -1489,6 +1502,22 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
   const out: Set<string> = new Set();
   for (const card of items) {
     const lang = langOf(settingsFor(settings, card));
+    /*
+     * A stretch of the number line that waits on the one below it.
+     *
+     * 10 to 19 is said out of the words 0 to 9 teaches, so it is not
+     * asked until 0 to 9 is cleared — the ladder's own word, read off the
+     * same keys. Quiet rather than missing, so it keeps its place in the
+     * collection and opens the moment the stretch below clears; and read
+     * afresh, so a stretch that slips back off cleared shuts the one above
+     * until it is recovered, the way a missed level shuts the levels over
+     * it. And all the way down: a learner who cleared 10 to 19 before this
+     * rule existed, and not 0 to 9, waits on 0 to 9 for 20 to 99 too.
+     */
+    if (stretchBefore(card, items)) {
+      if (!stretchOpen(card, items, lang)) for (const { unit } of unitsOf(card)) out.add(unit.id);
+      continue;
+    }
     /* Every table the language declares, each gated by the rule it names
        for itself. Two rules, and which applies used to be decided by which
        accessor a table came from; a third table would have been a third
@@ -3341,8 +3370,9 @@ interface Session {
 interface KnownNumbers {
   /** Whether anything of this range can be asked yet. */
   ready: (item: Item) => boolean;
-  /** One asking of it on this seed, steered towards `waiting`, or null. */
-  draw: (item: Item, seed: string, waiting: Set<string>) => Ask | null;
+  /** One asking of it on this seed, steered towards `waiting`, or null —
+      counting a noun where `counting`, see countingOf. */
+  draw: (item: Item, seed: string, waiting: Set<string>, counting?: boolean) => Ask | null;
 }
 
 /* The askings each range can put, kept against the system they were read
@@ -3385,27 +3415,34 @@ function knownNumbers(items: Item[], settings: Settings, sets: SystemSet[]): Kno
       timeSys: set.times,
     };
   };
-  const knownOf = (item: Item) => {
+  /* A stretch's counting question asks from the same stretch with a noun
+     beside each number — its own askings, kept under a key of their own. */
+  const rangeOf = (item: Item, counting: boolean) =>
+    item.range && counting ? countingOf(item.range) : item.range;
+  const knownOf = (item: Item, counting = false) => {
     const set = setOf(item);
-    if (!set || !item.range) return [];
+    const range = rangeOf(item, counting);
+    if (!set || !range) return [];
     let bySystem = KNOWN_ASKINGS.get(set.sys);
     if (!bySystem) KNOWN_ASKINGS.set(set.sys, (bySystem = new Map()));
     const clock = set.timeSys ? `${set.timeSys.id}@${set.timeSys.rev}` : "";
-    const key = `${item.id}\u0000${clock}\u0000${knowingNow()}`;
+    const id = `${item.id}${counting ? "#count" : ""}`;
+    const key = `${id}\u0000${clock}\u0000${knowingNow()}`;
     const held = bySystem.get(key);
     if (held) return held;
-    const list = askingsKnown(item.range, set, ids, knows);
+    const list = askingsKnown(range, set, ids, knows);
     /* Only the latest per range is worth keeping. */
-    for (const k of bySystem.keys()) if (k.startsWith(`${item.id}\u0000`)) bySystem.delete(k);
+    for (const k of bySystem.keys()) if (k.startsWith(`${id}\u0000`)) bySystem.delete(k);
     bySystem.set(key, list);
     return list;
   };
   return {
     ready: (item) => knownOf(item).length > 0,
-    draw: (item, seed, waiting) => {
+    draw: (item, seed, waiting, counting = false) => {
       const set = setOf(item);
-      if (!set || !item.range) return null;
-      return askKnown(item.range, seed, set, ids, knows, knownOf(item), waiting);
+      const range = rangeOf(item, counting);
+      if (!set || !range) return null;
+      return askKnown(range, seed, set, ids, knows, knownOf(item, counting), waiting);
     },
   };
 }
@@ -3482,7 +3519,10 @@ function drawRange(
       .filter((p) => p.validated === false)
       .map((p) => p.card.id),
   );
-  const ask = numbers.draw(item, `${item.id} ${type} ${turn}`, waiting);
+  /* The counting question counts a noun, from the same stretch — see
+     countingOf; every other question on it asks the bare number. */
+  const counting = ((specOf(type) && specOf(type).needs) || []).includes("rangeCounted");
+  const ask = numbers.draw(item, `${item.id} ${type} ${turn}`, waiting, counting);
   if (!ask) return {};
 
   if (EX[type] && EX[type].picks !== "word") return { ask };

@@ -23,8 +23,9 @@ import { must } from "./helpers.mjs";
 import { arComposer } from "../src/numbers/ar-PS.ts";
 import { heComposer } from "../src/numbers/he-IL.ts";
 import { countedNouns, readNounCard, readNouns, setsWithNouns, withNouns } from "../src/numbers/nouns.ts";
-import { countable, rangeChecks } from "../src/numbers/range.ts";
+import { blocking, countable, probeOf, rangeChecks } from "../src/numbers/range.ts";
 import { fillerCards, FILLERS_PER_PART, homesOf, partTags } from "../src/numbers/generate.ts";
+import { countingOf } from "../src/numbers/types.ts";
 import { fillersFor } from "../src/card-facts.ts";
 import { LANGUAGES } from "../src/languages.ts";
 
@@ -132,29 +133,63 @@ test("a system given the nouns it already has is the same object", () => {
 
 /* ---- which nouns a counting part counts ---- */
 
-test("a counting part counts the nouns it can say whole, and opens on any one of them", () => {
+test("a stretch counts the nouns it can say whole, and counts as soon as one can be", () => {
   const sys = withNouns({ ...SYS, nouns: [] }, countedNouns([nounCard("book", { dual: false }), nounCard("girl")], "ar-PS"));
-  const range = (/** @type {string} */ id) => must(arComposer.ranges().find((r) => r.id === id), id);
+  const stretch = (/** @type {string} */ id) => countingOf(must(arComposer.ranges().find((r) => r.id === id), id));
   /* Two of a thing is its pair form in Arabic, so a noun without one is
-     counted from three and not at one and two. */
-  assert.deepEqual(countable(range("numbers:count-1-2"), arComposer, sys).map((n) => n.id), ["girl"]);
-  assert.deepEqual(countable(range("numbers:count-3-10"), arComposer, sys).map((n) => n.id), ["book", "girl"]);
-  const open = rangeChecks(arComposer, sys).filter((c) => c.range.counted && c.open).map((c) => c.range.id);
-  assert.ok(open.includes("numbers:count-1-2"), "one finished noun opens the part");
-  /* And with no noun able to say two at all, the part is shut and says
-     which form is missing. */
+     not counted in 0 to 9, which says two — and is from 10 to 19 up,
+     which never does. */
+  assert.deepEqual(countable(stretch("numbers:0-9"), arComposer, sys).map((n) => n.id), ["girl"]);
+  assert.deepEqual(countable(stretch("numbers:10-19"), arComposer, sys).map((n) => n.id), ["book", "girl"]);
+  const counting = rangeChecks(arComposer, sys).filter((c) => c.counting && c.counting.open).map((c) => c.range.id);
+  assert.ok(counting.includes("numbers:0-9"), "one finished noun is enough to count with");
+  /* And with no noun able to say two at all, 0 to 9 is not counted with
+     and says which form is missing — while it is still asked its numbers,
+     and the stretches above it still count. */
   const none = withNouns({ ...SYS, nouns: [] }, countedNouns([nounCard("book", { dual: false })], "ar-PS"));
-  const shut = must(rangeChecks(arComposer, none).find((c) => c.range.id === "numbers:count-1-2"), "1-2");
+  const checks = rangeChecks(arComposer, none);
+  const low = must(checks.find((c) => c.range.id === "numbers:0-9"), "0-9");
+  assert.equal(low.open, true);
+  const shut = must(low.counting, "counting in 0-9");
   assert.equal(shut.open, false);
   assert.ok(shut.warnings.some((w) => w.code === "missing-noun-form" && String(w.detail).endsWith(".dual")));
+  assert.equal(must(checks.find((c) => c.range.id === "numbers:10-19"), "10-19").counting?.open, true);
+});
+
+test("nouns are judged by kind, and the answer is the one rendering each would give", () => {
+  /* Counting is checked once per kind of noun — its gender and which of
+     its faces are written — so a collection of hundreds is quick. Held to
+     the slow way here, over every gap a noun card can have. */
+  const base = SYS.nouns[0];
+  /** @type {any[]} */
+  const nouns = [];
+  for (const gender of ["m", "f"]) {
+    for (let mask = 0; mask < 8; mask += 1) {
+      for (const copy of [0, 1]) {
+        nouns.push({
+          ...base, id: `n${gender}${mask}${copy}`, gender,
+          sg: mask & 1 ? base.sg : "", dual: mask & 2 ? base.dual : "", pl: mask & 4 ? base.pl : "",
+        });
+      }
+    }
+  }
+  const sys = { ...SYS, nouns };
+  for (const range of arComposer.ranges()) {
+    const view = countingOf(range);
+    /** @type {any[]} */
+    const slow = nouns.filter((noun) =>
+      probeOf(view).every((/** @type {number} */ v) => !blocking(arComposer.render(v, sys, { noun }).warnings).length));
+    assert.deepEqual(countable(view, arComposer, sys).map((n) => n.id), slow.map((n) => n.id), range.id);
+  }
 });
 
 test("with no noun cards at all, counting waits on something to count", () => {
-  const checks = rangeChecks(arComposer, { ...SYS, nouns: [] }).filter((c) => c.range.counted);
-  assert.ok(checks.length > 0);
+  const checks = rangeChecks(arComposer, { ...SYS, nouns: [] }).filter((c) => c.counting);
+  assert.equal(checks.length, 5, "every stretch is counted with");
   for (const c of checks) {
-    assert.equal(c.open, false);
-    assert.equal(c.warnings[0].detail, "no nouns to count");
+    assert.equal(c.open, true, "and is asked its numbers all the same");
+    assert.equal(c.counting?.open, false);
+    assert.equal(c.counting?.warnings[0].detail, "no nouns to count");
   }
 });
 
@@ -179,15 +214,20 @@ test("each box is on the screen of the first part that needs it", () => {
 const of = (made, part) => made.filter((c) => c.source && c.source.slot === `fill:${part}`);
 
 test("each part answers to a tag of its own and a general one, the same in every language", () => {
-  const tags = (/** @type {any} */ composer) => composer.ranges().filter((/** @type {any} */ r) => r.kind === "numbers").map(partTags);
+  const stretches = (/** @type {any} */ composer) => composer.ranges().filter((/** @type {any} */ r) => r.kind === "numbers");
+  const tags = (/** @type {any} */ composer) => stretches(composer).map(partTags);
   assert.deepEqual(tags(arComposer), [
     /* The parts split out of 0 to 10 and 11 to 99 still answer to the old
        tags, so a sentence written with {{11-99}} before the split is filled. */
     ["0-9", "0-10", "number"], ["10-19", "11-99", "number"], ["20-99", "11-99", "number"],
     ["100-999", "number"], ["1000-plus", "number"],
-    ["count-1-2", "count"], ["count-3-10", "count"], ["count-11-20", "count"],
   ]);
   assert.deepEqual(tags(heComposer), tags(arComposer));
+  /* And counting, from each stretch, under tags of its own. */
+  assert.deepEqual(stretches(arComposer).map((/** @type {any} */ r) => partTags(countingOf(r))), [
+    ["count-0-9", "count"], ["count-10-19", "count"], ["count-20-99", "count"],
+    ["count-100-999", "count"], ["count-1000-plus", "count"],
+  ]);
 });
 
 test("a part fills its tags with its numbers, written out", () => {
@@ -203,7 +243,7 @@ test("a part fills its tags with its numbers, written out", () => {
   assert.deepEqual(made.map((c) => c.forms[0].en), ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
   /* The same numbers on every device: made twice, the same ids. */
   assert.deepEqual(of(fillerCards(arComposer, sys), "numbers:0-9").map((c) => c.id), made.map((c) => c.id));
-  /* And with no nouns, no counting part lends anything. */
+  /* And with no nouns, nothing counted is lent. */
   assert.equal(fillerCards(arComposer, sys).filter((c) => (c.fills || []).includes("count")).length, 0);
 });
 
@@ -214,17 +254,31 @@ test("a bigger part lends an even spread of itself, not its first dozen", () => 
   assert.ok(Math.max(...values) - Math.min(...values) > 40, `${values} is bunched up`);
 });
 
-test("a counting part fills its blank with a number and a thing, saying which number the thing is", () => {
+test("a stretch fills a counting blank with a number and a thing, saying which number the thing is", () => {
   const sys = withNouns({ ...SYS, nouns: [] }, countedNouns([nounCard("book"), nounCard("girl")], "ar-PS"));
-  const made = of(fillerCards(arComposer, sys), "numbers:count-3-10");
+  const counted = (/** @type {string} */ part) =>
+    of(fillerCards(arComposer, sys), part).filter((c) => (c.fills || []).includes("count"));
+  const made = counted("numbers:0-9");
   assert.ok(made.length > 0);
   for (const card of made) {
     const form = /** @type {any} */ (card.forms[0]);
-    assert.deepEqual(card.fills, ["count-3-10", "count"]);
-    assert.match(form.en, /^\d+ (book|girl)s$/);
-    assert.equal(form.number, "plural", "three to ten count the plural");
+    const n = Number(String(form.en).split(" ")[0]);
+    assert.ok(n >= 1 && n <= 9, `${form.en}: nobody counts nought books`);
+    /* Its own tag and the general one — and the old counting part's tag
+       that held this number, so a sentence written with {{count-3-10}}
+       is still filled. */
+    assert.deepEqual(card.fills, ["count-0-9", n <= 2 ? "count-1-2" : "count-3-10", "count"]);
+    assert.match(form.en, /^\d+ (book|girl)s?$/);
+    assert.equal(form.number, n === 1 ? "singular" : n === 2 ? "dual" : "plural", form.en);
     assert.ok(["masculine", "feminine"].includes(form.gender));
   }
+  /* Never a plain number's blank, and never a plain number in a counting
+     one. */
+  assert.ok(made.every((c) => !(c.fills || []).includes("number")));
+  const plain = of(fillerCards(arComposer, sys), "numbers:0-9").filter((c) => !(c.fills || []).includes("count"));
+  assert.ok(plain.length && plain.every((c) => !(c.fills || []).some((/** @type {string} */ t) => t.startsWith("count"))));
+  /* Above twenty, the counted word is the singular again. */
+  for (const card of counted("numbers:20-99")) assert.equal(/** @type {any} */ (card.forms[0]).number, "singular");
 });
 
 test("a sentence asking for a part's blank is shown the part's numbers on the teacher's screen", () => {

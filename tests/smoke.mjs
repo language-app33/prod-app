@@ -7763,9 +7763,9 @@ const openPronounTables = async () => {
   await sleep(300);
   const partRow = (/** @type {RegExp} */ re) =>
     [...document.querySelectorAll(".at-tickrow, label")].find((r) => re.test(r.textContent || ""));
-  check("and lists the parts of the numbers, counting things in three",
-    !!partRow(/Numbers 0 to 9/) && !!partRow(/Numbers 10 to 19/) && !!partRow(/Counting things: 1 and 2/) &&
-      !!partRow(/Counting things: 3 to 10/) && !!partRow(/Counting things: 11 to 20/) && !!partRow(/Telling the hour/),
+  check("and lists the parts of the numbers, with counting inside them rather than parts of its own",
+    !!partRow(/Numbers 0 to 9/) && !!partRow(/Numbers 10 to 19/) && !partRow(/Counting things/) &&
+      !!partRow(/Telling the hour/),
     [...document.querySelectorAll(".at-tickrow, label")].map((r) => (r.textContent || "").slice(0, 24)).join(" | ") || "(no list)");
   const box = partRow(/Numbers 0 to 9/);
   click(box && (box.querySelector("input") || box));
@@ -7928,13 +7928,15 @@ const openPronounTables = async () => {
 {
   const { NumberSystemEditor } = await import(path.join(out, "number-system-editor.js"));
   const { LANGUAGES } = await import(path.resolve("src/languages.ts"));
-  const { emptyNumberSystem } = await import(path.resolve("src/numbers/schema.ts"));
+  const { emptyNumberSystem, emptyTimeSystem, readNumberSystem } = await import(path.resolve("src/numbers/schema.ts"));
 
   const host = document.createElement("div");
   document.body.appendChild(host);
   const editorRoot = createRoot(host);
   /** What the screen handed back, every time Save was pressed. */
   const saves = /** @type {{ kind: string, sys: any }[]} */ ([]);
+  /** Whether the next save fails, as one does with no connection. */
+  let refuseSave = false;
   const system = emptyNumberSystem("n1", "lena", "ar-PS", Date.now(), 1);
 
   /* The decks in the language, as the teaching space hands them over, and
@@ -7959,22 +7961,29 @@ const openPronounTables = async () => {
     ],
   }];
 
+  /* As the space draws it: a clock nobody has saved is made afresh on
+     every draw, new stamps and all — which once made the screen call it
+     changed after any save of the numbers. */
   const draw = (/** @type {any} */ numbers) =>
     editorRoot.render(
       React.createElement(NumberSystemEditor, {
         lang: LANGUAGES["ar-PS"],
         numbers,
-        times: null,
+        times: emptyTimeSystem("", "lena", "ar-PS", numbers.id, Date.now(), 1),
         cards: nounCards,
         decks,
         onDeckPart: (/** @type {string} */ deckId, /** @type {string} */ rangeId, /** @type {boolean} */ on) => {
           deckCalls.push([deckId, rangeId, on]);
         },
-        /* As the space does: the saved system comes back a revision on,
-           and the screen takes it as what is saved. */
+        /* As the server does: what is stored is what its reader makes of
+           the save — a word trimmed, an emptied box gone — and comes back a
+           revision on, which the screen takes as what is saved. */
         onSave: (/** @type {string} */ kind, /** @type {any} */ sys) => {
-          saves.push({ kind, sys });
-          draw({ ...sys, rev: (sys.rev || 0) + 1 });
+          if (refuseSave) return undefined;
+          const stored = { ...readNumberSystem(sys), rev: (sys.rev || 0) + 1, updated: Date.now() };
+          saves.push({ kind, sys: stored });
+          draw(stored);
+          return stored;
         },
         onClose() {},
       }),
@@ -8030,9 +8039,13 @@ const openPronounTables = async () => {
   check("and each says what it is waiting for",
     /waiting on/.test((tileNamed("Numbers 0 to 9") || {}).textContent || ""),
     ((tileNamed("Numbers 0 to 9") || {}).textContent || "").trim());
+  check("there are no counting parts: each part says where its counting stands",
+    !tiles.some((t) => /Counting things/.test(t.textContent || "")) &&
+      /Counting: once the numbers are ready/.test((tileNamed("Numbers 0 to 9") || {}).textContent || ""),
+    ((tileNamed("Numbers 0 to 9") || {}).textContent || "").trim());
   check("with no boxes on the main screen any more",
-    panel().querySelectorAll(".at-numrow").length === 0,
-    `${panel().querySelectorAll(".at-numrow").length} rows`);
+    panel().querySelectorAll(".at-numrow, .at-numtile").length === 0,
+    `${panel().querySelectorAll(".at-numrow, .at-numtile").length} boxes`);
   check("and the things-to-count list gone",
     !/Things to count/.test(panel().textContent || ""));
   check("the clock and the corrections are screens of their own, opened from here",
@@ -8049,16 +8062,28 @@ const openPronounTables = async () => {
     !!screenNamed("Numbers 0 to 9"),
     ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
   check("which holds the boxes for zero to nine and none of the teens or tens",
-    up().querySelectorAll(".at-numrow").length === 10 && !boxNamed("10, counting") && !boxNamed("40, counting"),
-    `${up().querySelectorAll(".at-numrow").length} rows`);
+    up().querySelectorAll(".at-numtile").length === 10 && !boxNamed("10, counting") && !boxNamed("40, counting"),
+    `${up().querySelectorAll(".at-numtile").length} panels`);
+  /* Each number a panel of its own, headed by the number, as a card's
+     editor puts each form in a panel under its name. */
+  const tileOf = (/** @type {string} */ n) =>
+    [...up().querySelectorAll(".at-numtile")].find((t) => ((t.querySelector(".at-numhead > span") || {}).textContent || "") === n);
+  check("each number is a panel headed by the number, holding its own boxes",
+    !!tileOf("7") && !!(/** @type {any} */ (tileOf("7"))).querySelector('input[aria-label="7, counting"]') &&
+      /** @type {any} */ (tileOf("7")).classList.contains("at-part") &&
+      !!(/** @type {any} */ (tileOf("7"))).querySelector(".at-groupline"),
+    [...up().querySelectorAll(".at-numtile .at-numhead")].map((h) => (h.textContent || "").trim()).join(" | "));
 
   const sevenBox = boxNamed("7, counting");
   check("and every box is named by the number it is and the face of it",
     !!sevenBox,
     [...up().querySelectorAll("input")].slice(0, 4)
       .map((i) => i.getAttribute("aria-label")).join(" | "));
+  /* With a space after it, as a phone's keyboard leaves one: the server
+     keeps the word without it, and the screen must still agree that what
+     it saved is what it has. */
   if (sevenBox) {
-    typeIn(sevenBox, "sab3a");
+    typeIn(sevenBox, "sab3a ");
     await sleep(200);
   }
 
@@ -8092,6 +8117,17 @@ const openPronounTables = async () => {
     await sleep(200);
   }
 
+  /* Under the boxes, the number counting a thing: read only, made of the
+     word just typed and the noun card — and nothing under a number with
+     no word yet, since there is nothing to count with. */
+  const counts = (/** @type {string} */ n) => ((tileOf(n) || { querySelector: () => null }).querySelector(".at-numcount") || {}).textContent || "";
+  check("under a number's boxes is how it counts a thing, read only",
+    /Counting a thing/.test(counts("7")) && /sab3a/.test(counts("7")) && /7 books/.test(counts("7")) &&
+      !(/** @type {any} */ (tileOf("7"))).querySelector(".at-numcount input"),
+    counts("7") || "(nothing under seven)");
+  check("and nothing under a number with no word to count with",
+    !counts("8"), counts("8"));
+
   /* The decks that hold the part, first on its screen and chosen the way a
      card's decks are: the decks it is in as pills, and a sheet to add it
      to another. The same setting as a deck's own screen, so a pick here is
@@ -8123,8 +8159,9 @@ const openPronounTables = async () => {
   /* And the blanks it fills: two fixed tags, said the way a card's
      default tags are, and nothing to type. */
   const tags = [...up().querySelectorAll(".at-tagchips .at-tagchip")].map((t) => t.textContent);
-  check("the part shows the tags it fills blanks under, as a card shows its default tags",
-    JSON.stringify(tags) === JSON.stringify(["0-9", "number"]) && /Filling blanks/.test(up().textContent || ""),
+  check("the part shows the tags it fills blanks under, as a card shows its default tags, counting's too",
+    JSON.stringify(tags) === JSON.stringify(["0-9", "number", "count-0-9", "count"]) &&
+      /Filling blanks/.test(up().textContent || ""),
     tags.join(" | ") || "(no tags)");
   check("and they cannot be changed", !boxNamed("A blank this part fills") && !buttonIn(/^Add$/));
 
@@ -8190,21 +8227,26 @@ const openPronounTables = async () => {
       saved ? `${saved.sys.nouns.length} nouns` : "nothing saved");
   }
 
-  /* A counting part counts the teacher's noun cards, and says what the
-     rest are missing. Saved, so going back asks nothing. */
+  /* Saved, so going back asks nothing. */
+  check("once saved, there is nothing left to save",
+    !!buttonIn(/^Save$/) && /** @type {any} */ (buttonIn(/^Save$/)).disabled);
   await goBack();
   check("once saved, going back asks nothing", !!screenNamed("Number system") && !/Save your changes/.test(document.body.textContent || ""));
-  click(tileNamed("Counting things: 3 to 10"));
+  check("and the main screen does not say anything is unsaved",
+    !/not saved/.test(panel().textContent || ""),
+    (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  /* Counting is a section of each part: the noun cards it counts, and
+     what the rest are missing — here a pair form, which two needs. */
+  click(tileNamed("Numbers 0 to 9"));
   await sleep(250);
-  check("a counting part lists the noun cards it counts",
-    !!screenNamed("Counting things: 3 to 10") && /Things counted/.test(up().textContent || "") && /book/.test(up().textContent || ""),
-    (up().textContent || "").slice(0, 240).replace(/\s+/g, " "));
-  await goBack();
-  click(tileNamed("Counting things: 1 and 2"));
-  await sleep(250);
-  check("and one that needs a pair form says which noun has none",
-    /no pair form/.test(up().textContent || ""),
-    (up().textContent || "").slice(0, 300).replace(/\s+/g, " "));
+  const countingBlock = [...up().querySelectorAll(".at-formblock")]
+    .find((b) => ((b.querySelector(".at-formnum") || {}).textContent || "") === "Counting things");
+  check("a part counts the teacher's noun cards in a section of its own",
+    !!countingBlock && /book/.test(countingBlock.textContent || ""),
+    [...up().querySelectorAll(".at-formhead .at-formnum")].map((h) => h.textContent).join(" | "));
+  check("and says which noun has no pair form, which two needs",
+    !!countingBlock && /no pair form/.test(countingBlock.textContent || ""),
+    ((countingBlock || {}).textContent || "").slice(0, 300).replace(/\s+/g, " "));
   await goBack();
 
   /* The word between a number's pieces is not a number, and is on a
@@ -8221,8 +8263,8 @@ const openPronounTables = async () => {
   click(tileNamed("Connecting words"));
   await sleep(250);
   check("which holds the box for and, and nothing else",
-    !!screenNamed("Connecting words") && up().querySelectorAll(".at-numrow").length === 1 && !!boxNamed("and, counting"),
-    `${up().querySelectorAll(".at-numrow").length} rows`);
+    !!screenNamed("Connecting words") && up().querySelectorAll(".at-numtile").length === 1 && !!boxNamed("and, counting"),
+    `${up().querySelectorAll(".at-numtile").length} panels`);
   check("with numbers under it that use the word",
     [...up().querySelectorAll(".at-numsamplerow .at-numfig")].some((f) => f.textContent === "21"));
   await goBack();
@@ -8250,6 +8292,58 @@ const openPronounTables = async () => {
   await goBack();
   check("and coming back leaves the parts as they were",
     !!screenNamed("Number system") && panel().querySelectorAll(".at-numparts .at-deckcard").length >= 7);
+
+  /* A number written out from Check a number is kept somewhere with a
+     Save, not carried back to the main screen, which has none. */
+  click(buttonIn(/^Check a number$/));
+  await sleep(250);
+  const tryAgain = boxNamed("A number to try, in figures");
+  if (tryAgain) {
+    typeIn(tryAgain, "8");
+    await sleep(200);
+  }
+  click(buttonIn(/^Write this one out yourself$/));
+  await sleep(250);
+  const eightBox = boxNamed("8 in Palestinian Arabic");
+  if (eightBox) {
+    typeIn(eightBox, "tamanye");
+    await sleep(200);
+  }
+  click(buttonIn(/^Keep it$/));
+  await sleep(250);
+  check("a number written out from Check a number lands on the corrections, where its Save is",
+    !!screenNamed("Correct how a number is said") && /tamanye/.test(up().textContent || "") &&
+      !!buttonIn(/^Save$/) && !(/** @type {any} */ (buttonIn(/^Save$/)).disabled),
+    ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
+  await goBack();
+  click([...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Don't save"));
+  await sleep(250);
+  check("and dropping it goes back to the main screen with nothing unsaved",
+    !!screenNamed("Number system") && !/not saved/.test(panel().textContent || ""));
+
+  /* A save that does not go through keeps the teacher beside its Save,
+     and says so, rather than taking the change to the main screen. */
+  click(tileNamed("Numbers 0 to 9"));
+  await sleep(250);
+  const eightWord = boxNamed("8, counting");
+  if (eightWord) {
+    typeIn(eightWord, "tamanye");
+    await sleep(200);
+  }
+  refuseSave = true;
+  await goBack();
+  click([...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Save" && !b.closest(".at-screenhead")));
+  await sleep(250);
+  check("a save on the way out that does not go through stays on the part, and says so",
+    !!screenNamed("Numbers 0 to 9") && /not saved/.test(up().textContent || "") &&
+      !(/** @type {any} */ (buttonIn(/^Save$/) || { disabled: true })).disabled,
+    (up().textContent || "").slice(0, 160).replace(/\s+/g, " "));
+  refuseSave = false;
+  click(buttonIn(/^Save$/));
+  await sleep(250);
+  check("and saving again clears it", !/not saved/.test(up().textContent || ""));
+  await goBack();
+  check("after which going back asks nothing", !!screenNamed("Number system") && !/Save your changes/.test(document.body.textContent || ""));
 
   /* And the corrections: their own screen, with the one written out on top. */
   click(tileNamed("Correct how a number is said"));
@@ -8289,7 +8383,7 @@ const openPronounTables = async () => {
 
   const built = generate({
     composer: arComposer, sys: goldenNumbers, timeComposer: arTimeComposer,
-    timeSys: goldenTimes, tag: "Numbers", now: Date.now(),
+    timeSys: goldenTimes, now: Date.now(),
   });
   /* The skills alone. The component words are cards like any other and
      are asked here only as themselves; what this walk is about is the

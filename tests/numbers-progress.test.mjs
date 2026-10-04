@@ -61,7 +61,7 @@ const SETS = [{ numbers: SYS, times: TIME }];
 const SET = { composer: arComposer, sys: SYS, timeComposer: arTimeComposer, timeSys: TIME };
 const settings = { language: "ar-PS" };
 
-const generated = generate({ ...SET, tag: "Numbers", now: 1750000000000 });
+const generated = generate({ ...SET, now: 1750000000000 });
 /* Every part in one deck, the way a teacher's deck brings them. */
 const filed = fileIntoDecks(generated.items, SET, [
   { title: "Numbers", parts: generated.items.filter(isRangeSkill).map((/** @type {any} */ it) => it.range.id) },

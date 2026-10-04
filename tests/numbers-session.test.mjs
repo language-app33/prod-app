@@ -74,7 +74,6 @@ const generated = generate({
   sys: SYS,
   timeComposer: arTimeComposer,
   timeSys: TIME,
-  tag: "Numbers",
   now: 1750000000000,
 });
 
@@ -93,6 +92,21 @@ const climbed = (/** @type {string[]} */ types) =>
     ...it,
     forms: [{ ...it.forms[0], s: Object.fromEntries(types.map((t) => [t, solid()])) }],
   }));
+
+/** And every stretch of the number line cleared but the top one, so the
+    big numbers are dealt — each waits on the stretch below it. */
+const opened = (/** @type {any[]} */ items) =>
+  items.map((/** @type {any} */ it) =>
+    ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999"].includes(it.range.id)
+      ? { ...it, forms: [{ ...it.forms[0], s: { ...Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, solid()])), ...it.forms[0].s } }] }
+      : it);
+
+/** The skills, with the named ones cleared at every exercise there is. */
+const clearedOnly = (/** @type {string[]} */ ids) =>
+  skills().map((/** @type {any} */ it) =>
+    ids.includes(it.range.id)
+      ? { ...it, forms: [{ ...it.forms[0], s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, solid()])) }] }
+      : it);
 
 /** Deal one, the way a render does. */
 const deal = (/** @type {any[]} */ items) => {
@@ -165,7 +179,7 @@ test("a number to choose between offers three wrong answers, all of them sayable
    * actually say. Drawn from the learner's vocabulary instead, the
    * question would be a reading test with a number in it.
    */
-  const picks = over(climbed(["num2fig", "time2fig"]), 12)
+  const picks = over(opened(climbed(["num2fig", "time2fig"])), 12)
     .filter((/** @type {any} */ e) => EX[e.type] && EX[e.type].picks === "word");
   assert.ok(picks.length > 0, "no question that offers a choice was ever dealt");
 
@@ -408,7 +422,9 @@ test("no number is asked while none of its words is recognised", () => {
 test("a number is asked once its words are recognised, and only numbers whose words are", () => {
   const fortySeven = wordsOfAsk({ rangeId: "numbers:20-99", kind: "numbers", value: 47 }, SET, IDS);
   assert.ok(fortySeven.size >= 2, `47 is built of ${[...fortySeven].join(", ")}`);
-  const items = skills().concat(words().map((/** @type {any} */ w) => (fortySeven.has(w.id) ? recognised(w) : w)));
+  /* The stretches under it cleared, which 20 to 99 waits on as well. */
+  const items = clearedOnly(["numbers:0-9", "numbers:10-19"])
+    .concat(words().map((/** @type {any} */ w) => (fortySeven.has(w.id) ? recognised(w) : w)));
   const range = rangeOf("numbers:20-99");
 
   const asked = [];
@@ -428,8 +444,10 @@ test("a learner who recognises every word can be asked every range", () => {
      nothing: counting needs noun cards this fixture does not have. */
   const asks = (/** @type {any[]} */ items, /** @type {any} */ skill) =>
     dealIn(items, (it) => it.id === skill.id).exercises.filter((/** @type {any} */ e) => e.ask).length > 0;
-  const items = skills().concat(words().map(recognised));
-  const free = skills().filter((/** @type {any} */ skill) => asks(skills(), skill));
+  /* Every stretch of the number line under the top one cleared, since
+     each waits on the one below it. */
+  const items = opened(skills()).concat(words().map(recognised));
+  const free = skills().filter((/** @type {any} */ skill) => asks(opened(skills()), skill));
   assert.ok(free.length >= 8, `only ${free.length} ranges could be asked at all`);
   for (const skill of free) assert.ok(asks(items, skill), `${skill.range.id} was not asked`);
 });
@@ -485,4 +503,69 @@ test("a question kept to the numbers draws its company from number words alone",
   assert.ok(kept.length > 3, "too few number words to pick from");
   assert.ok(kept.every((/** @type {any} */ it) => isFromSystem(it)), "something other than a number was in the company");
   assert.equal(companyOf(items, { id: words()[0].id, type: "ar2pick" }).length, items.length, "an ordinary question lost its company");
+});
+
+/* ------------------------------------------------------------------
+   Bottom up
+   ------------------------------------------------------------------ */
+
+/** Which skills a few sessions dealt anything from. */
+const dealtFrom = (/** @type {any[]} */ items) =>
+  new Set(over(items, 8).map((/** @type {any} */ e) => must(e.ask, "an ask").rangeId));
+
+test("a stretch of the number line waits until the one below it is cleared", () => {
+  const fresh = dealtFrom(skills());
+  assert.ok(fresh.has("numbers:0-9"), "the first stretch is not dealt");
+  for (const id of ["numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+"]) {
+    assert.ok(!fresh.has(id), `${id} was dealt before the stretch below it was cleared`);
+  }
+  /* The clock is not a stretch of the number line, and waits on nothing. */
+  assert.ok([...fresh].some((id) => id.startsWith("time:")), "the clock was held back");
+
+  const next = dealtFrom(clearedOnly(["numbers:0-9"]));
+  assert.ok(next.has("numbers:10-19"), "10 to 19 did not open once 0 to 9 was cleared");
+  assert.ok(!next.has("numbers:20-99"), "20 to 99 opened on 0 to 9 alone");
+});
+
+test("and waits all the way down, not just on the stretch beside it", () => {
+  /* 10 to 19 cleared and 0 to 9 not: progress made before the rule. */
+  const got = dealtFrom(clearedOnly(["numbers:10-19"]));
+  assert.ok(!got.has("numbers:20-99"), "20 to 99 opened over an uncleared 0 to 9");
+  assert.ok(!got.has("numbers:10-19"), "10 to 19 was dealt over an uncleared 0 to 9");
+});
+
+test("a stretch the learner was never handed holds nothing back", () => {
+  /* A deck that teaches 10 to 19 and not the numbers under it. */
+  const got = dealtFrom(skills().filter((/** @type {any} */ it) => it.range.id !== "numbers:0-9"));
+  assert.ok(got.has("numbers:10-19"), "10 to 19 waited on a stretch that is not here");
+  assert.ok(!got.has("numbers:20-99"), "20 to 99 did not wait on 10 to 19");
+});
+
+/* Last, because the die is shared: a test placed earlier would move every
+   draw after it. */
+test("a stretch's counting question counts a thing from the stretch, and nothing else on it does", () => {
+  /* Counting stands on the top of a stretch's ladder, beside writing the
+     number out, so it is dealt once the stretch can be read and chosen. */
+  const items = climbed(["num2fig", "rec2fig", "fig2pick"]).filter((/** @type {any} */ it) => it.range.kind === "numbers");
+  const asked = over(items, 12);
+  const counting = asked.filter((/** @type {any} */ e) => e.type === "count2phrase");
+  assert.ok(counting.length > 0, "no counting question was dealt");
+  for (const ex of counting) {
+    const skill = must(items.find((/** @type {any} */ s) => s.id === ex.id), ex.id);
+    const ask = must(ex.ask, `${ex.id} counted nothing`);
+    assert.ok(SYS.nouns.some((/** @type {any} */ n) => n.id === ask.nounId), `${ex.id} counted ${ask.nounId}`);
+    assert.ok(ask.value >= Math.max(1, skill.range.from) && ask.value <= skill.range.to, `${ask.value} in ${skill.range.id}`);
+    assert.match(renderAsk(ask, arComposer, SYS).en, /^\d+ \S+/);
+  }
+  for (const ex of asked.filter((/** @type {any} */ e) => e.type !== "count2phrase")) {
+    assert.equal(must(ex.ask, ex.id).nounId, undefined, `${ex.type} on ${ex.id} counted a thing`);
+  }
+});
+
+test("counting does not hold back the stretch above: 0 to 9 cleared on its numbers opens 10 to 19", () => {
+  const numbersOnly = skills().map((/** @type {any} */ it) =>
+    it.range.id === "numbers:0-9"
+      ? { ...it, forms: [{ ...it.forms[0], s: Object.fromEntries(TYPES.filter((/** @type {string} */ t) => t !== "count2phrase").map((/** @type {string} */ t) => [t, solid()])) }] }
+      : it);
+  assert.ok(dealtFrom(numbersOnly).has("numbers:10-19"), "10 to 19 waited on counting in 0 to 9");
 });

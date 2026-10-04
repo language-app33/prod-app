@@ -1126,6 +1126,12 @@ export type Form = Record<string, any> & {
      variables.ts. Absent on every form that leaves no hole, which is nearly
      all of them. */
   met?: Record<string, number>;
+  /* Schedules handed on from a card that is no longer made, for the
+     exercises this form has nothing on — counting things, from the
+     counting parts to the stretch that asks it now. Read by the fold,
+     which adds them beneath the learner's own and never stores the
+     field. See handOnCounting. */
+  carried?: Record<string, ExerciseState>;
   created?: Millis;
   updated?: Millis;
 };

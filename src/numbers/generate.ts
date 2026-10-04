@@ -14,10 +14,11 @@
  *     faces it takes as cells of a table under it, drilled and scheduled
  *     by every exercise an ordinary card gets. Locked, because the
  *     teacher's screen is where the word is written.
- *   * **A range skill per range the system can build**: counting to ten,
- *     counting things, telling the hour. No words on it at all — what it
- *     is asked is made up when the queue is built and thrown away with the
- *     sitting.
+ *   * **A range skill per range the system can build**: numbers up to
+ *     nine, telling the hour. No words on it at all — what it is asked is
+ *     made up when the queue is built and thrown away with the sitting. A
+ *     stretch of numbers is counted with too, once a noun card can be:
+ *     *3 books* is one of its questions, not a skill of its own.
  *
  * **Every id is derived from the system and the slot**, and so is every
  * form's. That is the whole of why a teacher correcting a word does not
@@ -41,7 +42,7 @@ import type {
   Token,
 } from "./types.ts";
 import { askFor, countable, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
-import { NUMBER_CEILING, SPLIT_FROM, partsNow } from "./types.ts";
+import { COUNTING_WAS, NUMBER_CEILING, countingOf, partsNow } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
 const safe = (s: string) => String(s).replace(/\|/g, "~");
@@ -89,6 +90,35 @@ export const isFromSystem = (it: { id?: string } | null | undefined): boolean =>
 export const isRangeSkill = (it: { id?: string } | null | undefined): boolean =>
   /^sys:[^:]+:range:/.test(String((it && it.id) || ""));
 
+/**
+ * The stretch of the number line a range waits on, if it waits on one.
+ *
+ * Numbers are learnt bottom up: 10 to 19 is said out of the words 0 to 9
+ * taught, so it is not asked until 0 to 9 is cleared, and so on up. The
+ * one below is the plain number range of the same system with the highest
+ * start under this one's. The clock is not a stretch of the number line
+ * and waits on nothing here — see `rangeChecks` — and a stretch's own
+ * counting question is not what the one above waits on (`stretchOpen`).
+ *
+ * Found among the items given, so a stretch the learner was never handed —
+ * a deck that teaches 10 to 19 and not the numbers under it — holds
+ * nothing back: waiting on a skill that will never be asked would be
+ * waiting for ever.
+ */
+export function stretchBefore<T extends Item>(it: T, items: T[]): T | null {
+  const range = it.range;
+  if (!isRangeSkill(it) || !range || range.kind !== "numbers" || range.counted) return null;
+  const system = systemIdOf(it);
+  let below: T | null = null;
+  for (const other of items) {
+    const r = other.range;
+    if (other === it || !isRangeSkill(other) || !r || r.kind !== "numbers" || r.counted) continue;
+    if (systemIdOf(other) !== system || r.from >= range.from) continue;
+    if (!below || r.from > (below.range as Range).from) below = other;
+  }
+  return below;
+}
+
 /* ---- one card ---- */
 
 interface Made {
@@ -102,7 +132,6 @@ interface Made {
   note?: string;
   /** The number in the language's own figures, where it has them. */
   numeral?: string;
-  tag: string;
   now: Millis;
 }
 
@@ -150,7 +179,10 @@ function cardOf(made: Made): Item {
     id: made.id,
     lang: made.lang,
     kind: "word",
-    tags: [made.tag],
+    /* Filed under a deck by fileIntoDecks, and under nothing else: a
+       name of the system's own would be one more deck on the learner's
+       side, holding every part whatever the teacher handed out. */
+    tags: [],
     forms,
     ...(made.note ? { note: made.note } : null),
     ...(made.numeral ? { numeral: made.numeral } : null),
@@ -178,15 +210,13 @@ export interface GenerateOpts {
   sys: NumberSystem | null;
   timeComposer?: TimeComposer | null;
   timeSys?: TimeSystem | null;
-  /** What the cards are filed under in a learner's list. */
-  tag: string;
   now: Millis;
   /** How the language writes a number in its own figures, where it does —
       the pack's `numerals`. */
   numerals?: ((n: number) => string) | null;
 }
 
-export function generate({ composer, sys, timeComposer, timeSys, tag, now, numerals }: GenerateOpts): Generated {
+export function generate({ composer, sys, timeComposer, timeSys, now, numerals }: GenerateOpts): Generated {
   if (!composer || !sys) return { items: [], checks: [] };
   const lang = sys.languageId;
   const items: Item[] = [];
@@ -216,7 +246,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
         en: spec.label,
         note: spec.hint,
         numeral: numeralOf(spec.label, numerals),
-        tag,
         now,
       }),
     );
@@ -245,7 +274,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
         en: digits,
         note: face ? labelForFace(face as FormKey) : undefined,
         numeral: numeralOf(digits, numerals),
-        tag,
         now,
       }),
     );
@@ -273,7 +301,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
           ],
           en: spec.label,
           note: spec.hint,
-          tag,
           now,
         }),
       );
@@ -289,7 +316,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
           slot: `min.${mark}`,
           faces: [{ key: "standalone", text: expr.text, label: "", lat: expr.lat, audio: expr.audio }],
           en: expr.en || `${mark} ${expr.refHour === "next" ? "to" : "past"}`,
-          tag,
           now,
         }),
       );
@@ -307,7 +333,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
           slot: `override:${key}`,
           faces: [{ key: "standalone", text: over.text, label: "", lat: over.lat, audio: over.audio }],
           en: clock,
-          tag,
           now,
         }),
       );
@@ -321,7 +346,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
           slot: `period.${period.slot}`,
           faces: [{ key: "standalone", text: period.text, label: "", lat: period.lat, audio: period.audio }],
           en: period.en || period.slot,
-          tag,
           now,
         }),
       );
@@ -338,7 +362,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
   const heard = items.some((it) => ((it.forms[0] || {}).recs || []).length);
   for (const check of checks) {
     if (!check.open) continue;
-    items.push(rangeItem(check.range, sys, lang, tag, now, heard));
+    items.push(rangeItem(check.range, sys, lang, now, heard, !!(check.counting && check.counting.open)));
   }
 
   return { items, checks };
@@ -357,9 +381,11 @@ function rangeItem(
   range: Range,
   sys: NumberSystem,
   lang: LangId,
-  tag: string,
   now: Millis,
   heard: boolean,
+  /* Whether its counting question can be asked: a noun card can be
+     counted across the whole stretch. See RangeCheck.counting. */
+  counts = false,
 ): Item {
   const id = rangeId(sys.id, range.id);
   const form: Form = {
@@ -375,16 +401,17 @@ function rangeItem(
      * here; a range exercise asks for one of these and finds nothing on a
      * word. Which family it is has to be said as well as *that* it is a
      * range, because reading a number, counting a thing and telling the
-     * time are three sets of questions and a skill is only ever one of
-     * them. Nobody wrote a rule about any of this: it falls out of what
-     * each exercise declares it needs.
+     * time are three sets of questions. A stretch that can be counted
+     * with carries two of them, so its counting question is one more on
+     * its ladder — at the top, beside writing the number out — and goes
+     * the moment the last noun card that could be counted does. Nobody
+     * wrote a rule about any of this: it falls out of what each exercise
+     * declares it needs.
      */
     range: true,
     ...(range.kind === "time"
       ? { rangeTime: true }
-      : range.counted
-      ? { rangeCounted: true }
-      : { rangeNumbers: true }),
+      : { rangeNumbers: true, ...(counts ? { rangeCounted: true } : null) }),
     ...(heard ? { recs: [{ id: "system", label: "", speed: "" }] } : null),
     s: {},
   };
@@ -392,7 +419,7 @@ function rangeItem(
     id,
     lang,
     kind: "word",
-    tags: [tag],
+    tags: [],
     name: range.label,
     forms: [form],
     range,
@@ -480,11 +507,10 @@ export function handOn(fresh: Item[], held: Item[], sys: NumberSystem): Item[] {
  * What a learner had earned on a range that has since been split, handed
  * to each of its parts.
  *
- * Counting things was one range and is three (see COUNTING_RANGES), and
  * 0 to 10 and 11 to 99 are 0 to 9, 10 to 19 and 20 to 99 (see
  * NUMBER_RANGES, whose `was` names the old part). The parts have ids of
- * their own, so without this a learner who could count
- * books would start each part from nothing. Same rules as handOn: only
+ * their own, so without this a learner who could read 47 would start
+ * each part from nothing. Same rules as handOn: only
  * onto a part this device has never held, from the old range whether it
  * is still here or set aside in the drawer, and nothing taken away.
  */
@@ -497,7 +523,7 @@ export function handOnSplit(
   const byId = new Map(held.map((i) => [i.id, i]));
   return fresh.map((item) => {
     const range = item.range;
-    const was = range ? range.was || SPLIT_FROM[range.id] || "" : "";
+    const was = range ? range.was || "" : "";
     if (!was || byId.has(item.id)) return item;
     const oldId = rangeId(systemId, was);
     const old = byId.get(oldId);
@@ -508,6 +534,61 @@ export function handOnSplit(
     if (!Object.keys(states).length) return item;
     const forms = item.forms.slice();
     forms[0] = { ...forms[0], s: { ...states } };
+    return { ...item, forms };
+  });
+}
+
+/* ---- the counting parts, folded into the stretches ---- */
+
+/**
+ * What a learner had earned counting things, handed to the stretch whose
+ * counting question it now is.
+ *
+ * Counting was three parts of its own and is a question each stretch asks
+ * (see COUNTING_STRETCHES), so the schedule a learner built on *3 books*
+ * is on a part that is no longer made. Unlike a split, the stretch it
+ * goes to is usually already on the device, with a schedule of its own
+ * for every other question — so this hands on only the exercises the
+ * stretch has nothing on, and says so as `carried` on a stretch already
+ * held: the fold keeps the learner's own schedules over anything fresh,
+ * and adds these beneath them (see foldForms). A stretch the device has
+ * never held takes them straight into its schedule.
+ *
+ * From the old part whether it is still on the device or already set
+ * aside in the drawer, the best one first — see COUNTING_WAS — and
+ * nothing taken away from it.
+ */
+export function handOnCounting(
+  fresh: Item[],
+  held: Item[],
+  parked: Record<string, Parked>,
+  systemId: string,
+): Item[] {
+  const byId = new Map(held.map((i) => [i.id, i]));
+  const statesOf = (id: string): NonNullable<Form["s"]> => {
+    const old = byId.get(id);
+    return (old && old.forms[0] && old.forms[0].s) || ((parked[id] && parked[id].forms[`${id}-f0`]) || {}).s || {};
+  };
+  return fresh.map((item) => {
+    const range = item.range;
+    const from = range ? COUNTING_WAS[range.id] : null;
+    if (!range || !from || !range.counts) return item;
+    const had = byId.get(item.id);
+    const mine = (had && had.forms[0] && had.forms[0].s) || {};
+    let carried: Form["s"] | null = null;
+    for (const was of from) {
+      const states = statesOf(rangeId(systemId, was));
+      const handed = Object.fromEntries(Object.entries(states).filter(([type]) => !(type in mine)));
+      if (Object.keys(handed).length) {
+        carried = handed;
+        break;
+      }
+    }
+    if (!carried) return item;
+    const forms = item.forms.slice();
+    forms[0] = had
+      ? { ...forms[0], carried }
+      : { ...forms[0], s: { ...carried, ...(forms[0].s || {}) } };
     return { ...item, forms };
   });
 }
@@ -535,7 +616,12 @@ function askingsOf(range: Range, sys: NumberSystem, composer: Composer | null): 
     }
     return out;
   }
-  const nouns = range.counted ? countable(range, composer, sys).map((n) => n.id) : [undefined];
+  /* One noun of each gender, where the range counts: which words a
+     counted number is said with turns on the gender alone — the noun
+     itself is no card's word — so the rest would only multiply the
+     askings. Which noun is asked is chosen when one is drawn; see
+     askKnown. */
+  const nouns = range.counted ? onePerGender(countable(range, composer, sys)).map((n) => n.id) : [undefined];
   const values = range.to - range.from <= 1000
     ? Array.from({ length: range.to - range.from + 1 }, (_, i) => range.from + i)
     : probeOf(range).concat(
@@ -606,7 +692,7 @@ export function askingsWithWords(
   range: Range,
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
 ): { ask: Ask; words: string[] }[] {
-  const key = `${range.id}|${set.timeSys ? set.timeSys.id : ""}|${set.timeSys ? set.timeSys.rev : ""}`;
+  const key = `${range.id}${range.counted ? "#count" : ""}|${set.timeSys ? set.timeSys.id : ""}|${set.timeSys ? set.timeSys.rev : ""}`;
   const mine = ASKINGS.get(set.sys) || new Map();
   ASKINGS.set(set.sys, mine);
   const had = mine.get(key);
@@ -729,10 +815,34 @@ export function askKnown(
 ): Ask | null {
   if (!known.length) return null;
   const steered = steeredAsk(range, seed, set, waiting, known);
-  if (steered) return steered;
+  if (steered) return anyOfKind(steered, range, seed, set);
   const drawn = askFor(range, seed, set.sys, set.composer);
   if ([...wordsOfAsk(drawn, set, ids)].every(knows)) return drawn;
-  return known[Math.floor(seeded(`${range.id} ${seed} known`)() * known.length)].ask;
+  return anyOfKind(known[Math.floor(seeded(`${range.id} ${seed} known`)() * known.length)].ask, range, seed, set);
+}
+
+/** The first noun of each gender, in the order given. */
+const onePerGender = (nouns: CountedNoun[]): CountedNoun[] =>
+  nouns.filter((n, i) => nouns.findIndex((m) => m.gender === n.gender) === i);
+
+/*
+ * An asking found among the stand-ins askingsOf counts with, given any
+ * noun the range can count of the same gender — the same words, so the
+ * same question as far as what the learner knows, and drawn on the seed
+ * so a missed one comes back unchanged.
+ */
+function anyOfKind(
+  ask: Ask,
+  range: Range,
+  seed: string,
+  set: { composer: Composer | null; sys: NumberSystem },
+): Ask {
+  if (!range.counted || !ask.nounId) return ask;
+  const nouns = countable(range, set.composer, set.sys);
+  const was = nouns.find((n) => n.id === ask.nounId);
+  const alike = was ? nouns.filter((n) => n.gender === was.gender) : [];
+  if (!alike.length) return ask;
+  return { ...ask, nounId: alike[Math.floor(seeded(`${range.id} ${seed} noun`)() * alike.length)].id };
 }
 
 /** A deck as far as filing numbers goes: its name, and the parts it holds. */
@@ -891,20 +1001,32 @@ export const COUNT_TAG = "count";
  * The blanks a part fills: its own tag, and the general one.
  *
  * Fixed rather than chosen, and read off the part's id, so a teacher can
- * write `{{0-10}}` or `{{number}}` into a sentence card and know what
+ * write `{{0-9}}` or `{{number}}` into a sentence card and know what
  * stands there without setting anything up — and so the names are the same
- * for every teacher and every language. Counting parts answer to `count`
- * rather than `number`: a sentence that says *I have {{number}}* wants
- * *47*, and handing it *3 books* half the time would make a different
- * sentence of it.
+ * for every teacher and every language. A stretch's counting view answers
+ * to `count-0-9` and `count` rather than `number`: a sentence that says
+ * *I have {{number}}* wants *47*, and handing it *3 books* half the time
+ * would make a different sentence of it.
  */
 export function partTags(range: Range): string[] {
   const tag = (id: string) => id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
+  if (range.counted) return [`count-${tag(range.id)}`, COUNT_TAG];
   /* And the tag of the part it was split out of, so a sentence written
      with `{{11-99}}` before the split is still filled — from 10 to 19
      and 20 to 99 together. */
-  return [tag(range.id), ...(range.was ? [tag(range.was)] : []), range.counted ? COUNT_TAG : NUMBER_TAG];
+  return [tag(range.id), ...(range.was ? [tag(range.was)] : []), NUMBER_TAG];
 }
+
+/**
+ * The tags of the counting parts there used to be, and the numbers each
+ * was filled from — so a sentence written with `{{count-3-10}}` is still
+ * filled, with whichever of a stretch's counted phrases fall inside it.
+ */
+export const OLD_COUNT_TAGS: { tag: string; from: number; to: number }[] = [
+  { tag: "count-1-2", from: 1, to: 2 },
+  { tag: "count-3-10", from: 3, to: 10 },
+  { tag: "count-11-20", from: 11, to: 20 },
+];
 
 /**
  * The numbers each part puts into the sentences that ask for it, as cards
@@ -932,9 +1054,15 @@ export function partTags(range: Range): string[] {
 export function fillerCards(composer: Composer | null, sys: NumberSystem | null, now: Millis = 0): Item[] {
   if (!composer || !sys) return [];
   const out: Item[] = [];
-  const open = new Set(rangeChecks(composer, sys).filter((c) => c.open).map((c) => c.range.id));
-  for (const range of composer.ranges()) {
-    if (range.kind !== "numbers" || !open.has(range.id)) continue;
+  const checks = rangeChecks(composer, sys);
+  const open = new Set(checks.filter((c) => c.open).map((c) => c.range.id));
+  const counts = new Set(checks.filter((c) => c.counting && c.counting.open).map((c) => c.range.id));
+  /* Each open stretch, and its counting view where a noun can be counted
+     across it — see countingOf. */
+  const views = composer.ranges().flatMap((range) =>
+    range.kind !== "numbers" || !open.has(range.id) ? [] : counts.has(range.id) ? [range, countingOf(range)] : [range],
+  );
+  for (const range of views) {
     const names = partTags(range);
     const nouns = range.counted ? countable(range, composer, sys) : [];
     /* Every pairing the part could make, then an even spread of them —
@@ -956,6 +1084,7 @@ export function fillerCards(composer: Composer | null, sys: NumberSystem | null,
       );
       if (!said.text) continue;
       const id = fillerId(sys.id, range.id, value, noun ? noun.id : "");
+      const old = noun ? OLD_COUNT_TAGS.filter((t) => value >= t.from && value <= t.to).map((t) => t.tag) : [];
       const grammar = noun
         ? {
             number: NUMBER_OF[said.nounForm || "pl"] || "plural",
@@ -970,7 +1099,7 @@ export function fillerCards(composer: Composer | null, sys: NumberSystem | null,
            take it. See kindOf. */
         kind: "phrase",
         tags: [],
-        fills: names,
+        fills: old.length ? [names[0], ...old, ...names.slice(1)] : names,
         forms: [{ id: `${id}-f0`, ar: said.text, en: said.en || said.digits, lat: "", ...grammar, s: {} }],
         source: { systemId: sys.id, slot: `fill:${range.id}` },
         locked: true,

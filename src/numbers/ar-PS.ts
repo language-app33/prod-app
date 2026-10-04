@@ -46,7 +46,7 @@ import type {
   SlotSpec,
   TwoWords,
 } from "./types.ts";
-import { COUNTING_RANGES, NUMBER_CEILING, NUMBER_RANGES } from "./types.ts";
+import { COUNTING_STRETCHES, NUMBER_CEILING } from "./types.ts";
 import { Build } from "./build.ts";
 import { chunksOf, genderKeyOf, nounTextOf } from "./compose.ts";
 import { overrideId } from "./generate.ts";
@@ -156,17 +156,12 @@ export const AR_SLOTS: SlotSpec[] = [
 ];
 
 /**
- * The ranges a learner is scheduled on.
- *
- * Five stretches of the number line (NUMBER_RANGES) and one skill that is not a stretch
- * at all: counting a noun is a different thing to know from saying a
- * number, and a learner solid on one is routinely lost on the other. That
- * skill comes in three parts — see COUNTING_RANGES.
+ * The ranges a learner is scheduled on: the five stretches of the number
+ * line, each counted with as well — a learner solid on saying a number is
+ * routinely lost on saying three of something, so every stretch asks
+ * both. See COUNTING_STRETCHES.
  */
-export const AR_RANGES: Range[] = [
-  ...NUMBER_RANGES,
-  ...COUNTING_RANGES,
-];
+export const AR_RANGES: Range[] = COUNTING_STRETCHES;
 
 /*
  * How the forms lay out as cells of the component card.
