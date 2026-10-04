@@ -2618,13 +2618,12 @@ test("a teacher who filled in the old Numbers screen finds their words in the ne
   assert.equal(sys.lexemes["unit.1"].forms.f, "wahde", "and the cell came across as a face");
   assert.equal(sys.lexemes["ten.20"].forms.standalone, "ishrin");
   assert.equal(sys.lexemes["hundred.1"].forms.standalone, "miyye");
-  /* Three hundred is one word in this dialect and always was, so it is a
-     number the teacher wrote out rather than a box. */
-  assert.equal(sys.overrides["300"].text, "tultmiyye");
+  /* Three hundred is one word in this dialect and has a box of its own. */
+  assert.equal(sys.lexemes["hundred.3"].forms.standalone, "tultmiyye");
   /* And every box says which card it came from, which is what lets a
      device hand a learner's year on a word to the card that replaces it. */
   assert.equal(sys.migratedFrom["unit.1"], written[0]);
-  assert.equal(sys.migratedFrom["override:300"], written[4]);
+  assert.equal(sys.migratedFrom["hundred.3"], written[4]);
 
   /* Nothing was deleted, and the cards say they have been read. */
   const cards = await api("/api/courses?action=my-cards", { key });

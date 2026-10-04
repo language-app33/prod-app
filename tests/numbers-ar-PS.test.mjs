@@ -20,7 +20,8 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 
 import { must } from "./helpers.mjs";
-import { AR_SLOTS, arComposer, keepOneWord, renderAr, tidyBeforeNoun, twoWordsBeforeNoun } from "../src/numbers/ar-PS.ts";
+import { AR_SLOTS, arComposer, keepOneWord, renderAr, tidyBeforeNoun, tidyHundreds, twoWordsBeforeNoun } from "../src/numbers/ar-PS.ts";
+import { homesOf, overrideId } from "../src/numbers/generate.ts";
 import { NUMBER_CEILING } from "../src/numbers/types.ts";
 
 const golden = JSON.parse(
@@ -400,4 +401,60 @@ test("the table of forms is a table the app already knows how to draw", () => {
      be filling in a box nothing reads. */
   const faces = new Set(AR_SLOTS.flatMap((s) => s.formKeys));
   for (const p of table.persons) assert.ok(faces.has(/** @type {any} */ (p.id)), `${p.id} is nobody's box`);
+});
+
+/* ---- three hundred to nine hundred have boxes ---- */
+
+test("three hundred to nine hundred each have a box beside a hundred and two hundred", () => {
+  const hundreds = AR_SLOTS.filter((s) => s.group === "hundreds").map((s) => s.label);
+  assert.deepEqual(hundreds, ["100", "200", "300", "400", "500", "600", "700", "800", "900", "hundred"]);
+  const homes = homesOf(arComposer);
+  for (const slot of ["hundred.3", "hundred.9", "hundred.n"]) assert.equal(homes.get(slot), "numbers:100-999", slot);
+});
+
+test("a hundred's own box is what is said, and the bare word only builds where it is empty", () => {
+  const overrides = { ...SYS.overrides };
+  delete overrides["300"];
+  const boxed = { ...SYS, overrides, lexemes: { ...SYS.lexemes, "hundred.3": { slot: "hundred.3", forms: { standalone: "تلتمية" } } } };
+  assert.equal(renderAr(300, boxed).text, "تلتمية");
+  assert.deepEqual(renderAr(300, boxed).tokens, [{ text: "تلتمية", slot: "hundred.3", formKey: "standalone" }]);
+  assert.ok(renderAr(1325, boxed).text.includes("تلتمية"));
+  /* Neither written: the box is what is asked for. */
+  const bare = { ...SYS, overrides };
+  assert.deepEqual(renderAr(300, bare).warnings, [{ code: "missing-slot", slot: "hundred.3", formKey: "standalone" }]);
+  /* A dialect that builds it, with the bare word and no box. */
+  const built = { ...bare, lexemes: { ...SYS.lexemes, "hundred.n": { slot: "hundred.n", forms: { standalone: "مية" } } } };
+  assert.deepEqual(renderAr(300, built).warnings, []);
+  assert.ok(renderAr(300, built).text.endsWith(" مية"));
+  /* Both: the word of its own wins. */
+  const both = { ...built, lexemes: { ...built.lexemes, "hundred.3": boxed.lexemes["hundred.3"] } };
+  assert.equal(renderAr(300, both).text, "تلتمية");
+});
+
+test("the hundreds a teacher wrote out move into their boxes, and the learning goes with them", () => {
+  const mine = {
+    ...SYS,
+    overrides: { ...SYS.overrides, 300: { text: "تلتمية", lat: "tultmiyye", audio: ["a"] } },
+    curatedAudio: { 400: ["b"] },
+  };
+  const got = tidyHundreds(mine);
+  for (let k = 3; k <= 9; k += 1) assert.equal(got.overrides[String(k * 100)], undefined, String(k * 100));
+  assert.deepEqual(got.lexemes["hundred.3"], {
+    slot: "hundred.3",
+    forms: { standalone: "تلتمية" },
+    lat: { standalone: "tultmiyye" },
+    audio: { standalone: ["a"] },
+  });
+  assert.deepEqual(got.lexemes["hundred.4"].audio, { standalone: ["b"] });
+  assert.deepEqual(got.curatedAudio, {});
+  assert.equal(must(got.migratedFrom, "migratedFrom")["hundred.3"], overrideId(SYS.id, "300"));
+  /* Said exactly as before. */
+  for (const v of [300, 400, 999, 1300, 900900]) assert.equal(renderAr(v, got).text, renderAr(v, mine).text, String(v));
+  for (const v of [300, 999]) assert.deepEqual(renderAr(v, got).warnings, []);
+  /* A box with a word in it keeps it, and the written-out word stays. */
+  const filled = { ...mine, lexemes: { ...SYS.lexemes, "hundred.3": { slot: "hundred.3", forms: { standalone: "X" } } } };
+  assert.equal(tidyHundreds(filled).overrides["300"].text, "تلتمية");
+  /* And nothing to move is the same object. */
+  assert.equal(tidyHundreds(got), got);
+  assert.equal(must(arComposer.tidy, "tidy")(got), got);
 });

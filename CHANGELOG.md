@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.334 — 4 October 2026
+
+**300 to 900 have word boxes of their own.**
+
+- On the *Numbers 100 to 999* screen for Palestinian Arabic, 300, 400 and
+  so on up to 900 now each have a box under *Words*, beside 100 and 200,
+  with room for how it sounds and a recording. Before, the only place to
+  give them was by tapping each one under *How the app says them*.
+- Anything you had already written for them there is moved into their
+  boxes the next time you open the screen, with its recording. Students
+  keep the progress they had on those words.
+- The "hundred" box is now only for a dialect that says three hundred as
+  two words. If yours says each as one word, fill in the boxes above it
+  and leave it empty.
+
 ## 0.333 — 4 October 2026
 
 **The app is quick again.**

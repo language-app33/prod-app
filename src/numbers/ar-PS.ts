@@ -49,6 +49,7 @@ import type {
 import { COUNTING_RANGES, NUMBER_CEILING, NUMBER_RANGES } from "./types.ts";
 import { Build } from "./build.ts";
 import { chunksOf, genderKeyOf, nounTextOf } from "./compose.ts";
+import { overrideId } from "./generate.ts";
 import type { VerbSpec } from "../types.ts";
 
 /** Bumped when a change here could make an existing override wrong.
@@ -106,13 +107,24 @@ export const AR_SLOTS: SlotSpec[] = [
   })),
   { slot: "hundred.1", formKeys: COUNTING, label: "100", group: "hundreds" },
   { slot: "hundred.2", formKeys: COUNTING, label: "200", group: "hundreds" },
+  /* Three hundred to nine hundred are one word each in this dialect, so
+     each has a box beside a hundred and two hundred. They were written
+     out under the samples until 0.334, which is where nobody looked for a
+     word; tidyHundreds moves what was written there into these. */
+  ...run(3, 9, 1).map((k) => ({
+    slot: `hundred.${k}`,
+    formKeys: COUNTING,
+    label: String(k * 100),
+    group: "hundreds",
+    optional: true,
+  })),
   {
     slot: "hundred.n",
     formKeys: COUNTING,
     label: "hundred",
     group: "hundreds",
     optional: true,
-    hint: "The bare word, for a dialect that says three hundred as two words. If yours says each of 300 to 900 as one word, leave it empty and write them out: tap each one under How the app says them, below.",
+    hint: "The bare word, only for a dialect that says three hundred as two words. If yours says each of 300 to 900 as one word, write those in their boxes above and leave this empty.",
   },
   { slot: "thousand.1", formKeys: COUNTING, label: "1,000", group: "thousands" },
   { slot: "thousand.2", formKeys: COUNTING, label: "2,000", group: "thousands" },
@@ -326,6 +338,54 @@ export function tidyBeforeNoun(sys: NumberSystem): NumberSystem {
   return out;
 }
 
+/* ---- three hundred to nine hundred, written out before they had boxes ---- */
+
+/**
+ * A system with the hundreds a teacher wrote out moved into their boxes.
+ *
+ * Until 0.334 three hundred to nine hundred had no box, and a teacher
+ * wrote each out under the samples, where it was kept as a number written
+ * out by hand. The editor opens on this so those words are in the boxes
+ * where the teacher now looks for them, with their transliteration and
+ * recording, and `migratedFrom` names the card each was learnt on so a
+ * learner's progress on it goes across — see handOn. A box that already
+ * holds a word keeps it, and the written-out word stays the correction it
+ * was. The same object back where there is nothing to move.
+ */
+export function tidyHundreds(sys: NumberSystem): NumberSystem {
+  let out = sys;
+  for (let k = 3; k <= 9; k += 1) {
+    const key = String(k * 100);
+    const slot = `hundred.${k}`;
+    const over = (out.overrides || {})[key];
+    const text = overrideText(out, key);
+    if (!over || !text || textOf(out, slot, "standalone")) continue;
+    const overrides = { ...out.overrides };
+    delete overrides[key];
+    const lat = String(over.lat || "").trim();
+    const audio = over.audio && over.audio.length ? over.audio : (out.curatedAudio || {})[key];
+    const curated = { ...(out.curatedAudio || {}) };
+    delete curated[key];
+    out = {
+      ...out,
+      lexemes: {
+        ...out.lexemes,
+        [slot]: {
+          slot,
+          forms: { standalone: text },
+          ...(lat ? { lat: { standalone: lat } } : null),
+          ...(audio && audio.length ? { audio: { standalone: audio } } : null),
+        },
+      },
+      overrides,
+      ...(out.curatedAudio ? { curatedAudio: curated } : null),
+      migratedFrom: { ...(out.migratedFrom || {}), [slot]: overrideId(out.id, key) },
+      updated: Date.now(),
+    };
+  }
+  return out;
+}
+
 /* ---- composing ---- */
 
 const genderKey = genderKeyOf;
@@ -379,10 +439,14 @@ function under1000(b: Build, n: number, gender: "m" | "f" | undefined): string {
 
   if (hundreds) {
     const written = b.override(hundreds, "standalone");
+    const k = hundreds / 100;
     if (written) pieces.push(written);
-    else if (hundreds === 100) pieces.push(b.word("hundred.1", "standalone"));
-    else if (hundreds === 200) pieces.push(b.word("hundred.2", "standalone"));
-    else {
+    else if (k <= 2 || b.has(`hundred.${k}`) || !b.has("hundred.n")) {
+      /* The word of its own, which is how this dialect says every round
+         hundred; and the box to fill where neither it nor the bare word
+         for building it is written. */
+      pieces.push(b.word(`hundred.${k}`, "standalone"));
+    } else {
       /* Three hundred as two words, for a dialect that says it that way.
          The unit goes in front in its before-a-noun form, because a
          hundred is the noun it is counting. */
@@ -535,7 +599,7 @@ export const arComposer: Composer = {
   requiredSlots: () => AR_SLOTS,
   twoWords: twoWordsBeforeNoun,
   keepOne: keepOneWord,
-  tidy: tidyBeforeNoun,
+  tidy: (sys) => tidyHundreds(tidyBeforeNoun(sys)),
   liftCard: liftArCard,
   table: () => AR_NUMBER_TABLE,
   ranges: () => AR_RANGES,
