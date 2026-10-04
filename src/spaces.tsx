@@ -67,6 +67,7 @@ import { offersFor } from "./offers.ts";
 import { NumberSystemEditor } from "./number-system-editor.tsx";
 import { PronounsEditor, hasPronouns } from "./pronouns-editor.tsx";
 import type { NumberSystem, TimeSystem } from "./numbers/types.ts";
+import { partsNow } from "./numbers/types.ts";
 import { needsReview, reviewStates, toReview } from "./review.ts";
 import { inPlayWith, langsToMakeIn, teachingChoices } from "./lang-choice.ts";
 import type { LangChoice } from "./lang-choice.ts";
@@ -5717,25 +5718,16 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
            the part's end. */
         decks={decks
           .filter((d) => (langOfDeck(d) || { id: "" }).id === numbering)
-          .map((d) => ({ id: d.id, title: String(d.title || ""), parts: d.parts || [], locked: !!d.locked, cardCount: d.cardCount || 0 }))}
+          .map((d) => ({ id: d.id, title: String(d.title || ""), parts: partsNow(d.parts || []), locked: !!d.locked, cardCount: d.cardCount || 0 }))}
         onDeckPart={(deckId, rangeId, on) =>
           run(async () => {
             const d = decks.find((x) => x.id === deckId);
             if (!d) return;
-            const had = d.parts || [];
+            const had = partsNow(d.parts || []);
             const parts = on ? had.concat(had.includes(rangeId) ? [] : [rangeId]) : had.filter((x) => x !== rangeId);
             const r: any = await API.setDeckParts(deckId, parts);
             setDecks((prev) => prev.map((x) => (x.id === deckId ? { ...x, parts: r.parts || parts } : x)));
           }, on ? "Added to the deck" : "Taken out of the deck")
-        }
-        signed={systems.signed || {}}
-        onSignOff={(kind, system) =>
-          run(async () => {
-            const r: any = await API.signSystem(kind, system.languageId, system.rev);
-            setSystems((held) =>
-              held ? { ...held, signed: { ...(held.signed || {}), [r.id]: r.signed } } : held,
-            );
-          }, "Published")
         }
       />
     );
@@ -5957,7 +5949,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
             onClick={() =>
               run(
                 async () => {
-                  const had = d.parts || [];
+                  const had = partsNow(d.parts || []);
                   const same = had.length === picked.parts.length && had.every((x) => picked.parts.includes(x));
                   if (!same) await API.setDeckParts(d.id, picked.parts);
                   for (const card of pronouns) {
@@ -6023,7 +6015,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 <Help>
                   {(() => {
                     const all = numberPartsOf((langOfDeck(d) || {}).id || d.lang);
-                    const named = (d.parts || [])
+                    const named = partsNow(d.parts || [])
                       .map((id) => (all.find((r) => r.id === id) || { label: "" }).label)
                       .filter(Boolean);
                     const pron = pronounCardsOf((langOfDeck(d) || {}).id || d.lang).filter((c) =>
@@ -6041,7 +6033,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                       icon="add"
                       onClick={() =>
                         setDeckExtras({
-                          parts: d.parts || [],
+                          parts: partsNow(d.parts || []),
                           pronouns: pronounCardsOf((langOfDeck(d) || {}).id || d.lang)
                             .filter((c) => (c.decks || []).includes(d.id))
                             .map((c) => c.id),

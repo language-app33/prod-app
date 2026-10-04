@@ -40,14 +40,14 @@ import type {
   TimeStyle,
   TwoWords,
 } from "./numbers/types.ts";
-import { MINUTE_MARKS } from "./numbers/types.ts";
+import { MINUTE_MARKS, partsNow } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { blocking, probeOf, rangeChecks, seeded } from "./numbers/range.ts";
 import type { RangeCheck } from "./numbers/range.ts";
 import { figureOf, homesOf, partTags } from "./numbers/generate.ts";
 import { readNouns, withNouns } from "./numbers/nouns.ts";
 import type { ReadNoun } from "./numbers/nouns.ts";
-import { Button, Help, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
+import { Button, ConfirmModal, Help, Icon, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
 import { dimsFor } from "./languages.ts";
 import { DeckSwitch, RecordingScreen, ScriptInput } from "./card-editor.tsx";
 
@@ -129,86 +129,18 @@ function stable(value: unknown): string {
   return JSON.stringify(value === undefined ? null : value);
 }
 
-/* ---- publishing a version ---- */
-
-/**
- * Where a system stands with its students, and the button that moves it.
- *
- * A language's numbers run to the millions and nobody can read them all,
- * so what a teacher publishes is what they have checked on this screen —
- * the sample, and *Check a number* for anything else. Students are sent
- * the version last published; a save is the teacher's own working copy and
- * waits for the next Publish rather than reaching them unread.
- *
- * It was called signing off, which said what the teacher was doing and not
- * what it did, beside a Save button that sounded like the thing that
- * reached students. So it is one button, Publish, and a line under it only
- * when there is something the students do not have yet — which is the one
- * thing worth knowing about it at a glance.
- */
-function PublishBar({
-  kind,
-  system,
-  signed,
-  unsaved,
-  busy,
-  onSignOff,
-}: {
-  kind: "numbers" | "times";
-  system: NumberSystem | TimeSystem | null;
-  signed?: Record<string, number | null>;
-  unsaved: boolean;
-  busy?: boolean;
-  onSignOff?: (kind: "numbers" | "times", system: NumberSystem | TimeSystem) => void;
-}) {
-  if (!system || !system.id || !onSignOff) return null;
-  const what = kind === "times" ? "times" : "numbers";
-  const said = signed && Object.prototype.hasOwnProperty.call(signed, system.id) ? signed[system.id] : undefined;
-  const published = said === system.rev;
-  /* Absent is a system nobody has edited since publishing existed, which
-     students get as it is saved — there is nothing waiting, and nothing
-     to say until it is edited. */
-  const line = unsaved
-    ? "Unpublished changes: save them, then publish."
-    : said === null
-      ? `Not published yet: students don't get these ${what}.`
-      : said !== undefined && !published
-        ? "Unpublished changes: students still get the version you last published."
-        : "";
-  return (
-    <div className="at-publish">
-      <Button
-        size="sm"
-        variant="primary"
-        disabled={published || unsaved || busy}
-        onClick={() => onSignOff(kind, system)}
-      >
-        {published ? "Published" : "Publish"}
-      </Button>
-      {line ? <p className="at-publishnote">{line}</p> : null}
-    </div>
-  );
-}
-
 /* ---- the screen ---- */
 
 export interface EditorProps {
   lang: Lang;
   numbers: NumberSystem;
   times: TimeSystem | null;
-  onSave: (kind: "numbers" | "times", system: NumberSystem | TimeSystem) => void;
+  /** Save one system; awaited where it is followed by leaving a screen. */
+  onSave: (kind: "numbers" | "times", system: NumberSystem | TimeSystem) => unknown;
   onClose: () => void;
   busy?: boolean;
   /** What the server holds, for saying whether there is anything to save. */
   savedRev?: number;
-  /**
-   * Which version of each system its teacher signed off, by id: a
-   * revision, null where nothing is signed yet, and absent where the
-   * system has not been edited since sign-off existed.
-   */
-  signed?: Record<string, number | null>;
-  /** Sign off the version the server holds. */
-  onSignOff?: (kind: "numbers" | "times", system: NumberSystem | TimeSystem) => void;
   /** The teacher's cards: the noun cards are what counting counts. */
   cards?: Record<string, unknown>[];
   /** The decks in this language, for which hold each part. */
@@ -219,11 +151,18 @@ export interface EditorProps {
 }
 
 export function NumberSystemEditor({
-  lang, numbers, times, onSave, onClose, busy, signed, onSignOff, cards = [], decks = [], onDeckPart,
+  lang, numbers, times, onSave, onClose, busy, cards = [], decks = [], onDeckPart,
 }: EditorProps) {
   const composer = composerFor(lang.id);
   const timeComposer = timeComposerFor(lang.id);
-  const [tab, setTab] = useState<"numbers" | "times">("numbers");
+  /* The main screen only lists; everything that is edited is edited on a
+     screen of its own, which is where it is saved — see leave. These are
+     the two that are not one part of the numbers. */
+  const [timing, setTiming] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  /* Where a teacher was going when they had unsaved changes: answered by
+     the question below, which saves or drops them first. */
+  const [leaving, setLeaving] = useState<null | (() => void)>(null);
   /* What was saved, with anything a composer has since folded into fewer
      boxes folded — see Composer.tidy. The screen opens on it and compares
      against it, so opening is not an unsaved change and the next save
@@ -306,7 +245,9 @@ export function NumberSystemEditor({
   /* Compared by content rather than by how the keys happen to be ordered:
      what the server hands back is read into a fresh object, whose keys
      need not come in the order the one being edited has them. */
-  const dirty = stable(draft) !== stable(base) || stable(clock) !== stable(times);
+  const numbersDirty = stable(draft) !== stable(base);
+  const clockDirty = stable(clock) !== stable(times);
+  const dirty = numbersDirty || clockDirty;
 
   if (!composer) {
     return (
@@ -331,10 +272,47 @@ export function NumberSystemEditor({
     return true;
   })();
 
-  const save = () => {
-    if (tab === "times" && clock) onSave("times", clock);
-    else onSave("numbers", draft);
+  /* Whatever has changed, numbers and clock alike: a change made on one
+     screen and not saved there is still a change, and Save is one
+     decision, not one per document. */
+  const save = async () => {
+    if (numbersDirty) await onSave("numbers", draft);
+    if (clockDirty && clock) await onSave("times", clock);
   };
+
+  /*
+   * Off an editing screen, with something unsaved: asked rather than
+   * carried. The main screen has no Save of its own, so changes taken back
+   * to it would be changes with no way to keep them, and the next Back
+   * would lose them without a word.
+   */
+  const leave = (go: () => void) => () => {
+    if (dirty) setLeaving(() => go);
+    else go();
+  };
+  const asking = leaving ? (
+    <ConfirmModal
+      title="Save your changes?"
+      body={<p>Students get them as soon as they are saved.</p>}
+      confirmLabel="Save"
+      altLabel="Don't save"
+      danger={false}
+      busy={busy}
+      onAlt={() => {
+        const go = leaving;
+        setDraft(base);
+        setClock(times);
+        setLeaving(null);
+        go();
+      }}
+      onCancel={() => setLeaving(null)}
+      onConfirm={() => {
+        const go = leaving;
+        setLeaving(null);
+        void save().then(go);
+      }}
+    />
+  ) : null;
 
   const recTarget = (() => {
     if (!recording) return null;
@@ -397,91 +375,101 @@ export function NumberSystemEditor({
     );
   }
 
-  const footer = (
-    <Button variant="primary" wide disabled={!dirty || busy} onClick={save}>
-      {dirty ? "Save" : "Nothing to save"}
+  /* In the top bar, where the card editor keeps its own, and the same
+     button on every screen that edits anything: those screens are long,
+     and a save at the bottom of one was a scroll away from wherever the
+     change was made. */
+  const saveButton = (
+    <Button variant="primary" size="sm" disabled={!dirty || busy} onClick={() => void save()}>
+      <Icon name="save" />
+      {busy ? "Saving…" : "Save"}
     </Button>
   );
 
   const open = part ? checks.find((c) => c.range.id === part) || null : null;
-  if (open) {
-    return (
-      <PartScreen
+  const view = open ? (
+    <PartScreen
+      lang={lang}
+      draft={draft}
+      setDraft={setDraft}
+      check={open}
+      checks={checks}
+      homes={homes}
+      labels={labels}
+      slots={slotSpecs}
+      render={(n, ctx) => composer.render(n, counted, ctx)}
+      twoWords={twoWords.filter((q) => q.n >= open.range.from && q.n <= open.range.to)}
+      onKeepOne={keepOne}
+      nouns={nounCards}
+      decks={decks}
+      saveButton={saveButton}
+      onRecord={(slot, key) => setRecording({ slot, key })}
+      onWrite={setWriting}
+      onOpen={setPart}
+      onDeckPart={onDeckPart}
+      onClose={leave(() => setPart(null))}
+    />
+  ) : fixing ? (
+    <FixScreen
+      lang={lang}
+      draft={draft}
+      render={(n) => composer.render(n, counted)}
+      saveButton={saveButton}
+      onWrite={setWriting}
+      onCheck={() => setTrying(true)}
+      onClose={leave(() => setFixing(false))}
+    />
+  ) : timing ? (
+    <Screen title="Telling the time" onBack={leave(() => setTiming(false))} action={saveButton}>
+      <TimesTab
+        lang={lang}
+        numbers={draft}
+        clock={clock}
+        setClock={setClock}
+        hourReady={hourReady}
+        slots={(timeComposer && timeComposer.requiredSlots()) || []}
+        render={
+          timeComposer && clock
+            ? (h, m, style, period) =>
+                timeComposer.renderTime(h, m, clock, draft, { style, period })
+            : null
+        }
+        onRecord={(slot) => setRecording({ slot, key: "standalone", time: true })}
+      />
+    </Screen>
+  ) : (
+    /* Nothing on this screen is edited, so it has no Save: each part, the
+       clock and the numbers written out by hand open on a screen of their
+       own, and are saved there. */
+    <Screen title="Number system" onBack={leave(onClose)}>
+      <NumbersTab
         lang={lang}
         draft={draft}
-        setDraft={setDraft}
-        check={open}
         checks={checks}
         homes={homes}
         labels={labels}
-        slots={slotSpecs}
-        render={(n, ctx) => composer.render(n, counted, ctx)}
-        twoWords={twoWords.filter((q) => q.n >= open.range.from && q.n <= open.range.to)}
-        onKeepOne={keepOne}
-        nouns={nounCards}
-        decks={decks}
-        footer={footer}
-        onRecord={(slot, key) => setRecording({ slot, key })}
-        onWrite={setWriting}
+        twoWords={twoWords}
+        unsaved={dirty}
+        time={
+          timeComposer
+            ? hourReady
+              ? "ready"
+              : "waiting on the numbers that go with a feminine word"
+            : null
+        }
         onOpen={setPart}
-        onDeckPart={onDeckPart}
-        onClose={() => setPart(null)}
+        onTime={() => setTiming(true)}
+        onFix={() => setFixing(true)}
+        onCheck={() => setTrying(true)}
       />
-    );
-  }
+    </Screen>
+  );
 
   return (
-    <Screen title="Number system" onBack={onClose} footer={footer}>
-      <Segmented
-        label="What to write"
-        options={[
-          { value: "numbers" as const, label: "Numbers" },
-          { value: "times" as const, label: "Time" },
-        ]}
-        value={tab}
-        onChange={setTab}
-      />
-
-      <PublishBar
-        kind={tab}
-        system={tab === "times" ? times : numbers}
-        signed={signed}
-        unsaved={dirty}
-        busy={busy}
-        onSignOff={onSignOff}
-      />
-
-      {tab === "numbers" ? (
-        <NumbersTab
-          lang={lang}
-          draft={draft}
-          checks={checks}
-          homes={homes}
-          labels={labels}
-          render={(n) => composer.render(n, counted)}
-          twoWords={twoWords}
-          onOpen={setPart}
-          onWrite={setWriting}
-          onCheck={() => setTrying(true)}
-        />
-      ) : (
-        <TimesTab
-          lang={lang}
-          numbers={draft}
-          clock={clock}
-          setClock={setClock}
-          hourReady={hourReady}
-          slots={(timeComposer && timeComposer.requiredSlots()) || []}
-          render={
-            timeComposer && clock
-              ? (h, m, style, period) =>
-                  timeComposer.renderTime(h, m, clock, draft, { style, period })
-              : null
-          }
-          onRecord={(slot) => setRecording({ slot, key: "standalone", time: true })}
-        />
-      )}
-    </Screen>
+    <>
+      {view}
+      {asking}
+    </>
   );
 }
 
@@ -565,37 +553,46 @@ export function partStatus(
   return before ? `waiting on ${before.range.label}` : waitingOn(check.warnings);
 }
 
-function NumbersTab({ lang, draft, checks, homes, labels, render, twoWords, onOpen, onWrite, onCheck }: {
+function NumbersTab({ lang, draft, checks, homes, labels, twoWords, unsaved, time, onOpen, onTime, onFix, onCheck }: {
   lang: Lang;
   draft: NumberSystem;
   checks: RangeCheck[];
   homes: Map<string, string>;
   labels: Map<string, string>;
-  render: (n: number) => { text: string; warnings: { code: string; slot?: string }[] };
   /** Boxes that used to be two and still hold two different words. */
   twoWords: TwoWords[];
+  /** Whether anything is changed and not saved — which only a save that
+      did not go through leaves behind; see leave. */
+  unsaved: boolean;
+  /** Where telling the time stands, or null where the language has no clock. */
+  time: string | null;
   /** Open one part's own screen. */
   onOpen: (rangeId: string) => void;
-  /** Write this number out by hand, on a screen of its own. */
-  onWrite: (key: string) => void;
+  onTime: () => void;
+  onFix: () => void;
   onCheck: () => void;
 }) {
-  const [extra, setExtra] = useState<number[]>([]);
-  const shown = useMemo(() => SAMPLE.concat(extra), [extra]);
   const parts = checks.filter((c) => c.range.kind === "numbers");
   /* The parts that hold a question about two words, in their own order. */
   const asking = parts.filter(
     (c) => !c.range.counted && twoWords.some((q) => q.n >= c.range.from && q.n <= c.range.to),
   );
+  const yours = Object.keys(draft.overrides).length;
 
   return (
     <>
       <Help>
-        Write the words {lang.name} builds its numbers out of and the app makes the rest. Each part
-        below opens on its own words: with one to ten written the app can ask anything up to ten,
-        and with the tens anything up to ninety-nine. <b>Nothing here has to be finished</b> —
-        whatever is written works, and each part says what it is still waiting for.
+        Write the words {lang.name} builds its numbers out of and the app makes the rest. Open a
+        part to write its words: with zero to nine written the app can ask anything up to nine,
+        and so on up. <b>Nothing here has to be finished</b> — whatever is written works, and
+        each part says what it is still waiting for.
       </Help>
+
+      {unsaved ? (
+        <Notice kind="warn">
+          Some changes are not saved yet. Open the part you changed and press Save.
+        </Notice>
+      ) : null}
 
       {asking.length ? (
         <Notice kind="warn">
@@ -624,32 +621,105 @@ function NumbersTab({ lang, draft, checks, homes, labels, render, twoWords, onOp
               onOpen={() => onOpen(check.range.id)}
             />
           ))}
+          {time !== null ? (
+            <Tile
+              title="Telling the time"
+              meta={
+                <span className="at-numstate" data-open={time === "ready" ? "" : undefined}>
+                  {time}
+                </span>
+              }
+              onOpen={onTime}
+            />
+          ) : null}
         </div>
       </Section>
 
-      {/* Above the list rather than under it: the list answers "is this
-          right" for thirty numbers somebody else chose, and this answers
-          it for the one the teacher is actually wondering about. */}
-      <div className="at-row at-mt5">
-        <Button onClick={onCheck}>Check a number</Button>
-      </div>
+      <Section title="When the app gets one wrong" className="at-mt5">
+        <div className="at-numparts">
+          <Tile
+            title="Correct how a number is said"
+            meta={yours ? `${plural(yours, "number")} written out by you` : "None written out by you yet"}
+            onOpen={onFix}
+          />
+        </div>
+        <div className="at-row at-mt3">
+          <Button onClick={onCheck}>Check a number</Button>
+        </div>
+      </Section>
+    </>
+  );
+}
+
+/**
+ * The numbers a teacher has corrected, and a sample of the rest to find
+ * the ones that need it.
+ *
+ * This was a list under the parts called *What a student will be asked*,
+ * which said what it showed and not what it was for: every line opens a
+ * box to write that number out by hand, and what is written there is
+ * asked instead of what the app builds. So it is a screen of its own,
+ * named for that, with the corrections already made on top.
+ */
+function FixScreen({ lang, draft, render, saveButton, onWrite, onCheck, onClose }: {
+  lang: Lang;
+  draft: NumberSystem;
+  render: (n: number) => { text: string; warnings: { code: string; slot?: string }[] };
+  saveButton: React.ReactNode;
+  onWrite: (key: string) => void;
+  onCheck: () => void;
+  onClose: () => void;
+}) {
+  const [extra, setExtra] = useState<number[]>([]);
+  const shown = useMemo(() => SAMPLE.concat(extra), [extra]);
+  const written = Object.entries(draft.overrides);
+  return (
+    <Screen title="Correct how a number is said" onBack={onClose} action={saveButton}>
+      <Help>
+        The app builds every number out of the words in the parts. Where it gets one wrong, tap
+        it and write it the way it is said: students are asked your wording for that number, and
+        wherever it turns up inside a bigger one.
+      </Help>
+
+      {written.length ? (
+        <Section
+          title="Numbers you wrote out"
+          lede="Tap one to change it, or to put it back the way the app builds it."
+          className="at-mt5"
+        >
+          <div className="at-numsample">
+            {written.map(([key, over]) => (
+              <button className="at-numsamplerow at-tappable" key={key} onClick={() => onWrite(key)}>
+                <span className="at-numfig">{key}</span>
+                <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
+                  {over.text}
+                </span>
+                {over.lat ? <Meta>{over.lat}</Meta> : null}
+              </button>
+            ))}
+          </div>
+        </Section>
+      ) : null}
 
       <Section
-        title="What a student will be asked"
-        lede="Tap any line to write it out yourself, where the app has it wrong."
-        action={
+        title="How the app says them"
+        lede="A spread of numbers of every shape. Tap one that is wrong to write it out yourself."
+        className="at-mt5"
+      >
+        <SampleRows lang={lang} draft={draft} values={shown} render={render} onWrite={onWrite} />
+        <div className="at-row at-mt3">
           <Button
             size="sm"
             onClick={() => setExtra((e) => e.concat([Math.floor(seeded(`more ${e.length}`)() * 9999999)]))}
           >
-            Another
+            Another number
           </Button>
-        }
-        className="at-mt5"
-      >
-        <SampleRows lang={lang} draft={draft} values={shown} render={render} onWrite={onWrite} />
+          <Button size="sm" onClick={onCheck}>
+            Check a number
+          </Button>
+        </div>
       </Section>
-    </>
+    </Screen>
   );
 }
 
@@ -710,7 +780,7 @@ function SampleRows({ lang, draft, values, render, onWrite }: {
  * and one tap away.
  */
 function PartScreen({
-  lang, draft, setDraft, check, checks, homes, labels, slots, render, twoWords, onKeepOne, nouns, decks, footer,
+  lang, draft, setDraft, check, checks, homes, labels, slots, render, twoWords, onKeepOne, nouns, decks, saveButton,
   onRecord, onWrite, onOpen, onDeckPart, onClose,
 }: {
   lang: Lang;
@@ -729,7 +799,8 @@ function PartScreen({
   /** The teacher's noun cards in this language, read for counting. */
   nouns: ReadNoun[];
   decks: PartDeck[];
-  footer: React.ReactNode;
+  /** Save, for the top bar. */
+  saveButton: React.ReactNode;
   onRecord: (slot: string, key: FormKey) => void;
   onWrite: (key: string) => void;
   onOpen: (rangeId: string) => void;
@@ -779,7 +850,7 @@ function PartScreen({
   );
 
   return (
-    <Screen title={range.label} onBack={onClose} footer={footer} className="cardform">
+    <Screen title={range.label} onBack={onClose} action={saveButton} className="cardform">
       {/* First, as a card's editor puts them near the top: where this part
           goes decides whether anybody is ever asked it. */}
       <PartDecks range={range} decks={decks} onDeckPart={onDeckPart} />
@@ -809,8 +880,8 @@ function PartScreen({
 
       {range.counted ? null : (
         <PartBlock
-          title="What a student will be asked"
-          role="Tap any line to write it out yourself, where the app has it wrong."
+          title="How the app says them"
+          role="Tap one that is wrong to write it out yourself: students are asked your wording instead."
         >
           <SampleRows lang={lang} draft={draft} values={probeOf(range)} render={render} onWrite={onWrite} />
         </PartBlock>
@@ -1071,7 +1142,7 @@ function PartDecks({ range, decks, onDeckPart }: {
       <DeckSwitch
         of="part"
         decks={decks}
-        chosen={decks.filter((d) => (d.parts || []).includes(range.id)).map((d) => d.id)}
+        chosen={decks.filter((d) => partsNow(d.parts || []).includes(range.id)).map((d) => d.id)}
         onToggle={(id, wasOn) => onDeckPart(id, range.id, !wasOn)}
       />
     </PartBlock>
@@ -1088,7 +1159,12 @@ function PartDecks({ range, decks, onDeckPart }: {
  * this is where they would look for what a part can be borrowed as.
  */
 function PartTags({ range, open }: { range: Range; open: boolean }) {
-  const [own, general] = partTags(range);
+  /* Its own tag and the general one, first and last: a part split out of
+     an older one also answers to that part's tag, for the sentences
+     written with it, but that is not a name to write new ones with. */
+  const tags = partTags(range);
+  const own = tags[0];
+  const general = tags[tags.length - 1];
   const what = (name: string) =>
     name === general
       ? range.counted
@@ -1146,7 +1222,7 @@ function TimesTab({ lang, numbers, clock, setClock, hourReady, slots, render, on
   if (!slots.length) {
     return (
       <Notice kind="warn">
-        Nobody has written down how {lang.name} tells the time yet. The numbers above still work.
+        Nobody has written down how {lang.name} tells the time yet. The numbers still work.
       </Notice>
     );
   }
@@ -1155,7 +1231,7 @@ function TimesTab({ lang, numbers, clock, setClock, hourReady, slots, render, on
       <Notice kind="warn">
         <b>The clock waits on the numbers.</b> The word for <i>hour</i> is feminine, so one
         o&apos;clock and two o&apos;clock are said with the numerals that go with a feminine
-        word. Fill those in on the Numbers tab — the boxes marked <i>with a feminine word</i> —
+        word. Fill those in on the number parts — the boxes marked <i>with a feminine word</i> —
         and this opens.
       </Notice>
     );
@@ -1569,10 +1645,10 @@ function WrittenOutScreen({ lang, draft, forKey, slots, render, onKeep, onClose 
     <Screen
       title={`${Number.isFinite(value) ? value.toLocaleString("en") : forKey}, written out`}
       onBack={onClose}
-      footer={
+      action={
         <Button
           variant="primary"
-          wide
+          size="sm"
           disabled={!changed}
           onClick={() => onKeep(text, lat)}
         >

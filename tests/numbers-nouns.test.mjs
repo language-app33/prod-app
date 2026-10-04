@@ -162,10 +162,10 @@ test("with no noun cards at all, counting waits on something to count", () => {
 
 test("each box is on the screen of the first part that needs it", () => {
   const homes = homesOf(arComposer);
-  assert.equal(homes.get("unit.7"), "numbers:0-10");
-  assert.equal(homes.get("teen.13"), "numbers:11-99");
-  assert.equal(homes.get("ten.40"), "numbers:11-99");
-  assert.equal(homes.get("connector"), "numbers:11-99");
+  assert.equal(homes.get("unit.7"), "numbers:0-9");
+  assert.equal(homes.get("teen.13"), "numbers:10-19");
+  assert.equal(homes.get("ten.40"), "numbers:20-99");
+  assert.equal(homes.get("connector"), "numbers:20-99");
   assert.equal(homes.get("hundred.2"), "numbers:100-999");
   assert.equal(homes.get("thousand.1"), "numbers:1000+");
   /* Every box the language asks for is somewhere. */
@@ -181,7 +181,10 @@ const of = (made, part) => made.filter((c) => c.source && c.source.slot === `fil
 test("each part answers to a tag of its own and a general one, the same in every language", () => {
   const tags = (/** @type {any} */ composer) => composer.ranges().filter((/** @type {any} */ r) => r.kind === "numbers").map(partTags);
   assert.deepEqual(tags(arComposer), [
-    ["0-10", "number"], ["11-99", "number"], ["100-999", "number"], ["1000-plus", "number"],
+    /* The parts split out of 0 to 10 and 11 to 99 still answer to the old
+       tags, so a sentence written with {{11-99}} before the split is filled. */
+    ["0-9", "0-10", "number"], ["10-19", "11-99", "number"], ["20-99", "11-99", "number"],
+    ["100-999", "number"], ["1000-plus", "number"],
     ["count-1-2", "count"], ["count-3-10", "count"], ["count-11-20", "count"],
   ]);
   assert.deepEqual(tags(heComposer), tags(arComposer));
@@ -189,23 +192,23 @@ test("each part answers to a tag of its own and a general one, the same in every
 
 test("a part fills its tags with its numbers, written out", () => {
   const sys = { ...SYS, nouns: [] };
-  const made = of(fillerCards(arComposer, sys), "numbers:0-10");
-  assert.equal(made.length, 11, "the whole of 0 to 10");
+  const made = of(fillerCards(arComposer, sys), "numbers:0-9");
+  assert.equal(made.length, 10, "the whole of 0 to 9");
   for (const card of made) {
-    assert.deepEqual(card.fills, ["0-10", "number"]);
+    assert.deepEqual(card.fills, ["0-9", "0-10", "number"]);
     assert.equal(card.drill, false, "borrowed by a sentence, never asked on its own");
     assert.equal(card.kind, "phrase", "kept out of {{word}}");
     assert.ok(card.forms[0].ar);
   }
-  assert.deepEqual(made.map((c) => c.forms[0].en), ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+  assert.deepEqual(made.map((c) => c.forms[0].en), ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
   /* The same numbers on every device: made twice, the same ids. */
-  assert.deepEqual(of(fillerCards(arComposer, sys), "numbers:0-10").map((c) => c.id), made.map((c) => c.id));
+  assert.deepEqual(of(fillerCards(arComposer, sys), "numbers:0-9").map((c) => c.id), made.map((c) => c.id));
   /* And with no nouns, no counting part lends anything. */
   assert.equal(fillerCards(arComposer, sys).filter((c) => (c.fills || []).includes("count")).length, 0);
 });
 
 test("a bigger part lends an even spread of itself, not its first dozen", () => {
-  const made = of(fillerCards(arComposer, { ...SYS, nouns: [] }), "numbers:11-99");
+  const made = of(fillerCards(arComposer, { ...SYS, nouns: [] }), "numbers:20-99");
   assert.ok(made.length > 0 && made.length <= FILLERS_PER_PART);
   const values = made.map((c) => Number(c.forms[0].en));
   assert.ok(Math.max(...values) - Math.min(...values) > 40, `${values} is bunched up`);
@@ -229,7 +232,7 @@ test("a sentence asking for a part's blank is shown the part's numbers on the te
   const sentence = { id: "s1", lang: "ar-PS", sentence: true, forms: [{ ar: "{{0-10}}", en: "I am {{0-10}}", lat: "" }] };
   const pool = /** @type {any[]} */ ([sentence, ...fillerCards(arComposer, sys)]);
   const got = fillersFor(sentence.forms[0], pool, LANGUAGES["ar-PS"]);
-  assert.equal(got["0-10"].length, 11);
+  assert.equal(got["0-10"].length, 10, "the old tag, filled from 0 to 9");
   assert.equal(got["0-10"][3].en, "3");
 });
 

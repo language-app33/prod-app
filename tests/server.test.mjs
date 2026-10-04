@@ -2829,14 +2829,8 @@ test("a teacher's numbers reach their students, and the version moves when a wor
     method: "POST", key: tkey, body: { kind: "numbers", system: numberSystem() },
   });
 
-  /* A new system waits for its teacher to sign it off — see sign-system. */
-  const unsigned = await api("/api/courses?action=my-material", { key: skey });
-  assert.deepEqual(unsigned.json.systems, [], "nothing reaches a student before sign-off");
-  const signed = await api("/api/courses?action=sign-system", {
-    method: "POST", key: tkey, body: { kind: "numbers", languageId: "ar-PS", rev: 1 },
-  });
-  assert.equal(signed.status, 200, signed.text);
-
+  /* A save is what students get: there is no second step — see
+     save-system. */
   const after = await api("/api/courses?action=my-material", { key: skey });
   assert.equal(after.json.systems.length, 1, "the student has the teacher's numbers");
   assert.equal(after.json.systems[0].lexemes["unit.1"].forms.standalone, "one");
@@ -2854,22 +2848,18 @@ test("a teacher's numbers reach their students, and the version moves when a wor
       }),
     },
   });
-  /* A correction waits for sign-off too: until then the student keeps the
-     version that was signed, rather than losing their numbers. */
-  const waiting = await api("/api/courses?action=my-material", { key: skey });
-  assert.equal(waiting.json.systems[0].lexemes["unit.1"].forms.standalone, "one", "the signed version stays");
-  const stale = await api("/api/courses?action=sign-system", {
-    method: "POST", key: tkey, body: { kind: "numbers", languageId: "ar-PS", rev: 1 },
-  });
-  assert.equal(stale.status, 409, "only the version on disk can be signed off");
-  await api("/api/courses?action=sign-system", {
-    method: "POST", key: tkey, body: { kind: "numbers", languageId: "ar-PS", rev: 2 },
-  });
   const listed = await api("/api/courses?action=my-systems", { key: tkey });
-  assert.equal(Object.values(listed.json.signed)[0], 2, "the teacher's screen says what is signed");
+  assert.equal(Object.values(listed.json.signed)[0], 2, "the teacher's screen says what students have");
   const corrected = await api("/api/courses?action=my-material", { key: skey });
   assert.notEqual(corrected.json.version, after.json.version, "a corrected word moves the version");
   assert.equal(corrected.json.systems[0].lexemes["unit.1"].forms.standalone, "wahad");
+
+  /* A device on a build that still asks to sign off finds its version
+     already signed, and is not refused. */
+  const late = await api("/api/courses?action=sign-system", {
+    method: "POST", key: tkey, body: { kind: "numbers", languageId: "ar-PS", rev: 2 },
+  });
+  assert.equal(late.status, 200, late.text);
 
   /* And an unchanged site still answers `unchanged`, so the poll stays cheap. */
   const nothing = await api(

@@ -7764,17 +7764,17 @@ const openPronounTables = async () => {
   const partRow = (/** @type {RegExp} */ re) =>
     [...document.querySelectorAll(".at-tickrow, label")].find((r) => re.test(r.textContent || ""));
   check("and lists the parts of the numbers, counting things in three",
-    !!partRow(/Numbers 0 to 10/) && !!partRow(/Counting things: 1 and 2/) &&
+    !!partRow(/Numbers 0 to 9/) && !!partRow(/Numbers 10 to 19/) && !!partRow(/Counting things: 1 and 2/) &&
       !!partRow(/Counting things: 3 to 10/) && !!partRow(/Counting things: 11 to 20/) && !!partRow(/Telling the hour/),
     [...document.querySelectorAll(".at-tickrow, label")].map((r) => (r.textContent || "").slice(0, 24)).join(" | ") || "(no list)");
-  const box = partRow(/Numbers 0 to 10/);
+  const box = partRow(/Numbers 0 to 9/);
   click(box && (box.querySelector("input") || box));
   await sleep(150);
   click(buttonNamed(/^Save$/));
   await sleep(600);
   const sent = savedParts[savedParts.length - 1];
   check("and saving tells the server which parts the deck holds",
-    !!sent && sent.deckId === "d1" && JSON.stringify(sent.parts) === JSON.stringify(["numbers:0-10"]),
+    !!sent && sent.deckId === "d1" && JSON.stringify(sent.parts) === JSON.stringify(["numbers:0-9"]),
     JSON.stringify(savedParts));
 }
 
@@ -7970,8 +7970,11 @@ const openPronounTables = async () => {
         onDeckPart: (/** @type {string} */ deckId, /** @type {string} */ rangeId, /** @type {boolean} */ on) => {
           deckCalls.push([deckId, rangeId, on]);
         },
+        /* As the space does: the saved system comes back a revision on,
+           and the screen takes it as what is saved. */
         onSave: (/** @type {string} */ kind, /** @type {any} */ sys) => {
           saves.push({ kind, sys });
+          draw({ ...sys, rev: (sys.rev || 0) + 1 });
         },
         onClose() {},
       }),
@@ -8021,30 +8024,32 @@ const openPronounTables = async () => {
   await sleep(200);
   const tiles = [...panel().querySelectorAll(".at-numparts .at-deckcard")];
   check("the number system's editor opens on its parts, one button each",
-    tiles.length >= 7 && !!tileNamed("Numbers 0 to 10") && !!tileNamed("Numbers 11 to 99"),
+    tiles.length >= 8 && !!tileNamed("Numbers 0 to 9") && !!tileNamed("Numbers 10 to 19") &&
+      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 and over"),
     tiles.map((t) => (t.textContent || "").trim()).join(" | "));
   check("and each says what it is waiting for",
-    /waiting on/.test((tileNamed("Numbers 0 to 10") || {}).textContent || ""),
-    ((tileNamed("Numbers 0 to 10") || {}).textContent || "").trim());
+    /waiting on/.test((tileNamed("Numbers 0 to 9") || {}).textContent || ""),
+    ((tileNamed("Numbers 0 to 9") || {}).textContent || "").trim());
   check("with no boxes on the main screen any more",
     panel().querySelectorAll(".at-numrow").length === 0,
     `${panel().querySelectorAll(".at-numrow").length} rows`);
   check("and the things-to-count list gone",
     !/Things to count/.test(panel().textContent || ""));
-  const order = (panel().textContent || "");
-  check("check a number sits above what a student will be asked",
-    order.indexOf("Check a number") > -1 && order.indexOf("Check a number") < order.indexOf("What a student will be asked"),
-    `${order.indexOf("Check a number")} · ${order.indexOf("What a student will be asked")}`);
+  check("the clock and the corrections are screens of their own, opened from here",
+    !!tileNamed("Telling the time") && !!tileNamed("Correct how a number is said"));
+  check("and nothing on the main screen is edited, so it has no Save and no Publish",
+    !buttonIn(/Save/) && !buttonIn(/Publish/) && !/What a student will be asked/.test(panel().textContent || ""),
+    [...up().querySelectorAll("button")].map((b) => (b.textContent || "").trim()).filter(Boolean).join(" | "));
 
   /* One part opens on a screen of its own, with the words it is the first
      to need. */
-  click(tileNamed("Numbers 0 to 10"));
+  click(tileNamed("Numbers 0 to 9"));
   await sleep(250);
   check("a part opens on a screen of its own",
-    !!screenNamed("Numbers 0 to 10"),
+    !!screenNamed("Numbers 0 to 9"),
     ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
-  check("which holds the boxes for one to ten and none of the tens",
-    up().querySelectorAll(".at-numrow").length === 11 && !boxNamed("40, counting"),
+  check("which holds the boxes for zero to nine and none of the teens or tens",
+    up().querySelectorAll(".at-numrow").length === 10 && !boxNamed("10, counting") && !boxNamed("40, counting"),
     `${up().querySelectorAll(".at-numrow").length} rows`);
 
   const sevenBox = boxNamed("7, counting");
@@ -8109,7 +8114,7 @@ const openPronounTables = async () => {
   click(must(pick("Lesson 1"), "Lesson 1"));
   await sleep(150);
   check("picking a deck asks for the part to be put in it",
-    JSON.stringify(deckCalls[deckCalls.length - 1]) === JSON.stringify(["d1", "numbers:0-10", true]),
+    JSON.stringify(deckCalls[deckCalls.length - 1]) === JSON.stringify(["d1", "numbers:0-9", true]),
     JSON.stringify(deckCalls));
   const shut = document.querySelector('.at-sheet[aria-label="Decks"] .at-iconbtn, .at-sheet[aria-label="Decks"] button[aria-label="Close"]');
   click(shut);
@@ -8119,7 +8124,7 @@ const openPronounTables = async () => {
      default tags are, and nothing to type. */
   const tags = [...up().querySelectorAll(".at-tagchips .at-tagchip")].map((t) => t.textContent);
   check("the part shows the tags it fills blanks under, as a card shows its default tags",
-    JSON.stringify(tags) === JSON.stringify(["0-10", "number"]) && /Filling blanks/.test(up().textContent || ""),
+    JSON.stringify(tags) === JSON.stringify(["0-9", "number"]) && /Filling blanks/.test(up().textContent || ""),
     tags.join(" | ") || "(no tags)");
   check("and they cannot be changed", !boxNamed("A blank this part fills") && !buttonIn(/^Add$/));
 
@@ -8144,18 +8149,51 @@ const openPronounTables = async () => {
     !!boxNamed("Transliteration for 7"));
 
   const keep = buttonIn(/^Keep it$/);
-  check("and the footer keeps it", !!keep);
+  check("and the top bar keeps it", !!keep && !!keep.closest(".at-screenhead"));
   if (keep) {
     click(keep);
     await sleep(250);
     check("which goes back to the part, with it filed among the numbers you wrote out",
-      !!screenNamed("Numbers 0 to 10") && /Numbers you wrote out/.test(up().textContent || ""),
+      !!screenNamed("Numbers 0 to 9") && /Numbers you wrote out/.test(up().textContent || ""),
       (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
 
-  /* A counting part counts the teacher's noun cards, and says what the
-     rest are missing. */
+  /* Leaving with something unsaved is asked, not carried back to a screen
+     with no Save on it. Cancel stays. */
   await goBack();
+  const asked = [...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Don't save");
+  check("leaving a part with unsaved changes asks whether to save them",
+    !!asked && /Save your changes/.test(document.body.textContent || ""));
+  const cancel = [...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Cancel");
+  click(cancel);
+  await sleep(200);
+  check("and cancelling stays on the part", !!screenNamed("Numbers 0 to 9"));
+
+  const save = buttonIn(/^Save$/);
+  check("the part's Save is in the top bar", !!save && !!save.closest(".at-screenhead"));
+  if (save) {
+    click(save);
+    await sleep(250);
+    const saved = saves[saves.length - 1];
+    check("saving hands back a number system", !!saved && saved.kind === "numbers",
+      saved ? saved.kind : "nothing saved");
+    check("with the word that was typed, how it sounds, and the line that was written out",
+      !!saved &&
+        ((saved.sys.lexemes["unit.7"] || { forms: {} }).forms.standalone === "sab3a") &&
+        ((saved.sys.lexemes["unit.7"] || { lat: {} }).lat || {}).standalone === "sabʕa" &&
+        (saved.sys.overrides["7"] || {}).text === "sabʕa-wahde",
+      saved
+        ? `${JSON.stringify(saved.sys.lexemes["unit.7"])} · ${JSON.stringify(saved.sys.overrides)}`
+        : "nothing saved");
+    check("and no list of nouns",
+      !!saved && saved.sys.nouns.length === 0,
+      saved ? `${saved.sys.nouns.length} nouns` : "nothing saved");
+  }
+
+  /* A counting part counts the teacher's noun cards, and says what the
+     rest are missing. Saved, so going back asks nothing. */
+  await goBack();
+  check("once saved, going back asks nothing", !!screenNamed("Number system") && !/Save your changes/.test(document.body.textContent || ""));
   click(tileNamed("Counting things: 3 to 10"));
   await sleep(250);
   check("a counting part lists the noun cards it counts",
@@ -8193,26 +8231,14 @@ const openPronounTables = async () => {
   check("and coming back leaves the parts as they were",
     !!screenNamed("Number system") && panel().querySelectorAll(".at-numparts .at-deckcard").length >= 7);
 
-  const save = buttonIn(/^Save$/);
-  check("and the footer offers to save once something has changed", !!save);
-  if (save) {
-    click(save);
-    await sleep(200);
-    const saved = saves[saves.length - 1];
-    check("saving hands back a number system", !!saved && saved.kind === "numbers",
-      saved ? saved.kind : "nothing saved");
-    check("with the word that was typed, how it sounds, and the line that was written out",
-      !!saved &&
-        ((saved.sys.lexemes["unit.7"] || { forms: {} }).forms.standalone === "sab3a") &&
-        ((saved.sys.lexemes["unit.7"] || { lat: {} }).lat || {}).standalone === "sabʕa" &&
-        (saved.sys.overrides["7"] || {}).text === "sabʕa-wahde",
-      saved
-        ? `${JSON.stringify(saved.sys.lexemes["unit.7"])} · ${JSON.stringify(saved.sys.overrides)}`
-        : "nothing saved");
-    check("and no list of nouns",
-      !!saved && saved.sys.nouns.length === 0,
-      saved ? `${saved.sys.nouns.length} nouns` : "nothing saved");
-  }
+  /* And the corrections: their own screen, with the one written out on top. */
+  click(tileNamed("Correct how a number is said"));
+  await sleep(250);
+  check("the corrections screen lists what was written out, and a spread to find the rest",
+    !!screenNamed("Correct how a number is said") && /sabʕa-wahde/.test(up().textContent || "") &&
+      up().querySelectorAll(".at-numsamplerow").length > 20,
+    (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  await goBack();
 
   editorRoot.unmount();
   host.remove();

@@ -3185,6 +3185,46 @@ keeps a half-written system from putting an unanswerable question up.
 
 ---
 
+## A number part is learnt only once its words are, and is steered towards them
+
+**4 October 2026** · `src/numbers/generate.ts` (`fileIntoDecks`,
+`askingsWithWords`, `steeredAsk`), `src/ArabicTrainer.tsx`
+(`cardStandings`, `partsOf`, `drawRange`, `NumberParts`)
+
+A part's own ladder said whether the learner was getting numbers right,
+and a run of easy ones could say it about 11 to 99 while *ninety* had never
+been kept. Nothing showed the words a part is built from, and the draw was
+uniform over the number line, so *and* came up in nearly every question and
+*seventy* in one in nine.
+
+**The words are written on the part.** `fileIntoDecks` already works out
+every card a part's askings stand on, to file them with it; it now leaves
+that list on the part as `parts`, so nothing downstream has to render a
+part's numbers again to know what it is made of.
+
+**Validated is learnt.** The app's own standard for any card, read through
+the same standings every screen reads. A word that cannot be asked at all
+holds nothing back, since nothing could ever validate it.
+
+**The part waits on them.** `cardStandings` takes the collection where the
+caller has it, and a part whose top is done while any of its words is not
+learnt is held at *cleared*, with `held` saying how many. Without the
+collection a part reads as its own ladder, as before; only one card's own
+line has no collection to hand.
+
+**Questions lean towards them.** `steeredAsk` picks a word not yet learnt,
+each as likely as the next, and then one of the part's askings that stands
+on it; the ordinary draw resumes once every word is learnt. Word first, so
+a word the number line is thin on is reached as often as one it is thick
+with. Seeded as before, so a missed question comes back the same while the
+words waiting are the same ones.
+
+**What it costs.** One more pass over a part's askings per system, cached
+per system object. A part already in a collection learns its words at the
+next course refresh; until then it reads and draws as it did.
+
+---
+
 ## A time is a number with a feminine noun
 
 **22 September 2026** · `src/numbers/compose.ts` (`renderClock`),
@@ -4546,3 +4586,72 @@ box, which was weighed and left out until someone asks.
 
 **Revisit if** a teacher asks for خمست أيام spelt that way, or for a
 counted phrase to accept more than one spelling.
+
+---
+
+## Five stretches of the number line, and a save that publishes
+
+**4 October 2026** · `NUMBER_RANGES` and `partsNow` in
+`src/numbers/types.ts`; `partTags` and `handOnSplit` in
+`src/numbers/generate.ts`; `save-system` in `server/api/courses.js`;
+`src/number-system-editor.tsx`
+
+**0 to 10 and 11 to 99 are 0 to 9, 10 to 19 and 20 to 99.** The owner
+asked for smaller parts, and the lines are where the work is: the
+digits, the teens (a pattern of their own in every language here), and
+the tens with the joining word. Ten went with the teens rather than the
+digits because it is the first number of two figures, and where a
+language builds its teens on it, that is where they start. One list now
+serves all three languages, since the stretches never differed.
+
+**Nothing anybody had on the old parts is lost, through one field.** A
+new part names the part it came out of in `was`, and three things read
+it: `handOnSplit` gives a learner's schedule on the old part to each new
+one (onto a device that has never held the new one, as with counting),
+`partsNow` reads a deck that stored the old id as holding the new parts,
+and `partTags` keeps answering to the old blank, so `{{11-99}}` in a
+sentence is filled from 10 to 99. Decks are not rewritten on the server;
+they are read through `partsNow` wherever a deck's parts are read, and
+store the new ids the next time a teacher changes them. The cost:
+`{{0-10}}` now never draws 10, and a sentence approved under the old
+draw may meet numbers the teacher has not seen and wait for review.
+
+**Save publishes.** There was a Save and a Publish, and students got the
+version last published. The owner asked for one button. The record of
+what students get is unchanged — `save-system` now writes it — so a
+device or a server from before this reads it as it always did, and
+`sign-system` is kept for a build that still calls it. What is given up
+is a teacher saving work in progress without students seeing it.
+
+**The number screen lists; other screens edit.** Its only control was
+Save, and everything it saved was edited somewhere else. Each part, the
+clock, and the numbers written out by hand ("Correct how a number is
+said", which was the list called *What a student will be asked*) is a
+screen with Save at its top right. Leaving one with unsaved changes asks
+Save / Don't save / Cancel, because the screen it goes back to has no
+Save to keep them with.
+
+---
+
+## What a number answer credits, word by word
+
+**4 October 2026** · `tokenCards` in `src/ArabicTrainer.tsx`;
+`cardsOfToken` and the clock's cards in `src/numbers/generate.ts`
+
+An audit of progress on the numbers found the range side sound — each
+part has its own schedule, is held at Cleared until the words it is built
+of are learnt, and carries across the split — and the word side short in
+four places, all in the line that turns a rendered answer into the cards
+it credits. It looked every word up under the numbers document alone, so
+a time's clock words (the time document's cards, and minute expressions
+named `minute.N` in a rendering but `min.N` as cards) were never credited;
+it credited the lead form, so a face with a schedule of its own — the
+feminine, the word before a noun — never was; it skipped counted nouns,
+which are the teacher's noun cards; and a time written out by hand was
+not a card at all. `tokenCards` now resolves each token through
+`cardsOfToken`, the mapping `wordsOfRange` already used to file the same
+words into decks, so what a part brings into a deck and what an answer
+credits are one answer. The rules for how far a credit moves a word are
+unchanged (`fillerMarks`): right answers only, never starting a word's
+own schedule, moving it only where it was due.
+

@@ -360,7 +360,7 @@ test("the composer names itself and its ranges", () => {
   const ranges = arComposer.ranges();
   assert.deepEqual(
     ranges.map((r) => r.id),
-    ["numbers:0-10", "numbers:11-99", "numbers:100-999", "numbers:1000+", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
+    ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
   );
   for (const r of ranges) {
     assert.ok(r.from <= r.to, `${r.id} is back to front`);

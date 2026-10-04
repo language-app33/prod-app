@@ -46,7 +46,7 @@ import type {
   SlotSpec,
   TwoWords,
 } from "./types.ts";
-import { COUNTING_RANGES, NUMBER_CEILING } from "./types.ts";
+import { COUNTING_RANGES, NUMBER_CEILING, NUMBER_RANGES } from "./types.ts";
 import { Build } from "./build.ts";
 import { chunksOf, genderKeyOf, nounTextOf } from "./compose.ts";
 import type { VerbSpec } from "../types.ts";
@@ -146,16 +146,13 @@ export const AR_SLOTS: SlotSpec[] = [
 /**
  * The ranges a learner is scheduled on.
  *
- * Four stretches of the number line and one skill that is not a stretch
+ * Five stretches of the number line (NUMBER_RANGES) and one skill that is not a stretch
  * at all: counting a noun is a different thing to know from saying a
  * number, and a learner solid on one is routinely lost on the other. That
  * skill comes in three parts — see COUNTING_RANGES.
  */
 export const AR_RANGES: Range[] = [
-  { id: "numbers:0-10", kind: "numbers", label: "Numbers 0 to 10", from: 0, to: 10 },
-  { id: "numbers:11-99", kind: "numbers", label: "Numbers 11 to 99", from: 11, to: 99 },
-  { id: "numbers:100-999", kind: "numbers", label: "Numbers 100 to 999", from: 100, to: 999 },
-  { id: "numbers:1000+", kind: "numbers", label: "Numbers over a thousand", from: 1000, to: NUMBER_CEILING },
+  ...NUMBER_RANGES,
   ...COUNTING_RANGES,
 ];
 

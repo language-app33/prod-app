@@ -220,10 +220,6 @@ export const detachDeck = (deckId: string, courseId: string) =>
    carries the document that is there — see `stale-system` in explain. */
 export const mySystems = (): Promise<{ ok: true; systems: any[]; signed?: Record<string, number | null> }> =>
   call("my-systems");
-/* A teacher's sign-off on the version of a system on disk — what students
-   are sent until the next one. */
-export const signSystem = (kind: "numbers" | "times", languageId: LangId, rev: number) =>
-  call("sign-system", { body: { kind, languageId, rev } });
 export const saveSystem = (
   kind: "numbers" | "times",
   system: unknown,

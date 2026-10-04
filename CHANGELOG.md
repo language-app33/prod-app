@@ -8,6 +8,77 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.326 — 4 October 2026
+
+**Every word in a number or a time now counts towards a student's
+progress.**
+
+- Answering a time question now counts as practice for the clock's own
+  words: "hour", "past" and "to", "quarter past", "half past" and the rest,
+  and the parts of the day like "in the evening". Before, only the numbers
+  inside a time were counted, so these words never moved however often a
+  student read them.
+- Where a number takes a different form, such as the feminine "one" in
+  "one o'clock" or the word used before a noun, the practice now goes to
+  that form. Before, it always went to the plain counting form.
+- Counting things now counts as practice for the noun as well, on the form
+  the number used: "three books" counts towards the plural of "book".
+- A time you have written out by hand, like noon, is now something
+  students learn and are tracked on, as a number written out by hand
+  already was.
+
+## 0.325 — 4 October 2026
+
+**Smaller number parts, one Save, and nothing to save on the main number
+screen.**
+
+- Numbers now come in five parts: 0 to 9, 10 to 19, 20 to 99, 100 to 999,
+  and 1,000 and over. Students keep their progress: what they had on 0 to
+  10 carries into 0 to 9, and what they had on 11 to 99 carries into both
+  10 to 19 and 20 to 99. A deck that held one of the old parts now holds
+  the parts it was split into, and sentences with a {{0-10}} or {{11-99}}
+  blank still work.
+- The Publish button is gone. Saving now sends your numbers to students
+  straight away.
+- The list called "What a student will be asked" is now its own screen,
+  "Correct how a number is said". It shows the numbers you have written out
+  yourself, then a spread of numbers as the app says them. Tap one that is
+  wrong to write it the way it should be said.
+- Telling the time has moved from a tab to its own screen.
+- The main number screen now only lists the parts, the time and
+  corrections, so it has no Save button. Each of those screens has Save in
+  the top right. If you leave one without saving, the app asks whether to
+  save your changes.
+
+## 0.324 — 4 October 2026
+
+**Progress on numbers, word by word.**
+
+- Progress has a new Numbers section. Each stretch of numbers a student is
+  studying (0 to 10, 11 to 99 and so on) shows how many of the words it is
+  built from they have learnt. Tapping a stretch shows every word in it
+  (each unit, teen, ten and hundred, and the word for "and") marked
+  Learnt, Learning or Not started. Tapping a word opens that word's card.
+- A stretch now counts as learnt only once every one of its words is
+  learnt. Until then it stays at Cleared and says how many words it is
+  waiting on.
+- The numbers a student is asked now lean towards the words they have not
+  learnt yet. Someone who has never been asked a number in the seventies
+  will get one, instead of waiting for it to come up by chance. Once every
+  word in a stretch is learnt, numbers are picked at random again.
+
+## 0.323 — 4 October 2026
+
+**Save is in the top corner on the number screens.**
+
+- On the number system screen, and on the screen for each stretch of
+  numbers, Save now sits in the top right of the bar, where it is on a
+  card, instead of at the bottom of a long page. It
+  shows "Saving…" while it works and is greyed out when there is nothing
+  new to save.
+- On the screen where one number is written out by hand, "Keep it" (or
+  "Put it back") has moved to the same corner.
+
 ## 0.322 — 3 October 2026
 
 **Noun properties are toggles, and more of a card folds away.**
