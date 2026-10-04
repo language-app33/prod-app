@@ -3362,6 +3362,7 @@ export function buildSession({
   budget: budgetIn,
   perDay,
   systems,
+  newWithin,
 }: {
   items: Item[];
   settings: Settings;
@@ -3369,6 +3370,18 @@ export function buildSession({
   practice?: boolean;
   includeAll?: boolean;
   budget?: number;
+  /**
+   * Count the new words already in hand among the chosen cards only.
+   *
+   * The limit on new words is the learner's, across everything they hold,
+   * and on the home screen it should be: it is what keeps new words from
+   * piling up. A practice somebody builds on particular decks is them
+   * asking for those decks, and a deck nobody has started then came up
+   * empty because of words in some other deck — "nothing new to bring in"
+   * over a deck that is all new. So there the limit is read over the
+   * chosen cards: the deck's own new words still come in a few at a time.
+   */
+  newWithin?: boolean;
   /**
    * Questions this learner answers on a typical day — `typicalDay` over
    * the activity log. It sizes how many words may be in hand at once (see
@@ -3565,7 +3578,11 @@ export function buildSession({
      * words hold their place and nothing new arrives, which is the same
      * protection without a rule of its own to keep in step.
      */
-    const room = roomForNew(handCounts(items, settings), inHandFor(perDay), frontDoorFor(perDay));
+    const room = roomForNew(
+      handCounts(newWithin ? items.filter(inDeck) : items, settings),
+      inHandFor(perDay),
+      frontDoorFor(perDay),
+    );
     /* Which ones, mixed by kind against what is already in the front door
        — see byVariety. Picked in the order they will be reached, so a
        session with room for only some of them still takes a mix. */
@@ -3998,7 +4015,9 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
    */
   if (mode === "regular") {
     const budget = count && count < 999 ? count : minutes ? minutes * TIMED_PER_MINUTE : SESSION_SIZE;
-    const built = buildSession({ items, settings, inDeck: (it) => chosen.has(it.id), budget, perDay, systems });
+    const built = buildSession({
+      items, settings, inDeck: (it) => chosen.has(it.id), budget, perDay, systems, newWithin: true,
+    });
     return { ...built, manual: true, mode, learnt: [] as Item[] };
   }
   const allowed = new Set(typesForMode(mode));
