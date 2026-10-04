@@ -425,7 +425,6 @@ export function NumberSystemEditor({
       check={open}
       checks={checks}
       homes={homes}
-      labels={labels}
       slots={slotSpecs}
       render={(n, ctx) => composer.render(n, counted, ctx)}
       twoWords={twoWords.filter((q) => q.n >= open.range.from && q.n <= open.range.to)}
@@ -435,7 +434,6 @@ export function NumberSystemEditor({
       saveButton={saveButton}
       onRecord={(slot, key) => setRecording({ slot, key })}
       onWrite={setWriting}
-      onOpen={setPart}
       onDeckPart={onDeckPart}
       onClose={leave(() => setPart(null))}
     />
@@ -827,12 +825,11 @@ function SampleRows({ lang, draft, values, render, onWrite }: {
  * a list of what could be asked; the list said *11 to 99 is waiting on
  * forty* and the box for forty was somewhere below the fold. Here the
  * part is the way in, and the boxes it is waiting on are the ones on its
- * screen — or, where they belong to an earlier part, that part is named
- * and one tap away.
+ * screen.
  */
 function PartScreen({
-  lang, draft, setDraft, check, checks, homes, labels, slots, render, twoWords, onKeepOne, nouns, decks, saveButton,
-  onRecord, onWrite, onOpen, onDeckPart, onClose,
+  lang, draft, setDraft, check, checks, homes, slots, render, twoWords, onKeepOne, nouns, decks, saveButton,
+  onRecord, onWrite, onDeckPart, onClose,
 }: {
   lang: Lang;
   draft: NumberSystem;
@@ -840,7 +837,6 @@ function PartScreen({
   check: RangeCheck;
   checks: RangeCheck[];
   homes: Map<string, string>;
-  labels: Map<string, string>;
   slots: SlotSpec[];
   render: (n: number, ctx?: { noun?: CountedNoun }) => { text: string; warnings: { code: string; slot?: string; detail?: string }[] };
   /** Boxes in this part that used to be two and still hold two different
@@ -854,26 +850,11 @@ function PartScreen({
   saveButton: React.ReactNode;
   onRecord: (slot: string, key: FormKey) => void;
   onWrite: (key: string) => void;
-  onOpen: (rangeId: string) => void;
   onDeckPart?: (deckId: string, rangeId: string, on: boolean) => void;
   onClose: () => void;
 }) {
   const range = check.range;
   const own = slots.filter((s) => homes.get(s.slot) === range.id);
-  const status = partStatus(check, checks, homes, labels);
-  /* The earlier part this one is waiting on, where it is one, so the way
-     to it is a button rather than a hunt. */
-  const waitingFor = (() => {
-    if (check.open) return null;
-    const stops = blocking(check.warnings as never) as { slot?: string }[];
-    for (const w of stops) {
-      const home = w.slot ? homes.get(w.slot) : "";
-      if (home === CONNECTING) return { id: CONNECTING, label: "Connecting words" };
-      const at = home && home !== range.id ? checks.find((c) => c.range.id === home) : null;
-      if (at) return { id: at.range.id, label: at.range.label };
-    }
-    return null;
-  })();
   /* Built from the parts before it alone — Huế's 11 to 99. */
   const before = checks.filter((c) => c.range.kind === "numbers" && !c.range.counted);
   const earlier = before.slice(0, Math.max(0, before.findIndex((c) => c.range.id === range.id)));
@@ -885,22 +866,13 @@ function PartScreen({
         return Number.isFinite(n) && n >= range.from && n <= range.to;
       });
 
-  /* Where it stands, and the way to the earlier part it is waiting on —
-     at the head of the part's own words, which is what it is about. */
-  const standing = (
-    <>
-      <p className="at-numstate" data-open={check.open ? "" : undefined}>
-        {check.open ? "Ready: a student can be asked anything in this part." : `Not asked yet — ${status}.`}
-      </p>
-      {waitingFor ? (
-        <div className="at-row at-mt3">
-          <Button size="sm" onClick={() => onOpen(waitingFor.id)}>
-            {`Open ${waitingFor.label}`}
-          </Button>
-        </div>
-      ) : null}
-    </>
-  );
+  /* Said only once the part is ready. A part that was not used to say
+     "Not asked yet — waiting on …", with a button to the part it named;
+     it confused more than it helped, and the parts list already says
+     where each one stands. */
+  const standing = check.open ? (
+    <p className="at-numstate" data-open="">Ready: a student can be asked anything in this part.</p>
+  ) : null;
 
   return (
     <Screen title={range.label} onBack={onClose} action={saveButton} className="cardform">

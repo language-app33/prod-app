@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.330 — 4 October 2026
+
+**No more "Not asked yet" on the number system's parts.**
+
+- A part of a number system that is not ready no longer opens with a
+  "Not asked yet — waiting on …" line, or the button under it to another
+  part. It confused more than it helped. A ready part still says so.
+
 ## 0.329 — 4 October 2026
 
 **The words that join a number have a screen of their own.**
