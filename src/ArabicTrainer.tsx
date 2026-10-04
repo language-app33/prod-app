@@ -194,7 +194,7 @@ import {
   renderAsk,
 } from "./numbers/range.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { askingsKnown, askKnown, cardsOfToken, fillerCards, isFromSystem, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
+import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
@@ -1500,8 +1500,27 @@ const waitsOnWord = (spec: VerbSpec): boolean => (spec.gate || "word") === "word
  */
 export function quietUnits(items: Item[], settings: Settings): Set<string> {
   const out: Set<string> = new Set();
+  const byId = byIdOf(items);
+  /* Whether each stretch is open, worked out once however many of its
+     words ask. */
+  const opened: Map<string, boolean> = new Map();
+  const isOpen = (stretch: Item, lang: Lang) => {
+    if (!opened.has(stretch.id)) opened.set(stretch.id, stretchOpen(stretch, items, lang));
+    return opened.get(stretch.id) as boolean;
+  };
   for (const card of items) {
     const lang = langOf(settingsFor(settings, card));
+    /*
+     * A number's word waits with its stretch — see homeStretch. The word
+     * for ninety is not met before 20 to 99 opens, nor *a million* on the
+     * first day. Quiet rather than missing, as the stretch is, so it keeps
+     * whatever the learner had on it and opens with the stretch.
+     */
+    const home = homeStretch(card, (id) => byId.get(id), composerFor(card.lang));
+    if (home && !isOpen(home, lang)) {
+      for (const { unit } of unitsOf(card)) out.add(unit.id);
+      continue;
+    }
     /*
      * A stretch of the number line that waits on the one below it.
      *

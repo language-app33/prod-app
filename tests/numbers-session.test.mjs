@@ -469,6 +469,10 @@ test("custom practice holds a number back the same way", () => {
    ------------------------------------------------------------------ */
 
 test("a session of numbers alone borrows no sentence, and a mixed one still may", () => {
+  /* From the die's first throw, whatever the tests above it dealt: whether
+     seven comes up in twenty sittings is chance, and every change to what
+     an earlier test deals moved this one's share of it. */
+  rolling = 20260922 >>> 0;
   const seven = must(words().find((/** @type {any} */ w) => w.id.endsWith(":unit.7")), "the word for seven");
   const phrase = {
     id: "p1", lang: "ar-PS", kind: "phrase", tags: [], created: 1, uses: [seven.id],
@@ -568,4 +572,56 @@ test("counting does not hold back the stretch above: 0 to 9 cleared on its numbe
       ? { ...it, forms: [{ ...it.forms[0], s: Object.fromEntries(TYPES.filter((/** @type {string} */ t) => t !== "count2phrase").map((/** @type {string} */ t) => [t, solid()])) }] }
       : it);
   assert.ok(dealtFrom(numbersOnly).has("numbers:10-19"), "10 to 19 waited on counting in 0 to 9");
+});
+
+/* ------------------------------------------------------------------
+   The words come in bottom up too
+
+   A word waits with the stretch whose screen it is on — the word for
+   ninety with 20 to 99, a million with the thousands and up — and a number
+   written out by hand with the stretch its number is in. A beginner's
+   first sessions are the digits and the clock, and nothing from the top
+   of the number line.
+   ------------------------------------------------------------------ */
+
+const { homesOf } = await import(path.join(here, "..", "src", "numbers", "generate.ts"));
+const HOMES = homesOf(arComposer);
+/** The stretch a word card is on, or "" for the clock's words. */
+const homeOf = (/** @type {any} */ it) => {
+  const slot = String(it.source.slot);
+  if (slot.startsWith("override:")) {
+    const n = Number(slot.slice(9).split("|")[0]);
+    return n >= 1000 ? "numbers:1000+" : n >= 100 ? "numbers:100-999" : n >= 20 ? "numbers:20-99" : n >= 10 ? "numbers:10-19" : "numbers:0-9";
+  }
+  return it.source.systemId === SYS.id ? HOMES.get(slot) || "" : "";
+};
+/** Which stretches' words a few sessions asked, and whether the clock's were. */
+const wordsFrom = (/** @type {any[]} */ items) => {
+  const byId = new Map(items.map((it) => [it.id, it]));
+  const asked = over(items, 6).map((/** @type {any} */ e) => byId.get(e.id)).filter((it) => it && !isRangeSkill(it));
+  return new Set(asked.map((it) => homeOf(it) || "clock"));
+};
+
+test("a beginner is asked the words of 0 to 9 and the clock, and nothing higher", () => {
+  const got = wordsFrom(skills().concat(words()));
+  assert.ok(got.has("numbers:0-9"), "the digits were not asked");
+  assert.ok(got.has("clock"), "the clock's words were held back");
+  for (const id of ["numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+"]) {
+    assert.ok(!got.has(id), `a word of ${id} was asked before the stretch below it was cleared`);
+  }
+});
+
+test("a stretch's words come in when it opens, and the next stretch's still wait", () => {
+  const got = wordsFrom(clearedOnly(["numbers:0-9"]).concat(words()));
+  assert.ok(got.has("numbers:10-19"), "the teens did not come in once 0 to 9 was cleared");
+  assert.ok(!got.has("numbers:20-99"), "the tens came in on 0 to 9 alone");
+  /* Written out by hand: 300 waits with 100 to 999 like the boxes do. */
+  assert.ok(!got.has("numbers:100-999"), "a number written out came in before its stretch");
+});
+
+test("a word whose stretch the learner was never handed waits on nothing", () => {
+  /* A deck that teaches 10 to 19 without 0 to 9: its words come straight in. */
+  const got = wordsFrom(skills().filter((/** @type {any} */ it) => it.range.id !== "numbers:0-9").concat(words()));
+  assert.ok(got.has("numbers:10-19"), "the teens waited on a stretch that is not here");
+  assert.ok(!got.has("numbers:20-99"), "the tens did not wait on 10 to 19");
 });

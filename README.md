@@ -984,7 +984,10 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   moment the one below clears; a stretch below that slips back off
   cleared shuts it again until it is recovered. Only a stretch the learner
   actually has is waited on — a deck that teaches 10 to 19 alone is not
-  held behind a 0 to 9 nobody sent — and the clock is not a stretch of
+  held behind a 0 to 9 nobody sent. A word waits with the stretch whose
+  screen it is on, and a number written out with the stretch it is in
+  (`homeStretch`), so *ninety* and *a million* are not met before their
+  stretches open — and the clock is not a stretch of
   the number line and waits on nothing. Cleared, here, is on a stretch's
   number questions alone: its counting question never holds the stretch
   above back (`stretchOpen` in the app).

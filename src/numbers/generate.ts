@@ -119,6 +119,42 @@ export function stretchBefore<T extends Item>(it: T, items: T[]): T | null {
   return below;
 }
 
+/**
+ * The stretch a word card waits with, if it waits with one.
+ *
+ * The words come in bottom up as the numbers do: the word for ninety is
+ * on 20 to 99's screen because 20 to 99 is the first stretch to need it,
+ * and a beginner handed it on the first day — beside *a million* and
+ * *two thousand* — has been handed the top of the number line before the
+ * bottom. So a word waits with the stretch it belongs to (see homesOf),
+ * and a number written out by hand with the stretch its number is in.
+ *
+ * The stretch's skill is looked up by id in what the learner holds, so a
+ * word whose stretch they were never handed — *seven*, brought by a deck
+ * that teaches 20 to 99 alone — waits on nothing, as that stretch would
+ * not. The clock's words are another system's and wait on nothing here.
+ */
+export function homeStretch<T extends Item>(
+  it: T,
+  held: (id: string) => T | undefined,
+  composer: Composer | null,
+): T | null {
+  if (!composer || !isFromSystem(it) || isRangeSkill(it)) return null;
+  const source = it.source as { slot?: unknown } | undefined;
+  const slot = String((source && source.slot) || "");
+  let home = "";
+  if (slot.startsWith("override:")) {
+    const n = figureOf(slot.slice("override:".length));
+    const range = n == null
+      ? null
+      : composer.ranges().find((r) => r.kind === "numbers" && !r.counted && n >= r.from && n <= r.to);
+    home = range ? range.id : "";
+  } else {
+    home = homesOf(composer).get(slot) || "";
+  }
+  return home ? held(rangeId(systemIdOf(it), home)) || null : null;
+}
+
 /* ---- one card ---- */
 
 interface Made {
