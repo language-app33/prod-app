@@ -40,7 +40,6 @@ const made = (/** @type {Record<string, any>} */ over = {}) =>
     sys: SYS,
     timeComposer: arTimeComposer,
     timeSys: TIME,
-    tag: "Numbers",
     now: NOW,
     ...over,
   });
@@ -81,7 +80,7 @@ test("a system becomes a card per word and a skill per range", () => {
     assert.ok(isFromSystem(it), `${it.id} does not say where it came from`);
     assert.equal(it.locked, true, `${it.id} should not be the learner's to edit`);
     assert.equal(it.lang, "ar-PS");
-    assert.deepEqual(it.tags, ["Numbers"]);
+    assert.deepEqual(it.tags, [], `${it.id} is filed under something other than a deck`);
   }
 });
 
@@ -312,7 +311,7 @@ const oldCard = (/** @type {string} */ id, /** @type {any} */ over = {}) => ({
 
 test("a learner's year on the card a box was filled from goes to the card that replaces it", () => {
   const sys = { ...SYS, migratedFrom: { "ten.40": "k40", "unit.7": "k7" } };
-  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, now: NOW });
   const held = [oldCard("k40")];
   const handed = handOn(fresh.items, held, sys);
 
@@ -332,7 +331,7 @@ test("and a card the device already holds keeps its own schedule, not an older o
   /* Whatever this device has learnt since is the answer. Handing the old
      card's schedule to a card already being asked would undo a week. */
   const sys = { ...SYS, migratedFrom: { "ten.40": "k40" } };
-  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, now: NOW });
   const id = componentId(sys.id, "ten.40");
   const held = [
     oldCard("k40"),
@@ -343,7 +342,7 @@ test("and a card the device already holds keeps its own schedule, not an older o
 });
 
 test("a system that was never migrated hands nothing on, and neither does an empty card", () => {
-  const fresh = generate({ composer: arComposer, sys: SYS, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const fresh = generate({ composer: arComposer, sys: SYS, timeComposer: null, timeSys: null, now: NOW });
   assert.equal(handOn(fresh.items, [oldCard("k40")], SYS), fresh.items, "no map, nothing to do");
   /* A card that was written and never answered has nothing to hand on, so
      the new card is left as the new card it is rather than being given an
@@ -371,7 +370,9 @@ test("a part in a deck brings its skill and the words it is built of, and nothin
   assert.ok(!ids.has(rangeId(SYS.id, "numbers:10-19")), "a part the deck does not hold");
   assert.ok(!ids.has(componentId(SYS.id, "hundred.1")), "a word only bigger numbers use");
   assert.ok(!filed.some((i) => i.range && i.range.kind === "time"), "nothing of the clock");
-  for (const it of filed) assert.ok(it.tags.includes("Week 1"), `${it.id} is not filed under its deck`);
+  /* Under its deck and nothing else: a name of the system's own would be
+     one more deck on the learner's side, holding every part at once. */
+  for (const it of filed) assert.deepEqual(it.tags, ["Week 1"], `${it.id} is not filed under its deck alone`);
 });
 
 test("nothing is sent from parts that are in no deck", () => {

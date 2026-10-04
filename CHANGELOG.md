@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.335 — 4 October 2026
+
+**Numbers are found under your teacher's decks, and nowhere else.**
+
+- Students no longer see a deck called "Palestinian Arabic numbers" (or
+  the same for any other language). It was a leftover from when numbers
+  went to every student outside any deck. Since 0.305 numbers come only
+  through a deck your teacher puts them in, so that extra entry only
+  listed the same cards a second time, and lumped every part together
+  whatever week the teacher had put it in.
+- The number and time cards are where they already were, under the decks
+  your teacher put them in, and keep every bit of progress you had on
+  them.
+- If you had chosen that entry to practise or to prep for, choose your
+  teacher's deck instead. A prep that named only that entry will say it
+  has nothing left in it.
+
 ## 0.334 — 4 October 2026
 
 **300 to 900 have word boxes of their own.**

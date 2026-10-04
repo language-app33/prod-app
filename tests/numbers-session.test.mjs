@@ -74,7 +74,6 @@ const generated = generate({
   sys: SYS,
   timeComposer: arTimeComposer,
   timeSys: TIME,
-  tag: "Numbers",
   now: 1750000000000,
 });
 

@@ -4128,10 +4128,6 @@ export async function pullCourses(
       sys: set.numbers,
       timeComposer,
       timeSys: set.times,
-      /* Filed under a name of its own in the card list, the way a deck's
-         title files its cards: they are material, and a learner looking
-         for the word for forty should find it where they look for words. */
-      tag: `${(lang && lang.name) || set.numbers.languageId} numbers`,
       now,
       /* And the number each card stands for, in the language's own
          figures where it has them — ٣ on the card for three. */
