@@ -1060,6 +1060,17 @@ export interface Question {
    * house beside a number and make the question a reading test.
    */
   options?: string[];
+  /**
+   * What the question may borrow from, where it is narrower than
+   * everything the learner holds.
+   *
+   * `"numbers"` on every question of a session made of numbers alone: the
+   * wrong answers beside a word and the company in a grid are other number
+   * words, never the learner's vocabulary — *fourteen* beside *forty*,
+   * not *house*. Set when the queue is built, because that is where the
+   * session is known to be numbers and nothing else.
+   */
+  within?: "numbers";
 }
 
 /**

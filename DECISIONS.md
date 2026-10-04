@@ -4655,3 +4655,51 @@ credits are one answer. The rules for how far a credit moves a word are
 unchanged (`fillerMarks`): right answers only, never starting a word's
 own schedule, moving it only where it was due.
 
+---
+
+## A number waits on its words, one number at a time
+
+**4 October 2026** · `askingsKnown`, `askKnown`, `wordsOfAsk` in `src/numbers/generate.ts`; `knownNumbers`, `keptToNumbers`, `gridCompany`, `companyOf` in `src/ArabicTrainer.tsx`; `within` on `Question` in `src/types.ts`
+
+A range used to be asked from the day it arrived, beside the words it is
+built of, so a learner met *forty-seven* before they had met *forty*.
+Now each number waits until every word in it is recognised (level two
+of the word's own ladder, through `reachedLevel`), which is the test a
+word's attached pronouns already wait on.
+
+**Per number, not per range.** The other choice was to hold a whole range
+until all its words were known. That is simpler, but it shuts 11 to 99
+until *ninety* is learnt, even though 47 could already be asked. So the
+draw is filtered. `steeredAsk`, which leans towards a word of the part
+not yet learnt, now chooses only among the askings whose words are
+recognised; failing that, the plain seeded draw is kept when every word
+in it is recognised, and otherwise the seed picks among the askings that
+are. A learner who recognises every word is asked exactly what they were
+before.
+
+**Recognised, not learnt.** `partsOf` judges a part's words by whether
+they are learnt, which is the bar for calling the part learnt. Waiting on
+that before asking a number at all would hold 47 back for days after
+*forty* and *seven* could be read, and the number is one of the places
+those words go on being learnt. A
+range none of whose askings can be put is left out of the pool, and out
+of the home screen's count.
+
+**What does not wait.** A word card the learner does not hold, cannot
+practise, or that has nothing to ask does not hold a number back, because
+it could never be recognised. An asking written out whole by a teacher,
+such as noon on the clock, has no card behind it; it is asked once the
+range has opened on some asking that is built of words, never before.
+
+**A session of numbers alone keeps to numbers.** When every card in it
+comes from a number system, no exercise that stands the word in a phrase
+is dealt, no phrase is attached to the others, and each question carries
+`within: "numbers"` so that its wrong answers and grid company are drawn
+from number words alone. It is judged per session rather than per card,
+so a mixed deck still borrows sentences as before.
+
+**What it costs.** Learners part-way through a range whose words they
+have not climbed see it pause. Reading what is known walks every asking
+of every range (tens of milliseconds), so the result is cached against
+the system and the set of words known, and is only read again when a
+word crosses into recognised.

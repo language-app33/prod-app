@@ -8,13 +8,37 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.330 — 4 October 2026
+## 0.331 — 4 October 2026
 
 **No more "Not asked yet" on the number system's parts.**
 
 - A part of a number system that is not ready no longer opens with a
   "Not asked yet — waiting on …" line, or the button under it to another
   part. It confused more than it helped. A ready part still says so.
+
+## 0.330 — 4 October 2026
+
+**Numbers are learnt word by word, and a numbers deck asks only numbers.**
+
+- A number made of several words, like 47, is asked only once you
+  recognise each word in it (*forty* and *seven*). Recognising a word
+  means getting its meaning right twice in a row. Until then a numbers
+  session asks the words on their own. Each combination opens on its own:
+  47 can come up as soon as *forty* and *seven* are known, even if
+  *ninety* is still new. Times work the same way.
+- Among the numbers that can be asked, practice still leans towards ones
+  containing a word you have not fully learnt yet.
+- If you were already practising combinations whose words you have not
+  learnt yet, those combinations pause until you catch up on the words.
+  Nothing you earned on them is lost.
+- A session of numbers alone, whether a numbers deck or one you put
+  together yourself, now keeps to numbers. The wrong answers to choose
+  from and the words in a matching grid are other number words, so you
+  tell *forty* from *fourteen* rather than from *house*. No sentence from
+  another deck is shown. Decks that mix numbers with other words are
+  unchanged.
+- The count of cards ready on the home screen no longer includes number
+  practice that is waiting on its words.
 
 ## 0.329 — 4 October 2026
 

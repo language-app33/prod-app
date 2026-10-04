@@ -359,3 +359,130 @@ test("a range whose system is not on this device is not asked by hand either", (
   });
   assert.equal(got.exercises.length, 0, "a range was dealt with no system to say it");
 });
+
+/* ------------------------------------------------------------------
+   The words first
+
+   A learner who knows *forty* and *seven* knows *forty-seven* — and one
+   who does not know *forty* yet cannot be asked it. A number waits until
+   every word in it is recognised: its meaning answered right twice
+   running, which is what opens level two of the word's own ladder.
+   ------------------------------------------------------------------ */
+
+const { companyOf, contextIndexOf } = await import(path.join(out, "trainer.js"));
+const { wordsOfAsk, isFromSystem } = await import(path.join(here, "..", "src", "numbers", "generate.ts"));
+
+/** The cards the system made that are words rather than skills. */
+const words = () => generated.items.filter((/** @type {any} */ it) => !isRangeSkill(it));
+
+/** A word with every exercise on the given levels climbed. */
+const climbedTo = (/** @type {any} */ it, /** @type {(level: number) => boolean} */ on) => ({
+  ...it,
+  forms: it.forms.map((/** @type {any} */ f, /** @type {number} */ i) =>
+    i ? f : { ...f, s: Object.fromEntries(TYPES.filter((/** @type {string} */ t) => on(levelOf(t))).map((/** @type {string} */ t) => [t, solid()])) }),
+});
+/** Recognised, and nothing more. */
+const recognised = (/** @type {any} */ it) => climbedTo(it, (l) => l === 1);
+/** Every exercise climbed, so any of them can be dealt. */
+const known = (/** @type {any} */ it) => climbedTo(it, () => true);
+
+const SET = { composer: arComposer, sys: SYS, timeComposer: arTimeComposer, timeSys: TIME };
+const IDS = new Set(words().map((/** @type {any} */ it) => it.id));
+const rangeOf = (/** @type {string} */ id) =>
+  must(skills().find((/** @type {any} */ s) => s.range.id === id), `the range ${id}`);
+
+/** Deal with everything held but only some of it in the deck. */
+const dealIn = (/** @type {any[]} */ items, /** @type {(it: any) => boolean} */ inDeck) => {
+  installIndexes(items, settings);
+  return buildSession({ items, settings, inDeck, includeAll: true, systems: SETS });
+};
+
+test("no number is asked while none of its words is recognised", () => {
+  const items = skills().concat(words());
+  const asked = [];
+  for (let i = 0; i < 10; i += 1) asked.push(...dealIn(items, () => true).exercises);
+  assert.ok(asked.length > 0, "nothing was asked at all — the words should have been");
+  assert.deepEqual(asked.filter((e) => isRangeSkill(e)).map((e) => e.id), [], "a number was asked before its words");
+});
+
+test("a number is asked once its words are recognised, and only numbers whose words are", () => {
+  const fortySeven = wordsOfAsk({ rangeId: "numbers:20-99", kind: "numbers", value: 47 }, SET, IDS);
+  assert.ok(fortySeven.size >= 2, `47 is built of ${[...fortySeven].join(", ")}`);
+  const items = skills().concat(words().map((/** @type {any} */ w) => (fortySeven.has(w.id) ? recognised(w) : w)));
+  const range = rangeOf("numbers:20-99");
+
+  const asked = [];
+  for (let i = 0; i < 20; i += 1) {
+    asked.push(...dealIn(items, (it) => it.id === range.id).exercises.filter((/** @type {any} */ e) => e.ask));
+  }
+  assert.ok(asked.length > 0, "the range was never asked, though 47 can be said");
+  for (const ex of asked) {
+    for (const id of wordsOfAsk(ex.ask, SET, IDS)) {
+      assert.ok(fortySeven.has(id), `${ex.ask.value} was asked, and ${id} is not recognised`);
+    }
+  }
+});
+
+test("a learner who recognises every word can be asked every range", () => {
+  /* Against what is dealt with no words held at all, which waits on
+     nothing: counting needs noun cards this fixture does not have. */
+  const asks = (/** @type {any[]} */ items, /** @type {any} */ skill) =>
+    dealIn(items, (it) => it.id === skill.id).exercises.filter((/** @type {any} */ e) => e.ask).length > 0;
+  const items = skills().concat(words().map(recognised));
+  const free = skills().filter((/** @type {any} */ skill) => asks(skills(), skill));
+  assert.ok(free.length >= 8, `only ${free.length} ranges could be asked at all`);
+  for (const skill of free) assert.ok(asks(items, skill), `${skill.range.id} was not asked`);
+});
+
+test("custom practice holds a number back the same way", () => {
+  const items = skills().concat(words());
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((/** @type {any} */ it) => it.id), mode: "ultimate", systems: SETS,
+  });
+  assert.deepEqual(got.exercises.filter((/** @type {any} */ e) => isRangeSkill(e)).map((/** @type {any} */ e) => e.id), []);
+});
+
+/* ------------------------------------------------------------------
+   Numbers and nothing else
+
+   A session of numbers alone keeps to them: no sentence from another
+   deck, and the wrong answers beside a word are other number words.
+   ------------------------------------------------------------------ */
+
+test("a session of numbers alone borrows no sentence, and a mixed one still may", () => {
+  const seven = must(words().find((/** @type {any} */ w) => w.id.endsWith(":unit.7")), "the word for seven");
+  const phrase = {
+    id: "p1", lang: "ar-PS", kind: "phrase", tags: [], created: 1, uses: [seven.id],
+    forms: [{ id: "p1", ar: `عندي ${seven.forms[0].ar} كتب`, en: "I have seven books", lat: "", lang: "ar-PS", uses: [seven.id], s: {} }],
+  };
+  const items = words().map((/** @type {any} */ w) => (w.id === seven.id ? known(w) : w)).concat([phrase]);
+  /* The sentence is somewhere seven turns up, so a mixed session has it
+     to borrow — which is what makes the first half of this mean anything. */
+  assert.ok((contextIndexOf(items, settings).get(seven.forms[0].id) || []).length > 0, "seven has no sentence to borrow");
+
+  const numbersOnly = [];
+  const mixed = [];
+  for (let i = 0; i < 20; i += 1) {
+    numbersOnly.push(...dealIn(items, (it) => isFromSystem(it)).exercises);
+    mixed.push(...dealIn(items, () => true).exercises);
+  }
+  const ofSeven = (/** @type {any[]} */ list) => list.filter((e) => e.id === seven.id);
+  assert.ok(ofSeven(numbersOnly).length > 0, "seven was never asked");
+  assert.deepEqual(ofSeven(numbersOnly).filter((e) => e.ctx).map((e) => e.type), [], "a numbers session borrowed a sentence");
+  assert.ok(numbersOnly.every((e) => e.within === "numbers"), "a question in it was not kept to the numbers");
+  assert.ok(ofSeven(mixed).some((e) => e.ctx), "a mixed session never stood seven in its sentence");
+  assert.ok(mixed.every((e) => e.within === undefined), "a mixed session was kept to the numbers");
+});
+
+test("a question kept to the numbers draws its company from number words alone", () => {
+  const house = {
+    id: "w1", lang: "ar-PS", kind: "word", tags: [], created: 1,
+    forms: [{ id: "w1", ar: "بيت", en: "house", lat: "beit", lang: "ar-PS", s: {} }],
+  };
+  const items = words().concat([house]);
+  const kept = companyOf(items, { id: words()[0].id, type: "ar2pick", within: "numbers" });
+  assert.ok(kept.length > 3, "too few number words to pick from");
+  assert.ok(kept.every((/** @type {any} */ it) => isFromSystem(it)), "something other than a number was in the company");
+  assert.equal(companyOf(items, { id: words()[0].id, type: "ar2pick" }).length, items.length, "an ordinary question lost its company");
+});
