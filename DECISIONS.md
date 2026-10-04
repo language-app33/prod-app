@@ -5070,3 +5070,32 @@ too. A teaching site has few courses, so this costs less
 than the deck reads around it. The lists of which ids exist (`index:`) are
 still written whole and can still lose an entry the same way; nothing has
 been seen to go wrong there, so they are left for another time.
+
+## A deck's number parts are said with whether they reach anybody
+
+**4 October 2026** · `partsWaiting` in `server/api/courses.js`, `deckSize` in `src/shared.tsx`, `BACKUP_PARTS` in `src/spaces.tsx`
+
+A deck names its number parts, and each student's device builds them out
+of the teachers' words. A part is built only once every word it needs is
+written, and one gap holds every later part shut. So "5 number parts" on
+a deck could mean nothing at all reaching a student. That is what the
+owner met after a restore that brought back no numbers, because no part
+of a backup held them (they were in the server's manifest and in no
+`BACKUP_PARTS` entry, so the app dropped them both ways). They now ride
+with Cards, as clearing already had it.
+
+**Worked out on the server, by the device's rule.** `partsWaiting` reads
+the numbers of everyone whose material reaches a student of a course that
+holds the deck — its owner, and each such course's teachers and the
+owners of its other decks — in the deck's language. A part counts as
+ready if `rangeChecks` opens it in any of them. my-decks and
+admin-overview carry the answer, and set-deck-parts answers with it; it
+is never stored. The teacher screen fetches its decks again after
+numbers are saved, since that is what moves it.
+
+**What it costs.** A student in several courses can be sent numbers by a
+teacher of another course too, which this does not count, so in that
+case a part can say "not ready" when it does reach them. Working this
+out renders each part's sample numbers once per teacher and language on
+every deck list. That is a few hundred numbers, less than reading the
+cards beside them.

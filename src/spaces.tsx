@@ -596,7 +596,7 @@ const RESTORE_BYTES = 3 * 1024 * 1024; // per request, under the function's own 
  * and stores by the other: cards travel as "card" and "owncards" chunks and
  * live under card: and mycards:.
  */
-const BACKUP_PARTS: {
+export const BACKUP_PARTS: {
   key: string;
   title: string;
   what: string;
@@ -639,9 +639,14 @@ const BACKUP_PARTS: {
   {
     key: "cards",
     title: "Cards",
-    what: "Every card's wording, its other forms and its grammar. Not the audio.",
-    kinds: ["card", "owncards"],
-    prefixes: ["card:", "mycards:", "owncards:"],
+    what: "Every card's wording, its other forms and its grammar, and each teacher's numbers and clock. Not the audio.",
+    /* The numbers and the clock with the cards, because that is what they
+       are: the material, minus the decks it is filed in — the same line
+       clearing draws on the server. They were in the server's manifest and
+       in no part here, so every file was made without them and a restore
+       of an old one dropped them too. */
+    kinds: ["card", "owncards", "system", "mysystems"],
+    prefixes: ["card:", "mycards:", "owncards:", "numsys:", "timesys:", "mysystems:"],
     count: "cards",
     unit: "card",
   },
@@ -696,7 +701,7 @@ function includedIn(file: any) {
  * @param parts  Which of BACKUP_PARTS to put in. Everything by
  *   default, which is what a backup meant before it could be less.
  */
-async function buildBackup(onProgress: (done: number, total: number) => void, parts: string[] = ALL_PARTS) {
+export async function buildBackup(onProgress: (done: number, total: number) => void, parts: string[] = ALL_PARTS) {
   const { manifest } = await API.backupManifest();
   const chosen = partsChosen(parts);
   const kinds = new Set(chosen.flatMap((p) => p.kinds));
@@ -825,7 +830,7 @@ async function buildBackup(onProgress: (done: number, total: number) => void, pa
  *   hold more than is wanted — the recordings when only the wording is
  *   being recovered, everybody's accounts when one course is.
  */
-async function restoreBackup(file: any, onProgress: (done: number, total: number) => void, parts: string[] = ALL_PARTS) {
+export async function restoreBackup(file: any, onProgress: (done: number, total: number) => void, parts: string[] = ALL_PARTS) {
   const records = file.records || {};
   const chosen = partsChosen(parts);
   const wanted = (k: string) =>
@@ -5050,6 +5055,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         if (!one) return now;
         return { ...now, numbers: now.numbers.filter((n) => n.id !== one.id).concat([one]) };
       });
+      /* Words written or taken out change which of a deck's parts reach
+         anybody, and the decks say so — see deckSize. Fetched quietly, as
+         the poll would. */
+      void refresh(true);
       return saved;
     }, "Saved");
   }
@@ -5733,7 +5742,13 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
             const had = partsNow(d.parts || []);
             const parts = on ? had.concat(had.includes(rangeId) ? [] : [rangeId]) : had.filter((x) => x !== rangeId);
             const r: any = await API.setDeckParts(deckId, parts);
-            setDecks((prev) => prev.map((x) => (x.id === deckId ? { ...x, parts: r.parts || parts } : x)));
+            setDecks((prev) =>
+              prev.map((x) =>
+                x.id === deckId
+                  ? { ...x, parts: r.parts || parts, ...(r.partsWaiting ? { partsWaiting: r.partsWaiting } : null) }
+                  : x
+              )
+            );
           }, on ? "Added to the deck" : "Taken out of the deck")
         }
       />

@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.349 — 4 October 2026
+
+**Backups keep your numbers, and a deck says when its number parts are
+empty.**
+
+- Fixed: a backup left out every teacher's numbers and clock, even with
+  everything ticked, and restoring "Cards" didn't put them back. They are
+  now part of "Cards", both when a backup is made and when one is
+  restored. A backup made before this version has no numbers in it, so
+  make a new backup to keep them.
+- A deck that holds number parts now says when students get nothing from
+  them: "5 number parts · none ready yet", or "3 not ready yet" when only
+  some are. A part is ready once every word it needs is written on the
+  Numbers screen. Until then students get nothing from it, not even the
+  words already written, and a missing word in one part also holds back
+  the parts after it.
+
 ## 0.348 — 4 October 2026
 
 **Numbers saved before Save started publishing now reach students.**

@@ -934,6 +934,13 @@ export interface Deck {
    * fileIntoDecks in numbers/generate.ts.
    */
   parts?: string[];
+  /**
+   * Which of `parts` its students get nothing from yet, because the words
+   * those parts are built of are not all written. Worked out by the
+   * server for the screens that show a deck, never stored — see
+   * partsWaiting in server/api/courses.js.
+   */
+  partsWaiting?: string[];
 }
 
 export interface Course {

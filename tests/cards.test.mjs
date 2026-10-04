@@ -2871,3 +2871,22 @@ test("a deck's size counts its number parts beside its cards", () => {
   /* An open deck counts the cards it has in hand rather than the record's. */
   assert.equal(deckSize({ cardCount: 9, parts: ["numbers:0-10"] }, 3), "3 cards · 1 number part");
 });
+
+/* And it says when a part sends students nothing: a deck of numbers nobody
+   had written said "5 number parts" while its students had nothing. */
+test("a deck's size says when its number parts are not ready", () => {
+  const five = ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+"];
+  assert.equal(deckSize({ cardCount: 0, parts: five, partsWaiting: five }), "5 number parts · none ready yet");
+  assert.equal(
+    deckSize({ cardCount: 0, parts: five, partsWaiting: ["numbers:20-99", "numbers:100-999", "numbers:1000+"] }),
+    "5 number parts · 3 not ready yet",
+  );
+  assert.equal(deckSize({ cardCount: 0, parts: five, partsWaiting: [] }), "5 number parts");
+  assert.equal(
+    deckSize({ cardCount: 4, parts: ["numbers:0-9"], partsWaiting: ["numbers:0-9"] }),
+    "4 cards · 1 number part · none ready yet",
+  );
+  /* A part no longer on the deck is not counted against it — the deck
+     can change before the next look says which parts wait. */
+  assert.equal(deckSize({ cardCount: 0, parts: ["numbers:0-9"], partsWaiting: ["numbers:10-19"] }), "1 number part");
+});

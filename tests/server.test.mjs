@@ -9,6 +9,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { must } from "./helpers.mjs";
 import { mkdtemp, rm } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -3019,6 +3020,144 @@ test("a backup holds a teacher's numbers, and a restore puts them back", async (
   const back = (await api("/api/courses?action=my-systems", { key })).json.systems;
   assert.equal(back.length, 1);
   assert.equal(back[0].lexemes["unit.1"].forms.standalone, "one");
+});
+
+/*
+ * The same, through the app's own backup and restore.
+ *
+ * The test above holds the server to its half, and it always kept it: the
+ * numbers were in the manifest's plan. The app then kept only the chunks
+ * that belong to a part an administrator can tick, and no part named the
+ * numbers — so every file was made without them, and a file restored with
+ * "Cards" ticked put the cards back and left the numbers screen empty.
+ */
+test("a backup of the cards made and restored by the app carries the numbers", async () => {
+  const { build } = await import("esbuild");
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  const out = path.join(here, ".backup-build", "app.js");
+  /* One bundle for both, so the key the client is given is the key the
+     backup's requests carry. React is left external and resolved from the
+     project, which is why the bundle is built inside it. */
+  await build({
+    stdin: {
+      contents:
+        'export { BACKUP_PARTS, buildBackup, restoreBackup } from "../src/spaces.tsx";\n' +
+        'export { setKey } from "../src/courses-api.ts";\n',
+      resolveDir: here,
+      loader: "ts",
+    },
+    outfile: out,
+    bundle: true,
+    format: "esm",
+    jsx: "automatic",
+    external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
+    loader: { ".jsx": "jsx" },
+    logLevel: "silent",
+  });
+  const app = await import(out);
+
+  const admin = await anAdmin("Rafa");
+  const saved = (await api("/api/courses?action=save-system", {
+    method: "POST", key: admin.key, body: { kind: "numbers", system: numberSystem() },
+  })).json.system;
+
+  /* Every chunk the server plans belongs to a part, and every key in it
+     to that part's prefixes — or it is in no file and back from none. */
+  const manifest = (await api("/api/courses?action=admin-backup-manifest", { key: admin.key })).json.manifest;
+  for (const chunk of manifest.plan) {
+    const part = app.BACKUP_PARTS.find((/** @type {any} */ p) => p.kinds.includes(chunk.kind));
+    assert.ok(part, `no part of a backup holds the server's "${chunk.kind}" records`);
+    for (const k of chunk.keys) {
+      assert.ok(part.prefixes.some((/** @type {string} */ x) => k.startsWith(x)), `${k} would not be restored`);
+    }
+  }
+
+  /* What the owner did: back up the cards and the decks, and restore them. */
+  const browser = /** @type {any} */ (globalThis);
+  const hadWindow = browser.window;
+  browser.window = { location: { origin } };
+  try {
+    app.setKey(admin.key);
+    const { blob } = await app.buildBackup(() => {}, ["cards", "decks"]);
+    const file = JSON.parse(await blob.text());
+    assert.ok(file.records[`numsys:${saved.id}`], "the numbers are not in the file");
+    assert.ok(file.records[`mysystems:${admin.handle}`], "nor what says whose they are");
+
+    await api("/api/courses?action=delete-system", {
+      method: "POST", key: admin.key, body: { kind: "numbers", languageId: "ar-PS" },
+    });
+    assert.deepEqual((await api("/api/courses?action=my-systems", { key: admin.key })).json.systems, []);
+
+    await app.restoreBackup(file, () => {}, ["cards", "decks"]);
+  } finally {
+    browser.window = hadWindow;
+  }
+  const back = (await api("/api/courses?action=my-systems", { key: admin.key })).json.systems;
+  assert.deepEqual(back.map((/** @type {any} */ s) => s.id), [saved.id], "the numbers did not come back");
+  assert.equal(back[0].lexemes["unit.1"].forms.standalone, "one");
+});
+
+/*
+ * A deck says when its number parts send students nothing.
+ *
+ * A part is built on the device out of the teacher's words, so a part
+ * whose words are not all written sends nothing at all — and one gap
+ * holds every later part shut. The deck said "5 number parts" regardless,
+ * which is how a restore that brought back no numbers looked like a full
+ * deck while its students were told there was nothing to practise.
+ */
+test("a deck says which of its number parts reach nobody yet", async () => {
+  const teacher = await anAdmin("Rafa");
+  const course = await aCourse(teacher.key, "Testing");
+  await api("/api/courses?action=assign-teacher", {
+    method: "POST", key: teacher.key, body: { courseId: course.id, handle: teacher.handle },
+  });
+  const deck = (await api("/api/courses?action=create-deck", {
+    method: "POST", key: teacher.key, body: { title: "Numbers", lang: "ar-PS" },
+  })).json.deck;
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key: teacher.key, body: { deckId: deck.id, courseId: course.id },
+  });
+  const waitingNow = async () => {
+    const mine = (await api("/api/courses?action=my-decks", { key: teacher.key })).json.decks;
+    const seen = overviewOf(await api("/api/courses?action=admin-overview", { key: teacher.key })).decks;
+    const asTeacher = must(mine.find((/** @type {any} */ d) => d.id === deck.id), "the deck").partsWaiting;
+    assert.deepEqual(must(seen.find((d) => d.id === deck.id), "the deck").partsWaiting, asTeacher,
+      "the administrator is told the same");
+    return asTeacher;
+  };
+
+  /* No numbers written at all: every part waits, and the answer to
+     setting them says so straight away. */
+  const all = ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+"];
+  const set = await api("/api/courses?action=set-deck-parts", {
+    method: "POST", key: teacher.key, body: { deckId: deck.id, parts: all },
+  });
+  assert.deepEqual(set.json.partsWaiting, all);
+  assert.deepEqual(await waitingNow(), all);
+
+  /* Written but for seven: 0 to 9 is short, and nothing after it opens. */
+  const golden = JSON.parse(readFileSync(new URL("./golden/ar-PS.numbers.json", import.meta.url), "utf8")).system;
+  const { "unit.7": _seven, ...short } = golden.lexemes;
+  const save = (/** @type {number} */ rev, /** @type {any} */ lexemes) =>
+    api("/api/courses?action=save-system", {
+      method: "POST", key: teacher.key, body: { kind: "numbers", system: { ...golden, id: "", rev, lexemes } },
+    });
+  assert.equal((await save(0, short)).status, 200);
+  assert.deepEqual(await waitingNow(), all);
+
+  /* Whole: nothing waits. */
+  assert.equal((await save(1, golden.lexemes)).status, 200);
+  assert.deepEqual(await waitingNow(), []);
+
+  /* Without the joining word, 20 and up wait — and a part stored under
+     its old name waits until every part it became is ready. */
+  const { connector: _and, ...noAnd } = golden.lexemes;
+  assert.equal((await save(2, noAnd)).status, 200);
+  await api("/api/courses?action=set-deck-parts", {
+    method: "POST", key: teacher.key, body: { deckId: deck.id, parts: ["numbers:0-9", "numbers:11-99"] },
+  });
+  assert.deepEqual(await waitingNow(), ["numbers:11-99"]);
 });
 
 test("closing an account takes its numbers with it", async () => {

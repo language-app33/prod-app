@@ -23,7 +23,9 @@ import { holedParts, isSentenceKey, reviewOf } from "../../src/review.ts";
    answer is: hand-written, total, and silent about why. See
    src/numbers/schema.ts, and DECISIONS.md on why not a schema library. */
 import { clipsOfSystem, emptyNumberSystem, readNumberSystem, readTimeSystem } from "../../src/numbers/schema.ts";
-import { composerFor } from "../../src/numbers/index.ts";
+import { composerFor, timeComposerFor } from "../../src/numbers/index.ts";
+import { rangeChecks } from "../../src/numbers/range.ts";
+import { partsNow } from "../../src/numbers/types.ts";
 import { migrateCards } from "../../src/numbers/migrate.ts";
 import { liftSubtypeTagsIn } from "../../src/subtype-tags.ts";
 
@@ -1063,6 +1065,95 @@ export default async (req) => {
       if (!keys.length) return [];
       const rows = await readManyJson(store, keys, EVENTUAL);
       return rows.filter(Boolean);
+    }
+
+    /**
+     * Which of each deck's number parts its students would get nothing
+     * from, keyed by deck id — the parts as the deck stores them.
+     *
+     * A deck names its parts and a student's device builds them out of the
+     * teachers' numbers, so a part whose words are not all written yet is a
+     * part that sends nothing: no question on it, and none of the words it
+     * would have brought. The deck went on saying "5 number parts" all the
+     * same, and a deck of numbers nobody had written read as full while its
+     * students were told there was nothing to practise.
+     *
+     * Read the way the device reads it: the numbers of everyone whose
+     * material reaches a student of a course that holds the deck — the
+     * deck's owner, and each such course's teachers and the owners of its
+     * other decks — in the deck's language, each with its clock, and a part
+     * open where rangeChecks opens it in any of them. A part stored under
+     * its old name is ready only when every part it became is.
+     * @param {Deck[]} decks
+     * @param {Course[]} courses  Every course on the site.
+     * @returns {Promise<Map<string, string[]>>}
+     */
+    async function partsWaiting(decks, courses) {
+      /** @type {Map<string, string[]>} */
+      const out = new Map();
+      const withParts = decks.filter((d) => (d.parts || []).length);
+      if (!withParts.length) return out;
+      /* A deck's owner, for the decks beside these in their courses that
+         are not in this list. */
+      const ownerOf = new Map(decks.map((d) => [d.id, d.owner]));
+      const beside = courses.filter((c) => withParts.some((d) => (c.decks || []).includes(d.id)));
+      const unknown = [...new Set(beside.flatMap((c) => c.decks || []))].filter((id) => !ownerOf.has(id));
+      (await readManyJson(store, unknown.map((id) => K.deck(id)))).forEach((d, i) => {
+        if (d) ownerOf.set(unknown[i], d.owner);
+      });
+
+      /** @type {Map<string, Promise<Set<string>>>} */
+      const openFor = new Map();
+      /** What one person's numbers, in one language, open. */
+      const opens = (/** @type {string} */ owner, /** @type {string} */ lang) => {
+        const at = `${owner} ${lang}`;
+        const held = openFor.get(at);
+        if (held) return held;
+        const work = (async () => {
+          const index = await systemIndex(owner);
+          const [numbers, times] = await Promise.all([
+            index.numbers[lang] ? readJson(store, K.numSys(index.numbers[lang])) : null,
+            index.times[lang] ? readJson(store, K.timeSys(index.times[lang])) : null,
+          ]);
+          const sys = numbers ? readNumberSystem(numbers) : null;
+          const clock = times ? readTimeSystem(times) : null;
+          return new Set(
+            rangeChecks(
+              composerFor(lang),
+              sys,
+              timeComposerFor(lang),
+              clock && sys && clock.numberSystemId === sys.id ? clock : null,
+            )
+              .filter((c) => c.open)
+              .map((c) => c.range.id),
+          );
+        })();
+        openFor.set(at, work);
+        return work;
+      };
+
+      for (const d of withParts) {
+        const holding = courses.filter((c) => (c.decks || []).includes(d.id));
+        const lang = d.lang || (holding[0] && holding[0].language) || "";
+        const whose = [
+          ...new Set(
+            [d.owner]
+              .concat(holding.flatMap((c) => (c.teachers || []).concat((c.decks || []).map((x) => ownerOf.get(x) || ""))))
+              .filter(Boolean),
+          ),
+        ];
+        /** @type {Set<string>} */
+        const open = new Set();
+        for (const ids of await Promise.all(whose.map((h) => opens(h, lang)))) for (const id of ids) open.add(id);
+        out.set(
+          d.id,
+          (d.parts || []).filter((p) => {
+            const now = partsNow([p]);
+            return !now.length || !now.every((id) => open.has(id));
+          }),
+        );
+      }
+      return out;
     }
 
     /**
@@ -2274,14 +2365,16 @@ export default async (req) => {
       /* With the courses that hold each one read off those courses, which
          is what the course screen, Manage decks and a deck's settings all
          show — see linksOf. */
-      const decks = rows
-        .filter((d) => d.owner === mine || teaching.has(d.id))
-        .map((d) => ({
-          ...d,
-          courses: linksOf(d, courses),
-          cardCount: (d.cardIds || []).length,
-          mine: d.owner === mine,
-        }));
+      const shown = rows.filter((d) => d.owner === mine || teaching.has(d.id));
+      /* And which of its number parts reach nobody yet — see partsWaiting. */
+      const waiting = await partsWaiting(shown, courses);
+      const decks = shown.map((d) => ({
+        ...d,
+        courses: linksOf(d, courses),
+        cardCount: (d.cardIds || []).length,
+        mine: d.owner === mine,
+        ...(waiting.has(d.id) ? { partsWaiting: waiting.get(d.id) } : null),
+      }));
       return json({ ok: true, decks });
     }
 
@@ -2348,13 +2441,15 @@ export default async (req) => {
             .filter((/** @type {string} */ p) => /^(numbers|time):[a-z0-9+-]{1,40}$/.test(p))
         ),
       ].slice(0, 50);
-      await updateJson(store, K.deck(deck.id), (/** @type {Deck | null} */ fresh) => {
+      const next = await updateJson(store, K.deck(deck.id), (/** @type {Deck | null} */ fresh) => {
         if (!fresh) return null;
         const { parts: _was, ...rest } = fresh;
         return { ...rest, ...(parts.length ? { parts } : null), updated: Date.now() };
       });
       await taught();
-      return json({ ok: true, parts });
+      /* And which of them reach nobody yet, so the deck can say so at once. */
+      const waiting = next ? (await partsWaiting([next], await everyCourse(store))).get(next.id) : null;
+      return json({ ok: true, parts, partsWaiting: waiting || [] });
     }
 
     /* The deck goes; the cards it held stay in the library. A locked deck
@@ -3123,12 +3218,15 @@ export default async (req) => {
         /** @type {Record<string, string>} */
       const nameOf = {};
         for (const u of userRows) if (u) nameOf[u.handle] = u.displayName;
-        /* Which courses hold a deck, said by the courses — see linksOf. */
+        /* Which courses hold a deck, said by the courses — see linksOf —
+           and which of its number parts reach nobody yet. */
+        const waiting = await partsWaiting(deckRows.filter(Boolean), courses);
         const decks = deckRows.filter(Boolean).map((d) => {
           const courseLinks = linksOf(d, courses);
           return {
             ...d,
             courses: courseLinks,
+            ...(waiting.has(d.id) ? { partsWaiting: waiting.get(d.id) } : null),
             cardCount: (d.cardIds || []).length,
             ownerName: nameOf[d.owner] || d.owner,
             courseTitles: courseLinks
