@@ -1132,6 +1132,34 @@ test("a form's progress follows the form, not its place in the list", () => {
   assert.equal(out.forms[3].s.ar2en.reps, 9);
 });
 
+test("a schedule handed on goes under the learner's own, and is never stored as such", () => {
+  /* Counting things moved from parts of its own into the stretches, which
+     a learner already holds with schedules of their own — so what they
+     earned counting is handed on as `carried`, for the exercises the
+     stretch has nothing on. See handOnCounting. */
+  const count = (/** @type {number} */ reps) => ({ phase: "review", reps });
+  const had = [
+    { id: "sys:n1:range:numbers:0-9", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:0-9-f0", ar: "", en: "", s: { num2fig: count(3) } }] },
+    { id: "sys:n1:range:numbers:10-19", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:10-19-f0", ar: "", en: "", s: { count2phrase: count(8) } }] },
+  ];
+  const fresh = [
+    { id: "sys:n1:range:numbers:0-9", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:0-9-f0", ar: "", en: "", s: {}, carried: { count2phrase: count(5) } }] },
+    { id: "sys:n1:range:numbers:10-19", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:10-19-f0", ar: "", en: "", s: {}, carried: { count2phrase: count(1) } }] },
+    /* And a stretch the device has never held. */
+    { id: "sys:n1:range:numbers:20-99", source: { systemId: "n1" },
+      forms: [{ id: "sys:n1:range:numbers:20-99-f0", ar: "", en: "", s: {}, carried: { count2phrase: count(2) } }] },
+  ];
+  const [low, teens, tens] = foldCourses(had, fresh).items;
+  assert.deepEqual(low.forms[0].s, { num2fig: count(3), count2phrase: count(5) }, "added beside the learner's own");
+  assert.deepEqual(teens.forms[0].s, { count2phrase: count(8) }, "and never over one");
+  assert.deepEqual(tens.forms[0].s, { count2phrase: count(2) }, "taken whole by a stretch never held");
+  for (const it of [low, teens, tens]) assert.equal("carried" in it.forms[0], false, `${it.id} stores what it carried`);
+});
+
 test("a card the learner asked for stays asked for when the teacher edits it", () => {
   /* The mark is the learner's and the card is the teacher's, and a refresh
      takes the teacher's card whole — so without being told, the

@@ -8,6 +8,39 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.336 — 4 October 2026
+
+**Counting things is part of each stretch of numbers, and each number has its own panel.**
+
+- The three "Counting things" parts are gone. Each part of the numbers —
+  0 to 9, 10 to 19, 20 to 99, 100 to 999, 1,000 and over — now also asks
+  "How would you say this? · 3 books" with its own numbers, in Palestinian
+  Arabic and Hebrew. Counting now goes past 20.
+- Students get counting questions in a part once they can read and choose
+  its numbers, next to writing the number out.
+- A part's other questions never wait for noun cards. Its counting
+  questions start once one of your noun cards can be counted across the
+  whole part. In Palestinian Arabic, 0 to 9 needs a noun card with its
+  singular, plural and pair form written; 10 to 19 its singular and
+  plural; from 20 up, only its singular.
+- Students keep what they learnt on counting: progress on "3 to 10" (or
+  "1 and 2") moves to 0 to 9, and on "11 to 20" to 10 to 19.
+- A deck that held a counting part now holds the part of the numbers it
+  went into — 0 to 9, or 10 to 19 — which brings that part's plain number
+  questions too.
+- Sentences: each part also fills `{{count-0-9}}`, `{{count-10-19}}` and so
+  on, and `{{count}}` can now be any number of things. Sentences written
+  with `{{count-1-2}}`, `{{count-3-10}}` or `{{count-11-20}}` are still
+  filled.
+- On a part's screen, each number is now a panel of its own, laid out like
+  the panels on the card editor, with the number across the top and its
+  boxes under it. At the foot of each is how that number counts a thing,
+  like "تلات كتب · 3 books" — read only, made from the boxes above and your
+  noun cards.
+- A part's screen has a "Counting things" section listing which noun cards
+  it counts and what the others are missing. On the main number screen,
+  each part says where its counting stands.
+
 ## 0.335 — 4 October 2026
 
 **Saving in the number system sticks.**

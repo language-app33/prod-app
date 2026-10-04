@@ -46,9 +46,9 @@ import type {
   TimeStyle,
   TwoWords,
 } from "./numbers/types.ts";
-import { MINUTE_MARKS, partsNow } from "./numbers/types.ts";
+import { MINUTE_MARKS, countingOf, partsNow } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
-import { blocking, probeOf, rangeChecks, seeded } from "./numbers/range.ts";
+import { blocking, countable, countingWarnings, probeOf, rangeChecks, renderAsk, seeded } from "./numbers/range.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
 import type { RangeCheck } from "./numbers/range.ts";
 import { figureOf, homesOf, partTags } from "./numbers/generate.ts";
@@ -472,6 +472,26 @@ export function NumberSystemEditor({
   ) : null;
 
   const open = part ? checks.find((c) => c.range.id === part) || null : null;
+  /*
+   * A number with something counted beside it — 3, *three books* — for the
+   * foot of each number's panel on a stretch that is counted with. Said
+   * with the first noun card that can be counted across the stretch, so a
+   * screen reads as one noun counted up; failing that, with whichever
+   * card can be counted with that number at all. Nothing where none can:
+   * the counting section says what is missing.
+   */
+  const countedAt = (range: Range) => {
+    const across = countable(countingOf(range), composer, counted);
+    const order = across.concat((counted.nouns || []).filter((n) => !across.includes(n)));
+    return (n: number) => {
+      if (n < 1) return null;
+      for (const noun of order) {
+        const said = renderAsk({ rangeId: range.id, kind: "numbers", value: n, nounId: noun.id }, composer, counted);
+        if (said.text && !blocking(said.warnings).length) return { text: said.text, en: said.en };
+      }
+      return null;
+    };
+  };
   const view = part === CONNECTING ? (
     <ConnectingScreen
       lang={lang}
@@ -498,6 +518,10 @@ export function NumberSystemEditor({
       twoWords={twoWords.filter((q) => q.n >= open.range.from && q.n <= open.range.to)}
       onKeepOne={keepOne}
       nouns={nounCards}
+      countedAt={open.range.counts ? countedAt(open.range) : undefined}
+      countingGaps={
+        open.range.counts ? (noun) => countingWarnings(countingOf(open.range), composer, counted, noun) : undefined
+      }
       decks={decks}
       saveButton={saveButton}
       note={note}
@@ -613,9 +637,8 @@ function PartBlock({ title, role, children }: { title: string; role?: React.Reac
  *
  * "ready", or what it is waiting for — and where that is a word another
  * part holds, which part: 11 to 99 cannot be said without seven, and the
- * box for seven is on 0 to 10's screen, not this one. A counting part is
- * waiting on a noun rather than a word, and says which face no noun has
- * yet.
+ * box for seven is on 0 to 10's screen, not this one. Counting has a line
+ * of its own — see countingStatus — because it never holds a part back.
  */
 export function partStatus(
   check: RangeCheck,
@@ -625,16 +648,6 @@ export function partStatus(
 ): string {
   if (check.open) return "ready";
   const stops = blocking(check.warnings as never) as { code: string; slot?: string; detail?: string }[];
-  if (check.range.counted) {
-    if (stops.some((w) => w.detail === "no nouns to count")) return "waiting on a noun to count";
-    const faces = [...new Set(
-      stops.filter((w) => w.code === "missing-noun-form").map((w) => String(w.detail || "").split(".").pop() || ""),
-    )]
-      .map((f) => ({ sg: "singular", dual: "pair form", pl: "plural" } as Record<string, string>)[f])
-      .filter(Boolean);
-    /* A number word missing is said the way any part says it, below. */
-    if (faces.length && !stops.some((w) => w.slot)) return `waiting on a noun with its ${faces.join(" and ")}`;
-  }
   const partLabel = (id: string) => {
     if (id === CONNECTING) return "Connecting words";
     const at = checks.find((c) => c.range.id === id);
@@ -655,8 +668,33 @@ export function partStatus(
   if (own.length) return `waiting on ${named(own)}`;
   /* Nothing of its own missing, and still shut: an earlier part is, and
      the parts open in order. */
-  const before = checks.find((c) => !c.range.counted && !c.open && c.range.kind === "numbers" && c !== check);
+  const before = checks.find((c) => !c.open && c.range.kind === "numbers" && c !== check);
   return before ? `waiting on ${before.range.label}` : waitingOn(check.warnings);
+}
+
+/**
+ * Where counting stands on a part, or null on a part that is not counted
+ * with — every part in a language with nothing to agree.
+ *
+ * Said after the part's own line, and only about counting: a part whose
+ * numbers cannot all be said yet says so on its own line, and counting
+ * waits on that without repeating it. Otherwise it is waiting on a noun
+ * card, or on a face of one, or on a number's word before a noun.
+ */
+export function countingStatus(check: RangeCheck, labels: Map<string, string>): string | null {
+  const counting = check.counting;
+  if (!counting) return null;
+  if (counting.open) return "Counting: ready";
+  if (!check.open) return "Counting: once the numbers are ready";
+  const stops = blocking(counting.warnings as never) as { code: string; slot?: string; detail?: string }[];
+  if (stops.some((w) => w.detail === "no nouns to count")) return "Counting: waiting on a noun card";
+  const faces = [...new Set(
+    stops.filter((w) => w.code === "missing-noun-form").map((w) => String(w.detail || "").split(".").pop() || ""),
+  )]
+    .map((f) => ({ sg: "singular", dual: "pair form", pl: "plural" } as Record<string, string>)[f])
+    .filter(Boolean);
+  if (faces.length && !stops.some((w) => w.slot)) return `Counting: waiting on a noun card with its ${faces.join(" and ")}`;
+  return `Counting: ${waitingOn(counting.warnings, labels)}`;
 }
 
 function NumbersTab({ lang, draft, checks, homes, labels, twoWords, connecting, time, onOpen, onTime, onFix, onCheck }: {
@@ -679,9 +717,7 @@ function NumbersTab({ lang, draft, checks, homes, labels, twoWords, connecting, 
 }) {
   const parts = checks.filter((c) => c.range.kind === "numbers");
   /* The parts that hold a question about two words, in their own order. */
-  const asking = parts.filter(
-    (c) => !c.range.counted && twoWords.some((q) => q.n >= c.range.from && q.n <= c.range.to),
-  );
+  const asking = parts.filter((c) => twoWords.some((q) => q.n >= c.range.from && q.n <= c.range.to));
   const yours = Object.keys(draft.overrides).length;
 
   return (
@@ -713,8 +749,18 @@ function NumbersTab({ lang, draft, checks, homes, labels, twoWords, connecting, 
               key={check.range.id}
               title={check.range.label}
               meta={
-                <span className="at-numstate" data-open={check.open ? "" : undefined}>
-                  {partStatus(check, checks, homes, labels)}
+                <span className="at-numstates">
+                  <span className="at-numstate" data-open={check.open ? "" : undefined}>
+                    {partStatus(check, checks, homes, labels)}
+                  </span>
+                  {countingStatus(check, labels) ? (
+                    <span
+                      className="at-numstate"
+                      data-open={check.counting && check.counting.open ? "" : undefined}
+                    >
+                      {countingStatus(check, labels)}
+                    </span>
+                  ) : null}
                 </span>
               }
               onOpen={() => onOpen(check.range.id)}
@@ -882,8 +928,9 @@ function SampleRows({ lang, draft, values, render, onWrite }: {
 
 /**
  * One part of the numbers, on a screen of its own: the words it is the
- * first to need, what it says with them, the numbers written out by hand
- * inside it, the decks that hold it and the blanks it fills.
+ * first to need, what it says with them, how it counts things, the
+ * numbers written out by hand inside it, the decks that hold it and the
+ * blanks it fills.
  *
  * The words used to be one long grid of every box the language has, under
  * a list of what could be asked; the list said *11 to 99 is waiting on
@@ -892,8 +939,8 @@ function SampleRows({ lang, draft, values, render, onWrite }: {
  * screen.
  */
 function PartScreen({
-  lang, draft, setDraft, check, checks, homes, slots, render, twoWords, onKeepOne, nouns, decks, saveButton, note,
-  onRecord, onWrite, onDeckPart, onClose,
+  lang, draft, setDraft, check, checks, homes, slots, render, twoWords, onKeepOne, nouns, countedAt, countingGaps, decks,
+  saveButton, note, onRecord, onWrite, onDeckPart, onClose,
 }: {
   lang: Lang;
   draft: NumberSystem;
@@ -909,6 +956,11 @@ function PartScreen({
   onKeepOne: (q: TwoWords, keep: "masculine" | "feminine") => void;
   /** The teacher's noun cards in this language, read for counting. */
   nouns: ReadNoun[];
+  /** A number with a noun counted beside it, for the foot of its panel —
+      absent on a part that is not counted with. */
+  countedAt?: (n: number) => { text: string; en: string } | null;
+  /** What counting a noun across the part warns about. */
+  countingGaps?: (noun: CountedNoun) => { code: string; slot?: string; detail?: string }[];
   decks: PartDeck[];
   /** Save, for the top bar. */
   saveButton: React.ReactNode;
@@ -922,15 +974,13 @@ function PartScreen({
   const range = check.range;
   const own = slots.filter((s) => homes.get(s.slot) === range.id);
   /* Built from the parts before it alone — Huế's 11 to 99. */
-  const before = checks.filter((c) => c.range.kind === "numbers" && !c.range.counted);
+  const before = checks.filter((c) => c.range.kind === "numbers");
   const earlier = before.slice(0, Math.max(0, before.findIndex((c) => c.range.id === range.id)));
 
-  const written = range.counted
-    ? []
-    : Object.entries(draft.overrides).filter(([key]) => {
-        const n = digitsOf(key);
-        return Number.isFinite(n) && n >= range.from && n <= range.to;
-      });
+  const written = Object.entries(draft.overrides).filter(([key]) => {
+    const n = digitsOf(key);
+    return Number.isFinite(n) && n >= range.from && n <= range.to;
+  });
 
   /* Said only once the part is ready. A part that was not used to say
      "Not asked yet — waiting on …", with a button to the part it named;
@@ -938,6 +988,13 @@ function PartScreen({
      where each one stands. */
   const standing = check.open ? (
     <p className="at-numstate" data-open="">Ready: a student can be asked anything in this part.</p>
+  ) : null;
+  /* And the same for counting, which joins the part's questions once a
+     noun card can be counted across all of it. */
+  const counting = check.counting && check.counting.open ? (
+    <p className="at-numstate" data-open="">
+      Ready: a student is also asked to say how many, like &ldquo;3 books&rdquo;.
+    </p>
   ) : null;
 
   return (
@@ -947,37 +1004,50 @@ function PartScreen({
           goes decides whether anybody is ever asked it. */}
       <PartDecks range={range} decks={decks} onDeckPart={onDeckPart} />
 
-      {!range.counted && twoWords.length ? (
-        <TwoWordsBlock lang={lang} questions={twoWords} onKeep={onKeepOne} />
+      {twoWords.length ? <TwoWordsBlock lang={lang} questions={twoWords} onKeep={onKeepOne} /> : null}
+
+      <PartBlock
+        title="Words"
+        role={`The words this part is the first to need. Parts after it build on them.${countedAt ? " Under each number is how it counts a thing — read only, made from the words above and your noun cards." : ""}`}
+      >
+        {standing}
+        <div className="at-mt5">
+          {own.length ? (
+            <WordGrid
+              lang={lang}
+              draft={draft}
+              setDraft={setDraft}
+              slots={own}
+              onRecord={onRecord}
+              countedAt={countedAt}
+            />
+          ) : (
+            <Help>
+              Nothing new to write here: {range.label.toLowerCase()} is built out of the words in{" "}
+              {earlier.length ? earlier.map((c) => c.range.label.toLowerCase()).join(" and ") : "the other parts"},
+              including the forms they take inside a bigger number.
+            </Help>
+          )}
+        </div>
+      </PartBlock>
+
+      <PartBlock
+        title="How the app says them"
+        role="Tap one that is wrong to write it out yourself: students are asked your wording instead."
+      >
+        <SampleRows lang={lang} draft={draft} values={probeOf(range)} render={render} onWrite={onWrite} />
+      </PartBlock>
+
+      {range.counts ? (
+        <CountedSection
+          lang={lang}
+          range={countingOf(range)}
+          nouns={nouns}
+          render={render}
+          warningsOf={countingGaps}
+          standing={counting}
+        />
       ) : null}
-
-      {range.counted ? (
-        <CountedSection lang={lang} range={range} nouns={nouns} render={render} standing={standing} />
-      ) : (
-        <PartBlock title="Words" role="The words this part is the first to need. Parts after it build on them.">
-          {standing}
-          <div className="at-mt5">
-            {own.length ? (
-              <WordGrid lang={lang} draft={draft} setDraft={setDraft} slots={own} onRecord={onRecord} />
-            ) : (
-              <Help>
-                Nothing new to write here: {range.label.toLowerCase()} is built out of the words in{" "}
-                {earlier.length ? earlier.map((c) => c.range.label.toLowerCase()).join(" and ") : "the other parts"},
-                including the forms they take inside a bigger number.
-              </Help>
-            )}
-          </div>
-        </PartBlock>
-      )}
-
-      {range.counted ? null : (
-        <PartBlock
-          title="How the app says them"
-          role="Tap one that is wrong to write it out yourself: students are asked your wording instead."
-        >
-          <SampleRows lang={lang} draft={draft} values={probeOf(range)} render={render} onWrite={onWrite} />
-        </PartBlock>
-      )}
 
       {written.length ? (
         <PartBlock
@@ -998,7 +1068,7 @@ function PartScreen({
         </PartBlock>
       ) : null}
 
-      <PartTags range={range} open={check.open} />
+      <PartTags range={range} open={check.open} counts={!!(check.counting && check.counting.open)} />
     </Screen>
   );
 }
@@ -1106,35 +1176,50 @@ function TwoWordsBlock({ lang, questions, onKeep }: {
 }
 
 /**
- * The boxes for some slots: a word per face, and once there is one, how it
- * sounds and a recording of it.
+ * The boxes for some slots, each number a panel of its own: a word per
+ * face, and once there is one, how it sounds and a recording of it.
+ *
+ * A panel rather than a row, the way a card's editor puts each of a card's
+ * forms in a panel with its name across the top. As rows, a number with
+ * three faces was a label beside a column of nine boxes and the next
+ * number's label sat level with the middle of them, so which box was
+ * whose was read off the spacing. Here the number heads its own boxes,
+ * and what each one is for is named over it.
+ *
+ * Under them, on a part that is counted with, the number counting a thing
+ * — read only, because it is made out of the boxes above and the noun
+ * cards, and the place to change it is one of those. It is here because
+ * the word before a noun is the box a teacher is least sure of, and the
+ * phrase it makes is what shows whether it is right.
  */
-function WordGrid({ lang, draft, setDraft, slots, onRecord }: {
+function WordGrid({ lang, draft, setDraft, slots, onRecord, countedAt }: {
   lang: Lang;
   draft: NumberSystem;
   setDraft: (f: (d: NumberSystem) => NumberSystem) => void;
   slots: SlotSpec[];
   onRecord: (slot: string, key: FormKey) => void;
+  /** The number counting a thing, where the part is counted with. */
+  countedAt?: (n: number) => { text: string; en: string } | null;
 }) {
   return (
-    <div className="at-numgrid">
-      {slots.map((slot) => (
-        <div className="at-numrow" key={slot.slot}>
-          <div className="at-numlabel">
-            <span className="at-numfig">{slot.label}</span>
-            {numeralFor(lang, slot.label) ? (
-              <Meta>
-                <span lang={lang.id} dir={lang.direction}>
+    <div className="at-numtiles">
+      {slots.map((slot) => {
+        const n = figureOf(slot.label);
+        const counted = countedAt && n != null ? countedAt(n) : null;
+        return (
+          <div className="at-part at-numtile" key={slot.slot}>
+            <p className="at-groupline at-numhead">
+              <span>{slot.label}</span>
+              {numeralFor(lang, slot.label) ? (
+                <span className="at-numheadfig" lang={lang.id} dir={lang.direction}>
                   {numeralFor(lang, slot.label)}
                 </span>
-              </Meta>
-            ) : null}
-            {slot.hint ? <Meta>{slot.hint}</Meta> : null}
-          </div>
-          <div className="at-numboxes">
+              ) : null}
+            </p>
+            {slot.hint ? <p className="at-hint at-numhint">{slot.hint}</p> : null}
             {slot.formKeys.map((key) => (
               <div className="at-numcell" key={key}>
-                {slot.formKeys.length > 1 ? <Meta>{faceLabel(slot, key)}</Meta> : null}
+                {slot.formKeys.length > 1 ? <span className="at-label">{faceLabel(slot, key)}</span> : null}
                 <ScriptInput
                   lang={lang}
                   value={(draft.lexemes[slot.slot] || { forms: {} }).forms[key] || ""}
@@ -1143,7 +1228,7 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord }: {
                   onChange={(v) => setDraft((d) => withWord(d, slot.slot, key, v))}
                 />
                 {(draft.lexemes[slot.slot] || { forms: {} }).forms[key] ? (
-                  <>
+                  <div className="at-numsound">
                     <LatInput
                       lang={lang}
                       value={(draft.lexemes[slot.slot].lat || {})[key] || ""}
@@ -1155,13 +1240,22 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord }: {
                         ? "Recording ✓"
                         : "Record"}
                     </Button>
-                  </>
+                  </div>
                 ) : null}
               </div>
             ))}
+            {counted ? (
+              <div className="at-numcount">
+                <span className="at-label">Counting a thing</span>
+                <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
+                  {counted.text}
+                </span>
+                {counted.en ? <Meta>{counted.en}</Meta> : null}
+              </div>
+            ) : null}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1177,7 +1271,7 @@ const GAP_LABEL: Record<string, string> = {
 };
 
 /**
- * The things a counting part counts: the teacher's noun cards.
+ * The things a part counts: the teacher's noun cards.
  *
  * There used to be a list of nouns written on this screen, because no
  * card could say a word was a pair; a card can, so the list went and the
@@ -1185,9 +1279,13 @@ const GAP_LABEL: Record<string, string> = {
  * to the one question a teacher has about it: which of my nouns will be
  * counted, and what is the rest missing.
  */
-function CountedSection({ lang, range, nouns, render, standing }: {
+function CountedSection({ lang, range, nouns, render, warningsOf, standing }: {
   lang: Lang;
   range: Range;
+  /** What counting a noun across the part warns about, where the caller
+      has it remembered — see countingWarnings. Read off `render` at
+      every number of the probe otherwise. */
+  warningsOf?: (noun: CountedNoun) => { code: string; slot?: string; detail?: string }[];
   /** Where the part stands, said at the head of the section. */
   standing?: React.ReactNode;
   nouns: ReadNoun[];
@@ -1199,12 +1297,11 @@ function CountedSection({ lang, range, nouns, render, standing }: {
     if (!read.noun) return { read, ok: false, gaps: read.missing.map((m) => GAP_LABEL[m] || m), said: "" };
     const noun = read.noun;
     const gaps = new Set<string>();
-    for (const n of probe) {
-      for (const w of blocking(render(n, { noun }).warnings as never) as { code: string; detail?: string }[]) {
-        const face = String(w.detail || "").split(".").pop() || "";
-        if (w.code === "missing-noun-form") gaps.add(GAP_LABEL[face] || face);
-        else gaps.add("a number word");
-      }
+    const warnings = warningsOf ? warningsOf(noun) : probe.flatMap((n) => render(n, { noun }).warnings);
+    for (const w of blocking(warnings as never) as { code: string; detail?: string }[]) {
+      const face = String(w.detail || "").split(".").pop() || "";
+      if (w.code === "missing-noun-form") gaps.add(GAP_LABEL[face] || face);
+      else gaps.add("a number word");
     }
     return { read, ok: !gaps.size, gaps: [...gaps], said: render(shownAt, { noun }).text };
   });
@@ -1221,8 +1318,8 @@ function CountedSection({ lang, range, nouns, render, standing }: {
     range.from <= 10 && range.to >= 3 && !!number && number.options.some(([v]) => v === "counted");
   return (
     <PartBlock
-      title="Things counted"
-      role={`Counting uses your noun cards: any noun card in ${lang.name} with its singular, its plural${pairs ? ", its pair form" : ""} and its gender written. Write or finish one on the Cards tab and it is counted here — nothing to copy across.${afterThree ? " A noun whose plural changes after three to ten, like days or months, has a box for that on its card, under the plural." : ""}`}
+      title="Counting things"
+      role={`Students are also asked to say how many of something there are, like "3 books", with numbers from this part. Counting uses your noun cards: any noun card in ${lang.name} with its singular, its plural${pairs ? ", its pair form" : ""} and its gender written. Write or finish one on the Cards tab and it is counted here — nothing to copy across.${afterThree ? " A noun whose plural changes after three to ten, like days or months, has a box for that on its card, under the plural." : ""}`}
     >
       {standing}
       <div className="at-mt5" />
@@ -1294,37 +1391,39 @@ function PartDecks({ range, decks, onDeckPart }: {
  *
  * Only default tags, because a part's are not chosen — see partTags. They
  * are here to be read: a teacher writing a sentence card needs to know
- * that `{{0-10}}` or `{{number}}` is a blank that will hold a number, and
+ * that `{{0-9}}` or `{{number}}` is a blank that will hold a number, and
+ * that `{{count-0-9}}` or `{{count}}` will hold a number of things — and
  * this is where they would look for what a part can be borrowed as.
  */
-function PartTags({ range, open }: { range: Range; open: boolean }) {
+function PartTags({ range, open, counts }: { range: Range; open: boolean; counts: boolean }) {
   /* Its own tag and the general one, first and last: a part split out of
      an older one also answers to that part's tag, for the sentences
      written with it, but that is not a name to write new ones with. */
-  const tags = partTags(range);
-  const own = tags[0];
-  const general = tags[tags.length - 1];
+  const ends = (tags: string[]) => [tags[0], tags[tags.length - 1]];
+  const [own, general] = ends(partTags(range));
+  const counting = range.counts ? ends(partTags(countingOf(range))) : [];
   const what = (name: string) =>
     name === general
-      ? range.counted
-        ? "Any number of things, from any counting part"
-        : "Any number, from any part"
-      : range.counted
-        ? `A number and a thing counted, from ${range.label.toLowerCase()}`
-        : `A number from ${range.label.toLowerCase()}`;
+      ? "Any number, from any part"
+      : name === counting[1]
+        ? "Any number of things, from any part"
+        : name === counting[0]
+          ? `A number and a thing counted, from ${range.label.toLowerCase()}`
+          : `A number from ${range.label.toLowerCase()}`;
   return (
     <PartBlock title="Filling blanks" role="How this part can be used to fill blanks in sentence cards">
       <div className="at-part">
         <p className="at-groupline">The part&rsquo;s tags</p>
         <Help>
           Wherever a sentence card has a blank for one of these tags, this part fills it with one of
-          its numbers, written out{range.counted ? ", and a noun in the form the number calls for" : ""}.
+          its numbers, written out
+          {counting.length ? <>, or for the counting tags with a noun beside it in the form the number calls for</> : null}.
         </Help>
         <div className="at-ticklist at-cardtags">
           <p className="at-eyebrow">Default tags</p>
           <Help>These follow from the part, and are the same in every language.</Help>
           <div className="at-tagchips">
-            {[own, general].map((name) => (
+            {[own, general, ...counting].map((name) => (
               <span className="at-tagchip" key={name} title={what(name)}>
                 {name}
               </span>
@@ -1334,6 +1433,11 @@ function PartTags({ range, open }: { range: Range; open: boolean }) {
             <p className="at-hint">
               Nothing fills them from this part until it is ready, so a sentence asking for{" "}
               <span className="at-blankname">{own}</span> waits for it.
+            </p>
+          ) : counting.length && !counts ? (
+            <p className="at-hint">
+              Nothing fills <span className="at-blankname">{counting[0]}</span> from this part until
+              a noun card can be counted with it.
             </p>
           ) : null}
         </div>

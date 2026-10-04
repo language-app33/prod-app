@@ -74,11 +74,12 @@ test("Huế asks for a third of the boxes the Semitic pair do, and they ask for 
   );
 });
 
-test("a language with nothing to agree with schedules no counting range", () => {
+test("a language with nothing to agree with asks no counting question", () => {
   const vi = must(composerFor("vi-Hue"), "vi").ranges();
-  assert.equal(vi.some((r) => r.counted), false);
+  assert.equal(vi.some((r) => r.counts || r.counted), false);
   for (const id of ["ar-PS", "he-IL"]) {
-    assert.ok(must(composerFor(id), id).ranges().some((r) => r.counted), id);
+    const stretches = must(composerFor(id), id).ranges().filter((r) => r.kind === "numbers");
+    assert.ok(stretches.length && stretches.every((r) => r.counts && !r.counted), id);
   }
 });
 

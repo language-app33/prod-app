@@ -486,3 +486,28 @@ test("a question kept to the numbers draws its company from number words alone",
   assert.ok(kept.every((/** @type {any} */ it) => isFromSystem(it)), "something other than a number was in the company");
   assert.equal(companyOf(items, { id: words()[0].id, type: "ar2pick" }).length, items.length, "an ordinary question lost its company");
 });
+
+/* Last, because the die is shared: a test placed earlier would move every
+   draw after it. */
+test("a stretch's counting question counts a thing from the stretch, and nothing else on it does", () => {
+  /* Counting stands on the top of a stretch's ladder, beside writing the
+     number out, so it is dealt once the stretch can be read and chosen. */
+  const items = climbed(["num2fig", "rec2fig", "fig2pick"]).filter((/** @type {any} */ it) => it.range.kind === "numbers");
+  const asked = over(items, 12);
+  const counting = asked.filter((/** @type {any} */ e) => e.type === "count2phrase");
+  assert.ok(counting.length > 0, "no counting question was dealt");
+  for (const ex of counting) {
+    const skill = must(items.find((/** @type {any} */ s) => s.id === ex.id), ex.id);
+    const ask = must(ex.ask, `${ex.id} counted nothing`);
+    assert.ok(SYS.nouns.some((/** @type {any} */ n) => n.id === ask.nounId), `${ex.id} counted ${ask.nounId}`);
+    assert.ok(ask.value >= Math.max(1, skill.range.from) && ask.value <= skill.range.to, `${ask.value} in ${skill.range.id}`);
+    assert.match(renderAsk(ask, arComposer, SYS).en, /^\d+ \S+/);
+  }
+  /* And not one noun over and over: the askings are worked out with one
+     noun of each gender, and the one asked is any of its gender. */
+  assert.ok(new Set(counting.map((/** @type {any} */ e) => e.ask.nounId)).size > 1,
+    counting.map((/** @type {any} */ e) => e.ask.nounId).join(" "));
+  for (const ex of asked.filter((/** @type {any} */ e) => e.type !== "count2phrase")) {
+    assert.equal(must(ex.ask, ex.id).nounId, undefined, `${ex.type} on ${ex.id} counted a thing`);
+  }
+});

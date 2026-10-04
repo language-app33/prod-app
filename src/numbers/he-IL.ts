@@ -32,7 +32,7 @@ import type {
   Rendering,
   SlotSpec,
 } from "./types.ts";
-import { COUNTING_RANGES, NUMBER_CEILING, NUMBER_RANGES } from "./types.ts";
+import { COUNTING_STRETCHES, NUMBER_CEILING } from "./types.ts";
 import { Build } from "./build.ts";
 import { chunksOf, nounTextOf } from "./compose.ts";
 import type { VerbSpec } from "../types.ts";
@@ -111,10 +111,8 @@ export const HE_SLOTS: SlotSpec[] = [
   },
 ];
 
-export const HE_RANGES: Range[] = [
-  ...NUMBER_RANGES,
-  ...COUNTING_RANGES,
-];
+/** The five stretches, each counted with too — see COUNTING_STRETCHES. */
+export const HE_RANGES: Range[] = COUNTING_STRETCHES;
 
 export const HE_NUMBER_TABLE: VerbSpec = {
   persons: [

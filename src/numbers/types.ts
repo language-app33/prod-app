@@ -318,9 +318,10 @@ export interface SlotSpec {
  * A stretch of what can be asked, and the unit the scheduler deals.
  *
  * A range is not a classification of numbers; it is a thing a learner
- * gets better at. Which is why *counting nouns* and *telling the time to
- * the exact minute* are ranges beside *0 to 10*: each is a skill with its
- * own schedule, opened only once everything it needs can be rendered.
+ * gets better at. Which is why *telling the time to the exact minute* is
+ * a range beside *0 to 9*: each is a skill with its own schedule, opened
+ * only once everything it needs can be rendered. Counting a noun is a
+ * question a stretch asks, not a range — see `counts`.
  */
 export interface Range {
   id: string;
@@ -329,8 +330,14 @@ export interface Range {
   /** For numbers, the ends of the stretch. For a time range, the hours. */
   from: number;
   to: number;
-  /** Whether its questions count a noun. */
+  /** Whether its questions count a noun. Set on the view of a stretch
+      the counting question is asked from — see `countingOf` — and on
+      nothing that is stored. */
   counted?: boolean;
+  /** Whether a stretch is counted with too: *3 books* as well as *3*.
+      Each language says so, because a language with nothing to agree has
+      nothing to ask. */
+  counts?: boolean;
   /** For a time range: which minute marks it draws from. */
   marks?: number[];
   style?: TimeStyle;
@@ -490,44 +497,58 @@ export const NUMBER_RANGES: Range[] = [
   { id: "numbers:1000+", kind: "numbers", label: "Numbers 1,000 and over", from: 1000, to: NUMBER_CEILING },
 ];
 
+/*
+ * Counting things, inside the stretches rather than beside them.
+ *
+ * It was three parts of its own — 1 and 2, 3 to 10, 11 to 20 — drawn
+ * where the counted word changes shape. A teacher thinks of numbers in
+ * stretches and of counting as one more thing to know about each number,
+ * so a stretch is counted with now, and the counting question is one of
+ * its questions: at the top of its ladder, beside writing the number out,
+ * and only once the teacher's noun cards can be counted across all of it.
+ * See DECISIONS.md, "Counting is a question a stretch asks".
+ */
+export const COUNTING_STRETCHES: Range[] = NUMBER_RANGES.map((r) => ({ ...r, counts: true }));
+
+/**
+ * The view of a stretch a counting question is asked from: the same
+ * stretch, from one rather than nought — nobody counts nought books — and
+ * marked as counting, which is what every draw, probe and filler reads.
+ */
+export const countingOf = (range: Range): Range => ({ ...range, from: Math.max(1, range.from), counted: true });
+
+/** The three counting parts there used to be, and the stretch each one
+    went into: the one that holds most of its numbers. */
+export const MERGED_INTO: Record<string, string> = {
+  "numbers:count-1-2": "numbers:0-9",
+  "numbers:count-3-10": "numbers:0-9",
+  "numbers:count-11-20": "numbers:10-19",
+};
+
+/**
+ * Where a stretch's counting question finds what a learner had earned on
+ * the counting parts it replaced, best first: the part holding most of
+ * its numbers, then the one counting range there was before those.
+ */
+export const COUNTING_WAS: Record<string, string[]> = {
+  "numbers:0-9": ["numbers:count-3-10", "numbers:count-1-2", "numbers:agreement"],
+  "numbers:10-19": ["numbers:count-11-20", "numbers:agreement"],
+};
+
 /**
  * A deck's parts as the parts there are now.
  *
  * A deck stores the parts it holds by id, and a deck that held 11 to 99
  * before the split holds an id no part has any more. Read through this,
  * it holds every part that came out of it — 10 to 19 and 20 to 99 —
- * which is what the teacher chose; anything else is left as it is.
+ * which is what the teacher chose. A counting part reads as the stretch
+ * it went into; anything else is left as it is.
  */
 export function partsNow(parts: string[]): string[] {
   const out: string[] = [];
   for (const id of parts) {
-    const into = NUMBER_RANGES.filter((r) => r.was === id).map((r) => r.id);
+    const into = MERGED_INTO[id] ? [MERGED_INTO[id]] : NUMBER_RANGES.filter((r) => r.was === id).map((r) => r.id);
     for (const now of into.length ? into : [id]) if (!out.includes(now)) out.push(now);
   }
   return out;
 }
-
-/*
- * Counting things, as three parts rather than one.
- *
- * The lines are where the counted word changes shape — in Arabic the
- * singular after one, the dual for two, the plural from three to ten, the
- * singular again from eleven — and they are the lines a teacher teaches
- * along, so each is a part a deck can hold on its own. It was one range,
- * 1 to 20, which also meant a teacher who had not yet written a plural
- * held back the whole of it: a range opens only once all of it can be
- * said. Hebrew changes at the same places, so both languages share these.
- */
-export const COUNTING_RANGES: Range[] = [
-  { id: "numbers:count-1-2", kind: "numbers", label: "Counting things: 1 and 2", from: 1, to: 2, counted: true },
-  { id: "numbers:count-3-10", kind: "numbers", label: "Counting things: 3 to 10", from: 3, to: 10, counted: true },
-  { id: "numbers:count-11-20", kind: "numbers", label: "Counting things: 11 to 20", from: 11, to: 20, counted: true },
-];
-
-/**
- * Which range a part was split out of, so a learner's progress on the
- * one they had carries into each of the parts — see `handOnSplit`.
- */
-export const SPLIT_FROM: Record<string, string> = Object.fromEntries(
-  COUNTING_RANGES.map((r) => [r.id, "numbers:agreement"]),
-);

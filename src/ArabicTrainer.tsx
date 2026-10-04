@@ -187,6 +187,7 @@ import type { LangChoice } from "./lang-choice.ts";
    naming one. See src/numbers/. */
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import type { Ask, Token } from "./numbers/types.ts";
+import { countingOf } from "./numbers/types.ts";
 import {
   confusableTimes,
   confusablesOf,
@@ -3341,8 +3342,9 @@ interface Session {
 interface KnownNumbers {
   /** Whether anything of this range can be asked yet. */
   ready: (item: Item) => boolean;
-  /** One asking of it on this seed, steered towards `waiting`, or null. */
-  draw: (item: Item, seed: string, waiting: Set<string>) => Ask | null;
+  /** One asking of it on this seed, steered towards `waiting`, or null —
+      counting a noun where `counting`, see countingOf. */
+  draw: (item: Item, seed: string, waiting: Set<string>, counting?: boolean) => Ask | null;
 }
 
 /* The askings each range can put, kept against the system they were read
@@ -3385,27 +3387,34 @@ function knownNumbers(items: Item[], settings: Settings, sets: SystemSet[]): Kno
       timeSys: set.times,
     };
   };
-  const knownOf = (item: Item) => {
+  /* A stretch's counting question asks from the same stretch with a noun
+     beside each number — its own askings, kept under a key of their own. */
+  const rangeOf = (item: Item, counting: boolean) =>
+    item.range && counting ? countingOf(item.range) : item.range;
+  const knownOf = (item: Item, counting = false) => {
     const set = setOf(item);
-    if (!set || !item.range) return [];
+    const range = rangeOf(item, counting);
+    if (!set || !range) return [];
     let bySystem = KNOWN_ASKINGS.get(set.sys);
     if (!bySystem) KNOWN_ASKINGS.set(set.sys, (bySystem = new Map()));
     const clock = set.timeSys ? `${set.timeSys.id}@${set.timeSys.rev}` : "";
-    const key = `${item.id}\u0000${clock}\u0000${knowingNow()}`;
+    const id = `${item.id}${counting ? "#count" : ""}`;
+    const key = `${id}\u0000${clock}\u0000${knowingNow()}`;
     const held = bySystem.get(key);
     if (held) return held;
-    const list = askingsKnown(item.range, set, ids, knows);
+    const list = askingsKnown(range, set, ids, knows);
     /* Only the latest per range is worth keeping. */
-    for (const k of bySystem.keys()) if (k.startsWith(`${item.id}\u0000`)) bySystem.delete(k);
+    for (const k of bySystem.keys()) if (k.startsWith(`${id}\u0000`)) bySystem.delete(k);
     bySystem.set(key, list);
     return list;
   };
   return {
     ready: (item) => knownOf(item).length > 0,
-    draw: (item, seed, waiting) => {
+    draw: (item, seed, waiting, counting = false) => {
       const set = setOf(item);
-      if (!set || !item.range) return null;
-      return askKnown(item.range, seed, set, ids, knows, knownOf(item), waiting);
+      const range = rangeOf(item, counting);
+      if (!set || !range) return null;
+      return askKnown(range, seed, set, ids, knows, knownOf(item, counting), waiting);
     },
   };
 }
@@ -3482,7 +3491,10 @@ function drawRange(
       .filter((p) => p.validated === false)
       .map((p) => p.card.id),
   );
-  const ask = numbers.draw(item, `${item.id} ${type} ${turn}`, waiting);
+  /* The counting question counts a noun, from the same stretch — see
+     countingOf; every other question on it asks the bare number. */
+  const counting = ((specOf(type) && specOf(type).needs) || []).includes("rangeCounted");
+  const ask = numbers.draw(item, `${item.id} ${type} ${turn}`, waiting, counting);
   if (!ask) return {};
 
   if (EX[type] && EX[type].picks !== "word") return { ask };

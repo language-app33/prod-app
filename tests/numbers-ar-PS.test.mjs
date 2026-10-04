@@ -361,19 +361,15 @@ test("the composer names itself and its ranges", () => {
   const ranges = arComposer.ranges();
   assert.deepEqual(
     ranges.map((r) => r.id),
-    ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
+    ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+"],
   );
   for (const r of ranges) {
     assert.ok(r.from <= r.to, `${r.id} is back to front`);
     assert.ok(r.to <= NUMBER_CEILING, `${r.id} reaches past the ceiling`);
     assert.ok(r.label, `${r.id} has no name`);
-  }
-  /* The one range that is not a stretch of the number line says so. */
-  /* Counting things in the three parts the counted word changes at. */
-  for (const [id, from, to] of [["numbers:count-1-2", 1, 2], ["numbers:count-3-10", 3, 10], ["numbers:count-11-20", 11, 20]]) {
-    const r = must(ranges.find((x) => x.id === id), String(id));
-    assert.equal(r.counted, true, `${id} counts things`);
-    assert.deepEqual([r.from, r.to], [from, to], `${id} covers ${from} to ${to}`);
+    /* Every stretch is counted with too: counting things is one of its
+       questions rather than a part of its own. */
+    assert.equal(r.counts, true, `${r.id} counts things`);
   }
 });
 

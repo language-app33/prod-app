@@ -4800,3 +4800,50 @@ reached for once the seven are written, so `homesOf` now puts a box no
 number reached for beside the others in its group, rather than on the last
 part. The thousands, which fuse the same way, are left as they are; nobody
 asked, and it is the same change again if they do.
+
+---
+
+## Counting is a question a stretch asks
+
+**4 October 2026** · `src/numbers/types.ts` (`COUNTING_STRETCHES`, `countingOf`, `MERGED_INTO`), `src/numbers/range.ts` (`RangeCheck.counting`, `countingWarnings`), `src/numbers/generate.ts` (`handOnCounting`, `anyOfKind`), `src/shared.tsx` (`foldForms`), `src/number-system-editor.tsx` (`WordGrid`)
+
+Counting things was three parts of its own beside the stretches — 1 and 2,
+3 to 10, 11 to 20 — drawn where the counted word changes shape. A teacher
+thinks in stretches, and of counting as one more thing a number does, so
+the owner asked for it to go inside them. Each stretch now asks *How would
+you say this? · 3 books* with its own numbers, from one rather than nought.
+
+**One skill, two families of question.** The stretch's form carries both
+markers, so the counting exercise is one more on its ladder, at the top
+beside writing the number out — counting comes once the stretch can be read.
+The draw is the stretch seen through `countingOf`, which is the same range
+marked as counting, so every probe, draw and filler that already knew how
+to count a noun works unchanged on it. **Counting never holds a stretch
+back**: whether it can be asked is `counting` on the stretch's check, apart
+from `open`, and needs the stretch open and one noun card countable across
+the whole of it.
+
+**What a learner had is moved, not copied.** The stretch is usually already
+on the device with schedules of its own, and the fold keeps a held card's
+schedules over a fresh one's — so a hand-on written into the fresh card
+would vanish. It rides as `carried` instead: the fold adds those beneath the
+learner's own, never over one, and never stores the field. 0 to 9 takes 3
+to 10 before 1 and 2, because it holds more of it; 10 to 19 takes 11 to 20.
+
+**Nouns are judged by kind.** Every stretch counted with is a probe of forty
+numbers, and every noun card a teacher holds is a noun to check: two hundred
+cards made the editor ten times slower per keystroke. What stops a noun
+being counted is its gender and which faces are written, never its words,
+so one noun of each kind is rendered and the rest share its answer — held
+to the slow way in a test. For the same reason a counting asking is worked
+out with one noun per gender, and the noun asked is any of that gender,
+drawn on the question's own seed.
+
+**What it costs.** The teacher can no longer put counting in a deck, or
+leave it out, apart from the numbers; a deck that held a counting part now
+holds the whole stretch. 0 to 9 counts only once a noun card has its plural
+as well as its pair form, where "1 and 2" used to start without one.
+Counting now reaches past twenty, which the Palestinian golden table
+checks to a thousand; Hebrew's has no counting rows, as it had none before. `{{count}}` in a sentence may now be any number of things, not
+one to twenty; the old `{{count-3-10}}` tags are filled from the stretch's
+counted phrases that fall inside them.

@@ -27,7 +27,7 @@ import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
 import { setsWithNouns } from "./numbers/nouns.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { fileIntoDecks, generate, handOn, handOnSplit } from "./numbers/generate.ts";
+import { fileIntoDecks, generate, handOn, handOnCounting, handOnSplit } from "./numbers/generate.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -4142,7 +4142,12 @@ export async function pullCourses(
        that card is a box now. See handOn, which reads what the migration
        wrote down and moves the schedule across — once, onto a card this
        device has never held. */
-    const handed = handOnSplit(handOn(made.items, items, set.numbers), items, parked, set.numbers.id);
+    const handed = handOnCounting(
+      handOnSplit(handOn(made.items, items, set.numbers), items, parked, set.numbers.id),
+      items,
+      parked,
+      set.numbers.id,
+    );
     /* And only the parts a deck holds, filed under that deck: numbers
        arrive the way every other card does — see fileIntoDecks. A deck in
        another language holds none of this system's. */
@@ -4231,9 +4236,13 @@ function foldForms<T extends Form>(had: T[], fresh: T[]): T[] {
     if (at >= 0) taken.add(at);
     return mate;
   });
-  return fresh.map((f, i) => {
+  return fresh.map((one, i) => {
+    /* What a card no longer made handed on to this one — see
+       handOnCounting. Under the learner's own schedules, never over one,
+       and never stored itself. */
+    const { carried, ...f } = one;
     const mate = matched[i] || (taken.has(i) ? null : had[i]);
-    if (!mate) return f;
+    if (!mate) return (carried ? { ...f, s: { ...carried, ...(f.s || {}) } } : f) as T;
     /*
      * The schedule, and the other thing a form carries that the learner
      * earned rather than the teacher wrote: how far each of a frame's
@@ -4247,7 +4256,8 @@ function foldForms<T extends Form>(had: T[], fresh: T[]): T[] {
      * asked, and a form the teacher has just written has none to bring.
      */
     const met = mergeMet(f.met, mate.met);
-    return { ...f, s: mate.s || f.s, ...(met ? { met } : null) };
+    const s = mate.s || f.s;
+    return { ...f, s: carried ? { ...carried, ...(s || {}) } : s, ...(met ? { met } : null) } as T;
   });
 }
 
@@ -4316,6 +4326,17 @@ const compactStates = (s?: Record<string, ExerciseState>): Record<string, Exerci
   return out;
 };
 
+/* A card the device does not hold yet, with anything handed on to its
+   forms taken into their schedules — see handOnCounting — rather than
+   left on them to be stored. */
+const uncarried = (item: Item): Item =>
+  formsOf(item).some((f) => f.carried)
+    ? {
+        ...item,
+        forms: formsOf(item).map(({ carried, ...f }) => (carried ? { ...f, s: { ...carried, ...(f.s || {}) } } : f)),
+      }
+    : item;
+
 /* Fold fresh course cards into the person's cards: progress kept, wording
    taken from the teacher, withdrawn cards named so they can be tombstoned —
    and their progress set aside rather than thrown away. */
@@ -4366,7 +4387,7 @@ export function foldCourses(items: Item[], incoming: Item[], parked: Record<stri
     } else {
       /* A card the device has never held — or one that went away and has
          come back, whose work was set aside rather than thrown out. */
-      kept.push(withProgress(fresh, parked[fresh.id]));
+      kept.push(withProgress(uncarried(fresh), parked[fresh.id]));
     }
   }
 

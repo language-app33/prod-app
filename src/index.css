@@ -3612,6 +3612,38 @@ body.at-screening .at-chromebar { display:none; }
   line-height:calc(1.4 * var(--sleading, 1)); unicode-bidi:isolate; min-width:0;
   overflow-wrap:anywhere; }
 
+/* The words of a part, one panel per number — the same well-and-hairline
+   subsection a card's editor puts each form in, headed by the number in
+   the same green capitals over a rule. Side by side where there is room,
+   since a number is a handful of short boxes and a column of twenty panels
+   the width of a desktop screen is mostly empty well. */
+.at-numtiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
+  gap:12px; align-items:start; }
+.at-numtiles > .at-part { margin:0; }
+.at-numhead { display:flex; align-items:baseline; gap:10px; }
+.at-numheadfig { font-family: var(--sfont); font-size:calc(17px * var(--sscale, 1));
+  font-weight:400; letter-spacing:0; text-transform:none; color: var(--muted);
+  unicode-bidi:isolate; }
+.at-numhint { margin:0 0 10px; font-size:13px; line-height:1.5; }
+.at-numtile .at-numcell + .at-numcell { margin-top:12px; }
+.at-numtile .at-numcell > .at-label { margin-bottom:4px; }
+/* The names over its boxes a size down, as they are inside a form's panel
+   on a card: they name boxes, not sections. */
+.at-screen.cardform .at-numtile .at-label { font-size:12px; letter-spacing:.08em; }
+/* How it sounds and its recording, on one line under the word. */
+.at-numsound { display:flex; gap:6px; align-items:center; margin-top:6px; }
+.at-numsound > .at-input { flex:1 1 auto; min-width:0; }
+.at-numsound > .at-btn { flex:none; }
+/* The number counting a thing: read, not typed — so no box, and parted
+   from the boxes above it by a rule, the way a form's ticks are parted
+   from its fields. */
+.at-numcount { display:flex; flex-direction:column; gap:2px; margin-top:12px;
+  padding-top:10px; border-top:1px solid var(--line); }
+.at-numcount > .at-label { margin-bottom:2px; }
+/* A part's tile says where it stands and, under that, where its counting
+   does. */
+.at-numstates { display:flex; flex-direction:column; gap:2px; }
+
 /* The grid itself. */
 .at-numgrid { display:flex; flex-direction:column; gap:10px; }
 .at-numrow { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }

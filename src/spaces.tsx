@@ -5888,7 +5888,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
      Numbers are one document per language and pronouns one screen, so
      neither is a card a teacher would find in a list to add. This is the
      one place a deck takes them: the parts of the numbers by name — 0 to
-     10, counting things 3 to 10, telling the hour — each bringing the
+     9, 20 to 99, telling the hour — each bringing the
      words it is built of, and the pronouns one person at a time. Nothing
      of either reaches a student except through a deck. */
   const numberPartsOf = (langId: LangId | undefined) => [
