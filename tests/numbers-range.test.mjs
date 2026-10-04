@@ -49,8 +49,9 @@ const ids = (/** @type {any[]} */ ranges) => ranges.map((r) => r.id);
 test("a complete system opens every range it has", () => {
   const open = openRanges(arComposer, SYS, arTimeComposer, TIME);
   assert.deepEqual(ids(open), [
-    "numbers:0-10",
-    "numbers:11-99",
+    "numbers:0-9",
+    "numbers:10-19",
+    "numbers:20-99",
     "numbers:100-999",
     "numbers:1000+",
     "numbers:count-1-2",
@@ -66,8 +67,9 @@ test("a complete system opens every range it has", () => {
 
 test("a system with no clock opens its numbers and nothing else", () => {
   assert.deepEqual(ids(openRanges(arComposer, SYS)), [
-    "numbers:0-10",
-    "numbers:11-99",
+    "numbers:0-9",
+    "numbers:10-19",
+    "numbers:20-99",
     "numbers:100-999",
     "numbers:1000+",
     "numbers:count-1-2",
@@ -86,10 +88,10 @@ test("the stretches of the number line stop at the first hole", () => {
   const checks = rangeChecks(arComposer, holed);
   assert.deepEqual(
     checks.filter((c) => c.open).map((c) => c.range.id),
-    ["numbers:0-10", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
+    ["numbers:0-9", "numbers:10-19", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
   );
   /* And says what is in the way of the one that shut. */
-  const shut = must(checks.find((c) => c.range.id === "numbers:11-99"), "11-99");
+  const shut = must(checks.find((c) => c.range.id === "numbers:20-99"), "20-99");
   assert.deepEqual(
     blocking(shut.warnings).map((w) => w.slot),
     ["ten.70"],
@@ -221,7 +223,7 @@ test("the generator is a generator, not a constant", () => {
 /* ---- what a question shows ---- */
 
 test("a number question shows the words and is answered in figures", () => {
-  const range = must(arComposer.ranges().find((r) => r.id === "numbers:11-99"), "11-99");
+  const range = must(arComposer.ranges().find((r) => r.id === "numbers:20-99"), "20-99");
   for (let i = 0; i < 200; i += 1) {
     const asked = renderAsk(askFor(range, `s${i}`, SYS), arComposer, SYS);
     assert.ok(asked.text, "nothing to show");

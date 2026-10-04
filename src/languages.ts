@@ -1670,10 +1670,22 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        line. The same abbreviations the card list uses, except that "na"
        has one here: a tag saying nothing is right, and a radio button
        labelled nothing is not. */
-    brief: { singular: "sg.", plural: "pl.", dual: "du.", na: "N/A" },
+    brief: { singular: "sg.", plural: "pl.", dual: "du.", counted: "pl. 3–10", na: "N/A" },
     /* And on a tag, a number that does not apply names nothing — not the
        letters "N/A". */
     short: { na: "" },
+    /* The plural a few nouns take after three to ten and nowhere else —
+       Palestinian *tiyyām* beside *ayyām*, days. Only a pack that lists
+       it offers it, only on a noun, and only as the box it is: a form of
+       it is not a word anybody is asked on its own. See ar-PS's options
+       and CountedNoun.plCounted. */
+    optionRules: {
+      counted: {
+        onlyOn: ["noun"],
+        help: "Only for the few nouns whose plural changes after three to ten, like days or months. Leave it empty for every other noun: the plural is used.",
+        unasked: true,
+      },
+    },
   },
   gender: {
     label: "Gender",
@@ -1686,30 +1698,35 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     ],
     brief: { masculine: "m.", feminine: "f.", neutral: "n." },
   },
-  /* Whether a noun is a person or a thing. Not a way of telling its forms
-     apart — nothing is ever asked "the person one" — but the fact that
-     decides what agrees with it: in Arabic a plural of things takes the
-     feminine singular adjective (كتب كبيرة) and a plural of people the
-     plural (معلمين كبار). Animals count as things. Silent on every tag,
-     which `short` says; starts as a thing, because most nouns are. */
+  /* Whether a noun is a person, an animal or a thing. Not a way of telling
+     its forms apart — nothing is ever asked "the person one" — but two
+     facts follow from it. What agrees with it: in Arabic a plural of things
+     takes the feminine singular adjective (كتب كبيرة) and a plural of
+     people the plural (معلمين كبار), and an animal agrees as a thing does.
+     And how its forms are laid out: a person or an animal comes in a
+     masculine and a feminine — معلم and معلمة, قط and قطة — so its card has
+     a side for each, where a thing has one gender for the whole word. See
+     nounBoxes in card-editor.tsx. Silent on every tag, which `short` says;
+     starts as a thing, because most nouns are. */
   human: {
-    label: "Person or thing",
+    label: "Person, animal or thing",
     field: "human",
     required: true,
-    help: "Specify here what kind of noun this is, so adjectives in sentence cards can use the correct form.",
+    help: "People and animals get a masculine and a feminine side. A thing has one gender for the whole word.",
     options: [
       ["thing", "a thing"],
       ["person", "a person"],
+      ["animal", "an animal"],
     ],
     default: "thing",
     /* A fact about the word and not about one of its spellings: كتاب and
        its plural كتب are both things, and so is either way of spelling
        either of them. Asked once beside the kind of word — see perCard. */
     perCard: true,
-    short: { thing: "", person: "" },
+    short: { thing: "", person: "", animal: "" },
     /* Silent on a tag and never silent in the picker — the article is what
        goes, not the word. */
-    brief: { thing: "thing", person: "person" },
+    brief: { thing: "thing", person: "person", animal: "animal" },
   },
   /* Who a form is said to: a greeting or a thank-you that changes with
      whether the listener is younger, a peer or an elder.
@@ -1775,7 +1792,18 @@ export const dimsFor = (
   if (!lang) return [];
   const kind = categoryOf(lang, category);
   const own = kind && kind.grammar;
-  return own ? dimsOf(lang).filter((d) => own.includes(d.field)) : dimsOf(lang);
+  const dims = own ? dimsOf(lang).filter((d) => own.includes(d.field)) : dimsOf(lang);
+  /* And within an axis, the values that belong to one kind of word only —
+     the plural after three to ten is a noun's. */
+  return dims.map((d) => {
+    const rules = d.optionRules;
+    if (!rules) return d;
+    const options = d.options.filter(([v]) => {
+      const only = rules[v] && rules[v].onlyOn;
+      return !only || (!!category && only.includes(category));
+    });
+    return options.length === d.options.length ? d : { ...d, options };
+  });
 };
 
 /**
@@ -1994,6 +2022,10 @@ const AR_AGREEMENT: VerbSpec = {
       picks: [
         { number: "singular", gender: "feminine" },
         { number: "plural", human: "thing" },
+        /* And a plural of animals, which agrees as a plural of things
+           does — قطط كبيرة. An animal is told apart from a thing only so
+           that its card can have a feminine side. */
+        { number: "plural", human: "animal" },
       ],
     },
     { id: "plural", label: "plural", picks: { number: "plural", human: "person" } },
@@ -2213,6 +2245,12 @@ export const categoryLabel = (
   id: string | null | undefined,
 ): string => (categoryOf(lang, id) || { label: "" }).label;
 
+/* Kept per pack: this is asked several times for every word a blank could
+   take, and a pack's tables are declared once, in this file, and never
+   written to afterwards. Every caller reads what it is handed and none of
+   them changes it, which is what makes handing the same one back safe. */
+const TABLES_OF: WeakMap<object, Record<string, VerbSpec>> = new WeakMap();
+
 /**
  * The tables this language lays a word's forms out in, by name, in the
  * order the pack declares them — which is the order a card carrying more
@@ -2220,10 +2258,14 @@ export const categoryLabel = (
  * nothing on either axis lays out nothing, and nobody should have to ask.
  */
 export const tablesOf = (lang: Lang | null | undefined): Record<string, VerbSpec> => {
+  const tables = lang && lang.tables;
+  const held = tables ? TABLES_OF.get(tables) : null;
+  if (held) return held;
   const out: Record<string, VerbSpec> = {};
-  for (const [name, spec] of Object.entries((lang && lang.tables) || {})) {
+  for (const [name, spec] of Object.entries(tables || {})) {
     if (spec && spec.tenses.length > 0 && spec.persons.length > 0) out[name] = spec;
   }
+  if (tables) TABLES_OF.set(tables, out);
   return out;
 };
 
@@ -2892,9 +2934,17 @@ export const LANGUAGES: Record<LangId, Lang> = {
     grammar: ["number", "gender", "human"],
     /* Two genders and a dual: there is no neuter to offer. */
     grammarOptions: {
-      number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
+      /* And the plural a few nouns take only after three to ten — تيام
+         beside أيام — which is a box on a noun card, under the plural. */
+      number: [
+        ["singular", "singular"],
+        ["plural", "plural"],
+        ["counted", "plural after 3 to 10"],
+        ["dual", "dual"],
+        ["na", "N/A"],
+      ],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
-      human: [["thing", "a thing"], ["person", "a person"]],
+      human: [["thing", "a thing"], ["person", "a person"], ["animal", "an animal"]],
     },
     /* A verb is marked for who is doing it and when, so its forms are laid
        out on those two axes. The tenses are in the order they are taught,
@@ -2933,6 +2983,16 @@ export const LANGUAGES: Record<LangId, Lang> = {
        src/numbers/ar-PS.ts, which holds the rule and not one word of it. */
     composer: composerFor("ar-PS"),
     times: timeComposerFor("ar-PS"),
+    /* Arabic's own figures, ٠ to ٩, which are what a learner meets on a
+       price or a bus: the digit for the digit, and the Arabic thousands
+       mark where English writes a comma. */
+    numerals: (n) =>
+      Number.isInteger(n) && n >= 0
+        ? n
+            .toString()
+            .replace(/\B(?=(\d{3})+$)/g, "٬")
+            .replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)])
+        : "",
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
     verdicts: {
@@ -3172,12 +3232,16 @@ export const LANGUAGES: Record<LangId, Lang> = {
     ],
     translitLabel: "Transliteration",
     /* Nouns carry number and gender, and adjectives agree with both —
-       the same two axes Arabic declares. */
-    grammar: ["number", "gender"],
+       the same two axes Arabic declares. And whether a noun is a person,
+       an animal or a thing: nothing in Hebrew agrees with that, but it is
+       what gives a noun's card a masculine and a feminine side — תלמיד and
+       תלמידה — so it is asked here too. */
+    grammar: ["number", "gender", "human"],
     /* Two genders, and a dual for the nouns that have one — שעתיים. */
     grammarOptions: {
       number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
+      human: [["thing", "a thing"], ["person", "a person"], ["animal", "an animal"]],
     },
     /* Marked for twelve persons, every one with a gender of its own —
        see HE_SUBJECT_PERSONS. The rows are its own:

@@ -576,12 +576,12 @@ button {
 .at-deckdrop:focus-visible { outline:3px solid var(--brass); outline-offset:1px; }
 /* --faint rather than --line: a dashed edge is half absent to begin with,
    and the palette's rule colour leaves it invisible on the light theme. */
-.at-deckadd { display:inline-flex; align-items:center; gap:8px; min-height:48px;
+.at-deckadd, .at-tagadd { display:inline-flex; align-items:center; gap:8px; min-height:48px;
   padding-inline:18px; border-radius:999px; border:2px dashed var(--faint);
   background:none; color: var(--muted); font-family: var(--ui); font-size:14px;
   font-weight:700; text-align:start; }
-.at-deckadd:hover { border-color: var(--muted); color: var(--text); }
-.at-deckadd:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+.at-deckadd:hover, .at-tagadd:hover { border-color: var(--muted); color: var(--text); }
+.at-deckadd:focus-visible, .at-tagadd:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
 /* A deck in the list, which is a button saying what tapping it does rather
    than a tick saying what is already true. */
 .at-deckpicks { display:flex; flex-direction:column; gap:6px; }
@@ -1081,6 +1081,12 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    answer the question the panel above them poses, so they are separated
    from it the way the panel is separated from its neighbours. */
 .at-drills { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+/* A subsection inside a subsection — a form's table of attached pronouns,
+   in the form's own panel. Raised off the well it sits in, so the two
+   hairlines read as one panel within another rather than two wells
+   stacked, and parted from the ticks above it as they are from the
+   fields. */
+.at-part > .at-part { margin-top:12px; background: var(--raised); }
 /* Except the first one under a heading of its own. The rule is there to
    part the ticks from the fields they are the foot of; the practice
    section has no fields above them, so it drew a line between a heading
@@ -1095,14 +1101,18 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    on the end and a chevron saying which way it goes. Its margin is
    written out rather than left to :not(:first-of-type), which counts
    buttons and paragraphs apart and would give this one no room. */
-.at-groupfold { display:flex; align-items:center; gap:8px; width:100%;
+/* The heading on its own line, what is in it under it, and the chevron
+   beside the two of them — a grid, so the markup stays name, count, icon
+   and only the layout says where each goes. */
+.at-groupfold { display:grid; grid-template-columns:minmax(0,1fr) auto;
+  column-gap:10px; row-gap:2px; align-items:center; width:100%;
   min-height:38px; margin:14px 0 8px; padding:0; border:0; background:none;
   cursor:pointer; text-align:start; color: var(--accent); }
-.at-groupfold > span:first-child { min-width:0; }
-.at-groupfold .at-groupcount { margin-inline-start:auto; flex:0 0 auto;
+.at-groupfold > span:first-child { min-width:0; grid-column:1; grid-row:1; }
+.at-groupfold .at-groupcount { grid-column:1; grid-row:2; justify-self:start;
   font-size:11px; font-weight:700; letter-spacing:0; text-transform:none;
   color: var(--muted); }
-.at-groupfold .at-ic { flex:0 0 auto; }
+.at-groupfold .at-ic { grid-column:2; grid-row:1 / span 2; }
 .at-groupfold:hover .at-groupcount { color: var(--text-soft); }
 .at-groupfold:focus-visible { outline:3px solid var(--brass); outline-offset:3px;
   border-radius: var(--r-sm); }
@@ -2613,6 +2623,29 @@ button.at-deckstat { width:100%; font:inherit; color:inherit; text-align:start; 
   button.at-deckstat:hover { border-color: var(--ink); }
 }
 button.at-deckstat:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+/*
+ * A number part's words, one tile each: the figure, the word, and where the
+ * learner stands on it. Learnt wears the jade Learnt owns everywhere else;
+ * under way the brass of work in progress; not started is plain.
+ */
+.at-numwords { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; margin-top:14px; }
+.at-numword { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0;
+  width:100%; font:inherit; color:inherit; text-align:start; cursor:pointer;
+  border:2px solid var(--line); border-radius: var(--r-sm); background: var(--surface); padding:9px 10px; }
+.at-numwordfig { font-family: var(--ui); font-size:17px; font-weight:800; color: var(--text);
+  font-variant-numeric: tabular-nums; overflow-wrap:anywhere; }
+.at-numwordsaid { font-size:15px; color: var(--text-soft); overflow-wrap:anywhere; }
+.at-numwordstate { font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; color: var(--muted); }
+.at-numword.going { border-color: var(--brass); }
+.at-numword.going .at-numwordstate { color: var(--brass); }
+.at-numword.done { background: var(--jade-bg); border-color: var(--jade-soft); }
+.at-numword.done .at-numwordstate { color: var(--jade); }
+@media (hover:hover) {
+  .at-numword { transition: border-color 140ms ease; }
+  .at-numword:hover { border-color: var(--ink); }
+}
+.at-numword:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
 /* Prep mode, above the ladder: the button, and what is being prepped for. */
 .at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:16px; }
 .at-prepbar .at-prepnote { margin:0; }
@@ -3592,6 +3625,16 @@ body.at-screening .at-chromebar { display:none; }
 /* And the one box on the try-it screen, which is the whole of that
    screen's input and is read as figures. */
 .at-numtry { font-family: var(--mono); font-size:20px; font-variant-numeric: tabular-nums; }
+/* The parts of the numbers, one tile each, and the line on each saying
+   where it stands — green once a student can be asked it, the way the
+   reach list it replaced coloured an open range. */
+.at-numparts { display:flex; flex-direction:column; gap:8px; }
+.at-numstate { font-size:13px; color: var(--muted); margin:0; }
+.at-numstate[data-open] { color: var(--jade); }
+/* The blanks a part fills: each name as a blank is drawn everywhere, with
+   the button that takes it off beside it. */
+.at-numblanks { display:flex; flex-wrap:wrap; gap:8px; }
+.at-numblank { display:inline-flex; align-items:center; gap:4px; }
 @media (max-width: 560px) {
   .at-numlabel { flex:0 0 100%; padding-top:0; }
   .at-numfig { flex:0 0 68px; }

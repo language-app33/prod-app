@@ -17,4 +17,6 @@ tests/.facts-build/
 tests/.readout-build/
 .sweep-tmp/
 tests/.numbers-build/
+tests/.numbers-progress-build/
 tests/.review-build/
+tests/.blank-pools-build/

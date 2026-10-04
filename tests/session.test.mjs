@@ -1588,6 +1588,52 @@ test("and only the cards picked are dealt", () => {
   assert.equal(got.manual, true, "and it is still a session built by hand");
 });
 
+test("built by hand on decks, the new words already in hand elsewhere do not count", () => {
+  /* Ten words midway through learning in one deck, none due, and a deck
+     nobody has started. Built by hand on the new deck, it used to come up
+     empty — "nothing new to bring in" over a deck that was all new —
+     because the limit was read over the words in the other deck. */
+  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+  const fresh = deckOf(20);
+  const items = held.concat(fresh);
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: fresh.map((i) => i.id), mode: "regular", count: 20,
+  });
+  assert.equal(got.reason, null, `refused: ${got.reason}`);
+  const dealt = dealtCards(got);
+  assert.ok(dealt.size > 0 && [...dealt].every((id) => fresh.some((f) => f.id === id)), [...dealt].join(" "));
+  /* Still a few at a time: the deck's own words are rationed as before. */
+  assert.ok(dealt.size <= FRONT_DOOR_CAP, `${dealt.size} new words in one session`);
+});
+
+test("but the everyday session still counts every deck, and a full door keeps new words out", () => {
+  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+  const fresh = deckOf(20);
+  const items = held.concat(fresh);
+  installIndexes(items, settings);
+  const onlyFresh = (/** @type {any} */ it) => fresh.some((f) => f.id === it.id);
+  const got = buildSession({ items, settings, inDeck: onlyFresh });
+  assert.equal(got.exercises.length, 0, "new words came in past a full door");
+  assert.equal(got.reason, "nothing-due");
+});
+
+test("built by hand, a deck whose own new words fill the door practises those", () => {
+  /* The limit read over the chosen decks still holds new words back, and
+     the deck's words in progress are what is asked instead — so the
+     session is not empty. */
+  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+  const fresh = deckOf(5);
+  const items = held.concat(fresh);
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((i) => i.id), mode: "regular", count: 20,
+  });
+  assert.equal(got.reason, null, `refused: ${got.reason}`);
+  const dealt = [...dealtCards(got)];
+  assert.ok(dealt.length > 0 && dealt.every((id) => String(id).startsWith("h")), dealt.join(" "));
+});
+
 /* ------------------------------------------------------------------
    Not seen lately: anything still climbing that has not been practised
    for a few days, new or not — and nothing already cleared

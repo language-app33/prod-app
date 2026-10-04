@@ -102,12 +102,23 @@ export function probeOf(range: Range): number[] {
     if (first + 1 <= to) out.push(first + 1);
     if (unit >= 100 && first + unit / 10 <= to) out.push(first + unit / 10);
   }
+  /* Every round hundred and every round thousand up to ten of them. A
+     spread lands on 369 and 459 and never on 300 or 400, and those are
+     the numbers a language most often says as one word of its own:
+     Palestinian 300 to 900 and 3,000 to 10,000 are. The thousands have
+     no box, so a teacher writes each out from this list. Leaving them out
+     hid them from the teacher and from the check that a part is ready. */
+  for (const unit of [100, 1000]) {
+    for (let k = 1; k <= 10; k += 1) out.push(k * unit);
+  }
   const seen = new Set<number>();
-  return out.filter((v) => {
-    if (v < from || v > to || seen.has(v)) return false;
-    seen.add(v);
-    return true;
-  });
+  return out
+    .filter((v) => {
+      if (v < from || v > to || seen.has(v)) return false;
+      seen.add(v);
+      return true;
+    })
+    .sort((a, b) => a - b);
 }
 
 /** The times a clock range is tested with: every hour, every mark it
@@ -116,6 +127,44 @@ export function timeProbeOf(range: Range): { h: number; m: number }[] {
   const out: { h: number; m: number }[] = [];
   const marks = range.marks || [0, 1, 7, 15, 29, 30, 31, 45, 58, 59];
   for (let h = 0; h <= 23; h += 1) for (const m of marks) out.push({ h, m });
+  return out;
+}
+
+/* ---- what can be counted ---- */
+
+/*
+ * Remembered per system, because a system is the same object for as long
+ * as nothing in it changes and the answer is asked on every draw: every
+ * noun rendered at every shape of every counting part.
+ */
+const COUNTABLE: WeakMap<NumberSystem, Map<string, CountedNoun[]>> = new WeakMap();
+
+/**
+ * The nouns a counting part can be asked about: the ones it can say at
+ * every shape it probes.
+ *
+ * A noun card without a dual is a noun the language's *two* cannot count,
+ * and one without a plural is no use from three to ten — but either is a
+ * perfectly good noun for the other parts. So a noun is judged per part,
+ * by rendering it, and a part opens on any noun it can say whole. Before
+ * the nouns came off the cards, one noun short of a face held the whole
+ * part back; with every noun in the collection in play, that would have
+ * held back every part for good.
+ */
+export function countable(range: Range, composer: Composer | null, sys: NumberSystem): CountedNoun[] {
+  if (!range.counted || !composer) return sys.nouns || [];
+  let held = COUNTABLE.get(sys);
+  if (!held) {
+    held = new Map();
+    COUNTABLE.set(sys, held);
+  }
+  const had = held.get(range.id);
+  if (had) return had;
+  const probe = probeOf(range);
+  const out = (sys.nouns || []).filter((noun) =>
+    probe.every((n) => !blocking(composer.render(n, sys, { noun }).warnings).length),
+  );
+  held.set(range.id, out);
   return out;
 }
 
@@ -179,7 +228,11 @@ export function rangeChecks(
         });
         continue;
       }
-      for (const noun of sys.nouns) {
+      /* Open on any noun it can say whole — see countable. Where there is
+         none, every noun's gaps are reported, which is what tells the
+         teacher which card to finish. */
+      const able = countable(range, composer, sys);
+      for (const noun of able.length ? able : sys.nouns) {
         for (const n of probeOf(range)) lists.push(composer.render(n, sys, { noun }).warnings);
       }
     } else {
@@ -252,7 +305,7 @@ export function seeded(seed: string): () => number {
  * caller varies is the count of right answers, which is what makes a
  * missed question come back unchanged and a right one move on.
  */
-export function askFor(range: Range, seed: string, sys: NumberSystem): Ask {
+export function askFor(range: Range, seed: string, sys: NumberSystem, composer?: Composer | null): Ask {
   const rnd = seeded(`${range.id} ${seed}`);
   if (range.kind === "time") {
     const h = Math.floor(rnd() * 24);
@@ -270,7 +323,9 @@ export function askFor(range: Range, seed: string, sys: NumberSystem): Ask {
   const span = Math.max(0, Math.min(range.to, NUMBER_CEILING) - range.from);
   const value = range.from + Math.floor(rnd() * (span + 1));
   if (!range.counted) return { rangeId: range.id, kind: "numbers", value };
-  const nouns = sys.nouns || [];
+  /* Only the nouns this part can say whole, where the composer is to hand
+     to say which — see countable. */
+  const nouns = composer ? countable(range, composer, sys) : sys.nouns || [];
   const noun = nouns.length ? nouns[Math.floor(rnd() * nouns.length)] : null;
   return { rangeId: range.id, kind: "numbers", value, nounId: noun ? noun.id : undefined };
 }
@@ -360,6 +415,8 @@ function englishFor(noun: CountedNoun, form: NounForm | undefined): string {
   const word = String(noun.en || noun.id || "").trim();
   if (!word) return "";
   if (form === "sg") return word;
+  /* The card's own plural, where it says one — *children*, *mice*. */
+  if (noun.enPl) return noun.enPl;
   /* English has one plural and no dual, so the two that are not singular
      are both said the same way. An irregular plural is the teacher's to
      write; this is a cue, not a lesson in English. */
