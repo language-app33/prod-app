@@ -945,6 +945,24 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   they read the word for *forty* and knew what it meant, on each component
   card's ordinary key.
 
+  **A number waits on its words.** A learner who knows *forty* and
+  *seven* knows *forty-seven*, and one who does not know *forty* yet
+  cannot be asked it. So a number is asked only once every word in it is
+  recognised — its meaning right twice running, level two of the word's
+  own ladder — and number by number rather than range by range: 47 the
+  day *forty* and *seven* are, whether or not *ninety* has been met.
+  Until any can be, a session asks the words alone. A word that could
+  never be recognised (not held, not practised, nothing to ask) holds
+  nothing back. `askingsKnown` and `askKnown` in
+  `src/numbers/generate.ts`, read through `knownNumbers` in the app.
+
+  **A session of numbers alone keeps to them.** Every card in it from a
+  number system, and no question stands a word in a sentence from
+  another deck, and each carries `within: "numbers"`, so the wrong
+  answers and the grid are other number words — *fourteen* beside
+  *forty*, not *house*. A deck that mixes numbers with words is dealt as
+  any other. `keptToNumbers` and `companyOf` in the app.
+
   Every id is derived from the system and the box, so a teacher correcting
   a word gives back the same cards and nobody loses their year on one. A
   range is offered only once the whole of it can be said, so a system that

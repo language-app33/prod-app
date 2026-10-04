@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 4 October 2026
+
+**Numbers are learnt word by word, and a numbers deck asks only numbers.**
+
+- A number made of several words, like 47, is asked only once you
+  recognise each word in it (*forty* and *seven*). Recognising a word
+  means getting its meaning right twice in a row. Until then a numbers
+  session asks the words on their own. Each combination opens on its own:
+  47 can come up as soon as *forty* and *seven* are known, even if
+  *ninety* is still new. Times work the same way.
+- If you were already practising combinations whose words you have not
+  learnt yet, those combinations pause until you catch up on the words.
+  Nothing you earned on them is lost.
+- A session of numbers alone, whether a numbers deck or one you put
+  together yourself, now keeps to numbers. The wrong answers to choose
+  from and the words in a matching grid are other number words, so you
+  tell *forty* from *fourteen* rather than from *house*. No sentence from
+  another deck is shown. Decks that mix numbers with other words are
+  unchanged.
+- The count of cards ready on the home screen no longer includes number
+  practice that is waiting on its words.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**

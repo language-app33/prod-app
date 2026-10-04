@@ -38,7 +38,7 @@ import type {
   TimeComposer,
   TimeSystem,
 } from "./types.ts";
-import { askFor, rangeChecks, renderAsk, probeOf } from "./range.ts";
+import { askFor, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
 import { SPLIT_FROM } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
@@ -516,26 +516,112 @@ export function wordsOfRange(
   ids: Set<string>,
 ): Set<string> {
   const out = new Set<string>();
+  for (const ask of askingsOf(range, set.sys)) for (const id of wordsOfAsk(ask, set, ids)) out.add(id);
+  return out;
+}
+
+/**
+ * The cards one asking is said with: *forty* and *seven* for 47.
+ *
+ * What a range brings into a deck is the union of these over its probe —
+ * see wordsOfRange — and what a learner has to recognise before 47 may be
+ * put to them is this set for 47 alone. One walk for both, so a word that
+ * is filed with a range is the word the range then waits on.
+ */
+export function wordsOfAsk(
+  ask: Ask,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  ids: Set<string>,
+): Set<string> {
+  return readAsk(ask, set, ids).words;
+}
+
+/* The cards an asking is said with, and whether any of it is built from
+   the boxes at all rather than written out whole. */
+function readAsk(
+  ask: Ask,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  ids: Set<string>,
+): { words: Set<string>; built: boolean } {
+  const out = new Set<string>();
   const numbersId = set.sys.id;
   const timeId = set.timeSys ? set.timeSys.id : "";
-  for (const ask of askingsOf(range, set.sys)) {
-    const got = renderAsk(ask, set.composer, set.sys, set.timeComposer, set.timeSys);
-    for (const t of got.tokens) {
-      const candidates = t.override
-        ? [overrideId(numbersId, t.override)]
-        : t.slot
-        ? [
-            componentId(numbersId, t.slot),
-            timeId ? componentId(timeId, t.slot) : "",
-            /* A minute expression is written `minute.15` in a rendering and
-               made as `min.15` — see generate. */
-            timeId && t.slot.startsWith("minute.") ? componentId(timeId, `min.${t.slot.slice(7)}`) : "",
-          ]
-        : [];
-      for (const id of candidates) if (id && ids.has(id)) out.add(id);
-    }
+  const got = renderAsk(ask, set.composer, set.sys, set.timeComposer, set.timeSys);
+  for (const t of got.tokens) {
+    const candidates = t.override
+      ? [overrideId(numbersId, t.override)]
+      : t.slot
+      ? [
+          componentId(numbersId, t.slot),
+          timeId ? componentId(timeId, t.slot) : "",
+          /* A minute expression is written `minute.15` in a rendering and
+             made as `min.15` — see generate. */
+          timeId && t.slot.startsWith("minute.") ? componentId(timeId, `min.${t.slot.slice(7)}`) : "",
+        ]
+      : [];
+    for (const id of candidates) if (id && ids.has(id)) out.add(id);
   }
-  return out;
+  return { words: out, built: got.tokens.some((t) => !!t.slot) };
+}
+
+/**
+ * The askings of a range a learner can be put: the ones every word of
+ * which they already recognise.
+ *
+ * A learner who knows *forty* and *seven* knows *forty-seven*, which is
+ * why numbers are built rather than memorised — and the other side of
+ * that is that one who does not know *forty* yet cannot be asked it. So
+ * the words come first and the combinations wait on them, number by
+ * number rather than range by range: 47 can be asked the day *forty* and
+ * *seven* are recognised, whether or not *ninety* has been met.
+ *
+ * `knows` says whether a card is recognised; what that means is the
+ * scheduler's, and the caller's to ask. Read over the same askings
+ * wordsOfRange files a range's words from, so a range nothing of which
+ * can be asked yet is one this comes back empty for.
+ */
+export function askingsKnown(
+  range: Range,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  ids: Set<string>,
+  knows: (id: string) => boolean,
+): Ask[] {
+  const fit = askingsOf(range, set.sys)
+    .map((ask) => ({ ask, ...readAsk(ask, set, ids) }))
+    .filter((r) => [...r.words].every(knows));
+  /* An asking written out whole — noon as a teacher wrote it for the
+     clock, which no learner has a card for — is built of no words, so
+     has nothing to wait on, and would otherwise open the range before a
+     single word of it was known. It comes in with the rest, once one
+     asking built of words can. */
+  return fit.some((r) => r.built) ? fit.map((r) => r.ask) : [];
+}
+
+/**
+ * One asking of a range, drawn from what the learner can be asked.
+ *
+ * The plain draw first — `askFor` on the same seed — and kept if every
+ * word in it is recognised, so a learner who knows them all is asked
+ * exactly what they would have been, from the whole of the range. Only
+ * when it is not does the draw fall back to `known`, the askings
+ * `askingsKnown` found, picked on the same seed: a missed question still
+ * comes back as the same number, and a right one still moves on.
+ *
+ * Null when there is nothing to ask yet — `known` empty, so the range has
+ * not opened.
+ */
+export function askKnown(
+  range: Range,
+  seed: string,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  ids: Set<string>,
+  knows: (id: string) => boolean,
+  known: Ask[],
+): Ask | null {
+  if (!known.length) return null;
+  const drawn = askFor(range, seed, set.sys);
+  if ([...wordsOfAsk(drawn, set, ids)].every(knows)) return drawn;
+  return known[Math.floor(seeded(`${range.id} ${seed} known`)() * known.length)];
 }
 
 /** A deck as far as filing numbers goes: its name, and the parts it holds. */

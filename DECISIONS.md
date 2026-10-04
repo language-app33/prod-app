@@ -4369,3 +4369,43 @@ teacher to fill. The addressee tag on a Huế form is long beside a word
 in the card list. Feedback lines that name a form are whole sentences with
 gaps (`src/wording.ts`), which changes nothing on screen today and is
 there for the day the app's own wording is translated.
+
+---
+
+## A number waits on its words, one number at a time
+
+**4 October 2026** · `askingsKnown`, `askKnown`, `wordsOfAsk` in `src/numbers/generate.ts`; `knownNumbers`, `keptToNumbers`, `companyOf` in `src/ArabicTrainer.tsx`; `within` on `Question` in `src/types.ts`
+
+A range used to be asked from the day it arrived, beside the words it is
+built of, so a learner met *forty-seven* before they had met *forty*.
+Now each number waits until every word in it is recognised (level two
+of the word's own ladder, through `reachedLevel`), which is the test a
+word's attached pronouns already wait on.
+
+**Per number, not per range.** The other choice was to hold a whole range
+until all its words were known. That is simpler, but it shuts 11 to 99
+until *ninety* is learnt, even though 47 could already be asked. So the
+draw is filtered: the plain seeded draw is kept when every word in it is
+known, so a learner who knows them all is asked exactly what they were
+before; otherwise the seed picks among the askings that are known. A
+range none of whose askings can be put is left out of the pool, and out
+of the home screen's count.
+
+**What does not wait.** A word card the learner does not hold, cannot
+practise, or that has nothing to ask does not hold a number back, because
+it could never be recognised. An asking written out whole by a teacher,
+such as noon on the clock, has no card behind it; it is asked once the
+range has opened on some asking that is built of words, never before.
+
+**A session of numbers alone keeps to numbers.** When every card in it
+comes from a number system, no exercise that stands the word in a phrase
+is dealt, no phrase is attached to the others, and each question carries
+`within: "numbers"` so that its wrong answers and grid company are drawn
+from number words alone. It is judged per session rather than per card,
+so a mixed deck still borrows sentences as before.
+
+**What it costs.** Learners part-way through a range whose words they
+have not climbed see it pause. Reading what is known walks every asking
+of every range (tens of milliseconds), so the result is cached against
+the system and the set of words known, and is only read again when a
+word crosses into recognised.
