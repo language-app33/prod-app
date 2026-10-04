@@ -4898,3 +4898,29 @@ recognised. A learner whose 0 to 9 slips back off cleared loses the
 teens' words from their sessions as well as the teens, until it is
 recovered.
 
+
+## A number in figures is typed on the number pad, and marked as a number
+
+**4 October 2026** · `src/languages.ts` (`answersInFigures`, `numeralMeanings`, `checkAnswer`), `src/ArabicTrainer.tsx`
+
+The owner asked that an answer that is only a numeral — 5, 81, 10384 —
+bring up a phone's number pad. Two questions have one: writing a number
+in figures, always; and the meaning of a word whose meaning is a number,
+which every word card a number system builds has (`en` is the slot's
+label, "40" or "1,000", or the digits of a number written out by hand).
+The second is read off the card: every accepted meaning must be figures,
+digits alone or grouped in threes, so "five / 5" keeps the letters it can
+be answered in. A time is left out because a number pad has no colon.
+
+Looking at it turned up the marking under it. Those meanings went through
+the English marking, which splits on commas — so *1* was right for
+*1,000* — and forgives one letter in four, so *3000* was a typo of
+*2,000* and marked right, and *7* for *8* was "very close". That is the
+fault the figures mode was made to stop, never carried over to a word
+whose meaning is a figure. A meaning `numeralMeanings` accepts is now
+marked the way figures are: exact or wrong, with the notation forgiven.
+
+**What it costs.** On a word's meaning, the pad coming up says the answer
+is a number before the word has been read — a small hint, taken on the
+owner's request. A meaning that only might be a number ("1, 2") is read as
+words, so it keeps the English marking and the full keyboard.

@@ -123,6 +123,7 @@ import {
   TYPES,
   activeLang,
   checkAnswer,
+  answersInFigures,
   answerFields,
   derivedValue,
   dimValues,
@@ -11520,6 +11521,10 @@ export default function ArabicTrainer() {
                             checked ? (checked.ok ? " ok" : " no") : ""
                           }`}
                           data-el="answer-input"
+                          /* A number in figures and nothing else: a phone's
+                             number pad, not its letters. Not a time — the
+                             pad has no colon. */
+                          inputMode={exercise && answersInFigures(item, exercise.type) ? "numeric" : undefined}
                           value={typed}
                           readOnly={!!checked}
                           placeholder={spec.placeholder}
