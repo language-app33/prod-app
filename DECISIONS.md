@@ -4899,6 +4899,68 @@ teens' words from their sessions as well as the teens, until it is
 recovered.
 
 
+## A number in figures is typed on the number pad, and marked as a number
+
+**4 October 2026** · `src/languages.ts` (`answersInFigures`, `numeralMeanings`, `checkAnswer`), `src/ArabicTrainer.tsx`
+
+The owner asked that an answer that is only a numeral — 5, 81, 10384 —
+bring up a phone's number pad. Two questions have one: writing a number
+in figures, always; and the meaning of a word whose meaning is a number,
+which every word card a number system builds has (`en` is the slot's
+label, "40" or "1,000", or the digits of a number written out by hand).
+The second is read off the card: every accepted meaning must be figures,
+digits alone or grouped in threes, so "five / 5" keeps the letters it can
+be answered in. A time is left out because a number pad has no colon.
+
+Looking at it turned up the marking under it. Those meanings went through
+the English marking, which splits on commas — so *1* was right for
+*1,000* — and forgives one letter in four, so *3000* was a typo of
+*2,000* and marked right, and *7* for *8* was "very close". That is the
+fault the figures mode was made to stop, never carried over to a word
+whose meaning is a figure. A meaning `numeralMeanings` accepts is now
+marked the way figures are: exact or wrong, with the notation forgiven.
+
+**What it costs.** On a word's meaning, the pad coming up says the answer
+is a number before the word has been read — a small hint, taken on the
+owner's request. A meaning that only might be a number ("1, 2") is read as
+words, so it keeps the English marking and the full keyboard.
+
+## A session fills to its length, and the one reason it may not
+
+**4 October 2026** · `src/ArabicTrainer.tsx` (`buildSession`, `buildManualSession`, `buildWeakSession`, `cutAtLength`, `MAX_ASKS_PER_UNIT`), `tests/session-fill.test.mjs`
+
+A session took a number of cards worked out up front from its length and
+the average card, and never went back for more. A card with fewer
+questions open than the average left it two or three short in twenty; a
+grid counted as one question though it asks five words; and a beginner,
+whose new words come ten at a time, got half the session they chose. Twice
+in one day a short session reached the owner before any test noticed.
+
+**Now every builder fills to its length.** Cards are taken one at a time
+until their questions reach it, and the next is taken while a question
+falls out as it is dealt. When every card the session may use is in and it
+is still short, each form is asked more — whatever else it has open, then
+the same questions again, a round at a time — up to `MAX_ASKS_PER_UNIT`
+(four). A grid counts as the words in it. The ten-new-word limit is kept;
+the owner chose asking each new word more over letting more words in.
+
+**Short is agreed in one case: not enough material** — every card the
+session may use, each asked four times. Fix mistakes and Weak skills, whose
+material is what is going wrong, are covered by it, and so is Not seen
+lately. `tests/session-fill.test.mjs` walks every session against five
+learners, four kinds of material and three lengths, and fails on any short
+session not in its `AGREED` table. Each entry there is an exact size with
+its reason, so a bug cannot shelter under one, and an entry nothing matches
+fails too.
+
+**What it costs.** Weak skills used to ask a failing question once and
+stop, on the grounds that padding a short session was the button lying
+about what was wrong; it now asks only what is wrong, but asks it again to
+the session's length. A beginner's long session repeats each new word up to
+four times in a sitting. A skill is never asked the same exercise twice in
+one sitting, since its number is drawn once and the repeat would be the
+same number.
+
 ## A number is learnt in its own figures
 
 **4 October 2026** · `src/languages.ts` (`own2ar`, `own2num`, `own2time`, `unless`), `src/numbers/generate.ts` (`inOwnFigures`), `src/offers.ts`

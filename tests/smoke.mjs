@@ -1128,6 +1128,11 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       ((document.querySelector('[data-el="verdict"]') || {}).textContent || "").trim());
     setValue("");
     await sleep(50);
+    /* A word is answered in letters, so the phone's keyboard is the whole
+       of it, not the number pad a figure gets. */
+    check("an answer in words leaves the phone its letters",
+      typedField.getAttribute("inputmode") !== "numeric",
+      String(typedField.getAttribute("inputmode")));
   }
 
   /* Names on the parts of a question and an answer. They are how a change
@@ -8504,6 +8509,9 @@ const openPronounTables = async () => {
   const numTile = host4.querySelector('[data-el="answer-choices"] .at-reply')
     || host4.querySelector(".at-answerbox .at-chips button");
   const beforeNum = schedules();
+  const numPad = !!numInput && numInput.getAttribute("inputmode") === "numeric";
+  const numFigures = /figures/i.test((numAsk && numAsk.textContent) || "");
+  if (numFigures) check("a question asking for figures brings up the number pad", numPad);
   if (numInput) {
     const setter = must(
       Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
@@ -8525,6 +8533,15 @@ const openPronounTables = async () => {
   check("a number answered is marked",
     /The answer is:|Incorrect\.|Correct!|Good job!|Nicely done!|Great!/.test(host4.textContent || ""),
     (host4.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  /* Where the answer is put up — 7 was wrong — it says whether the pad
+     was right to come up: figures and nothing else, or a word. */
+  const numWanted = host4.querySelector('[data-el="answer-value-text"]');
+  if (numInput && numWanted) {
+    const wanted = (numWanted.textContent || "").trim();
+    check("the number pad came up exactly where the answer is figures",
+      numPad === /^\d{1,3}(?:,\d{3})*$|^\d+$/.test(wanted),
+      `${wanted}: ${numPad ? "number pad" : "letters"}`);
+  }
 
   click([...host4.querySelectorAll("button")].find((b) => /Continue|Next/.test((b.textContent || "").trim())));
   await sleep(900); // the save debounce
@@ -8532,6 +8549,36 @@ const openPronounTables = async () => {
   check("and the answer is filed against the card the document built",
     numWrote.length > 0 && numWrote.every((k) => k.startsWith("sys:")),
     numWrote.join(" | ") || "nothing was written");
+
+  /* On through the sitting to a number word asked for in writing — what it
+     means, typed — which is the question the number pad is about. "I don't
+     know" puts the answer up, and the answer says whether the pad was right
+     to come up: figures and nothing else, or a word. */
+  {
+    const press = (/** @type {RegExp} */ name) =>
+      click([...host4.querySelectorAll("button")].find((b) => name.test((b.textContent || "").trim())));
+    /** @type {string[]} */
+    const seen = [];
+    let padWrong = "";
+    for (let i = 0; i < 18; i++) {
+      const box = host4.querySelector('[data-el="answer-input"]');
+      if (host4.querySelector('[data-el="answer-match"]') || !host4.querySelector(".at-instruction")) break;
+      const pad = !!box && box.getAttribute("inputmode") === "numeric";
+      press(/^I don't know$/);
+      await sleep(150);
+      const wanted = ((host4.querySelector('[data-el="answer-value-text"]') || {}).textContent || "").trim();
+      if (box && wanted) {
+        seen.push(`${wanted}: ${pad ? "number pad" : "letters"}`);
+        if (pad !== /^\d{1,3}(?:,\d{3})*$|^\d+$/.test(wanted)) padWrong = padWrong || seen[seen.length - 1];
+      }
+      press(/Continue|Next/);
+      await sleep(250);
+    }
+    check("a number word's meaning brings up the number pad exactly where it is figures",
+      seen.length > 0 && !padWrong, padWrong || seen.join(" | ") || "nothing typed was asked");
+    check("and the walk met a meaning in figures, with the pad up",
+      seen.some((s) => s.endsWith("number pad")), seen.join(" | "));
+  }
 
   check("and nothing threw while a number was asked and answered",
     errors.length === before, errors.slice(before, before + 3).join(" | "));
@@ -8856,6 +8903,13 @@ const openPronounTables = async () => {
   const upTo4 = known([...level1, "match", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
   /** @param {any[]} items */
   const walk = async (items) => {
+    /* Its own five words and nothing else, as the walks above clear the
+       server for theirs. Left alone, the sync on start brought in what
+       earlier walks had left there — due cards and new ones, which a full
+       session rightly asks before five words not due for days, so whether
+       the picture questions came up at all was down to how much had been
+       left behind. */
+    remoteDocs.clear();
     localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
       version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, account, items,
     }));

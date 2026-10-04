@@ -756,15 +756,19 @@ test("a weak session asks the exercises that went wrong, and nothing else", () =
 test("the one thing you keep failing is a session on its own", () => {
   /* Every other session is refused for want of variety, because one
      exercise repeated is a poor way to meet new material. It is exactly
-     the right way to fix the thing you keep getting wrong. */
+     the right way to fix the thing you keep getting wrong — asked as many
+     times as a session asks anything (four), since the session is short
+     of its length and there is nothing else it should be about. */
   const got = weak([slipping("s1", [0, 0])].concat(deckOf(3)));
   assert.equal(got.reason, null, got.reason || "");
-  assert.equal(got.exercises.length, 1);
+  assert.equal(got.exercises.length, 4);
+  assert.ok(got.exercises.every((/** @type {any} */ e) => e.id === "s1" && e.type === "ar2en"));
 });
 
 test("wrong twice running is asked before a single slip", () => {
   const got = weak([slipping("once", [1, 0]), slipping("twice", [0, 0])].concat(deckOf(4)));
-  assert.equal(got.exercises.length, 2, "both are in it");
+  assert.deepEqual([...new Set(got.exercises.map((/** @type {any} */ e) => e.id))].sort(), ["once", "twice"], "both are in it");
+  assert.equal(got.exercises.length, 8, "each asked four times, with nothing else going wrong to fill it");
   assert.equal(got.exercises[0].id, "twice", "and the gap leads the slip");
 });
 
@@ -809,13 +813,16 @@ test("no one card is the whole of a weak session", () => {
 test("every form with something wrong on it is asked before any is asked twice", () => {
   /* Dealt a round at a time, like the session the app deals itself: a
      learner with twenty cards slipping gets twenty first questions, not
-     six cards drilled to death. */
+     six cards drilled to death. Twelve slipping and a session of eighteen
+     is all twelve once, then six of them again. */
   const items = Array.from({ length: 12 }, (_, i) => slipping(`s${i + 1}`, [0, 0]));
   const got = weak(items);
   const perCard = new Map();
   for (const ex of got.exercises) perCard.set(ex.id, (perCard.get(ex.id) || 0) + 1);
-  assert.ok(perCard.size >= 10, `${perCard.size} cards in the session`);
-  for (const [id, n] of perCard) assert.equal(n, 1, `${id} was asked ${n} times`);
+  assert.equal(perCard.size, 12, `${perCard.size} cards in the session`);
+  for (const [id, n] of perCard) assert.ok(n <= 2, `${id} was asked ${n} times`);
+  const twice = [...perCard.values()].filter((n) => n === 2).length;
+  assert.equal(twice, got.exercises.length - 12, "only after every card had been asked once");
 });
 
 test("the count beside the button and the session it opens are the same test", () => {

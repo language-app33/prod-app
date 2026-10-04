@@ -3844,6 +3844,58 @@ export function checkAr(given: string, expected: string, settings: Settings) {
   return worst;
 }
 
+/* A number as typed, with the notation taken off: the digits an Arabic or
+   Persian keyboard writes, folded to the ones the card is stored with;
+   thousands separators in the several shapes they are written — spaces of
+   every width, commas, full stops, apostrophes, the Arabic thousands mark;
+   and a stray plus, since no number here carries a sign. */
+function figures(s: unknown): string {
+  return String(s == null ? "" : s)
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[\s,._'\u00A0\u2009\u202F\u066C]/g, "")
+    .replace(/^\+/, "");
+}
+
+/* Digits alone, or digits grouped in threes. Strict on purpose: "1, 2" is
+   not twelve, and a meaning that only might be a number is a word. */
+const NUMERAL = /^\d+$|^\d{1,3}(?:[,. '\u00A0\u2009\u202F\u066C]\d{3})+$/;
+
+/**
+ * The numbers a meaning accepts, where every answer it accepts is a number
+ * written in figures — the word for 40, for 1,000, a number a teacher
+ * wrote out by hand — and null where any of them is a word. "five / 5" is
+ * a word: it can be answered with letters.
+ *
+ * Split on a slash or a semicolon and never a comma, which in a number is
+ * grouping rather than a second answer.
+ */
+export function numeralMeanings(expected: unknown): string[] | null {
+  const parts = String(expected == null ? "" : expected)
+    .split(/[/;]/)
+    .map((s) =>
+      s
+        .trim()
+        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0)),
+    )
+    .filter(Boolean);
+  return parts.length && parts.every((p) => NUMERAL.test(p)) ? parts : null;
+}
+
+/**
+ * Whether this question's answer is typed in figures and nothing else, so
+ * the answer box asks a phone for its number pad. The questions that ask
+ * for figures always are; one asking for the meaning is when every meaning
+ * the card accepts is a number. A time is not — a number pad has no colon.
+ */
+export function answersInFigures(item: Record<string, any> | null | undefined, key: string): boolean {
+  const spec = EX[typeOf(key)];
+  if (!spec || !item) return false;
+  if (spec.answerMode === "fig") return true;
+  return spec.answerMode === "en" && !!numeralMeanings(item[spec.answerField]);
+}
+
 export function checkAnswer(typed: string, item: Record<string, any>, key: string, settings: Settings) {
   const spec = EX[typeOf(key)];
   const mode = spec.answerMode;
@@ -3940,24 +3992,20 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
    * the digits their own keyboard makes should not be told they are
    * wrong.
    */
-  if (mode === "fig") {
-    const figures = (s: unknown) =>
-      String(s == null ? "" : s)
-        /* Arabic-Indic and Extended Arabic-Indic digits, folded to the
-           ones the card is stored with. */
-        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-        /* Thousands separators, in the several shapes they are written:
-           spaces of every width, commas, full stops, apostrophes, and the
-           Arabic thousands mark. */
-        .replace(/[\s,._'\u00A0\u2009\u202F\u066C]/g, "")
-        /* A number written with no sign on it, so a stray plus is not the
-           difference between right and wrong. */
-        .replace(/^\+/, "");
+  /*
+   * And a meaning that is a number is marked the same way. The word for
+   * 2,000 asked in English went through the English marking, which read
+   * its comma as two answers — so 1 was right for 1,000 — and called 3000
+   * a typo of 2000. See `numeralMeanings`.
+   */
+  const numerals = mode === "en" ? numeralMeanings(expected) : null;
+  if (mode === "fig" || numerals) {
     const got = figures(typed);
     if (!got || !/^\d+$/.test(got)) return { ok: false, reason: "wrong" };
     /* Leading zeros are notation too: 047 is 47 written out of habit. */
-    const same = String(Number(got)) === String(Number(figures(expected)));
+    const same = (numerals || [String(expected == null ? "" : expected)]).some(
+      (want) => String(Number(got)) === String(Number(figures(want))),
+    );
     return same ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
   }
   /*

@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.343 — 4 October 2026
+## 0.345 — 4 October 2026
 
 **A number is learnt only once you know it in Arabic figures.**
 
@@ -26,6 +26,47 @@ and moves once per batch of work you would notice, not once per commit.
   figures too.
 - Hebrew and Huế Vietnamese write numbers with the same figures as
   English, so nothing changes there.
+
+## 0.344 — 4 October 2026
+
+**Every practice session is the length you chose.**
+
+- Everyday sessions and custom Regular sessions were often a few
+  questions short, such as 8 of 10 or 17 of 20, even with plenty to
+  practise. They now fill to the length chosen.
+- A beginner with only their 10 new words is no longer handed half a
+  session. Each word is asked more ways, and then a second time later in
+  the session, up to four times per word. Answering right twice in a row
+  is what opens a word's next level, so the repeats move it along.
+- Get started, Not seen lately, Fix mistakes and Weak skills fill to their
+  length the same way, from the words that belong in them. Fix mistakes
+  and Weak skills still only ask what is going wrong.
+- A matching grid counts as the words in it, so a session with a grid in
+  it is no longer four questions short.
+- A session is still shorter than chosen when there aren't enough words
+  for it, every word asked four times: a deck of 3 words gives 12
+  questions. That is the one agreed exception, and a new automatic check
+  now runs every kind of session to make sure nothing else comes out
+  short.
+
+## 0.343 — 4 October 2026
+
+**A number is typed on the number pad, and marked as a number.**
+
+- When the answer is a number in figures, tapping the answer box brings
+  up the phone's number pad instead of the full keyboard. That is the
+  "write the number in figures" questions, and "what does this mean?" on
+  a word whose meaning is a number — the word for 5, 40 or 1,000, or a
+  number a teacher wrote out by hand.
+- A word that can also be answered in letters ("five / 5") keeps the
+  full keyboard, and so do times like 7:15, since a number pad has no
+  colon.
+- Those "what does this mean?" questions were marking a number as if it
+  were an English word. Typing 1 was right for the word for 1,000, one
+  figure out on a long number counted as a typo and was marked right
+  (3000 for 2,000), and 7 for 8 was "very close". Now a number there is
+  right or wrong, as it already was when writing a number in figures —
+  with commas, spaces and Arabic digits still not held against you.
 
 ## 0.342 — 4 October 2026
 
