@@ -380,6 +380,22 @@ export function plural(n: number, one: string, many?: string) {
   return `${n} ${word}`;
 }
 
+/**
+ * How much a deck holds, said on the deck: its cards and its number parts.
+ *
+ * A part is not a card — it is one skill on the teacher's numbers, held by
+ * the deck as an id (Deck.parts) — so counting cardIds alone left a deck
+ * of numbers saying "0 cards". The parts are said beside the cards rather
+ * than added into them, and a deck of nothing but parts leaves the
+ * "0 cards" off.
+ */
+export function deckSize(d: { cardCount?: number; parts?: string[] }, cards = d.cardCount || 0) {
+  const parts = (d.parts || []).length;
+  if (!parts) return plural(cards, "card");
+  const said = plural(parts, "number part");
+  return cards ? `${plural(cards, "card")} · ${said}` : said;
+}
+
 /* --- Button -------------------------------------------------------
    Four looks and two sizes. The class strings used to be assembled at
    the call site, which is how "sm ghost" and "ghost sm" both came to

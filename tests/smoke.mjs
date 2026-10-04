@@ -7928,13 +7928,15 @@ const openPronounTables = async () => {
 {
   const { NumberSystemEditor } = await import(path.join(out, "number-system-editor.js"));
   const { LANGUAGES } = await import(path.resolve("src/languages.ts"));
-  const { emptyNumberSystem } = await import(path.resolve("src/numbers/schema.ts"));
+  const { emptyNumberSystem, emptyTimeSystem, readNumberSystem } = await import(path.resolve("src/numbers/schema.ts"));
 
   const host = document.createElement("div");
   document.body.appendChild(host);
   const editorRoot = createRoot(host);
   /** What the screen handed back, every time Save was pressed. */
   const saves = /** @type {{ kind: string, sys: any }[]} */ ([]);
+  /** Whether the next save fails, as one does with no connection. */
+  let refuseSave = false;
   const system = emptyNumberSystem("n1", "lena", "ar-PS", Date.now(), 1);
 
   /* The decks in the language, as the teaching space hands them over, and
@@ -7959,22 +7961,29 @@ const openPronounTables = async () => {
     ],
   }];
 
+  /* As the space draws it: a clock nobody has saved is made afresh on
+     every draw, new stamps and all — which once made the screen call it
+     changed after any save of the numbers. */
   const draw = (/** @type {any} */ numbers) =>
     editorRoot.render(
       React.createElement(NumberSystemEditor, {
         lang: LANGUAGES["ar-PS"],
         numbers,
-        times: null,
+        times: emptyTimeSystem("", "lena", "ar-PS", numbers.id, Date.now(), 1),
         cards: nounCards,
         decks,
         onDeckPart: (/** @type {string} */ deckId, /** @type {string} */ rangeId, /** @type {boolean} */ on) => {
           deckCalls.push([deckId, rangeId, on]);
         },
-        /* As the space does: the saved system comes back a revision on,
-           and the screen takes it as what is saved. */
+        /* As the server does: what is stored is what its reader makes of
+           the save — a word trimmed, an emptied box gone — and comes back a
+           revision on, which the screen takes as what is saved. */
         onSave: (/** @type {string} */ kind, /** @type {any} */ sys) => {
-          saves.push({ kind, sys });
-          draw({ ...sys, rev: (sys.rev || 0) + 1 });
+          if (refuseSave) return undefined;
+          const stored = { ...readNumberSystem(sys), rev: (sys.rev || 0) + 1, updated: Date.now() };
+          saves.push({ kind, sys: stored });
+          draw(stored);
+          return stored;
         },
         onClose() {},
       }),
@@ -8057,8 +8066,11 @@ const openPronounTables = async () => {
     !!sevenBox,
     [...up().querySelectorAll("input")].slice(0, 4)
       .map((i) => i.getAttribute("aria-label")).join(" | "));
+  /* With a space after it, as a phone's keyboard leaves one: the server
+     keeps the word without it, and the screen must still agree that what
+     it saved is what it has. */
   if (sevenBox) {
-    typeIn(sevenBox, "sab3a");
+    typeIn(sevenBox, "sab3a ");
     await sleep(200);
   }
 
@@ -8192,8 +8204,13 @@ const openPronounTables = async () => {
 
   /* A counting part counts the teacher's noun cards, and says what the
      rest are missing. Saved, so going back asks nothing. */
+  check("once saved, there is nothing left to save",
+    !!buttonIn(/^Save$/) && /** @type {any} */ (buttonIn(/^Save$/)).disabled);
   await goBack();
   check("once saved, going back asks nothing", !!screenNamed("Number system") && !/Save your changes/.test(document.body.textContent || ""));
+  check("and the main screen does not say anything is unsaved",
+    !/not saved/.test(panel().textContent || ""),
+    (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   click(tileNamed("Counting things: 3 to 10"));
   await sleep(250);
   check("a counting part lists the noun cards it counts",
@@ -8250,6 +8267,58 @@ const openPronounTables = async () => {
   await goBack();
   check("and coming back leaves the parts as they were",
     !!screenNamed("Number system") && panel().querySelectorAll(".at-numparts .at-deckcard").length >= 7);
+
+  /* A number written out from Check a number is kept somewhere with a
+     Save, not carried back to the main screen, which has none. */
+  click(buttonIn(/^Check a number$/));
+  await sleep(250);
+  const tryAgain = boxNamed("A number to try, in figures");
+  if (tryAgain) {
+    typeIn(tryAgain, "8");
+    await sleep(200);
+  }
+  click(buttonIn(/^Write this one out yourself$/));
+  await sleep(250);
+  const eightBox = boxNamed("8 in Palestinian Arabic");
+  if (eightBox) {
+    typeIn(eightBox, "tamanye");
+    await sleep(200);
+  }
+  click(buttonIn(/^Keep it$/));
+  await sleep(250);
+  check("a number written out from Check a number lands on the corrections, where its Save is",
+    !!screenNamed("Correct how a number is said") && /tamanye/.test(up().textContent || "") &&
+      !!buttonIn(/^Save$/) && !(/** @type {any} */ (buttonIn(/^Save$/)).disabled),
+    ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
+  await goBack();
+  click([...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Don't save"));
+  await sleep(250);
+  check("and dropping it goes back to the main screen with nothing unsaved",
+    !!screenNamed("Number system") && !/not saved/.test(panel().textContent || ""));
+
+  /* A save that does not go through keeps the teacher beside its Save,
+     and says so, rather than taking the change to the main screen. */
+  click(tileNamed("Numbers 0 to 9"));
+  await sleep(250);
+  const eightWord = boxNamed("8, counting");
+  if (eightWord) {
+    typeIn(eightWord, "tamanye");
+    await sleep(200);
+  }
+  refuseSave = true;
+  await goBack();
+  click([...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Save" && !b.closest(".at-screenhead")));
+  await sleep(250);
+  check("a save on the way out that does not go through stays on the part, and says so",
+    !!screenNamed("Numbers 0 to 9") && /not saved/.test(up().textContent || "") &&
+      !(/** @type {any} */ (buttonIn(/^Save$/) || { disabled: true })).disabled,
+    (up().textContent || "").slice(0, 160).replace(/\s+/g, " "));
+  refuseSave = false;
+  click(buttonIn(/^Save$/));
+  await sleep(250);
+  check("and saving again clears it", !/not saved/.test(up().textContent || ""));
+  await goBack();
+  check("after which going back asks nothing", !!screenNamed("Number system") && !/Save your changes/.test(document.body.textContent || ""));
 
   /* And the corrections: their own screen, with the one written out on top. */
   click(tileNamed("Correct how a number is said"));

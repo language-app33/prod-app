@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.335 — 4 October 2026
+## 0.337 — 4 October 2026
 
 **Numbers are found under your teacher's decks, and nowhere else.**
 
@@ -24,6 +24,35 @@ and moves once per batch of work you would notice, not once per commit.
 - If you had chosen that entry to practise or to prep for, choose your
   teacher's deck instead. A prep that named only that entry will say it
   has nothing left in it.
+
+## 0.336 — 4 October 2026
+
+**A deck with numbers in it no longer says "0 cards".**
+
+- In Teaching, a deck's size now counts its number parts as well as its
+  cards: "5 cards · 2 number parts", or just "2 number parts" for a deck
+  that holds only numbers. Before, number parts were left out, so a deck
+  you had just filled with numbers still said "0 cards".
+- The same count shows wherever a deck is listed: the deck list, an open
+  deck, the deck choices when adding cards or filtering them, and Admin.
+- Nothing changes for students: their decks already counted numbers.
+
+## 0.335 — 4 October 2026
+
+**Saving in the number system sticks.**
+
+- After pressing Save on a part of the numbers, leaving it no longer asks
+  whether to save your changes. It did whenever a word had a space after
+  it, or a box had been filled in and emptied again, and for anyone whose
+  *Telling the time* had never been saved it did after every save.
+- The main number system screen no longer says "Some changes are not
+  saved yet. Open the part you changed and press Save."
+- If a save does not go through — no connection, say — you stay on the
+  screen you were on, with its Save button, and it says why. Before, you
+  were taken back to the main screen with the changes still unsaved.
+- A number written out from *Check a number* now takes you to *Correct
+  how a number is said*, where it can be saved, instead of back to the
+  main screen, which has no Save.
 
 ## 0.334 — 4 October 2026
 

@@ -69,6 +69,7 @@ import {
   Screen,
   Segmented,
   plural,
+  deckSize,
   useOffline,
   ConfirmModal,
   Overlay,
@@ -2075,7 +2076,7 @@ export function DeckSwitch({ decks, chosen, onToggle, of = "card" }: {
                 >
                   <span className="at-tickbody">
                     <b>{d.title}</b>
-                    <i>{plural(d.cardCount || 0, "card")}</i>
+                    <i>{deckSize(d)}</i>
                   </span>
                   {/* What tapping it does, rather than a tick saying what
                       is already true: the row is the verb. A locked deck
