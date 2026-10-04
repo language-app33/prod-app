@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.343 — 4 October 2026
+## 0.344 — 4 October 2026
 
 **Every practice session is the length you chose.**
 
@@ -29,6 +29,25 @@ and moves once per batch of work you would notice, not once per commit.
   questions. That is the one agreed exception, and a new automatic check
   now runs every kind of session to make sure nothing else comes out
   short.
+
+## 0.343 — 4 October 2026
+
+**A number is typed on the number pad, and marked as a number.**
+
+- When the answer is a number in figures, tapping the answer box brings
+  up the phone's number pad instead of the full keyboard. That is the
+  "write the number in figures" questions, and "what does this mean?" on
+  a word whose meaning is a number — the word for 5, 40 or 1,000, or a
+  number a teacher wrote out by hand.
+- A word that can also be answered in letters ("five / 5") keeps the
+  full keyboard, and so do times like 7:15, since a number pad has no
+  colon.
+- Those "what does this mean?" questions were marking a number as if it
+  were an English word. Typing 1 was right for the word for 1,000, one
+  figure out on a long number counted as a typo and was marked right
+  (3000 for 2,000), and 7 for 8 was "very close". Now a number there is
+  right or wrong, as it already was when writing a number in figures —
+  with commas, spaces and Arabic digits still not held against you.
 
 ## 0.342 — 4 October 2026
 
