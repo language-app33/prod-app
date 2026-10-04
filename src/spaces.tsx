@@ -117,6 +117,7 @@ import {
   localIdFor,
   narrowing,
   plural,
+  deckSize,
   shortDate,
   pullAdmin,
   pullTeaching,
@@ -2303,7 +2304,7 @@ export function AdminSpace({ account, languages, onClose }: {
                     meta={
                       <>
                         <LockMark locked={d.locked} />
-                        {`${d.ownerName} · ${plural(d.cardCount || 0, "card")}`}
+                        {`${d.ownerName} · ${deckSize(d)}`}
                       </>
                     }
                     actions={
@@ -3356,7 +3357,7 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }: {
             options={shown.map((d) => ({
               id: d.id,
               title: d.title,
-              note: `${langOfDeck(d)} · ${plural(d.cardCount || 0, "card")}`,
+              note: `${langOfDeck(d)} · ${deckSize(d)}`,
             }))}
             chosen={[...chosen]}
             onToggle={(id) =>
@@ -4820,7 +4821,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 options={decks.map((d) => ({
                   id: d.id,
                   title: d.title,
-                  note: plural(d.cardCount || 0, "card"),
+                  note: deckSize(d),
                 }))}
                 chosen={cardFilter.deckIds}
                 onToggle={(id, on) =>
@@ -5783,10 +5784,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               <span className="at-lockmark" title="Locked" aria-label="Locked" role="img">
                 <Icon name="lock" size={12} />{" "}
               </span>
-              {plural(d.cardCount || 0, "card")}
+              {deckSize(d)}
             </>
           ) : (
-            `${plural(d.cardCount || 0, "card")}`
+            deckSize(d)
           ),
           disabled: !!d.locked,
         }))}
@@ -5960,7 +5961,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       <Screen title={d.title} onBack={() => { setOpenDeck(null); setCardAction(null); setDeckExtras(null); }}>
             <Notice kind="error">{error}</Notice>
             <Help>
-              {(langOfDeck(d) || {}).name} · {plural(held.length, "card")}
+              {(langOfDeck(d) || {}).name} · {deckSize(d, held.length)}
             </Help>
 
             {d.locked ? (
@@ -6284,7 +6285,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                     meta={
                       <>
                         <LockMark locked={d.locked} />
-                        {`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
+                        {`${(langOfDeck(d) || { name: "" }).name} · ${deckSize(d)}${deckWaiting(d)}`}
                       </>
                     }
                     onOpen={() => setOpenDeck(d.id)}
@@ -6974,7 +6975,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                       meta={
                         <>
                           <LockMark locked={d.locked} />
-                          {`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
+                          {`${(langOfDeck(d) || { name: "" }).name} · ${deckSize(d)}${deckWaiting(d)}`}
                         </>
                       }
                       onOpen={() => setOpenDeck(d.id)}

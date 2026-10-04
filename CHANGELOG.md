@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 4 October 2026
+
+**A deck with numbers in it no longer says "0 cards".**
+
+- In Teaching, a deck's size now counts its number parts as well as its
+  cards: "5 cards · 2 number parts", or just "2 number parts" for a deck
+  that holds only numbers. Before, number parts were left out, so a deck
+  you had just filled with numbers still said "0 cards".
+- The same count shows wherever a deck is listed: the deck list, an open
+  deck, the deck choices when adding cards or filtering them, and Admin.
+- Nothing changes for students: their decks already counted numbers.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**
