@@ -8,13 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.331 — 4 October 2026
+## 0.332 — 4 October 2026
 
 **No more "Not asked yet" on the number system's parts.**
 
 - A part of a number system that is not ready no longer opens with a
   "Not asked yet — waiting on …" line, or the button under it to another
   part. It confused more than it helped. A ready part still says so.
+
+## 0.331 — 4 October 2026
+
+**Every round hundred can be written out, and a part is not ready without them.**
+
+- On the *Numbers 100 to 999* screen, *How the app says them* now lists
+  100, 200, 300 and so on up to 900. Before, it showed numbers spread
+  across the range and skipped 300 to 800, so there was nothing to tap to
+  write them out. In Palestinian Arabic each is one word with no box of
+  its own, so this list is where you give them. *Numbers over a thousand*
+  likewise lists every thousand from 1,000 to 10,000.
+- A part only shows as ready once the app can say all of those. Until
+  now, *Numbers 100 to 999* could show ready with 300 to 800 still blank.
+- The notes beside the "hundred" and "thousands" boxes now say where to
+  write those numbers out.
 
 ## 0.330 — 4 October 2026
 
