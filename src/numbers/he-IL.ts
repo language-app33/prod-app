@@ -106,7 +106,7 @@ export const HE_SLOTS: SlotSpec[] = [
     slot: "connector",
     formKeys: COUNTING,
     label: "and",
-    group: "joining",
+    group: "connecting words",
     hint: "One per number, in front of the last word, with no space after it.",
   },
 ];

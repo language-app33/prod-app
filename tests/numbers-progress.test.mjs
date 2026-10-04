@@ -48,7 +48,7 @@ const { generate, fileIntoDecks, componentId, isRangeSkill, steeredAsk } = await
 );
 const { arComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.ts"));
 const { arTimeComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.time.ts"));
-const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
+const { TYPES, levelOf } = await import(path.join(here, "..", "src", "languages.ts"));
 const { freshState, standing } = await import(path.join(here, "..", "src", "scheduler.ts"));
 
 const load = (/** @type {string} */ name) =>
@@ -107,8 +107,24 @@ test("a question is steered to a number that stands on a word not yet learnt", (
   assert.equal(steeredAsk(part.range, "seed", SET, new Set()), null);
 });
 
+/** A word recognised — its first level right twice running — and no more,
+    so it is not learnt yet. */
+const recognisedOnly = (/** @type {any} */ it) => ({
+  ...it,
+  forms: it.forms.map((/** @type {any} */ f, /** @type {number} */ i) => (i ? f : {
+    ...f,
+    s: Object.fromEntries(TYPES.filter((/** @type {string} */ t) => levelOf(t) === 1).map((/** @type {string} */ t) => [t, {
+      ...freshState(), phase: "review", interval: 4, due: Date.now() - 86400000,
+      reps: 2, right: 2, hist: [1, 1], updated: Date.now() - 86400000,
+    }])),
+  })),
+});
+
 test("dealt in a session, every question on the part brings in the word still to learn", () => {
-  const items = allLearntBut([ninety, partId]);
+  /* Recognised but not learnt: a number may stand on it, and the part
+     leans towards the numbers that do. A word not even recognised is
+     another matter — see the test below. */
+  const items = allLearntBut([ninety, partId]).map((/** @type {any} */ it) => (it.id === ninety ? recognisedOnly(it) : it));
   installIndexes(items, settings);
   let asked = 0;
   for (let i = 0; i < 6; i += 1) {
@@ -120,6 +136,21 @@ test("dealt in a session, every question on the part brings in the word still to
     }
   }
   assert.ok(asked > 0, "the part was never dealt");
+});
+
+test("a word not yet recognised is never asked inside a number", () => {
+  const items = allLearntBut([ninety, partId]);
+  installIndexes(items, settings);
+  let asked = 0;
+  for (let i = 0; i < 6; i += 1) {
+    const got = buildSession({ items, settings, inDeck: () => true, systems: SETS, practice: true, includeAll: true });
+    for (const ex of got.exercises) {
+      if (ex.id !== partId || !ex.ask) continue;
+      asked += 1;
+      assert.ok(ex.ask.value < 90, `asked ${ex.ask.value} before ninety was recognised`);
+    }
+  }
+  assert.ok(asked > 0, "the part was never dealt, though every other word is learnt");
 });
 
 test("a part is learnt only once every word it is built from is", () => {

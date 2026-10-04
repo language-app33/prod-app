@@ -2245,6 +2245,12 @@ export const categoryLabel = (
   id: string | null | undefined,
 ): string => (categoryOf(lang, id) || { label: "" }).label;
 
+/* Kept per pack: this is asked several times for every word a blank could
+   take, and a pack's tables are declared once, in this file, and never
+   written to afterwards. Every caller reads what it is handed and none of
+   them changes it, which is what makes handing the same one back safe. */
+const TABLES_OF: WeakMap<object, Record<string, VerbSpec>> = new WeakMap();
+
 /**
  * The tables this language lays a word's forms out in, by name, in the
  * order the pack declares them — which is the order a card carrying more
@@ -2252,10 +2258,14 @@ export const categoryLabel = (
  * nothing on either axis lays out nothing, and nobody should have to ask.
  */
 export const tablesOf = (lang: Lang | null | undefined): Record<string, VerbSpec> => {
+  const tables = lang && lang.tables;
+  const held = tables ? TABLES_OF.get(tables) : null;
+  if (held) return held;
   const out: Record<string, VerbSpec> = {};
-  for (const [name, spec] of Object.entries((lang && lang.tables) || {})) {
+  for (const [name, spec] of Object.entries(tables || {})) {
     if (spec && spec.tenses.length > 0 && spec.persons.length > 0) out[name] = spec;
   }
+  if (tables) TABLES_OF.set(tables, out);
   return out;
 };
 

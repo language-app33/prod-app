@@ -21,6 +21,12 @@
  *     meet them. Tap one and it becomes a correction. Nothing else on this
  *     screen is worth as much as that list.
  *
+ * The words that join a number's pieces — the "and" in two hundred and
+ * five — are on a screen of their own beside the parts. They are not a
+ * number, and on the part that first needs one the box sat among the tens
+ * where nobody went looking for it. A language with none has no such
+ * screen.
+ *
  * The Time tab is the same shape and waits on one thing: the hour is a
  * feminine noun in every language that has one, so it cannot be said until
  * the numerals that agree with a feminine word are written. The tab says
@@ -57,6 +63,11 @@ function numeralFor(lang: Lang, label: string): string {
   const n = figureOf(label);
   return lang.numerals && n != null ? lang.numerals(n) : "";
 }
+
+/** The group a composer puts its connecting words in, and the id of the
+    screen they are on in place of a part's. */
+const CONNECTING_GROUP = "connecting words";
+const CONNECTING = "connecting";
 
 /* ---- what a preview shows ---- */
 
@@ -224,9 +235,16 @@ export function NumberSystemEditor({
     setClock((c) => (c && tId ? { ...c, id: tId, owner: tOwner, rev: tRev, created: tCreated, updated: tUpdated } : c));
   }, [tId, tOwner, tRev, tCreated, tUpdated]);
 
-  /* Which part each box belongs to, and what each box is called. */
-  const homes = useMemo(() => (composer ? homesOf(composer) : new Map<string, string>()), [composer]);
+  /* Which part each box belongs to, and what each box is called. The
+     connecting words are on their own screen rather than the part that
+     first needs them, so a part waiting on one is sent there. */
   const slotSpecs = useMemo(() => (composer ? composer.requiredSlots() : []), [composer]);
+  const connecting = useMemo(() => slotSpecs.filter((s) => s.group === CONNECTING_GROUP), [slotSpecs]);
+  const homes = useMemo(() => {
+    const at = new Map(composer ? homesOf(composer) : []);
+    for (const s of connecting) at.set(s.slot, CONNECTING);
+    return at;
+  }, [composer, connecting]);
   const labels = useMemo(() => new Map(slotSpecs.map((s) => [s.slot, s.label])), [slotSpecs]);
   const checks = useMemo(() => (composer ? rangeChecks(composer, counted) : []), [composer, counted]);
   /* Boxes that used to be two, where the teacher wrote a different word in
@@ -387,7 +405,19 @@ export function NumberSystemEditor({
   );
 
   const open = part ? checks.find((c) => c.range.id === part) || null : null;
-  const view = open ? (
+  const view = part === CONNECTING ? (
+    <ConnectingScreen
+      lang={lang}
+      draft={draft}
+      setDraft={setDraft}
+      slots={connecting}
+      render={(n) => composer.render(n, counted)}
+      saveButton={saveButton}
+      onRecord={(slot, key) => setRecording({ slot, key })}
+      onWrite={setWriting}
+      onClose={leave(() => setPart(null))}
+    />
+  ) : open ? (
     <PartScreen
       lang={lang}
       draft={draft}
@@ -395,7 +425,6 @@ export function NumberSystemEditor({
       check={open}
       checks={checks}
       homes={homes}
-      labels={labels}
       slots={slotSpecs}
       render={(n, ctx) => composer.render(n, counted, ctx)}
       twoWords={twoWords.filter((q) => q.n >= open.range.from && q.n <= open.range.to)}
@@ -405,7 +434,6 @@ export function NumberSystemEditor({
       saveButton={saveButton}
       onRecord={(slot, key) => setRecording({ slot, key })}
       onWrite={setWriting}
-      onOpen={setPart}
       onDeckPart={onDeckPart}
       onClose={leave(() => setPart(null))}
     />
@@ -450,6 +478,13 @@ export function NumberSystemEditor({
         labels={labels}
         twoWords={twoWords}
         unsaved={dirty}
+        connecting={
+          connecting.length
+            ? connecting.every((s) => s.optional || written(draft, s))
+              ? "ready"
+              : "not written yet"
+            : null
+        }
         time={
           timeComposer
             ? hourReady
@@ -531,6 +566,7 @@ export function partStatus(
     if (faces.length && !stops.some((w) => w.slot)) return `waiting on a noun with its ${faces.join(" and ")}`;
   }
   const partLabel = (id: string) => {
+    if (id === CONNECTING) return "Connecting words";
     const at = checks.find((c) => c.range.id === id);
     return at ? at.range.label : id;
   };
@@ -553,7 +589,7 @@ export function partStatus(
   return before ? `waiting on ${before.range.label}` : waitingOn(check.warnings);
 }
 
-function NumbersTab({ lang, draft, checks, homes, labels, twoWords, unsaved, time, onOpen, onTime, onFix, onCheck }: {
+function NumbersTab({ lang, draft, checks, homes, labels, twoWords, unsaved, connecting, time, onOpen, onTime, onFix, onCheck }: {
   lang: Lang;
   draft: NumberSystem;
   checks: RangeCheck[];
@@ -564,6 +600,8 @@ function NumbersTab({ lang, draft, checks, homes, labels, twoWords, unsaved, tim
   /** Whether anything is changed and not saved — which only a save that
       did not go through leaves behind; see leave. */
   unsaved: boolean;
+  /** Where the connecting words stand, or null where the language has none. */
+  connecting: string | null;
   /** Where telling the time stands, or null where the language has no clock. */
   time: string | null;
   /** Open one part's own screen. */
@@ -621,6 +659,17 @@ function NumbersTab({ lang, draft, checks, homes, labels, twoWords, unsaved, tim
               onOpen={() => onOpen(check.range.id)}
             />
           ))}
+          {connecting !== null ? (
+            <Tile
+              title="Connecting words"
+              meta={
+                <span className="at-numstate" data-open={connecting === "ready" ? "" : undefined}>
+                  {connecting}
+                </span>
+              }
+              onOpen={() => onOpen(CONNECTING)}
+            />
+          ) : null}
           {time !== null ? (
             <Tile
               title="Telling the time"
@@ -776,12 +825,11 @@ function SampleRows({ lang, draft, values, render, onWrite }: {
  * a list of what could be asked; the list said *11 to 99 is waiting on
  * forty* and the box for forty was somewhere below the fold. Here the
  * part is the way in, and the boxes it is waiting on are the ones on its
- * screen — or, where they belong to an earlier part, that part is named
- * and one tap away.
+ * screen.
  */
 function PartScreen({
-  lang, draft, setDraft, check, checks, homes, labels, slots, render, twoWords, onKeepOne, nouns, decks, saveButton,
-  onRecord, onWrite, onOpen, onDeckPart, onClose,
+  lang, draft, setDraft, check, checks, homes, slots, render, twoWords, onKeepOne, nouns, decks, saveButton,
+  onRecord, onWrite, onDeckPart, onClose,
 }: {
   lang: Lang;
   draft: NumberSystem;
@@ -789,7 +837,6 @@ function PartScreen({
   check: RangeCheck;
   checks: RangeCheck[];
   homes: Map<string, string>;
-  labels: Map<string, string>;
   slots: SlotSpec[];
   render: (n: number, ctx?: { noun?: CountedNoun }) => { text: string; warnings: { code: string; slot?: string; detail?: string }[] };
   /** Boxes in this part that used to be two and still hold two different
@@ -803,24 +850,11 @@ function PartScreen({
   saveButton: React.ReactNode;
   onRecord: (slot: string, key: FormKey) => void;
   onWrite: (key: string) => void;
-  onOpen: (rangeId: string) => void;
   onDeckPart?: (deckId: string, rangeId: string, on: boolean) => void;
   onClose: () => void;
 }) {
   const range = check.range;
   const own = slots.filter((s) => homes.get(s.slot) === range.id);
-  const status = partStatus(check, checks, homes, labels);
-  /* The earlier part this one is waiting on, where it is one, so the way
-     to it is a button rather than a hunt. */
-  const waitingFor = (() => {
-    if (check.open) return null;
-    const stops = blocking(check.warnings as never) as { slot?: string }[];
-    for (const w of stops) {
-      const home = w.slot ? homes.get(w.slot) : "";
-      if (home && home !== range.id) return checks.find((c) => c.range.id === home) || null;
-    }
-    return null;
-  })();
   /* Built from the parts before it alone — Huế's 11 to 99. */
   const before = checks.filter((c) => c.range.kind === "numbers" && !c.range.counted);
   const earlier = before.slice(0, Math.max(0, before.findIndex((c) => c.range.id === range.id)));
@@ -832,22 +866,13 @@ function PartScreen({
         return Number.isFinite(n) && n >= range.from && n <= range.to;
       });
 
-  /* Where it stands, and the way to the earlier part it is waiting on —
-     at the head of the part's own words, which is what it is about. */
-  const standing = (
-    <>
-      <p className="at-numstate" data-open={check.open ? "" : undefined}>
-        {check.open ? "Ready: a student can be asked anything in this part." : `Not asked yet — ${status}.`}
-      </p>
-      {waitingFor ? (
-        <div className="at-row at-mt3">
-          <Button size="sm" onClick={() => onOpen(waitingFor.range.id)}>
-            {`Open ${waitingFor.range.label}`}
-          </Button>
-        </div>
-      ) : null}
-    </>
-  );
+  /* Said only once the part is ready. A part that was not used to say
+     "Not asked yet — waiting on …", with a button to the part it named;
+     it confused more than it helped, and the parts list already says
+     where each one stands. */
+  const standing = check.open ? (
+    <p className="at-numstate" data-open="">Ready: a student can be asked anything in this part.</p>
+  ) : null;
 
   return (
     <Screen title={range.label} onBack={onClose} action={saveButton} className="cardform">
@@ -907,6 +932,50 @@ function PartScreen({
       ) : null}
 
       <PartTags range={range} open={check.open} />
+    </Screen>
+  );
+}
+
+/** Whether a box has a word in every face it asks for. */
+function written(draft: NumberSystem, slot: SlotSpec): boolean {
+  const lex = draft.lexemes[slot.slot];
+  return !!lex && slot.formKeys.every((k) => !!(lex.forms[k] || "").trim());
+}
+
+/**
+ * The words between a number's pieces, on a screen of their own.
+ *
+ * Laid out as a part's screen is, so the two read as one design, with the
+ * numbers under the boxes that show the word at work: twenty-one, where
+ * every language that has one joins a unit to a ten, a hundred and five,
+ * and 1,525, which joins more than once where the language does.
+ */
+function ConnectingScreen({ lang, draft, setDraft, slots, render, saveButton, onRecord, onWrite, onClose }: {
+  lang: Lang;
+  draft: NumberSystem;
+  setDraft: (f: (d: NumberSystem) => NumberSystem) => void;
+  slots: SlotSpec[];
+  render: (n: number) => { text: string; warnings: { code: string; slot?: string }[] };
+  saveButton: React.ReactNode;
+  onRecord: (slot: string, key: FormKey) => void;
+  onWrite: (key: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Screen title="Connecting words" onBack={onClose} action={saveButton} className="cardform">
+      <PartBlock
+        title="Words"
+        role={`The small words ${lang.name} puts between the pieces of a number, like "and" in two hundred and five. They are never asked on their own; every number that needs one is built with it.`}
+      >
+        <WordGrid lang={lang} draft={draft} setDraft={setDraft} slots={slots} onRecord={onRecord} />
+      </PartBlock>
+
+      <PartBlock
+        title="How the app says them"
+        role="Some numbers that use them. Tap one that is wrong to write it out yourself."
+      >
+        <SampleRows lang={lang} draft={draft} values={[21, 105, 1525]} render={render} onWrite={onWrite} />
+      </PartBlock>
     </Screen>
   );
 }

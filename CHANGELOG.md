@@ -8,6 +8,92 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.333 — 4 October 2026
+
+**The app is quick again.**
+
+- Moving on to the next question, starting a session, opening the app
+  and opening Progress are about three times quicker. They had slowed
+  down since 0.262, when a verb in a sentence began agreeing with the
+  word beside it, and they slowed down more the more verbs and sentences
+  a collection held. They are now as quick as they were before that, or
+  a little quicker.
+- The lists of the sentences a card makes, in the card editor and in
+  Review sentences, are quicker too.
+- Nothing about what is asked, how an answer is marked or how progress is
+  saved has changed.
+## 0.332 — 4 October 2026
+
+**No more "Not asked yet" on the number system's parts.**
+
+- A part of a number system that is not ready no longer opens with a
+  "Not asked yet — waiting on …" line, or the button under it to another
+  part. It confused more than it helped. A ready part still says so.
+
+## 0.331 — 4 October 2026
+
+**Every round hundred can be written out, and a part is not ready without them.**
+
+- On the *Numbers 100 to 999* screen, *How the app says them* now lists
+  100, 200, 300 and so on up to 900. Before, it showed numbers spread
+  across the range and skipped 300 to 800, so there was nothing to tap to
+  write them out. In Palestinian Arabic each is one word with no box of
+  its own, so this list is where you give them. *Numbers over a thousand*
+  likewise lists every thousand from 1,000 to 10,000.
+- A part only shows as ready once the app can say all of those. Until
+  now, *Numbers 100 to 999* could show ready with 300 to 800 still blank.
+- The notes beside the "hundred" and "thousands" boxes now say where to
+  write those numbers out.
+
+## 0.330 — 4 October 2026
+
+**Numbers are learnt word by word, and a numbers deck asks only numbers.**
+
+- A number made of several words, like 47, is asked only once you
+  recognise each word in it (*forty* and *seven*). Recognising a word
+  means getting its meaning right twice in a row. Until then a numbers
+  session asks the words on their own. Each combination opens on its own:
+  47 can come up as soon as *forty* and *seven* are known, even if
+  *ninety* is still new. Times work the same way.
+- Among the numbers that can be asked, practice still leans towards ones
+  containing a word you have not fully learnt yet.
+- If you were already practising combinations whose words you have not
+  learnt yet, those combinations pause until you catch up on the words.
+  Nothing you earned on them is lost.
+- A session of numbers alone, whether a numbers deck or one you put
+  together yourself, now keeps to numbers. The wrong answers to choose
+  from and the words in a matching grid are other number words, so you
+  tell *forty* from *fourteen* rather than from *house*. No sentence from
+  another deck is shown. Decks that mix numbers with other words are
+  unchanged.
+- The count of cards ready on the home screen no longer includes number
+  practice that is waiting on its words.
+
+## 0.329 — 4 October 2026
+
+**The words that join a number have a screen of their own.**
+
+- On a language's number system, the small words that go between the
+  pieces of a number — "and" in Palestinian Arabic and in Hebrew — are now
+  under their own **Connecting words** button beside the parts, instead
+  of sitting among the tens on Numbers 20 to 99.
+- The screen shows a few numbers that use the word, so you can see what it
+  does as soon as it is typed, and tap one to correct it.
+- A part that cannot be asked until the word is written says so and
+  offers the way to it.
+- Vietnamese has no such word, so it has no such screen.
+
+## 0.328 — 4 October 2026
+
+**Custom practice on numbers and times shows the number again.**
+
+- A practice session built by hand — every mode except Regular — and the
+  session of what is going wrong could ask "Read the number, then write
+  it in figures" with nothing to read underneath: the number was never
+  picked. Every number and time question in those sessions now has one,
+  just as in an everyday session, and a question that cannot be given one
+  is left out rather than shown empty.
+
 ## 0.327 — 4 October 2026
 
 **A custom practice on a deck you haven't started now starts.**

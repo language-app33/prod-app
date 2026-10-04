@@ -642,9 +642,12 @@ export function steeredAsk(
   seed: string,
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
   waiting: Set<string>,
+  /* Only these askings — the ones whose words are recognised, see
+     askKnown. Every asking of the range when left out. */
+  among?: { ask: Ask; words: string[] }[],
 ): Ask | null {
   if (!waiting.size) return null;
-  const all = askingsWithWords(range, set);
+  const all = among || askingsWithWords(range, set);
   const reached = new Set(all.flatMap((a) => a.words));
   const targets = [...waiting].filter((id) => reached.has(id)).sort();
   if (!targets.length) return null;
@@ -652,6 +655,84 @@ export function steeredAsk(
   const target = targets[Math.floor(rnd() * targets.length)];
   const holding = all.filter((a) => a.words.includes(target));
   return holding[Math.floor(rnd() * holding.length)].ask;
+}
+
+/**
+ * The cards one asking is said with, among those `ids` holds: *forty* and
+ * *seven* for 47.
+ */
+export function wordsOfAsk(
+  ask: Ask,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  ids: Set<string>,
+): Set<string> {
+  const got = renderAsk(ask, set.composer, set.sys, set.timeComposer, set.timeSys);
+  const timeId = set.timeSys ? set.timeSys.id : "";
+  return new Set(got.tokens.flatMap((t) => cardsOfToken(t, set.sys.id, timeId)).filter((id) => ids.has(id)));
+}
+
+/**
+ * The askings of a range a learner can be put: the ones every word of
+ * which they already recognise.
+ *
+ * A learner who knows *forty* and *seven* knows *forty-seven*, which is
+ * why numbers are built rather than memorised — and the other side of
+ * that is that one who does not know *forty* yet cannot be asked it. So
+ * the words come first and the combinations wait on them, number by
+ * number rather than range by range: 47 can be asked the day *forty* and
+ * *seven* are recognised, whether or not *ninety* has been met.
+ *
+ * `ids` is the cards the learner holds and `knows` whether one is
+ * recognised; what that means is the scheduler's, and the caller's to
+ * ask. A word not held is never waited on: nothing could recognise it.
+ *
+ * An asking none of whose words is held — noon written out whole by a
+ * teacher, which no learner has a card for — has nothing to wait on, and
+ * would otherwise open the range before a single word of it was known. It
+ * comes in with the rest once one asking built of held words can, or at
+ * once where the range holds none at all.
+ */
+export function askingsKnown(
+  range: Range,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  ids: Set<string>,
+  knows: (id: string) => boolean,
+): { ask: Ask; words: string[] }[] {
+  const all = askingsWithWords(range, set).map((a) => ({ ask: a.ask, words: a.words.filter((id) => ids.has(id)) }));
+  const fit = all.filter((a) => a.words.every(knows));
+  const opens = fit.some((a) => a.words.length) || !all.some((a) => a.words.length);
+  return opens ? fit : [];
+}
+
+/**
+ * One asking of a range, drawn from what the learner can be asked.
+ *
+ * Towards a word the learner has not kept yet, as steeredAsk always did,
+ * but only among `known` — the askings `askingsKnown` found. Failing
+ * that, the plain draw on the same seed, kept if every word in it is
+ * recognised, so a learner who knows them all is asked from the whole of
+ * the range; and failing that, one of `known` picked on the seed. A
+ * missed question still comes back as the same number, and a right one
+ * still moves on.
+ *
+ * Null when there is nothing to ask yet — `known` empty, so the range has
+ * not opened.
+ */
+export function askKnown(
+  range: Range,
+  seed: string,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  ids: Set<string>,
+  knows: (id: string) => boolean,
+  known: { ask: Ask; words: string[] }[],
+  waiting: Set<string>,
+): Ask | null {
+  if (!known.length) return null;
+  const steered = steeredAsk(range, seed, set, waiting, known);
+  if (steered) return steered;
+  const drawn = askFor(range, seed, set.sys, set.composer);
+  if ([...wordsOfAsk(drawn, set, ids)].every(knows)) return drawn;
+  return known[Math.floor(seeded(`${range.id} ${seed} known`)() * known.length)].ask;
 }
 
 /** A deck as far as filing numbers goes: its name, and the parts it holds. */
