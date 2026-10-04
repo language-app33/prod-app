@@ -216,6 +216,17 @@ const part = {
   forms: [{ id: "p1", ar: "أربعين", en: "forty", lat: "arba3iin" }],
 };
 
+/* A word out of a language's number system, which carries the number it
+   stands for in the language's own figures. */
+const figure = {
+  id: "sys:numbers-1:unit.3",
+  lang: AR,
+  numeral: "٣",
+  locked: true,
+  source: { systemId: "numbers-1", slot: "unit.3" },
+  forms: [{ id: "sys:numbers-1:unit.3-f~standalone", ar: "ثلاثة", en: "3", lat: "tlaate" }],
+};
+
 /* A conversation: its name is the card's own word, its setting the note,
    and its turns are the lesson. */
 const scene = {
@@ -274,6 +285,7 @@ export const CORPUS = [
   { what: "a sentence whose verb blank asks for one tense", card: tensed },
   { what: "a value that fills other cards' blanks and is not asked itself", card: value },
   { what: "a number card from before the number system, carrying what it was worth", card: part },
+  { what: "a word out of a number system, written in its language's own figures", card: figure },
   { what: "a conversation with its speakers, its setting and a turn kept unasked", card: scene },
   { what: "a card in the shape stored before forms were one list, with a retired axis and a lexical one", card: legacy },
 ];

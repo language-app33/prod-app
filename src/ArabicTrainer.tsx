@@ -194,7 +194,8 @@ import {
   renderAsk,
 } from "./numbers/range.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { componentId, isRangeSkill, overrideId, systemFor } from "./numbers/generate.ts";
+import { componentId, fillerCards, isRangeSkill, overrideId, systemFor } from "./numbers/generate.ts";
+import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
   cleared,
@@ -1656,11 +1657,13 @@ export function valueReachOf(
  * untestable: `buildSession` is a plain function of its arguments and
  * always was, and this is the rest of what it reads.
  */
-export function installIndexes(items: Item[], settings: Settings): void {
+export function installIndexes(items: Item[], settings: Settings, systems: SystemSet[] = []): void {
   setActiveLang(settings.language || DEFAULT_LANGUAGE);
   setContextIndex(contextIndexOf(items, settings));
   setDialogIndex(buildDialogIndex(items));
-  setValueIndex(valueIndexOf(items, settings));
+  /* And the numbers the parts lend to sentences, as the app adds them. */
+  const lent = items.concat(systems.flatMap((set) => fillerCards(composerFor(set.numbers.languageId), set.numbers)));
+  setValueIndex(valueIndexOf(lent, settings));
   setReviewGate(reviewGateOf(items));
   /*
    * The counts before the three walks that read them, and not after.
@@ -1674,7 +1677,7 @@ export function installIndexes(items: Item[], settings: Settings): void {
    */
   setMateCounts(countMates(items, settings));
   setPicturedCounts(countPictured(items, settings));
-  const reach = valueReachOf(items, settings);
+  const reach = valueReachOf(lent, settings);
   setValueReach(reach.map);
   setValueOwner(reach.owner);
   setQuietUnits(quietUnits(items, settings));
@@ -3241,7 +3244,7 @@ function drawRange(
   if (!composer) return {};
 
   const turn = turnOf(statesOf(unit)[type]);
-  const ask = askFor(range, `${item.id} ${type} ${turn}`, set.numbers);
+  const ask = askFor(range, `${item.id} ${type} ${turn}`, set.numbers, composer);
 
   if (EX[type] && EX[type].picks !== "word") return { ask };
   /*
@@ -7582,7 +7585,7 @@ export default function ArabicTrainer() {
   /* The teachers' numbers, read back through the same narrowing the wire
      goes through — what was kept is a copy of what arrived, and an older
      build's copy is not this build's shape. */
-  const [systems, setSystems] = useState<SystemSet[]>(() =>
+  const [heldSystems, setSystems] = useState<SystemSet[]>(() =>
     pairSystems(heldMaterial ? heldMaterial.systems : []),
   );
   const [courseDecks, setCourseDecks] = useState<Deck[]>(
@@ -8292,6 +8295,28 @@ export default function ArabicTrainer() {
     () => (preview.length ? items.concat(preview) : items),
     [items, preview]
   );
+  /*
+   * The teachers' numbers with the things they count: the noun cards the
+   * learner's courses hold — see nouns.ts. Held as a string first, so the
+   * systems only change when a noun does and not on every answer, which
+   * would rebuild every question built on them.
+   */
+  const countedKey = useMemo(
+    () => JSON.stringify(nounsByLanguage(heldSystems, items.filter((it) => !!fromDeck(it)) as unknown as Record<string, unknown>[])),
+    [heldSystems, items],
+  );
+  const systems = useMemo(() => setsGiven(heldSystems, JSON.parse(countedKey)), [heldSystems, countedKey]);
+  /* And the numbers each part puts into the sentences that ask for it,
+     which are borrowed by a sentence and never asked — see fillerCards.
+     Only the value index reads them. */
+  const numberFillers = useMemo(
+    () => systems.flatMap((set) => fillerCards(composerFor(set.numbers.languageId), set.numbers)),
+    [systems],
+  );
+  const valueCards = useMemo(
+    () => (numberFillers.length ? asking.concat(numberFillers) : asking),
+    [asking, numberFillers],
+  );
   const settings = data.settings;
   /* The on-screen keys, opened from the button inside the answer field.
      Below `settings`, which it reads, and above every early return, which
@@ -8325,9 +8350,9 @@ export default function ArabicTrainer() {
      rotation walks this list, and a list that reordered itself on a sync
      would hand somebody a different name for the same count. */
   const valueIndex = useMemo(
-    () => valueIndexOf(asking, settings),
+    () => valueIndexOf(valueCards, settings),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-    [asking, settings.language],
+    [valueCards, settings.language],
   );
   setValueIndex(valueIndex);
 
@@ -8358,7 +8383,7 @@ export default function ArabicTrainer() {
    * never dealt and has no ladder to read. What each of those means for a
    * hole is valuesAt's business, not this one's.
    */
-  const valueReach = useMemo(() => valueReachOf(asking, settings), [asking, settings]);
+  const valueReach = useMemo(() => valueReachOf(valueCards, settings), [valueCards, settings]);
   setValueReach(valueReach.map);
   setValueOwner(valueReach.owner);
 

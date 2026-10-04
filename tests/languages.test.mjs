@@ -938,9 +938,11 @@ test("what a kind of word lays out, and what it is asked about, is the category'
   /* A kind nobody has said, or a pack that says nothing, is asked everything the pack has. */
   assert.deepEqual(fields(""), dimsOf(ar).map((d) => d.field));
   assert.deepEqual(fields("particle"), dimsOf(ar).map((d) => d.field));
-  /* Hebrew has no person-or-thing rule, so the shared list's "human" is
-     not asked there — the category's list is within the pack's. */
-  assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "noun").map((d) => d.field), ["number", "gender"]);
+  /* Hebrew has no person-or-thing rule for agreement, but it is asked
+     there too since 0.320: it is what gives a person or an animal a
+     masculine and a feminine side. Still within the pack's list. */
+  assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "noun").map((d) => d.field), ["number", "gender", "human"]);
+  assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "person").map((d) => d.field), ["number", "gender"]);
   assert.deepEqual(dimsFor(LANGUAGES["vi-Hue"], "adjective"), []);
   /* Huế names the same table the other two do and declares none of it, so
      an adjective there is the word and whatever forms a teacher writes.
@@ -1222,8 +1224,19 @@ test("each pack offers only the grammar its language has", () => {
     must(dimsOf(LANGUAGES[id]).find((d) => d.field === axis), `${id} ${axis}`).options.map(([v]) => v);
   for (const id of ["ar-PS", "he-IL"]) {
     assert.deepEqual(values(id, "gender"), ["masculine", "feminine"], id);
-    assert.deepEqual(values(id, "number"), ["singular", "plural", "dual", "na"], id);
   }
+  /* Arabic has a plural a few nouns take only after three to ten — days,
+     months — and Hebrew has none. */
+  assert.deepEqual(values("ar-PS", "number"), ["singular", "plural", "counted", "dual", "na"]);
+  assert.deepEqual(values("he-IL", "number"), ["singular", "plural", "dual", "na"]);
+  /* It is a noun's, and offered on nothing else that is asked its number. */
+  const offered = (/** @type {string} */ kind) =>
+    must(dimsFor(LANGUAGES["ar-PS"], kind).find((d) => d.field === "number"), kind).options.map(([v]) => v);
+  assert.ok(offered("noun").includes("counted"));
+  for (const kind of ["pronoun", "person", "place", "name"]) {
+    assert.deepEqual(offered(kind), ["singular", "plural", "dual", "na"], kind);
+  }
+  assert.equal(labelFor({ number: "counted", gender: "masculine" }, LANGUAGES["ar-PS"]), "pl. 3–10 m.");
   /* And what is stored is never narrowed: a value outside the pack's list
      is still kept, and a tag still reads it. */
   assert.equal(dimValues({ gender: "neutral" }).gender, "neutral");

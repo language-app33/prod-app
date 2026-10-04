@@ -697,6 +697,16 @@ export const CARD_FACTS: FieldRule[] = [
     },
   },
   {
+    key: "numeral",
+    on: "card",
+    label: "In figures",
+    what:
+      "The number a card out of a number system stands for, written in its language's own figures — three as Arabic writes it, say. " +
+      "Only on a language whose pack says it has figures of its own, and only on a card that is one number.",
+    reader: "both",
+    shown: asIs,
+  },
+  {
     key: "derived",
     on: "card",
     label: "Read into the number system",
