@@ -853,6 +853,26 @@ const clickNamed = (re) => {
 };
 /** @param {Element | null | undefined} el */
 const click = (el) => el && el.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
+/* The practice ticks under each form are folded since 0.322, under a
+   heading that says what is on. Opened wherever a check reads the ticks. */
+const openPractice = async () => {
+  for (const b of [...document.querySelectorAll('.at-drills > button.at-groupfold[aria-expanded="false"]')]) click(b);
+  await sleep(150);
+};
+/* A whole-card property is a toggle since 0.322: the group by its axis,
+   the button by its value's name. */
+const toggleGroup = (/** @type {string} */ axis) => /** @type {any} */ (
+  document.querySelector(`.at-segmented[aria-label="${axis}"]`) || null);
+const toggleNames = (/** @type {string} */ axis) =>
+  [...(toggleGroup(axis) ? toggleGroup(axis).querySelectorAll("button") : [])].map((b) => (b.textContent || "").trim());
+const toggleOn = (/** @type {string} */ axis) =>
+  [...(toggleGroup(axis) ? toggleGroup(axis).querySelectorAll('button[aria-pressed="true"]') : [])]
+    .map((b) => (b.textContent || "").trim()).join("");
+const pickToggle = async (/** @type {string} */ axis, /** @type {string} */ value) => {
+  click([...(toggleGroup(axis) ? toggleGroup(axis).querySelectorAll("button") : [])]
+    .find((b) => (b.textContent || "").trim() === value));
+  await sleep(200);
+};
 /** @param {RegExp} re */
 const buttonNamed = (re) =>
   [...document.querySelectorAll("button")].find((b) => re.test(b.textContent || ""));
@@ -4318,6 +4338,17 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   click(row ? row.querySelector("input") : null);
   await sleep(320);
 };
+/* A form's table of attached pronouns is folded inside the form's own
+   panel since 0.319, under a heading that opens it — so a check that reads
+   its boxes opens every one first. */
+const pronounFolds = () => [...document.querySelectorAll(".at-formtile .at-groupfold")]
+  .filter((b) => /^Its /.test(((b.querySelector("span") || {}).textContent) || ""));
+const openPronounTables = async () => {
+  for (const b of pronounFolds()) {
+    if (b.getAttribute("aria-expanded") !== "true") click(b);
+  }
+  await sleep(150);
+};
 
 /* ---- a conversation, opened by the teacher who wrote it ----
    Opening one from Teaching > Cards put the word editor up: one script
@@ -4586,6 +4617,44 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     topTitle() || "(no picker)");
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the scene"));
   await sleep(350);
+
+  /* ---- a person written from either side ----
+
+     A noun for a person or an animal has a masculine and a feminine side,
+     and either alone is a card: a teacher who knows the feminine and not
+     the masculine writes that and saves. The card's own word goes where
+     the words are — see leadFirst — so the box written in is the card's
+     own and Save comes alive, with the masculine left empty. */
+  await leaveScreen();
+  await newCard();
+  await pickCardKind(/^Word or phrase/);
+  await pickKind(/^Noun/);
+  {
+    await pickToggle("Person, animal or thing", "Animal");
+    const input = (/** @type {string} */ label) => /** @type {any} */ ([...document.querySelectorAll("input")]
+      .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
+    const write = (/** @type {any} */ el, /** @type {string} */ value) => {
+      if (!el) return;
+      must(must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "the value descriptor").set,
+        "the value setter").call(el, value);
+      el.dispatchEvent(new w.Event("input", { bubbles: true }));
+    };
+    write(input("Arabic for feminine singular"), "قطة");
+    await sleep(200);
+    write(input("English for feminine singular"), "cat");
+    await sleep(250);
+    const tileOf = (/** @type {string} */ title) => [...document.querySelectorAll(".at-formblock")].find((b) =>
+      ((b.querySelector(".at-formnum") || {}).textContent || "").trim() === title) || null;
+    const fem = tileOf("Feminine singular");
+    const masc = tileOf("Masculine singular");
+    check("an animal written only in the feminine is the card's own word, and can be saved",
+      !!fem && fem.classList.contains("main") && !!masc && !masc.classList.contains("main") &&
+        (input("Arabic for feminine singular") || {}).value === "قطة" &&
+        (input("Arabic for masculine singular") || {}).value === "" &&
+        !!buttonNamed(/^Save$/) && !/** @type {any} */ (buttonNamed(/^Save$/)).disabled,
+      `feminine ${fem && fem.classList.contains("main") ? "is" : "is not"} the word · ` +
+        `save ${buttonNamed(/^Save$/) && !/** @type {any} */ (buttonNamed(/^Save$/)).disabled ? "on" : "off"}`);
+  }
 
   await leaveScreen();
   await newCard();
@@ -5818,6 +5887,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           .find((r) => re.test(r.textContent || "")) : null;
         return row ? /** @type {any} */ (row.querySelector("input")) : null;
       };
+      await openPractice();
       check("a card in no group is a question of its own, like any other",
         !!ownTick(/On its own/) && ownTick(/On its own/).checked,
         ownTick(/On its own/) ? String(ownTick(/On its own/).checked) : "(no tick)");
@@ -5836,6 +5906,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           !!formsRole && /A form is one shape of the word/.test(formsRole.textContent || "") &&
             !/main form of the card|Another form of the same card/.test(document.body.textContent || ""),
           formsRole ? (formsRole.textContent || "").trim() : "(no Forms heading)");
+        await openPractice();
         const drills = /** @type {any} */ (document.querySelector(".at-formtile.main .at-drills"));
         check("the practice ticks are explained once, under their heading, not in each tick",
           !!drills && /^Choose where this form comes up in practice\.( Inside sentence cards lets any sentence use it; each sentence chooses which kinds of form it wants\.)?$/.test(
@@ -5895,6 +5966,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          the form goes off with it, where the teacher can see it and say
          otherwise. It used to be a hidden third state of a card-wide
          toggle nobody was shown. */
+      await openPractice();
       check("joining its first group stops it being asked on its own",
         !!ownTick(/On its own/) && !ownTick(/On its own/).checked,
         ownTick(/On its own/) ? String(ownTick(/On its own/).checked) : "(no tick)");
@@ -5992,6 +6064,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("down to none, which is what an ordinary card is",
         ticked().length === 0 && fillNames().includes("friend"),
         ticked().join(", ") || "(none ticked)");
+      await openPractice();
       check("and leaving the last group makes it a question again",
         !!ownTick(/On its own/) && ownTick(/On its own/).checked,
         ownTick(/On its own/) ? String(ownTick(/On its own/).checked) : "(no tick)");
@@ -6058,6 +6131,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        screen naming parts in the editor's own words; 0.179 asks it where
        the thing being drilled is. */
     {
+      await openPractice();
       const formBlock = [...document.querySelectorAll(".at-formblock")].find((b) =>
         /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
       const parts = formBlock ? [...formBlock.querySelectorAll(".at-part")] : [];
@@ -6065,17 +6139,19 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          the top: the block above already says which form this is, and the
          others are named because they are additions to it. */
       check("a form is cut into subsections, and its own fields are the unnamed one",
-        parts.length >= 1 && !parts[0].querySelector(".at-groupline"),
-        parts.map((g) => ((g.querySelector(".at-groupline") || {}).textContent || "").trim() || "(unnamed)")
+        parts.length >= 1 && !parts[0].querySelector(":scope > .at-groupline"),
+        parts.map((g) => ((g.querySelector(":scope > .at-groupline") || {}).textContent || "").trim() || "(unnamed)")
           .join(" | ") || "(no subsections)");
       const drills = parts.length ? parts[0].querySelector(".at-drills") : null;
       check("an ordinary word says what of it is drilled, beside the word", !!drills,
         [...document.querySelectorAll(".at-formnum, .at-groupline")]
           .map((n) => n.textContent).join(" | "));
+      /* Its heading is the fold that opens it since 0.322; the name is the
+         heading's first line. */
+      const drillName = () => drills
+        ? ((drills.querySelector(".at-groupfold > span") || {}).textContent || "").trim() : "";
       check("named for what it answers about, which is this form",
-        !!drills && /^How this form can be practiced$/.test(
-          ((drills.querySelector(".at-drillhead") || {}).textContent || "").trim()),
-        drills ? ((drills.querySelector(".at-drillhead") || {}).textContent || "").trim() : "(no heading)");
+        /^How this form can be practiced$/.test(drillName()), drillName() || "(no heading)");
       const only = drills ? [...drills.querySelectorAll(".at-tickrow")] : [];
       check("two ticks — on its own, and inside sentence cards — both on",
         only.length === 2 && /On its own/.test(only[0].textContent || "") &&
@@ -6298,10 +6374,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /* What the card itself is asked, which since 0.191 is a line of
          radios under the kind of word rather than an axis on every
          answer. */
-      const cardAxis = () => /** @type {any} */ (
-        document.querySelector('[role="radiogroup"][aria-label="Person or thing"]') || null);
-      const axisPicks = () => [...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
-        .map((i) => i.getAttribute("aria-label") || "");
+      const cardAxis = () => toggleGroup("Person, animal or thing");
+      const axisPicks = () => toggleNames("Person, animal or thing");
       const askAxes = async () => {
         click(grammarBtn());
         await sleep(200);
@@ -6312,6 +6386,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       };
 
       await pickKind(/^Preposition/);
+      await openPronounTables();
       check("a preposition takes the pronouns on its end, and is asked no number or gender",
         boxes(/attached pronouns · me$/).length > 0 && !grammarBtn() && !boxes(/for past · he$/).length,
         `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
@@ -6333,40 +6408,52 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !tables().length && !!grammarBtn(), `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
       const nameAxes = grammarBtn() ? await askAxes() : [];
       check("and not whether it is a person or a thing",
-        nameAxes.includes("Number") && nameAxes.includes("Gender") && !nameAxes.includes("Person or thing"),
+        nameAxes.includes("Number") && nameAxes.includes("Gender") && !nameAxes.includes("Person, animal or thing"),
         nameAxes.join(" | ") || "(no axes)");
       check("which is asked of nothing that is not asked it",
         !cardAxis(), cardAxis() ? "the kind block asks it anyway" : "not asked");
 
       await pickKind(/^Noun/);
-      const nounAxes = grammarBtn() ? await askAxes() : [];
-      /* Person or thing is one fact about the card — as true of the plural
-         as of the singular — so it is asked once, under the kind of word,
-         and not of each accepted answer of each form. */
-      check("a noun is asked whether it is a person or a thing, beside the kind of word it is",
-        !!cardAxis() && !nounAxes.includes("Person or thing"),
-        `${cardAxis() ? "asked once" : "not asked"} · answer axes ${nounAxes.join(" | ") || "(none)"}`);
-      check("and it is one line of radios, a thing or a person, in the block that says what kind it is",
+      await openPronounTables();
+      /* Person, animal or thing is one fact about the card — as true of
+         the plural as of the singular — so it is asked once, under the kind
+         of word. And since 0.320 a noun's number is the box it is written
+         in, so no answer of it is asked anything. */
+      const cardGender = () => toggleGroup("Gender");
+      check("a noun is asked whether it is a person, an animal or a thing, beside the kind of word it is",
+        !!cardAxis() && !grammarBtn(),
+        `${cardAxis() ? "asked once" : "not asked"} · answers ${grammarBtn() ? "asked their grammar" : "asked nothing"}`);
+      check("and it is one toggle in the block that says what kind it is",
         !!cardAxis() && !!cardAxis().closest(".at-formblock") &&
           /This card/.test(((cardAxis().closest(".at-formblock").querySelector(".at-formnum")) || {}).textContent || "") &&
-          ["a thing", "a person"].every((v) => axisPicks().includes(v)),
-        axisPicks().join(" | ") || "(no radios)");
-      check("while its number and gender stay with the answer they are about",
-        nounAxes.includes("Number") && nounAxes.includes("Gender") &&
-          boxes(/attached pronouns · me$/).length > 0,
-        nounAxes.join(" | ") || "(no axes)");
+          ["Thing", "Person", "Animal"].every((v) => axisPicks().includes(v)),
+        axisPicks().join(" | ") || "(no toggle)");
+      /* A box per number, already marked, each with its own pronouns. */
+      const nounBlocks = () => [...document.querySelectorAll(".at-formnum")]
+        .map((n) => (n.textContent || "").trim());
+      check("its forms are a box for each number, the singular first, each with the pronouns on its end",
+        ["Singular", "Plural", "Dual"].every((t) => nounBlocks().includes(t)) &&
+          !!boxes(/^Arabic for plural$/).length && boxes(/attached pronouns · me$/).length > 0,
+        nounBlocks().join(" | "));
+      check("and a thing's gender is asked once, beside it, and may be left unset",
+        !!cardGender() && !!cardGender().closest(".at-formblock") &&
+          toggleNames("Gender").includes("Not set"),
+        cardGender() ? "asked" : "not asked");
+      check("with no button to add a form beside the boxes",
+        ![...document.querySelectorAll("button")].some((b) => /Add a form/.test(b.textContent || "")),
+        "an Add a form button is shown");
       /* A thing until somebody says otherwise, and what they say is kept:
          it is one answer for the card, so there is nowhere else for it to
          be read back off. */
-      const axisOn = () => [...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
-        .filter((i) => /** @type {any} */ (i).checked)
-        .map((i) => i.getAttribute("aria-label") || "")
-        .join("");
-      check("and it starts as a thing, which is what most nouns are", axisOn() === "a thing", axisOn() || "(nothing chosen)");
-      click([...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
-        .find((i) => i.getAttribute("aria-label") === "a person"));
-      await sleep(200);
-      check("saying it is a person is the card's answer and stays said", axisOn() === "a person", axisOn() || "(nothing chosen)");
+      const axisOn = () => toggleOn("Person, animal or thing");
+      check("and it starts as a thing, which is what most nouns are", axisOn() === "Thing", axisOn() || "(nothing chosen)");
+      await pickToggle("Person, animal or thing", "Person");
+      check("saying it is a person is the card's answer and stays said", axisOn() === "Person", axisOn() || "(nothing chosen)");
+      check("and a person has a masculine and a feminine side, and is not asked a gender",
+        ["Masculine singular", "Masculine plural", "Feminine singular", "Feminine dual"].every((t) => nounBlocks().includes(t)) &&
+          !cardGender(),
+        nounBlocks().join(" | "));
+      await pickToggle("Person, animal or thing", "Thing");
 
       await pickKind(/^Adjective/);
       check("an adjective lays out the forms it takes beside a noun, and nothing else",
@@ -6591,6 +6678,24 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     saved().map((r) => (r.textContent || "").slice(0, 24)).join(" | "));
   await pickKind(/^Noun/);
 
+  /* The table is the form's, so it is inside the form's own panel — the
+     one its fields are in — and folded there under a heading that opens
+     it, which is what keeps a card with a plural from being two screens
+     of boxes. */
+  const folds = pronounFolds();
+  check("each form's attached pronouns sit inside that form's own panel",
+    folds.length === 2 && folds.every((b) => {
+      const panel = b.closest(".at-part");
+      const outer = panel && panel.parentElement ? panel.parentElement.closest(".at-part") : null;
+      return !!outer && !!outer.querySelector(":scope > .at-formhead");
+    }),
+    `${folds.length} folds`);
+  check("and are folded away until opened",
+    folds.length > 0 && folds.every((b) => b.getAttribute("aria-expanded") === "false") &&
+      ![...document.querySelectorAll("input")].some((i) => /attached pronouns/.test(i.getAttribute("aria-label") || "")),
+    folds.map((b) => b.getAttribute("aria-expanded")).join(" | ") || "(no folds)");
+  await openPronounTables();
+
   const attachedCell = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
@@ -6650,29 +6755,33 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     attachedCell("Arabic for past · he") ? "both tables are up" : "one table at a time");
   /* The word's own block stays. A verb whose dictionary form is a cell
      replaces it; an attached pronoun is a form of the word, not a
-     stand-in for it. */
+     stand-in for it. And since 0.320 a noun's blocks are its boxes: the
+     word is the singular, and the plural it carried is in the plural's. */
   const blockOrder = () =>
     [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
-  check("while the word itself keeps its own block, being what these are forms of",
-    blockOrder().includes("Form 1"), blockOrder().join(" | "));
-  /* And a form can be added again, which 0.130 took away on the grounds
-     that the plural is "a second table rather than one more form". True,
-     and the conclusion should have been to give it one: adding a form now
-     adds the word and the eight pronouns on the end of it. */
+  check("while the word itself keeps its own block, the singular's, and its plural is in the plural's",
+    blockOrder().includes("Singular") && blockOrder().includes("Plural") &&
+      !!attachedCell("Arabic for singular") && attachedCell("Arabic for singular").value === "كتاب" &&
+      !!attachedCell("Arabic for plural") && !!attachedCell("Arabic for plural").value,
+    blockOrder().join(" | "));
+  /* No form is added beside the boxes — they are the forms, and a second
+     spelling is a second accepted answer — but an empty box is there to be
+     written in, and is never asked until it is. */
   const addForm = () => [...document.querySelectorAll("button")]
     .find((b) => /^Add a form$/.test((b.textContent || "").trim()));
-  check("a form can be added beside them again", !!addForm(),
-    addForm() ? "offered" : "no such button");
-  click(addForm());
+  check("no form is added beside the boxes", !addForm(), addForm() ? "offered" : "none");
+  check("while an empty box says it is never asked, and has no table yet",
+    !!attachedCell("Arabic for dual") && attachedCell("Arabic for dual").value === "" &&
+      [...document.querySelectorAll(".at-formrole")].some((n) => /Empty — never asked/.test(n.textContent || "")) &&
+      !attachedCell("Arabic for form 3 · attached pronouns · me"),
+    blockOrder().join(" | "));
+  typeIn(attachedCell("Arabic for dual"), "كتابين");
   await sleep(300);
-  check("and what it adds is a word and a table of its own",
-    blockOrder().includes("Form 3") &&
+  await openPronounTables();
+  check("and writing in it makes it a form, with a table of its own",
+    !!attachedCell("Arabic for dual") && attachedCell("Arabic for dual").value === "كتابين" &&
       !!attachedCell("Arabic for form 3 · attached pronouns · me"),
     blockOrder().join(" | "));
-  /* The forms it already carries stay: they are saved either way, and
-     hiding one would read as having lost it. */
-  check("while a form the card already had is still on screen",
-    blockOrder().includes("Form 2"), blockOrder().join(" | "));
 
   const plainHere = () => {
     const row = saved().find((r) => /^Something else/.test((r.textContent || "").trim()));
@@ -6967,6 +7076,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const box = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
+  await openPronounTables();
   const me = box("Arabic for attached pronouns · me");
   check("a saved word with pronouns on its end opens on its pronouns",
     !!me && me.value === "قلمي", me ? `"${me.value}"` : "no such box");
@@ -7012,19 +7122,30 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      looking at the pronoun table they had just filled in had to scroll
      past everything else to a line called "Its attached pronouns" and work
      out that it meant the table above. Now each subsection asks for
-     itself, at its own foot: the word, and the pronouns on the end of it. */
+     itself, at its own foot: the word, and the pronouns on the end of it —
+     which since 0.319 is a subsection inside the word's, folded under a
+     heading of its own. */
   {
+    /* A noun's own word is its singular's box since 0.320. */
     const partsOf = () => {
       const block = [...document.querySelectorAll(".at-formblock")].find((b) =>
-        /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+        /^Singular$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
       return block ? [...block.querySelectorAll(".at-part")] : [];
     };
-    const named = partsOf().map((g) =>
-      ((g.querySelector(".at-groupline") || {}).textContent || "").trim());
-    check("the form is cut into the word and the pronouns on its end",
-      named.length === 2 && named[0] === "" && /^Its attached pronouns$/.test(named[1]),
+    /* A subsection's own heading, and not one inside it: the pronouns'
+       panel sits in the word's, and its fold is a heading the word's
+       panel holds but is not named by. A fold's count is not its name. */
+    const named = partsOf().map((g) => {
+      const head = g.querySelector(":scope > .at-groupline");
+      return head ? (((head.querySelector("span") || head).textContent) || "").trim() : "";
+    });
+    const [word, ends] = partsOf();
+    check("the form is cut into the word and the pronouns on its end, inside the word's panel",
+      named.length === 2 && named[0] === "" && /^Its attached pronouns$/.test(named[1]) &&
+        !!ends && !!ends.parentElement && ends.parentElement.closest(".at-part") === word,
       named.map((n) => n || "(unnamed)").join(" | ") || "(no subsections)");
-    const drillsIn = () => partsOf().map((g) => g.querySelector(".at-drills"));
+    await openPractice();
+    const drillsIn = () => partsOf().map((g) => g.querySelector(":scope > .at-drills"));
     check("and each of them says for itself what is drilled",
       drillsIn().length === 2 && drillsIn().every(Boolean),
       drillsIn().map((d) => !!d).join(", "));
@@ -7643,17 +7764,17 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const partRow = (/** @type {RegExp} */ re) =>
     [...document.querySelectorAll(".at-tickrow, label")].find((r) => re.test(r.textContent || ""));
   check("and lists the parts of the numbers, counting things in three",
-    !!partRow(/Numbers 0 to 10/) && !!partRow(/Counting things: 1 and 2/) &&
+    !!partRow(/Numbers 0 to 9/) && !!partRow(/Numbers 10 to 19/) && !!partRow(/Counting things: 1 and 2/) &&
       !!partRow(/Counting things: 3 to 10/) && !!partRow(/Counting things: 11 to 20/) && !!partRow(/Telling the hour/),
     [...document.querySelectorAll(".at-tickrow, label")].map((r) => (r.textContent || "").slice(0, 24)).join(" | ") || "(no list)");
-  const box = partRow(/Numbers 0 to 10/);
+  const box = partRow(/Numbers 0 to 9/);
   click(box && (box.querySelector("input") || box));
   await sleep(150);
   click(buttonNamed(/^Save$/));
   await sleep(600);
   const sent = savedParts[savedParts.length - 1];
   check("and saving tells the server which parts the deck holds",
-    !!sent && sent.deckId === "d1" && JSON.stringify(sent.parts) === JSON.stringify(["numbers:0-10"]),
+    !!sent && sent.deckId === "d1" && JSON.stringify(sent.parts) === JSON.stringify(["numbers:0-9"]),
     JSON.stringify(savedParts));
 }
 
@@ -7807,23 +7928,62 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 {
   const { NumberSystemEditor } = await import(path.join(out, "number-system-editor.js"));
   const { LANGUAGES } = await import(path.resolve("src/languages.ts"));
-  const { emptyNumberSystem } = await import(path.resolve("src/numbers/schema.ts"));
+  const { emptyNumberSystem, emptyTimeSystem, readNumberSystem } = await import(path.resolve("src/numbers/schema.ts"));
 
   const host = document.createElement("div");
   document.body.appendChild(host);
   const editorRoot = createRoot(host);
   /** What the screen handed back, every time Save was pressed. */
   const saves = /** @type {{ kind: string, sys: any }[]} */ ([]);
+  /** Whether the next save fails, as one does with no connection. */
+  let refuseSave = false;
   const system = emptyNumberSystem("n1", "lena", "ar-PS", Date.now(), 1);
 
+  /* The decks in the language, as the teaching space hands them over, and
+     what was asked of them: a part ticked on its own screen is the same
+     setting a deck's own screen writes. */
+  const deckCalls = /** @type {[string, string, boolean][]} */ ([]);
+  const decks = [
+    { id: "d1", title: "Lesson 1", parts: [] },
+    { id: "d2", title: "Lesson 2", parts: ["numbers:0-10"] },
+    { id: "d3", title: "Old lesson", parts: [], locked: true },
+  ];
+  /* And one noun card, which is what a counting part counts — no list of
+     nouns is written on this screen any more. Its words are the golden
+     system's, so this file holds none. */
+  const { readFileSync: readGoldenNouns } = await import("node:fs");
+  const goldNoun = JSON.parse(readGoldenNouns(path.resolve("tests/golden/ar-PS.numbers.json"), "utf8")).system.nouns[0];
+  const nounCards = [{
+    id: "c-book", lang: "ar-PS", category: "noun",
+    forms: [
+      { ar: goldNoun.sg, en: "book", lat: "", number: "singular", gender: "masculine" },
+      { ar: goldNoun.pl, en: "books", lat: "", number: "plural", gender: "masculine" },
+    ],
+  }];
+
+  /* As the space draws it: a clock nobody has saved is made afresh on
+     every draw, new stamps and all — which once made the screen call it
+     changed after any save of the numbers. */
   const draw = (/** @type {any} */ numbers) =>
     editorRoot.render(
       React.createElement(NumberSystemEditor, {
         lang: LANGUAGES["ar-PS"],
         numbers,
-        times: null,
+        times: emptyTimeSystem("", "lena", "ar-PS", numbers.id, Date.now(), 1),
+        cards: nounCards,
+        decks,
+        onDeckPart: (/** @type {string} */ deckId, /** @type {string} */ rangeId, /** @type {boolean} */ on) => {
+          deckCalls.push([deckId, rangeId, on]);
+        },
+        /* As the server does: what is stored is what its reader makes of
+           the save — a word trimmed, an emptied box gone — and comes back a
+           revision on, which the screen takes as what is saved. */
         onSave: (/** @type {string} */ kind, /** @type {any} */ sys) => {
-          saves.push({ kind, sys });
+          if (refuseSave) return undefined;
+          const stored = { ...readNumberSystem(sys), rev: (sys.rev || 0) + 1, updated: Date.now() };
+          saves.push({ kind, sys: stored });
+          draw(stored);
+          return stored;
         },
         onClose() {},
       }),
@@ -7835,10 +7995,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      the div this mounted into, and looking there would find an empty
      screen that is in fact drawn and working.
 
-     Named, because this walk steps through three of them: the grid, the
-     screen one number is written out on, and the one a number is tried on.
-     Asking for "the screen" would find whichever was drawn first and quietly
-     pass while the wrong one was up. */
+     Named, because this walk steps through several of them: the parts, one
+     part, the screen one number is written out on, and the one a number is
+     checked on. Asking for "the screen" would find whichever was drawn
+     first and quietly pass while the wrong one was up. */
   const screenNamed = (/** @type {string} */ name) =>
     document.querySelector(`.at-screen[aria-label="${name}"]`);
   const panel = () => screenNamed("Number system") || host;
@@ -7850,23 +8010,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     const all = [...document.querySelectorAll(".at-screen")];
     return all[all.length - 1] || host;
   };
-
-  draw(system);
-  await sleep(200);
-  check("the number system's editor opens on a grid of boxes",
-    panel().querySelectorAll(".at-numrow").length > 20,
-    `${panel().querySelectorAll(".at-numrow").length} rows`);
-  check("and says nothing can be asked yet",
-    /waiting on|not yet/.test(panel().textContent || ""),
-    (panel().textContent || "").slice(0, 160).replace(/\s+/g, " "));
-
-  /* One word typed into a box, and the line for that number says it. The
-     preview is the composer itself, so there is nothing here that could be
-     right while what a student meets is wrong. */
   const boxNamed = (/** @type {string} */ name) =>
     [...up().querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === name);
   const buttonIn = (/** @type {RegExp} */ re) =>
     [...up().querySelectorAll("button")].find((b) => re.test((b.textContent || "").trim()));
+  const tileNamed = (/** @type {string} */ name) =>
+    [...up().querySelectorAll(".at-deckcard")].find((t) => (t.querySelector(".at-decktitle") || {}).textContent === name);
   const typeIn = (/** @type {any} */ box, /** @type {string} */ text) => {
     const setValue = must(
       Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
@@ -7875,31 +8024,67 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     must(setValue, "the input's value setter").call(box, text);
     box.dispatchEvent(new w.Event("input", { bubbles: true }));
   };
+  const goBack = async () => {
+    click(buttonIn(/^Back$/) || (up().querySelector && up().querySelector(".at-back")));
+    await sleep(250);
+  };
+
+  draw(system);
+  await sleep(200);
+  const tiles = [...panel().querySelectorAll(".at-numparts .at-deckcard")];
+  check("the number system's editor opens on its parts, one button each",
+    tiles.length >= 8 && !!tileNamed("Numbers 0 to 9") && !!tileNamed("Numbers 10 to 19") &&
+      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 and over"),
+    tiles.map((t) => (t.textContent || "").trim()).join(" | "));
+  check("and each says what it is waiting for",
+    /waiting on/.test((tileNamed("Numbers 0 to 9") || {}).textContent || ""),
+    ((tileNamed("Numbers 0 to 9") || {}).textContent || "").trim());
+  check("with no boxes on the main screen any more",
+    panel().querySelectorAll(".at-numrow").length === 0,
+    `${panel().querySelectorAll(".at-numrow").length} rows`);
+  check("and the things-to-count list gone",
+    !/Things to count/.test(panel().textContent || ""));
+  check("the clock and the corrections are screens of their own, opened from here",
+    !!tileNamed("Telling the time") && !!tileNamed("Correct how a number is said"));
+  check("and nothing on the main screen is edited, so it has no Save and no Publish",
+    !buttonIn(/Save/) && !buttonIn(/Publish/) && !/What a student will be asked/.test(panel().textContent || ""),
+    [...up().querySelectorAll("button")].map((b) => (b.textContent || "").trim()).filter(Boolean).join(" | "));
+
+  /* One part opens on a screen of its own, with the words it is the first
+     to need. */
+  click(tileNamed("Numbers 0 to 9"));
+  await sleep(250);
+  check("a part opens on a screen of its own",
+    !!screenNamed("Numbers 0 to 9"),
+    ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
+  check("which holds the boxes for zero to nine and none of the teens or tens",
+    up().querySelectorAll(".at-numrow").length === 10 && !boxNamed("10, counting") && !boxNamed("40, counting"),
+    `${up().querySelectorAll(".at-numrow").length} rows`);
 
   const sevenBox = boxNamed("7, counting");
   check("and every box is named by the number it is and the face of it",
     !!sevenBox,
-    [...panel().querySelectorAll("input")].slice(0, 4)
+    [...up().querySelectorAll("input")].slice(0, 4)
       .map((i) => i.getAttribute("aria-label")).join(" | "));
+  /* With a space after it, as a phone's keyboard leaves one: the server
+     keeps the word without it, and the screen must still agree that what
+     it saved is what it has. */
   if (sevenBox) {
-    typeIn(sevenBox, "sab3a");
+    typeIn(sevenBox, "sab3a ");
     await sleep(200);
   }
 
-  const rows = [...panel().querySelectorAll(".at-numsamplerow")];
+  /* One word typed into a box, and the line for that number says it. The
+     preview is the composer itself, so there is nothing here that could be
+     right while what a student meets is wrong. */
+  const rows = [...up().querySelectorAll(".at-numsamplerow")];
   const seven = rows.find((r) => (r.querySelector(".at-numfig") || {}).textContent === "7");
-  check("a word typed into a box is what the preview says for that number",
+  check("a word typed into a box is what the part's own list says for that number",
     !!seven && /sab3a/.test(seven.textContent || ""),
     seven ? (seven.textContent || "").trim() : `${rows.length} preview rows`);
-
-  /* A number the system cannot finish yet is marked as such, greyed,
-     rather than showing the half of it it managed as though that were the
-     answer. Nothing else on the screen is written down twice, so a row
-     that looked finished would be the screen saying this language calls
-     47 "seven". */
-  const partRows = [...panel().querySelectorAll(".at-numsamplerow[data-part]")];
+  const partRows = [...up().querySelectorAll(".at-numsamplerow[data-part]")];
   check("a number it cannot say in full yet says so on the line",
-    partRows.length > 10 && /not yet/.test((partRows[0] || {}).textContent || ""),
+    partRows.length > 5 && /not yet/.test((partRows[0] || {}).textContent || ""),
     `${partRows.length} of ${rows.length} marked · ${((partRows[0] || {}).textContent || "").trim()}`);
   check("and the one it can say is not marked",
     !!seven && !seven.hasAttribute("data-part"),
@@ -7910,7 +8095,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const sevenLat = boxNamed("Transliteration for 7, counting");
   check("a box with a word in it asks how the word sounds",
     !!sevenLat,
-    [...panel().querySelectorAll("input")].map((i) => i.getAttribute("aria-label"))
+    [...up().querySelectorAll("input")].map((i) => i.getAttribute("aria-label"))
       .filter((l) => l && /Transliteration/.test(l)).slice(0, 3).join(" | ") || "(none asked)");
   check("and an empty box is not asked, because there is nothing to sound like",
     !boxNamed("Transliteration for 8, counting"));
@@ -7919,8 +8104,44 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     await sleep(200);
   }
 
-  /* A line that is wrong is tapped, and that is a screen of its own now
-     rather than a block unfolding under the list. */
+  /* The decks that hold the part, first on its screen and chosen the way a
+     card's decks are: the decks it is in as pills, and a sheet to add it
+     to another. The same setting as a deck's own screen, so a pick here is
+     a call the space saves straight away. */
+  const heads = [...up().querySelectorAll(".at-formhead .at-formnum")].map((h) => h.textContent);
+  check("the part's sections are headed as a card's are, decks first",
+    up().classList.contains("cardform") && heads[0] === "Decks" && heads.includes("Words"),
+    heads.join(" | "));
+  const pills = [...up().querySelectorAll(".at-deckpill .nm")].map((p) => p.textContent);
+  check("the decks that hold the part are pills",
+    JSON.stringify(pills) === JSON.stringify(["Lesson 2"]),
+    pills.join(" | ") || "(no pills)");
+  click(up().querySelector(".at-deckadd"));
+  await sleep(200);
+  const pick = (/** @type {string} */ title) =>
+    [...document.querySelectorAll(".at-deckpick")].find((r) => (r.textContent || "").includes(title));
+  check("and another is added from the same sheet a card uses",
+    !!pick("Lesson 1") && !!pick("Lesson 2") && (/** @type {any} */ (must(pick("Old lesson"), "Old lesson"))).disabled,
+    [...document.querySelectorAll(".at-deckpick")].map((r) => (r.textContent || "").trim()).join(" | ") || "(no sheet)");
+  click(must(pick("Lesson 1"), "Lesson 1"));
+  await sleep(150);
+  check("picking a deck asks for the part to be put in it",
+    JSON.stringify(deckCalls[deckCalls.length - 1]) === JSON.stringify(["d1", "numbers:0-9", true]),
+    JSON.stringify(deckCalls));
+  const shut = document.querySelector('.at-sheet[aria-label="Decks"] .at-iconbtn, .at-sheet[aria-label="Decks"] button[aria-label="Close"]');
+  click(shut);
+  await sleep(150);
+
+  /* And the blanks it fills: two fixed tags, said the way a card's
+     default tags are, and nothing to type. */
+  const tags = [...up().querySelectorAll(".at-tagchips .at-tagchip")].map((t) => t.textContent);
+  check("the part shows the tags it fills blanks under, as a card shows its default tags",
+    JSON.stringify(tags) === JSON.stringify(["0-9", "number"]) && /Filling blanks/.test(up().textContent || ""),
+    tags.join(" | ") || "(no tags)");
+  check("and they cannot be changed", !boxNamed("A blank this part fills") && !buttonIn(/^Add$/));
+
+  /* A line that is wrong is tapped, and that is a screen of its own rather
+     than a block unfolding under the list. */
   click(seven);
   await sleep(250);
   check("tapping a line opens a screen for writing that number out",
@@ -7940,20 +8161,94 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     !!boxNamed("Transliteration for 7"));
 
   const keep = buttonIn(/^Keep it$/);
-  check("and the footer keeps it", !!keep);
+  check("and the top bar keeps it", !!keep && !!keep.closest(".at-screenhead"));
   if (keep) {
     click(keep);
     await sleep(250);
-    check("which puts the grid back with it filed among the numbers you wrote out",
-      !!screenNamed("Number system") && /Numbers you wrote out/.test(panel().textContent || ""),
-      (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    check("which goes back to the part, with it filed among the numbers you wrote out",
+      !!screenNamed("Numbers 0 to 9") && /Numbers you wrote out/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
 
-  /* And the third screen: type a number, see it said. */
-  click(buttonIn(/^Try a number$/));
+  /* Leaving with something unsaved is asked, not carried back to a screen
+     with no Save on it. Cancel stays. */
+  await goBack();
+  const asked = [...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Don't save");
+  check("leaving a part with unsaved changes asks whether to save them",
+    !!asked && /Save your changes/.test(document.body.textContent || ""));
+  const cancel = [...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Cancel");
+  click(cancel);
+  await sleep(200);
+  check("and cancelling stays on the part", !!screenNamed("Numbers 0 to 9"));
+
+  const save = buttonIn(/^Save$/);
+  check("the part's Save is in the top bar", !!save && !!save.closest(".at-screenhead"));
+  if (save) {
+    click(save);
+    await sleep(250);
+    const saved = saves[saves.length - 1];
+    check("saving hands back a number system", !!saved && saved.kind === "numbers",
+      saved ? saved.kind : "nothing saved");
+    check("with the word that was typed, how it sounds, and the line that was written out",
+      !!saved &&
+        ((saved.sys.lexemes["unit.7"] || { forms: {} }).forms.standalone === "sab3a") &&
+        ((saved.sys.lexemes["unit.7"] || { lat: {} }).lat || {}).standalone === "sabʕa" &&
+        (saved.sys.overrides["7"] || {}).text === "sabʕa-wahde",
+      saved
+        ? `${JSON.stringify(saved.sys.lexemes["unit.7"])} · ${JSON.stringify(saved.sys.overrides)}`
+        : "nothing saved");
+    check("and no list of nouns",
+      !!saved && saved.sys.nouns.length === 0,
+      saved ? `${saved.sys.nouns.length} nouns` : "nothing saved");
+  }
+
+  /* A counting part counts the teacher's noun cards, and says what the
+     rest are missing. Saved, so going back asks nothing. */
+  check("once saved, there is nothing left to save",
+    !!buttonIn(/^Save$/) && /** @type {any} */ (buttonIn(/^Save$/)).disabled);
+  await goBack();
+  check("once saved, going back asks nothing", !!screenNamed("Number system") && !/Save your changes/.test(document.body.textContent || ""));
+  check("and the main screen does not say anything is unsaved",
+    !/not saved/.test(panel().textContent || ""),
+    (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  click(tileNamed("Counting things: 3 to 10"));
   await sleep(250);
-  check("there is a screen for trying a number out",
-    !!screenNamed("Try a number"),
+  check("a counting part lists the noun cards it counts",
+    !!screenNamed("Counting things: 3 to 10") && /Things counted/.test(up().textContent || "") && /book/.test(up().textContent || ""),
+    (up().textContent || "").slice(0, 240).replace(/\s+/g, " "));
+  await goBack();
+  click(tileNamed("Counting things: 1 and 2"));
+  await sleep(250);
+  check("and one that needs a pair form says which noun has none",
+    /no pair form/.test(up().textContent || ""),
+    (up().textContent || "").slice(0, 300).replace(/\s+/g, " "));
+  await goBack();
+
+  /* The word between a number's pieces is not a number, and is on a
+     screen of its own beside the parts rather than among the tens. */
+  click(tileNamed("Numbers 20 to 99"));
+  await sleep(250);
+  check("the part that first needs the connecting word does not hold its box",
+    !!screenNamed("Numbers 20 to 99") && !!boxNamed("40, counting") && !boxNamed("and, counting"),
+    [...up().querySelectorAll("input")].map((i) => i.getAttribute("aria-label")).slice(0, 12).join(" | "));
+  await goBack();
+  check("the main screen offers the connecting words as a screen of their own",
+    !!tileNamed("Connecting words") && /not written yet/.test((tileNamed("Connecting words") || {}).textContent || ""),
+    ((tileNamed("Connecting words") || {}).textContent || "(no tile)").trim());
+  click(tileNamed("Connecting words"));
+  await sleep(250);
+  check("which holds the box for and, and nothing else",
+    !!screenNamed("Connecting words") && up().querySelectorAll(".at-numrow").length === 1 && !!boxNamed("and, counting"),
+    `${up().querySelectorAll(".at-numrow").length} rows`);
+  check("with numbers under it that use the word",
+    [...up().querySelectorAll(".at-numsamplerow .at-numfig")].some((f) => f.textContent === "21"));
+  await goBack();
+
+  /* And the last screen: type a number, see it said. */
+  click(buttonIn(/^Check a number$/));
+  await sleep(250);
+  check("there is a screen for checking a number",
+    !!screenNamed("Check a number"),
     ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
   const tryBox = boxNamed("A number to try, in figures");
   check("with one box, for figures", !!tryBox);
@@ -7969,28 +8264,70 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /waiting on/.test(up().textContent || ""),
       (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
-  click(buttonIn(/^Back$/) || (up().querySelector && up().querySelector(".at-back")));
-  await sleep(250);
-  check("and coming back leaves the grid as it was",
-    !!screenNamed("Number system") && panel().querySelectorAll(".at-numrow").length > 20);
+  await goBack();
+  check("and coming back leaves the parts as they were",
+    !!screenNamed("Number system") && panel().querySelectorAll(".at-numparts .at-deckcard").length >= 7);
 
-  const save = buttonIn(/^Save$/);
-  check("and the footer offers to save once something has changed", !!save);
-  if (save) {
-    click(save);
+  /* A number written out from Check a number is kept somewhere with a
+     Save, not carried back to the main screen, which has none. */
+  click(buttonIn(/^Check a number$/));
+  await sleep(250);
+  const tryAgain = boxNamed("A number to try, in figures");
+  if (tryAgain) {
+    typeIn(tryAgain, "8");
     await sleep(200);
-    const saved = saves[saves.length - 1];
-    check("saving hands back a number system", !!saved && saved.kind === "numbers",
-      saved ? saved.kind : "nothing saved");
-    check("with the word that was typed, how it sounds, and the line that was written out",
-      !!saved &&
-        ((saved.sys.lexemes["unit.7"] || { forms: {} }).forms.standalone === "sab3a") &&
-        ((saved.sys.lexemes["unit.7"] || { lat: {} }).lat || {}).standalone === "sabʕa" &&
-        (saved.sys.overrides["7"] || {}).text === "sabʕa-wahde",
-      saved
-        ? `${JSON.stringify(saved.sys.lexemes["unit.7"])} · ${JSON.stringify(saved.sys.overrides)}`
-        : "nothing saved");
   }
+  click(buttonIn(/^Write this one out yourself$/));
+  await sleep(250);
+  const eightBox = boxNamed("8 in Palestinian Arabic");
+  if (eightBox) {
+    typeIn(eightBox, "tamanye");
+    await sleep(200);
+  }
+  click(buttonIn(/^Keep it$/));
+  await sleep(250);
+  check("a number written out from Check a number lands on the corrections, where its Save is",
+    !!screenNamed("Correct how a number is said") && /tamanye/.test(up().textContent || "") &&
+      !!buttonIn(/^Save$/) && !(/** @type {any} */ (buttonIn(/^Save$/)).disabled),
+    ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
+  await goBack();
+  click([...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Don't save"));
+  await sleep(250);
+  check("and dropping it goes back to the main screen with nothing unsaved",
+    !!screenNamed("Number system") && !/not saved/.test(panel().textContent || ""));
+
+  /* A save that does not go through keeps the teacher beside its Save,
+     and says so, rather than taking the change to the main screen. */
+  click(tileNamed("Numbers 0 to 9"));
+  await sleep(250);
+  const eightWord = boxNamed("8, counting");
+  if (eightWord) {
+    typeIn(eightWord, "tamanye");
+    await sleep(200);
+  }
+  refuseSave = true;
+  await goBack();
+  click([...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Save" && !b.closest(".at-screenhead")));
+  await sleep(250);
+  check("a save on the way out that does not go through stays on the part, and says so",
+    !!screenNamed("Numbers 0 to 9") && /not saved/.test(up().textContent || "") &&
+      !(/** @type {any} */ (buttonIn(/^Save$/) || { disabled: true })).disabled,
+    (up().textContent || "").slice(0, 160).replace(/\s+/g, " "));
+  refuseSave = false;
+  click(buttonIn(/^Save$/));
+  await sleep(250);
+  check("and saving again clears it", !/not saved/.test(up().textContent || ""));
+  await goBack();
+  check("after which going back asks nothing", !!screenNamed("Number system") && !/Save your changes/.test(document.body.textContent || ""));
+
+  /* And the corrections: their own screen, with the one written out on top. */
+  click(tileNamed("Correct how a number is said"));
+  await sleep(250);
+  check("the corrections screen lists what was written out, and a spread to find the rest",
+    !!screenNamed("Correct how a number is said") && /sabʕa-wahde/.test(up().textContent || "") &&
+      up().querySelectorAll(".at-numsamplerow").length > 20,
+    (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  await goBack();
 
   editorRoot.unmount();
   host.remove();
@@ -8021,7 +8358,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
   const built = generate({
     composer: arComposer, sys: goldenNumbers, timeComposer: arTimeComposer,
-    timeSys: goldenTimes, tag: "Numbers", now: Date.now(),
+    timeSys: goldenTimes, now: Date.now(),
   });
   /* The skills alone. The component words are cards like any other and
      are asked here only as themselves; what this walk is about is the

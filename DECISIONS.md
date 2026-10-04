@@ -3185,6 +3185,46 @@ keeps a half-written system from putting an unanswerable question up.
 
 ---
 
+## A number part is learnt only once its words are, and is steered towards them
+
+**4 October 2026** · `src/numbers/generate.ts` (`fileIntoDecks`,
+`askingsWithWords`, `steeredAsk`), `src/ArabicTrainer.tsx`
+(`cardStandings`, `partsOf`, `drawRange`, `NumberParts`)
+
+A part's own ladder said whether the learner was getting numbers right,
+and a run of easy ones could say it about 11 to 99 while *ninety* had never
+been kept. Nothing showed the words a part is built from, and the draw was
+uniform over the number line, so *and* came up in nearly every question and
+*seventy* in one in nine.
+
+**The words are written on the part.** `fileIntoDecks` already works out
+every card a part's askings stand on, to file them with it; it now leaves
+that list on the part as `parts`, so nothing downstream has to render a
+part's numbers again to know what it is made of.
+
+**Validated is learnt.** The app's own standard for any card, read through
+the same standings every screen reads. A word that cannot be asked at all
+holds nothing back, since nothing could ever validate it.
+
+**The part waits on them.** `cardStandings` takes the collection where the
+caller has it, and a part whose top is done while any of its words is not
+learnt is held at *cleared*, with `held` saying how many. Without the
+collection a part reads as its own ladder, as before; only one card's own
+line has no collection to hand.
+
+**Questions lean towards them.** `steeredAsk` picks a word not yet learnt,
+each as likely as the next, and then one of the part's askings that stands
+on it; the ordinary draw resumes once every word is learnt. Word first, so
+a word the number line is thin on is reached as often as one it is thick
+with. Seeded as before, so a missed question comes back the same while the
+words waiting are the same ones.
+
+**What it costs.** One more pass over a part's askings per system, cached
+per system object. A part already in a collection learns its words at the
+next course refresh; until then it reads and draws as it did.
+
+---
+
 ## A time is a number with a feminine noun
 
 **22 September 2026** · `src/numbers/compose.ts` (`renderClock`),
@@ -4369,3 +4409,418 @@ teacher to fill. The addressee tag on a Huế form is long beside a word
 in the card list. Feedback lines that name a form are whole sentences with
 gaps (`src/wording.ts`), which changes nothing on screen today and is
 there for the day the app's own wording is translated.
+
+## Counting reads the noun cards, and a number lends itself like a name
+
+**3 October 2026** · `src/numbers/nouns.ts`; `countable` in `src/numbers/range.ts`; `homesOf` and `fillerCards` in `src/numbers/generate.ts`; `PartScreen` in `src/number-system-editor.tsx`
+
+Three choices made together, because the number screen was rebuilt around
+the parts of the numbers (0 to 10, 11 to 99, counting things…) and each
+part needed somewhere to stand.
+
+**The nouns a counting question counts are the teacher's noun cards.** A
+system used to carry its own short list, because no card could say a word
+was a pair; one can since 0.207. The stored list is no longer read and is
+dropped on the next save. A system's `nouns` is filled in wherever it is
+rendered — from the teacher's cards on their screen, and from the course
+cards a learner holds on theirs, so a learner is only asked to count words
+they are being taught. The cost: a teacher whose nouns lack a plural, a
+pair form or a gender has counting parts that stay shut until those cards
+are finished, and the part's screen says which. A noun is judged per part
+by rendering it (`countable`), so a noun without a pair form still counts
+from three; judging the whole list at once, as before, would have let one
+unfinished card hold every counting part shut for good.
+
+**Which part a box sits on is worked out, not declared.** Each part's
+numbers are built from a stand-in system with every box filled in with its
+own slot name, and a box goes to the first part whose numbers use it. A
+composer that changes how it builds a number moves its boxes with it, and
+Huế's 11 to 99, built only out of the words for one to ten, ends up with no
+boxes of its own — which is the truth, and its screen says so.
+
+**A part fills a sentence's blank the way a name does.** A part answers
+to fixed tags (`partTags`: its own, like `0-10`, and `number` or `count`) —
+chosen names on the system were tried in 0.316 and replaced in 0.317,
+since a tag a teacher has to invent is one more thing to get wrong and
+the same tags in every language can be written into any sentence without
+setting anything up. A sentence with one of them is filled with
+a number from that part, written out by the composer, and a counting part
+fills it with a number and a noun in agreement. The numbers are made into
+cards that are borrowed and never asked (`drill: false`), so they climb
+with the sentence through the frame's own record of having met them — the
+rule `valuesAt` already had for names — rather than through the part's own
+schedule. Reading the part's schedule instead was considered and turned
+down: a sentence answered right would then have had to credit a skill whose
+questions it did not ask. Each part lends at most `FILLERS_PER_PART`
+numbers, spread over it and the same on every device, so the sentences a
+teacher reviews are the ones a learner is asked.
+
+---
+
+## A noun is laid out in boxes, and a person or an animal has two sides
+
+**3 October 2026** · `nounLayoutOf`, `nounBoxes`, `placeNounForms`,
+`stampNounForms`, `leadFirst` and `NounEditor` in `src/card-editor.tsx`;
+`GRAMMAR.human` in `src/languages.ts`; `genderUnsaid` in `src/verbs.ts`;
+`readNounCard` in `src/numbers/nouns.ts`
+
+The owner asked why a noun card was not preset the way an adjective is.
+Not with an adjective's boxes: an adjective changes with the noun beside
+it, and a noun does not change gender — كتاب has no feminine. What a noun
+changes is its number, so a noun card is one box per number the language
+offers (singular, plural, dual), already marked. A person or an animal is
+the exception the owner raised next: معلم and معلمة, قط and قطة. Those
+get the same boxes twice, a masculine side and a feminine one.
+
+**The question that decides it was already on the card.** Person or thing
+was asked of every noun in Arabic, for agreement. It gained a third answer,
+an animal, which agrees as a thing does (a plural of animals takes the
+feminine singular) and is laid out as a person is. Hebrew is asked it too
+now; nothing in Hebrew agrees with it, so there it only chooses the layout.
+
+**Nothing new is stored.** A box is read off the number and gender a form
+already carries, on every render, so a stored card opens with its marked
+forms in their boxes and a form marked plural moves into the plural box
+the moment it says so. What a box adds is written onto the form on save
+(`stampNounForms`), and taken off its answers, where an answer's own
+grammar would otherwise win. A form whose answers disagree with each other
+is left exactly as it was, in a box or not: marking it would be saying one
+thing about two words. A form that fits no free box is shown under the
+boxes with its grammar still asked, so nothing a card carries is hidden.
+
+**An empty box is not a form.** It is drawn from a blank and becomes a form
+on the first keystroke (`fillBox`). Six empty forms on every person, each
+with a table of pronouns, would have been six things for the save to drop
+and for every list of the card's parts to step over. The block is keyed by
+its box rather than by where its form sits, so it is not redrawn under the
+teacher's fingers when it becomes real.
+
+**Either side alone is a card.** The card's own word is the first form and
+has to be written. Where it is empty and a box further down is not, the two
+change places (`leadFirst`), pronouns and all; the empty one stays in its
+box and is not saved. On an existing card this only happens if the teacher
+empties the card's own word, which moves that word's progress to the form
+that takes its place — the one case where this can shift a schedule, and
+an unusual thing to do to a card that is in use.
+
+**"Add a form" went, for the reason an adjective never had it**: the boxes
+are the forms, and a second spelling is a second accepted answer. A
+one-of-them word (تفاحة beside تفاح) is better as its own card, and the
+form a noun takes after the numbers three to ten belongs to counting.
+
+**A gender nobody said is not guessed.** An adjective beside a singular
+noun with no gender took the word itself — the masculine — so an
+unfinished feminine noun was met beside the wrong form. Now, where saying
+either gender would have picked a different form, the sentence is not
+asked with that word (`genderUnsaid`), which is what a verb beside it
+already did. Where the gender changes nothing — a dual, a plural of things
+— nothing waits. This reaches a Person card with no gender as well: رامي
+with none used to take تعبان and now takes nothing until he is given one.
+
+**Counting reads the right side.** A card holding both plurals was counted
+with the first plural written, which could be the other side's;
+`readNounCard` now takes the plural and pair of the singular's own gender.
+Counting the feminine side as nouns of its own was left for later.
+
+**Revisit if** a language turns up whose nouns change for something the
+boxes do not cover, or if teachers start writing unit nouns (تفاحة) on the
+same card as their collective — that would be a case for a box of its own.
+
+---
+
+## Palestinian three to nineteen have one word before a noun
+
+**3 October 2026** · `src/numbers/ar-PS.ts`, `src/numbers/nouns.ts`, `src/languages.ts` (`optionRules`), `src/number-system-editor.tsx` (`TwoWordsBlock`)
+
+The number screen asked for three to nineteen twice before a noun: once
+before a masculine noun and once before a feminine one, and picked between
+them by the noun's gender. That is the written language's rule — ثلاثة
+كتب, ثلاث بنات — and not the dialect's, which says خمس ولاد and خمس بنات
+with the same word. A teacher writing the dialect typed it twice and their
+students saw it twice, under two labels that suggested a difference; a
+teacher writing the written forms had the written language's agreement
+taught as the dialect.
+
+**One box.** Three to nineteen take `standalone` and `construct.m`, and
+`construct.m` is labelled *before a noun* through `SlotSpec.faceLabels`, so
+Hebrew — whose three to ten do change with the noun's gender, and which
+shares the face — keeps its own labels. The word stays stored where it
+was, so a learner's progress on that face of a number card carries over.
+
+**What was written in two is not guessed between.** Most systems hold the
+same word in both boxes, or one box only, and read as one word with no
+question asked (`beforeNoun`). One that holds two different words is not
+settled by the app: under the written rule the box before a *feminine*
+noun held the dialect's word, so keeping the masculine one by default
+would usually keep the wrong one. The teacher is shown both and taps
+theirs (`twoWordsBeforeNoun`, `keepOneWord`), and until they do, their
+students are asked exactly what they were asked before. A correction
+written for one gender (`3|construct.f`) is the same question about a
+whole number. The number screen opens on the system with everything that
+is not a question folded into the one box (`tidyBeforeNoun`), so a word
+kept only in the old feminine box shows where it is used, and a stale copy
+cannot turn into a question when the box it copied is changed later.
+Nothing is migrated on the server; a system nobody opens keeps its old
+behaviour indefinitely, which is the cost.
+
+**The t of days and months is the noun's.** A few nouns take a t after
+three to ten that they have nowhere else — خمس تيام beside أيام, تشهر,
+تلاف. Historically it was the numeral's feminine ending; in the Levant it
+is heard as the start of a special plural, and where it is written in
+Arabic script it is written on the noun. Some textbooks transcribe it on
+the numeral in Latin letters (*ḫamest‿iyyām*), which is the same sound. So
+it is a box on the noun's card, *Plural after 3 to 10*, Arabic only and
+offered on nouns only (`GrammarDim.optionRules`), read by counting as
+`CountedNoun.plCounted` and used for three to ten alone. A form in it
+starts out of practice and out of sentences: it is said inside a counted
+phrase and nowhere else. Thousands were already handled: the thousands box
+is only used after three to ten. This replaces 0.320's note that such a
+form "belongs to counting".
+
+**Not done.** A counting question still expects one answer — the first
+spelling in each box — so a second accepted spelling of the plural or of
+this box is not accepted in a counted phrase. That was true of the plural
+before and is unchanged. And the t can only be written on the noun; a
+teacher who wants it on the numeral in Arabic script would need a second
+box, which was weighed and left out until someone asks.
+
+**Revisit if** a teacher asks for خمست أيام spelt that way, or for a
+counted phrase to accept more than one spelling.
+
+---
+
+## Five stretches of the number line, and a save that publishes
+
+**4 October 2026** · `NUMBER_RANGES` and `partsNow` in
+`src/numbers/types.ts`; `partTags` and `handOnSplit` in
+`src/numbers/generate.ts`; `save-system` in `server/api/courses.js`;
+`src/number-system-editor.tsx`
+
+**0 to 10 and 11 to 99 are 0 to 9, 10 to 19 and 20 to 99.** The owner
+asked for smaller parts, and the lines are where the work is: the
+digits, the teens (a pattern of their own in every language here), and
+the tens with the joining word. Ten went with the teens rather than the
+digits because it is the first number of two figures, and where a
+language builds its teens on it, that is where they start. One list now
+serves all three languages, since the stretches never differed.
+
+**Nothing anybody had on the old parts is lost, through one field.** A
+new part names the part it came out of in `was`, and three things read
+it: `handOnSplit` gives a learner's schedule on the old part to each new
+one (onto a device that has never held the new one, as with counting),
+`partsNow` reads a deck that stored the old id as holding the new parts,
+and `partTags` keeps answering to the old blank, so `{{11-99}}` in a
+sentence is filled from 10 to 99. Decks are not rewritten on the server;
+they are read through `partsNow` wherever a deck's parts are read, and
+store the new ids the next time a teacher changes them. The cost:
+`{{0-10}}` now never draws 10, and a sentence approved under the old
+draw may meet numbers the teacher has not seen and wait for review.
+
+**Save publishes.** There was a Save and a Publish, and students got the
+version last published. The owner asked for one button. The record of
+what students get is unchanged — `save-system` now writes it — so a
+device or a server from before this reads it as it always did, and
+`sign-system` is kept for a build that still calls it. What is given up
+is a teacher saving work in progress without students seeing it.
+
+**The number screen lists; other screens edit.** Its only control was
+Save, and everything it saved was edited somewhere else. Each part, the
+clock, and the numbers written out by hand ("Correct how a number is
+said", which was the list called *What a student will be asked*) is a
+screen with Save at its top right. Leaving one with unsaved changes asks
+Save / Don't save / Cancel, because the screen it goes back to has no
+Save to keep them with.
+
+---
+
+## What a number answer credits, word by word
+
+**4 October 2026** · `tokenCards` in `src/ArabicTrainer.tsx`;
+`cardsOfToken` and the clock's cards in `src/numbers/generate.ts`
+
+An audit of progress on the numbers found the range side sound — each
+part has its own schedule, is held at Cleared until the words it is built
+of are learnt, and carries across the split — and the word side short in
+four places, all in the line that turns a rendered answer into the cards
+it credits. It looked every word up under the numbers document alone, so
+a time's clock words (the time document's cards, and minute expressions
+named `minute.N` in a rendering but `min.N` as cards) were never credited;
+it credited the lead form, so a face with a schedule of its own — the
+feminine, the word before a noun — never was; it skipped counted nouns,
+which are the teacher's noun cards; and a time written out by hand was
+not a card at all. `tokenCards` now resolves each token through
+`cardsOfToken`, the mapping `wordsOfRange` already used to file the same
+words into decks, so what a part brings into a deck and what an answer
+credits are one answer. The rules for how far a credit moves a word are
+unchanged (`fillerMarks`): right answers only, never starting a word's
+own schedule, moving it only where it was due.
+
+---
+
+## A number waits on its words, one number at a time
+
+**4 October 2026** · `askingsKnown`, `askKnown`, `wordsOfAsk` in `src/numbers/generate.ts`; `knownNumbers`, `keptToNumbers`, `gridCompany`, `companyOf` in `src/ArabicTrainer.tsx`; `within` on `Question` in `src/types.ts`
+
+A range used to be asked from the day it arrived, beside the words it is
+built of, so a learner met *forty-seven* before they had met *forty*.
+Now each number waits until every word in it is recognised (level two
+of the word's own ladder, through `reachedLevel`), which is the test a
+word's attached pronouns already wait on.
+
+**Per number, not per range.** The other choice was to hold a whole range
+until all its words were known. That is simpler, but it shuts 11 to 99
+until *ninety* is learnt, even though 47 could already be asked. So the
+draw is filtered. `steeredAsk`, which leans towards a word of the part
+not yet learnt, now chooses only among the askings whose words are
+recognised; failing that, the plain seeded draw is kept when every word
+in it is recognised, and otherwise the seed picks among the askings that
+are. A learner who recognises every word is asked exactly what they were
+before.
+
+**Recognised, not learnt.** `partsOf` judges a part's words by whether
+they are learnt, which is the bar for calling the part learnt. Waiting on
+that before asking a number at all would hold 47 back for days after
+*forty* and *seven* could be read, and the number is one of the places
+those words go on being learnt. A
+range none of whose askings can be put is left out of the pool, and out
+of the home screen's count.
+
+**What does not wait.** A word card the learner does not hold, cannot
+practise, or that has nothing to ask does not hold a number back, because
+it could never be recognised. An asking written out whole by a teacher,
+such as noon on the clock, has no card behind it; it is asked once the
+range has opened on some asking that is built of words, never before.
+
+**A session of numbers alone keeps to numbers.** When every card in it
+comes from a number system, no exercise that stands the word in a phrase
+is dealt, no phrase is attached to the others, and each question carries
+`within: "numbers"` so that its wrong answers and grid company are drawn
+from number words alone. It is judged per session rather than per card,
+so a mixed deck still borrows sentences as before.
+
+**What it costs.** Learners part-way through a range whose words they
+have not climbed see it pause. Reading what is known walks every asking
+of every range (tens of milliseconds), so the result is cached against
+the system and the set of words known, and is only read again when a
+word crosses into recognised.
+
+---
+
+## What a sentence's blanks admit is worked out once, and kept
+
+**4 October 2026** · `filledRow` behind `rowLead` in `src/verbs.ts`; `ASKED_IN` and `askedIn` in `src/ArabicTrainer.tsx`; `TABLES_OF` behind `tablesOf` in `src/languages.ts`; `reviewPool` in `src/review.ts`; `fillersFor` and `whyStarved` in `src/card-facts.ts`; `tests/blank-pools.test.mjs`
+
+**Why.** The owner found the app much slower over a few days. Timed on a
+generated collection of about 750 cards (nouns, adjectives, verbs with
+their tables, phrases, two-blank sentences, conversations, numbers and
+times), moving on from an answer took 1.29 s against 0.40 s a week before,
+starting a session 1.69 s against 0.35 s, launch 1.56 s against 0.69 s and
+Progress 0.49 s against 0.15 s. Every release was timed back to 26
+September, and the step is one commit: 0.262, a verb in a sentence agreeing
+with the blank beside it. `askedIn` lost its early return, so every
+sentence with two blanks now filters every word that could fill them, and
+each verb cell asks `isRowLead`, which rebuilt the verb's whole table to
+answer — once per cell, per sentence, per question type, and again after
+every answer, since an answer changes the cards and every index is rebuilt
+from them. About seventy per cent of moving on from an answer was spent
+there. The cost grew faster than the collection: half the cards was 2.3
+times slower than before, all of them 3.2 times.
+
+**What it is.** Three answers kept rather than worked out again. The
+filled cells of each row of a card's table, held against the card object.
+Which of a blank's words each sentence admits, held against the sentence's
+form, the list it was filtered from and the language a card with none of
+its own is read in, and thrown away whenever the indexes it reads are. And
+each pack's tables, held against the pack. The teacher's lists read a
+frame's blanks once per call where they read them once per word. Moving on
+from an answer is now 0.34 s on the same collection, starting a session
+0.27 s, launch 0.71 s and Progress 0.18 s.
+
+**Why keeping them is safe.** A kept answer goes wrong when what it was
+read from changes underneath it, or when it depends on something it was
+not kept against. Nothing in the app writes into a card where it stands:
+the editor, an answer, a sync and a course refresh all hand back a new
+object, so a changed card is one the row cache has never seen. A pack's
+tables are declared once and never written, and nothing that reads a
+blank's words changes the list it is handed. The one thing found that the
+blanks' answer was not kept against is the language on screen, which a
+question in another language moves part-way through a render without any
+index being rebuilt; it is kept against that, as `TYPE_CACHE` already is.
+The fixed build was compared with 0.330 on the same cards — what every
+form can be asked, every card's standing, every kind of session and every
+sentence filled, as loaded, after edits, after answers and across a
+language switch, and the teacher's lists — and nothing differed; the same
+comparison does catch a build without the language check. A full session
+walked on both, with the clock held still, asked the same questions and
+saved the same progress. `tests/blank-pools.test.mjs` fails if an edited
+verb stops reaching its sentences, if the language check goes, or if
+dealing a large collection takes a second again.
+
+**What it costs.** The rule that nothing writes into a card in place was
+a habit; the row cache now depends on it, and says so where it is kept.
+Memory is a few small maps per verb and per sentence, released with the
+cards.
+
+**Found and left alone.** How far each word has climbed (`valueReachOf`)
+is worked out part-way through setting up the indexes, before the verb
+cells still behind their row's gate and the owners of the lent words are
+set, so it reads those as the previous setting up left them. The indexes
+built when the app opens can therefore fill a blank a little differently
+from the same cards set up a second time. It has only been seen in a
+collection made up to look for it. And `TYPE_CACHE` is kept
+against a form's own language rather than the one a card with no language
+is read in, which matters only to a learner of two languages holding cards
+saved before cards said which language they were in. Both are the same in
+0.330 and unchanged by this; each would be a change to what is dealt, not
+to how fast, and is left for a decision of its own.
+
+## Palestinian three to nine hundred are boxes, not corrections
+
+**4 October 2026** · `src/numbers/ar-PS.ts` (`AR_SLOTS`, `tidyHundreds`), `src/numbers/migrate.ts`, `src/numbers/generate.ts` (`homesOf`)
+
+Three hundred to nine hundred are one word each in the dialect and cannot
+be built from *three* and *hundred*. Until 0.334 they had no box: a teacher
+wrote each one out under the part's samples, where it was kept as a number
+written out by hand. That is where a correction goes, not where a word is
+looked for, and the teacher who asked for this went to the words and found
+only 100 and 200.
+
+They are now seven optional boxes, `hundred.3` to `hundred.9`, beside the
+other two. The composer says a written-out number first, as it always did,
+then the box, and builds from `hundred.n` only where the box is empty and
+the bare word is written; neither written, it asks for the box. Opening the
+editor moves anything written out for 300 to 900 into its box with its
+transliteration and recording, and `migratedFrom` names the written-out
+card so `handOn` carries a learner's schedule to the box's card. Old number
+cards for those values now fill the boxes on migration too.
+
+**What it costs.** Hebrew and Arabic no longer ask for the same boxes;
+seven more rows on the 100 to 999 screen. The bare *hundred* is never
+reached for once the seven are written, so `homesOf` now puts a box no
+number reached for beside the others in its group, rather than on the last
+part. The thousands, which fuse the same way, are left as they are; nobody
+asked, and it is the same change again if they do.
+
+## A number is filed under its decks and nothing else
+
+**4 October 2026** · `generate` and `fileIntoDecks` in `src/numbers/generate.ts`, `pullCourses` in `src/shared.tsx`
+
+The owner asked why students had a deck called "Palestinian Arabic
+numbers". Every card a number system made was tagged with the language's
+name and "numbers", so a learner looking for the word for forty would find
+it where they look for words. That was written when numbers went to every
+student outside any deck, and the tag was the only filing they had. Since
+numbers reach a learner only through a deck (see *Numbers reach a learner
+only through a deck*), `fileIntoDecks` files each card under the decks
+that hold it, and the old tag stayed beside those as one more deck on the
+learner's side: every part a teacher had handed out, whatever deck it was
+in.
+
+**Now `generate` tags nothing** and the decks are the cards' only tags.
+The fold takes a course card's tags from the fresh copy, so devices that
+already hold the old tag lose it on the next refresh; progress is kept by
+the fold as for any other change of wording.
+
+**What it costs.** A learner who had picked the old tag to practise, or
+named it in a prep, finds it gone; a prep that named only it reads as
+empty, which is what a prep says of a deck a teacher has deleted.

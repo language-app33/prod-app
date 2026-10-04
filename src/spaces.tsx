@@ -67,6 +67,7 @@ import { offersFor } from "./offers.ts";
 import { NumberSystemEditor } from "./number-system-editor.tsx";
 import { PronounsEditor, hasPronouns } from "./pronouns-editor.tsx";
 import type { NumberSystem, TimeSystem } from "./numbers/types.ts";
+import { partsNow } from "./numbers/types.ts";
 import { needsReview, reviewStates, toReview } from "./review.ts";
 import { inPlayWith, langsToMakeIn, teachingChoices } from "./lang-choice.ts";
 import type { LangChoice } from "./lang-choice.ts";
@@ -74,6 +75,8 @@ import type { ReviewState } from "./review.ts";
 import { ReportsScreen, ReviewLine, ReviewScreen } from "./review-sheet.tsx";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { emptyNumberSystem, emptyTimeSystem, readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
+import { fillerCards } from "./numbers/generate.ts";
+import { countedNouns, withNouns } from "./numbers/nouns.ts";
 import { isOffline, watchNet } from "./net.ts";
 import { drainOutbox, keep as keepPending, waiting as waitingToSend } from "./outbox.ts";
 
@@ -117,6 +120,7 @@ import {
   localIdFor,
   narrowing,
   plural,
+  deckSize,
   shortDate,
   pullAdmin,
   pullTeaching,
@@ -2303,7 +2307,7 @@ export function AdminSpace({ account, languages, onClose }: {
                     meta={
                       <>
                         <LockMark locked={d.locked} />
-                        {`${d.ownerName} · ${plural(d.cardCount || 0, "card")}`}
+                        {`${d.ownerName} · ${deckSize(d)}`}
                       </>
                     }
                     actions={
@@ -3356,7 +3360,7 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }: {
             options={shown.map((d) => ({
               id: d.id,
               title: d.title,
-              note: `${langOfDeck(d)} · ${plural(d.cardCount || 0, "card")}`,
+              note: `${langOfDeck(d)} · ${deckSize(d)}`,
             }))}
             chosen={[...chosen]}
             onToggle={(id) =>
@@ -4654,9 +4658,23 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
    * a fact about every word that fills it; rebuilt only when the cards
    * change. See review.ts.
    */
+  /*
+   * The collection as a sentence borrows from it: every card, and the
+   * numbers each part of a number system lends to the blanks it names —
+   * see fillerCards. What is behind a blank, what a review lists and what
+   * a trial is filled with all read this, so a number in a sentence is
+   * met the same way a name is. Counted with this teacher's own nouns.
+   */
+  const lendable: Card[] = useMemo(() => {
+    if (!systems) return cards;
+    const extra = systems.numbers.flatMap((sys) =>
+      fillerCards(composerFor(sys.languageId), withNouns(sys, countedNouns(cards as unknown as Record<string, unknown>[], sys.languageId))),
+    );
+    return extra.length ? cards.concat(extra as unknown as Card[]) : cards;
+  }, [cards, systems]);
   const reviewMap: Map<string, ReviewState> = useMemo(
-    () => reviewStates(cards, (c) => languages[String(c.lang || "")] || languages[soleLang]),
-    [cards, languages, soleLang],
+    () => reviewStates(lendable, (c) => languages[String(c.lang || "")] || languages[soleLang]),
+    [lendable, languages, soleLang],
   );
   const waitingIds = useMemo(
     () => new Set([...reviewMap].filter(([, st]) => toReview(st)).map(([id]) => id)),
@@ -4820,7 +4838,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 options={decks.map((d) => ({
                   id: d.id,
                   title: d.title,
-                  note: plural(d.cardCount || 0, "card"),
+                  note: deckSize(d),
                 }))}
                 chosen={cardFilter.deckIds}
                 onToggle={(id, on) =>
@@ -4958,8 +4976,11 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
          teacher asked for a change that did not all happen. */
       if (lockedHits.current.size) snack(lockedNote(lockedHits.current), "warn");
       else if (done) snack(typeof done === "function" ? done(out) : done, "good");
+      /* What it made, for a caller that has to know whether it did. */
+      return out;
     } catch (e) {
       setError(API.explain(e));
+      return undefined;
     } finally {
       setBusy(false);
     }
@@ -4989,6 +5010,12 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     }
     setSystems({ numbers, times, signed: r.signed || {} });
   }, []);
+  /* Fetched once on the way in as well: the numbers each part lends to
+     sentences are behind blanks on the card screens, which have to know
+     them before anybody opens the number screen. One small request. */
+  useEffect(() => {
+    void loadSystems().catch(() => {});
+  }, [loadSystems]);
 
   /**
    * One system, saved whole.
@@ -5214,7 +5241,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
   if (reviewing) {
     const fresh = cards.find((c) => c.id === reviewing.id) ||
       reports.cards.find((c) => c.id === reviewing.id) || reviewing;
-    const pool = cards.some((c) => c.id === fresh.id) ? cards : cards.concat([fresh]);
+    const pool = lendable.some((c) => c.id === fresh.id) ? lendable : lendable.concat([fresh]);
     const lang = langOfCard(fresh) || languages[soleLang];
     const took = (card: Card) => {
       setViewing((v) => (v && v.id === card.id ? { ...v, ...card } : v));
@@ -5376,7 +5403,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         inDecks={editing.decks}
         busy={busy}
         onClose={() => setEditing(null)}
-        allCards={cards}
+        allCards={lendable}
         making={editing.making}
         draft={editing.draft || null}
         onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, stripped, drill, scene: written }) =>
@@ -5689,14 +5716,23 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         busy={busy}
         onClose={() => setNumbering(null)}
         onSave={saveSystem}
-        signed={systems.signed || {}}
-        onSignOff={(kind, system) =>
+        error={error}
+        cards={cards as unknown as Record<string, unknown>[]}
+        /* The decks in this language and the parts each holds — the same
+           setting a deck's Numbers and pronouns screen writes, reached from
+           the part's end. */
+        decks={decks
+          .filter((d) => (langOfDeck(d) || { id: "" }).id === numbering)
+          .map((d) => ({ id: d.id, title: String(d.title || ""), parts: partsNow(d.parts || []), locked: !!d.locked, cardCount: d.cardCount || 0 }))}
+        onDeckPart={(deckId, rangeId, on) =>
           run(async () => {
-            const r: any = await API.signSystem(kind, system.languageId, system.rev);
-            setSystems((held) =>
-              held ? { ...held, signed: { ...(held.signed || {}), [r.id]: r.signed } } : held,
-            );
-          }, "Signed off — students get this version")
+            const d = decks.find((x) => x.id === deckId);
+            if (!d) return;
+            const had = partsNow(d.parts || []);
+            const parts = on ? had.concat(had.includes(rangeId) ? [] : [rangeId]) : had.filter((x) => x !== rangeId);
+            const r: any = await API.setDeckParts(deckId, parts);
+            setDecks((prev) => prev.map((x) => (x.id === deckId ? { ...x, parts: r.parts || parts } : x)));
+          }, on ? "Added to the deck" : "Taken out of the deck")
         }
       />
     );
@@ -5783,10 +5819,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               <span className="at-lockmark" title="Locked" aria-label="Locked" role="img">
                 <Icon name="lock" size={12} />{" "}
               </span>
-              {plural(d.cardCount || 0, "card")}
+              {deckSize(d)}
             </>
           ) : (
-            `${plural(d.cardCount || 0, "card")}`
+            deckSize(d)
           ),
           disabled: !!d.locked,
         }))}
@@ -5918,7 +5954,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
             onClick={() =>
               run(
                 async () => {
-                  const had = d.parts || [];
+                  const had = partsNow(d.parts || []);
                   const same = had.length === picked.parts.length && had.every((x) => picked.parts.includes(x));
                   if (!same) await API.setDeckParts(d.id, picked.parts);
                   for (const card of pronouns) {
@@ -5960,7 +5996,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       <Screen title={d.title} onBack={() => { setOpenDeck(null); setCardAction(null); setDeckExtras(null); }}>
             <Notice kind="error">{error}</Notice>
             <Help>
-              {(langOfDeck(d) || {}).name} · {plural(held.length, "card")}
+              {(langOfDeck(d) || {}).name} · {deckSize(d, held.length)}
             </Help>
 
             {d.locked ? (
@@ -5984,7 +6020,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                 <Help>
                   {(() => {
                     const all = numberPartsOf((langOfDeck(d) || {}).id || d.lang);
-                    const named = (d.parts || [])
+                    const named = partsNow(d.parts || [])
                       .map((id) => (all.find((r) => r.id === id) || { label: "" }).label)
                       .filter(Boolean);
                     const pron = pronounCardsOf((langOfDeck(d) || {}).id || d.lang).filter((c) =>
@@ -6002,7 +6038,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                       icon="add"
                       onClick={() =>
                         setDeckExtras({
-                          parts: d.parts || [],
+                          parts: partsNow(d.parts || []),
                           pronouns: pronounCardsOf((langOfDeck(d) || {}).id || d.lang)
                             .filter((c) => (c.decks || []).includes(d.id))
                             .map((c) => c.id),
@@ -6153,7 +6189,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               /* And the rest of the collection, because what is behind a
                  blank and how many cards wear a tag are facts about the
                  collection rather than about this card. */
-              cards={cards}
+              cards={lendable}
             />
             <TryExercises
               /* The card, and the screen it was read from — a deck's card
@@ -6161,7 +6197,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                  deck rather than to the space's front door. */
               back={{ cardId: viewing.id, tab, deckId: openDeck }}
               card={viewing}
-              cards={cards}
+              cards={lendable}
               lang={langOfCard(viewing)}
               onTry={onTry}
             />
@@ -6284,7 +6320,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                     meta={
                       <>
                         <LockMark locked={d.locked} />
-                        {`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
+                        {`${(langOfDeck(d) || { name: "" }).name} · ${deckSize(d)}${deckWaiting(d)}`}
                       </>
                     }
                     onOpen={() => setOpenDeck(d.id)}
@@ -6587,12 +6623,12 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                     card={viewing}
                     lang={langOfCard(viewing)}
                     decks={decks}
-                    cards={cards}
+                    cards={lendable}
                   />
                   <TryExercises
                     back={{ cardId: viewing.id, tab, deckId: null }}
                     card={viewing}
-                    cards={cards}
+                    cards={lendable}
                     lang={langOfCard(viewing)}
                     onTry={onTry}
                   />
@@ -6974,7 +7010,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                       meta={
                         <>
                           <LockMark locked={d.locked} />
-                          {`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}${deckWaiting(d)}`}
+                          {`${(langOfDeck(d) || { name: "" }).name} · ${deckSize(d)}${deckWaiting(d)}`}
                         </>
                       }
                       onOpen={() => setOpenDeck(d.id)}

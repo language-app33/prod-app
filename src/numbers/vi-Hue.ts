@@ -31,7 +31,7 @@ import type {
   Rendering,
   SlotSpec,
 } from "./types.ts";
-import { NUMBER_CEILING } from "./types.ts";
+import { NUMBER_CEILING, NUMBER_RANGES } from "./types.ts";
 import { Build } from "./build.ts";
 import type { VerbSpec } from "../types.ts";
 
@@ -70,10 +70,7 @@ export const VI_SLOTS: SlotSpec[] = [
 ];
 
 export const VI_RANGES: Range[] = [
-  { id: "numbers:0-10", kind: "numbers", label: "Numbers 0 to 10", from: 0, to: 10 },
-  { id: "numbers:11-99", kind: "numbers", label: "Numbers 11 to 99", from: 11, to: 99 },
-  { id: "numbers:100-999", kind: "numbers", label: "Numbers 100 to 999", from: 100, to: 999 },
-  { id: "numbers:1000+", kind: "numbers", label: "Numbers over a thousand", from: 1000, to: NUMBER_CEILING },
+  ...NUMBER_RANGES,
   /* No counting range: nothing in this language agrees with what it
      counts, so there is no second skill there to schedule. */
 ];

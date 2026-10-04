@@ -25,6 +25,7 @@ import { isOffline, watchNet } from "./net.ts";
    naming a language — see src/numbers/. */
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
+import { setsWithNouns } from "./numbers/nouns.ts";
 import type { SystemSet } from "./numbers/generate.ts";
 import { fileIntoDecks, generate, handOn, handOnSplit } from "./numbers/generate.ts";
 
@@ -377,6 +378,22 @@ function ClipRow({ hash, label, index, onRemove, load }: {
 export function plural(n: number, one: string, many?: string) {
   const word = n === 1 ? one : many || `${one}s`;
   return `${n} ${word}`;
+}
+
+/**
+ * How much a deck holds, said on the deck: its cards and its number parts.
+ *
+ * A part is not a card — it is one skill on the teacher's numbers, held by
+ * the deck as an id (Deck.parts) — so counting cardIds alone left a deck
+ * of numbers saying "0 cards". The parts are said beside the cards rather
+ * than added into them, and a deck of nothing but parts leaves the
+ * "0 cards" off.
+ */
+export function deckSize(d: { cardCount?: number; parts?: string[] }, cards = d.cardCount || 0) {
+  const parts = (d.parts || []).length;
+  if (!parts) return plural(cards, "card");
+  const said = plural(parts, "number part");
+  return cards ? `${plural(cards, "card")} · ${said}` : said;
 }
 
 /* --- Button -------------------------------------------------------
@@ -2327,7 +2344,7 @@ function ReadBlanks({ card, lang, cards }: {
             <span className="at-groupcount">
               {combos ? plural(combos, "example") : "none yet"}
             </span>
-            <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+            <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
           </button>
           {open ? (
             asked.length ? (
@@ -2682,7 +2699,10 @@ function ReadKind({ card, lang }: { card: Record<string, any>; lang: Lang }) {
   const lead = leadOf(card) as Record<string, any>;
   const perCard = dimsSaid(lead).filter((dim) => dim.perCard);
   const name = String(card.name || "").trim();
-  if (!kind && !worth && !name && !perCard.length && !isSentence(card)) return null;
+  /* The number a card out of a number system stands for, as its language
+     writes it in figures — the thing a learner meets on a price tag. */
+  const numeral = String(card.numeral || "").trim();
+  if (!kind && !worth && !numeral && !name && !perCard.length && !isSentence(card)) return null;
   return (
     <section className="at-panel">
       <p className="at-eyebrow">What it is</p>
@@ -2695,6 +2715,13 @@ function ReadKind({ card, lang }: { card: Record<string, any>; lang: Lang }) {
       {isSentence(card) ? <ReadRow label="Shape">{A_SENTENCE}</ReadRow> : null}
       <ReadRow label="Listed as">{name ? <Written text={name} /> : null}</ReadRow>
       <ReadRow label="Worth">{worth}</ReadRow>
+      <ReadRow label="In figures">
+        {numeral ? (
+          <span lang={lang.id} dir={lang.direction}>
+            {numeral}
+          </span>
+        ) : null}
+      </ReadRow>
       {perCard.map((dim) => (
         <ReadRow key={dim.field} label={dim.label}>
           {dimText(dim, lead[dim.field])}
@@ -4103,7 +4130,10 @@ export async function pullCourses(
    * wrote — and skills, which go into the same fold everything else does
    * and so keep whatever the learner has earned on them.
    */
-  const systems = pairSystems(r.systems || []);
+  /* Counting reads the nouns the courses hold — see nouns.ts — so the
+     sets are given them before anything is generated: whether a counting
+     part can be asked at all depends on them. */
+  const systems = setsWithNouns(pairSystems(r.systems || []), incoming as unknown as Record<string, unknown>[]);
   const now = Date.now();
   for (const set of systems) {
     const lang = LANGUAGES[set.numbers.languageId];
@@ -4114,11 +4144,10 @@ export async function pullCourses(
       sys: set.numbers,
       timeComposer,
       timeSys: set.times,
-      /* Filed under a name of its own in the card list, the way a deck's
-         title files its cards: they are material, and a learner looking
-         for the word for forty should find it where they look for words. */
-      tag: `${(lang && lang.name) || set.numbers.languageId} numbers`,
       now,
+      /* And the number each card stands for, in the language's own
+         figures where it has them — ٣ on the card for three. */
+      numerals: lang && lang.numerals,
     });
     /* And a learner who could already read the word for forty off the
        card their teacher wrote is not asked it again from scratch because

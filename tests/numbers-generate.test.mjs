@@ -23,6 +23,7 @@ import { arTimeComposer } from "../src/numbers/ar-PS.time.ts";
 import {
   componentId, fileIntoDecks, generate, handOn, handOnSplit, isFromSystem, isRangeSkill, rangeId, wordsOfRange,
 } from "../src/numbers/generate.ts";
+import { partsNow } from "../src/numbers/types.ts";
 import { formsOf, leadOf, subFormsOf } from "../src/cards.ts";
 
 const load = (/** @type {string} */ name) =>
@@ -39,7 +40,6 @@ const made = (/** @type {Record<string, any>} */ over = {}) =>
     sys: SYS,
     timeComposer: arTimeComposer,
     timeSys: TIME,
-    tag: "Numbers",
     now: NOW,
     ...over,
   });
@@ -64,14 +64,14 @@ test("a system becomes a card per word and a skill per range", () => {
   assert.equal(
     cards.length,
     filled + Object.keys(SYS.overrides).length + clockWords +
-      Object.keys(TIME.minuteExprs).length + TIME.periods.length,
+      Object.keys(TIME.minuteExprs).length + TIME.periods.length + Object.keys(TIME.overrides || {}).length,
     "a card per word the teacher wrote",
   );
   assert.ok(cards.length > 50, `only ${cards.length} cards — the system under this test is too thin`);
   assert.deepEqual(
     skills.map((s) => must(s.range, "range").id),
     [
-      "numbers:0-10", "numbers:11-99", "numbers:100-999", "numbers:1000+",
+      "numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+",
       "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20",
       "time:hours", "time:quarters-halves", "time:fives", "time:exact-minutes", "time:periods",
     ],
@@ -80,7 +80,7 @@ test("a system becomes a card per word and a skill per range", () => {
     assert.ok(isFromSystem(it), `${it.id} does not say where it came from`);
     assert.equal(it.locked, true, `${it.id} should not be the learner's to edit`);
     assert.equal(it.lang, "ar-PS");
-    assert.deepEqual(it.tags, ["Numbers"]);
+    assert.deepEqual(it.tags, [], `${it.id} is filed under something other than a deck`);
   }
 });
 
@@ -204,23 +204,23 @@ test("the clock's own words, its expressions and its parts of the day are cards 
 /* ---- the skills ---- */
 
 test("a skill holds a schedule and no words at all", () => {
-  const skill = byId(made().items, rangeId(SYS.id, "numbers:0-10"));
+  const skill = byId(made().items, rangeId(SYS.id, "numbers:0-9"));
   assert.equal(formsOf(skill).length, 1);
   const form = leadOf(skill);
   assert.equal(form.ar, "");
   assert.equal(form.en, "");
   assert.equal(form.range, true, "the marker every gate reads");
   assert.deepEqual(form.s, {});
-  assert.equal(skill.name, "Numbers 0 to 10", "and it is listed by what it is");
+  assert.equal(skill.name, "Numbers 0 to 9", "and it is listed by what it is");
 });
 
 test("a skill is offered a listening question only where something has been recorded", () => {
-  assert.equal(leadOf(byId(made().items, rangeId(SYS.id, "numbers:0-10"))).recs, undefined);
+  assert.equal(leadOf(byId(made().items, rangeId(SYS.id, "numbers:0-9"))).recs, undefined);
   const withAudio = {
     ...SYS,
     lexemes: { ...SYS.lexemes, "unit.1": { ...SYS.lexemes["unit.1"], audio: { standalone: ["aaaaaaaa"] } } },
   };
-  const skill = byId(made({ sys: withAudio }).items, rangeId(SYS.id, "numbers:0-10"));
+  const skill = byId(made({ sys: withAudio }).items, rangeId(SYS.id, "numbers:0-9"));
   assert.equal((leadOf(skill).recs || []).length, 1);
 });
 
@@ -230,10 +230,10 @@ test("a range that cannot be asked is not a skill on anybody's device", () => {
   const { items, checks } = made({ sys: holed, timeSys: null, timeComposer: null });
   assert.deepEqual(
     items.filter(isRangeSkill).map((i) => must(i.range, "range").id),
-    ["numbers:0-10", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
+    ["numbers:0-9", "numbers:10-19", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
   );
   /* And the check says why, for the screen that has to tell the teacher. */
-  const shut = must(checks.find((c) => c.range.id === "numbers:11-99"), "11-99");
+  const shut = must(checks.find((c) => c.range.id === "numbers:20-99"), "20-99");
   assert.equal(shut.open, false);
   assert.ok(shut.warnings.length);
 });
@@ -311,7 +311,7 @@ const oldCard = (/** @type {string} */ id, /** @type {any} */ over = {}) => ({
 
 test("a learner's year on the card a box was filled from goes to the card that replaces it", () => {
   const sys = { ...SYS, migratedFrom: { "ten.40": "k40", "unit.7": "k7" } };
-  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, now: NOW });
   const held = [oldCard("k40")];
   const handed = handOn(fresh.items, held, sys);
 
@@ -331,7 +331,7 @@ test("and a card the device already holds keeps its own schedule, not an older o
   /* Whatever this device has learnt since is the answer. Handing the old
      card's schedule to a card already being asked would undo a week. */
   const sys = { ...SYS, migratedFrom: { "ten.40": "k40" } };
-  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, now: NOW });
   const id = componentId(sys.id, "ten.40");
   const held = [
     oldCard("k40"),
@@ -342,7 +342,7 @@ test("and a card the device already holds keeps its own schedule, not an older o
 });
 
 test("a system that was never migrated hands nothing on, and neither does an empty card", () => {
-  const fresh = generate({ composer: arComposer, sys: SYS, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const fresh = generate({ composer: arComposer, sys: SYS, timeComposer: null, timeSys: null, now: NOW });
   assert.equal(handOn(fresh.items, [oldCard("k40")], SYS), fresh.items, "no map, nothing to do");
   /* A card that was written and never answered has nothing to hand on, so
      the new card is left as the new card it is rather than being given an
@@ -363,14 +363,16 @@ const SET = { composer: arComposer, sys: SYS, timeComposer: arTimeComposer, time
 
 test("a part in a deck brings its skill and the words it is built of, and nothing else", () => {
   const { items } = made();
-  const filed = fileIntoDecks(items, SET, [{ title: "Week 1", parts: ["numbers:0-10"] }]);
+  const filed = fileIntoDecks(items, SET, [{ title: "Week 1", parts: ["numbers:0-9"] }]);
   const ids = new Set(filed.map((i) => i.id));
-  assert.ok(ids.has(rangeId(SYS.id, "numbers:0-10")), "the skill itself");
+  assert.ok(ids.has(rangeId(SYS.id, "numbers:0-9")), "the skill itself");
   assert.ok(ids.has(componentId(SYS.id, "unit.3")), "the word for three");
-  assert.ok(!ids.has(rangeId(SYS.id, "numbers:11-99")), "a part the deck does not hold");
+  assert.ok(!ids.has(rangeId(SYS.id, "numbers:10-19")), "a part the deck does not hold");
   assert.ok(!ids.has(componentId(SYS.id, "hundred.1")), "a word only bigger numbers use");
   assert.ok(!filed.some((i) => i.range && i.range.kind === "time"), "nothing of the clock");
-  for (const it of filed) assert.ok(it.tags.includes("Week 1"), `${it.id} is not filed under its deck`);
+  /* Under its deck and nothing else: a name of the system's own would be
+     one more deck on the learner's side, holding every part at once. */
+  for (const it of filed) assert.deepEqual(it.tags, ["Week 1"], `${it.id} is not filed under its deck alone`);
 });
 
 test("nothing is sent from parts that are in no deck", () => {
@@ -382,13 +384,13 @@ test("nothing is sent from parts that are in no deck", () => {
 test("a word two decks need is filed under both", () => {
   const { items } = made();
   const filed = fileIntoDecks(items, SET, [
-    { title: "Week 1", parts: ["numbers:0-10"] },
-    { title: "Week 2", parts: ["numbers:11-99"] },
+    { title: "Week 1", parts: ["numbers:0-9"] },
+    { title: "Week 2", parts: ["numbers:20-99"] },
   ]);
-  /* Eleven to ninety-nine says three in "thirteen" and "forty-three". */
+  /* Twenty to ninety-nine says three in "forty-three". */
   const three = byId(filed, componentId(SYS.id, "unit.3"));
   assert.ok(three.tags.includes("Week 1") && three.tags.includes("Week 2"), three.tags.join(", "));
-  assert.ok(!byId(filed, rangeId(SYS.id, "numbers:0-10")).tags.includes("Week 2"));
+  assert.ok(!byId(filed, rangeId(SYS.id, "numbers:0-9")).tags.includes("Week 2"));
 });
 
 test("telling the time brings the clock's own words with it", () => {
@@ -422,6 +424,57 @@ test("what a learner earned counting things carries into each of its three parts
   const kept = handOnSplit(items, /** @type {any} */ ([old, mine]), {}, SYS.id);
   assert.deepEqual(byId(kept, rangeId(SYS.id, "numbers:count-1-2")).forms[0].s, {});
   /* Nor onto anything that was not split. */
-  assert.deepEqual(byId(held, rangeId(SYS.id, "numbers:0-10")).forms[0].s, {});
+  assert.deepEqual(byId(held, rangeId(SYS.id, "numbers:100-999")).forms[0].s, {});
 });
 
+test("what a learner earned on 0 to 10 and 11 to 99 carries into the parts split out of them", () => {
+  const { items } = made();
+  const states = (/** @type {number} */ n) => ({ num2en: { phase: "review", interval: n, reps: 5 } });
+  const was = (/** @type {string} */ part, /** @type {number} */ n) => {
+    const id = rangeId(SYS.id, part);
+    return { id, tags: [], forms: [{ id: `${id}-f0`, s: states(n) }] };
+  };
+  const held = handOnSplit(items, /** @type {any} */ ([was("numbers:0-10", 3), was("numbers:11-99", 7)]), {}, SYS.id);
+  assert.deepEqual(byId(held, rangeId(SYS.id, "numbers:0-9")).forms[0].s, states(3));
+  assert.deepEqual(byId(held, rangeId(SYS.id, "numbers:10-19")).forms[0].s, states(7));
+  assert.deepEqual(byId(held, rangeId(SYS.id, "numbers:20-99")).forms[0].s, states(7));
+  assert.deepEqual(byId(held, rangeId(SYS.id, "numbers:100-999")).forms[0].s, {}, "a part that was not split");
+});
+
+test("a deck that held 0 to 10 or 11 to 99 holds the parts split out of them", () => {
+  assert.deepEqual(partsNow(["numbers:0-10", "numbers:count-3-10"]), ["numbers:0-9", "numbers:count-3-10"]);
+  assert.deepEqual(partsNow(["numbers:11-99", "numbers:20-99"]), ["numbers:10-19", "numbers:20-99"]);
+  const { items } = made();
+  const ids = new Set(fileIntoDecks(items, SET, [{ title: "Week 2", parts: ["numbers:11-99"] }]).map((i) => i.id));
+  assert.ok(ids.has(rangeId(SYS.id, "numbers:10-19")) && ids.has(rangeId(SYS.id, "numbers:20-99")));
+  assert.ok(!ids.has(rangeId(SYS.id, "numbers:0-9")));
+});
+
+
+/* ---- the language's own figures ---- */
+
+test("a card for one number carries it in the language's own figures, and no other card does", async () => {
+  const { LANGUAGES } = await import("../src/languages.ts");
+  const numerals = must(LANGUAGES["ar-PS"].numerals, "Arabic's figures");
+  const { items } = made({ numerals });
+  const three = byId(items, componentId(SYS.id, "unit.3"));
+  assert.equal(three.numeral, "٣");
+  for (const it of items) {
+    if (!it.numeral) continue;
+    assert.ok(/^[٠-٩٬]+$/.test(it.numeral), `${it.id} carries ${it.numeral}`);
+  }
+  assert.ok(items.filter(isRangeSkill).every((it) => !it.numeral), "a skill is not one number");
+  /* A pack without figures of its own leaves every card as it was. */
+  assert.ok(made().items.every((it) => !("numeral" in it)));
+});
+
+test("Arabic writes its figures digit for digit, with its own thousands mark", async () => {
+  const { LANGUAGES } = await import("../src/languages.ts");
+  const write = must(LANGUAGES["ar-PS"].numerals, "Arabic's figures");
+  assert.equal(write(0), "٠");
+  assert.equal(write(40), "٤٠");
+  assert.equal(write(1000), "١٬٠٠٠");
+  assert.equal(write(2000000), "٢٬٠٠٠٬٠٠٠");
+  assert.equal(write(-1), "");
+  assert.equal(LANGUAGES["vi-Hue"].numerals, undefined);
+});

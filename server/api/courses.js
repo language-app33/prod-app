@@ -2542,21 +2542,20 @@ export default async (req) => {
         updated: Date.now(),
       };
       /*
-       * A system's first save since sign-off existed starts its sign-off.
+       * A save is what students get.
        *
-       * What students had until now is what they keep: the version before
-       * this edit is recorded as signed, so nobody loses a number they were
-       * practising, and this edit waits for the teacher to check the sample
-       * and sign it off. A system made from nothing has nothing signed, and
-       * reaches students at its first sign-off.
+       * There used to be a second step — the teacher saved, then signed
+       * the version off, and students were sent the signed one. Owners
+       * found two buttons for one decision, and a saved change that
+       * reached nobody until the second press was the one they forgot.
+       * So a save signs its own version: the record is still written, and
+       * still what my-material sends, so a device and a server from
+       * before this read it exactly as they did.
        */
-      if (!(await readJson(store, K.sysSigned(id)))) {
-        await writeJson(store, K.sysSigned(id), existing
-          ? { rev: Number(existing.rev) || 0, at: Date.now(), by: mine, system: existing }
-          : { rev: null, at: Date.now(), by: mine, system: null });
-      }
       await writeJson(store, keyOf(id), saved);
-      return json({ ok: true, system: saved, signed: (await readJson(store, K.sysSigned(id))).rev });
+      await writeJson(store, K.sysSigned(id), { rev: saved.rev, at: Date.now(), by: mine, system: saved });
+      await taught();
+      return json({ ok: true, system: saved, signed: saved.rev });
     }
 
     /*
@@ -2568,6 +2567,10 @@ export default async (req) => {
      * signed is kept whole and is what students are sent until the next
      * sign-off. Refused unless it is the version on disk, so what is
      * signed is what the teacher was looking at.
+     *
+     * A save now signs itself (see save-system) and the app no longer
+     * asks for this; it is kept for a device still running a build that
+     * does, whose press then finds its version already signed.
      */
     if (action === "sign-system") {
       const kind = body.kind === "times" ? "times" : "numbers";
