@@ -8812,6 +8812,13 @@ const openPronounTables = async () => {
   const upTo4 = known([...level1, "match", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
   /** @param {any[]} items */
   const walk = async (items) => {
+    /* Its own five words and nothing else, as the walks above clear the
+       server for theirs. Left alone, the sync on start brought in what
+       earlier walks had left there — due cards and new ones, which a full
+       session rightly asks before five words not due for days, so whether
+       the picture questions came up at all was down to how much had been
+       left behind. */
+    remoteDocs.clear();
     localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
       version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, account, items,
     }));

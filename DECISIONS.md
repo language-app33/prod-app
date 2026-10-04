@@ -4898,3 +4898,39 @@ recognised. A learner whose 0 to 9 slips back off cleared loses the
 teens' words from their sessions as well as the teens, until it is
 recovered.
 
+## A session fills to its length, and the one reason it may not
+
+**4 October 2026** · `src/ArabicTrainer.tsx` (`buildSession`, `buildManualSession`, `buildWeakSession`, `cutAtLength`, `MAX_ASKS_PER_UNIT`), `tests/session-fill.test.mjs`
+
+A session took a number of cards worked out up front from its length and
+the average card, and never went back for more. A card with fewer
+questions open than the average left it two or three short in twenty; a
+grid counted as one question though it asks five words; and a beginner,
+whose new words come ten at a time, got half the session they chose. Twice
+in one day a short session reached the owner before any test noticed.
+
+**Now every builder fills to its length.** Cards are taken one at a time
+until their questions reach it, and the next is taken while a question
+falls out as it is dealt. When every card the session may use is in and it
+is still short, each form is asked more — whatever else it has open, then
+the same questions again, a round at a time — up to `MAX_ASKS_PER_UNIT`
+(four). A grid counts as the words in it. The ten-new-word limit is kept;
+the owner chose asking each new word more over letting more words in.
+
+**Short is agreed in one case: not enough material** — every card the
+session may use, each asked four times. Fix mistakes and Weak skills, whose
+material is what is going wrong, are covered by it, and so is Not seen
+lately. `tests/session-fill.test.mjs` walks every session against five
+learners, four kinds of material and three lengths, and fails on any short
+session not in its `AGREED` table. Each entry there is an exact size with
+its reason, so a bug cannot shelter under one, and an entry nothing matches
+fails too.
+
+**What it costs.** Weak skills used to ask a failing question once and
+stop, on the grounds that padding a short session was the button lying
+about what was wrong; it now asks only what is wrong, but asks it again to
+the session's length. A beginner's long session repeats each new word up to
+four times in a sitting. A skill is never asked the same exercise twice in
+one sitting, since its number is drawn once and the repeat would be the
+same number.
+

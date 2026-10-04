@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.342 — 4 October 2026
+
+**Every practice session is the length you chose.**
+
+- Everyday sessions and custom Regular sessions were often a few
+  questions short, such as 8 of 10 or 17 of 20, even with plenty to
+  practise. They now fill to the length chosen.
+- A beginner with only their 10 new words is no longer handed half a
+  session. Each word is asked more ways, and then a second time later in
+  the session, up to four times per word. Answering right twice in a row
+  is what opens a word's next level, so the repeats move it along.
+- Get started, Not seen lately, Fix mistakes and Weak skills fill to their
+  length the same way, from the words that belong in them. Fix mistakes
+  and Weak skills still only ask what is going wrong.
+- A matching grid counts as the words in it, so a session with a grid in
+  it is no longer four questions short.
+- A session is still shorter than chosen when there aren't enough words
+  for it, every word asked four times: a deck of 3 words gives 12
+  questions. That is the one agreed exception, and a new automatic check
+  now runs every kind of session to make sure nothing else comes out
+  short.
+
 ## 0.341 — 4 October 2026
 
 **A session of numbers is full again for a beginner.**

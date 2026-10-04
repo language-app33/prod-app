@@ -20,3 +20,4 @@ tests/.numbers-build/
 tests/.numbers-progress-build/
 tests/.review-build/
 tests/.blank-pools-build/
+tests/.session-fill-build/
