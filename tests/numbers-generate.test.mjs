@@ -65,7 +65,7 @@ test("a system becomes a card per word and a skill per range", () => {
   assert.equal(
     cards.length,
     filled + Object.keys(SYS.overrides).length + clockWords +
-      Object.keys(TIME.minuteExprs).length + TIME.periods.length,
+      Object.keys(TIME.minuteExprs).length + TIME.periods.length + Object.keys(TIME.overrides || {}).length,
     "a card per word the teacher wrote",
   );
   assert.ok(cards.length > 50, `only ${cards.length} cards — the system under this test is too thin`);

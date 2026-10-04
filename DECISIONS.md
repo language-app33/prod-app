@@ -4630,3 +4630,28 @@ said", which was the list called *What a student will be asked*) is a
 screen with Save at its top right. Leaving one with unsaved changes asks
 Save / Don't save / Cancel, because the screen it goes back to has no
 Save to keep them with.
+
+---
+
+## What a number answer credits, word by word
+
+**4 October 2026** · `tokenCards` in `src/ArabicTrainer.tsx`;
+`cardsOfToken` and the clock's cards in `src/numbers/generate.ts`
+
+An audit of progress on the numbers found the range side sound — each
+part has its own schedule, is held at Cleared until the words it is built
+of are learnt, and carries across the split — and the word side short in
+four places, all in the line that turns a rendered answer into the cards
+it credits. It looked every word up under the numbers document alone, so
+a time's clock words (the time document's cards, and minute expressions
+named `minute.N` in a rendering but `min.N` as cards) were never credited;
+it credited the lead form, so a face with a schedule of its own — the
+feminine, the word before a noun — never was; it skipped counted nouns,
+which are the teacher's noun cards; and a time written out by hand was
+not a card at all. `tokenCards` now resolves each token through
+`cardsOfToken`, the mapping `wordsOfRange` already used to file the same
+words into decks, so what a part brings into a deck and what an answer
+credits are one answer. The rules for how far a credit moves a word are
+unchanged (`fillerMarks`): right answers only, never starting a word's
+own schedule, moving it only where it was due.
+

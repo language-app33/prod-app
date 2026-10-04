@@ -294,6 +294,24 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
         }),
       );
     }
+    /* And a time written out by hand — noon, midnight — for the reason a
+       number written out is a card: it is a thing to learn, and it was
+       not one, so nothing about reading it was ever kept. */
+    for (const [key, over] of Object.entries(timeSys.overrides || {})) {
+      const [clock] = key.split("|");
+      items.push(
+        cardOf({
+          id: overrideId(timeSys.id, key),
+          lang,
+          systemId: timeSys.id,
+          slot: `override:${key}`,
+          faces: [{ key: "standalone", text: over.text, label: "", lat: over.lat, audio: over.audio }],
+          en: clock,
+          tag,
+          now,
+        }),
+      );
+    }
     for (const period of timeSys.periods || []) {
       items.push(
         cardOf({
@@ -556,8 +574,10 @@ export function wordsOfRange(
  * and partly in the numbers', so a slot is every card it could be and the
  * caller keeps the ones it holds.
  */
-function cardsOfToken(t: Token, numbersId: string, timeId: string): string[] {
-  if (t.override) return [overrideId(numbersId, t.override)];
+export function cardsOfToken(t: Token, numbersId: string, timeId: string): string[] {
+  /* A number written out, or a time: which one is a fact about the
+     document, so both are named and the caller keeps the one it holds. */
+  if (t.override) return [overrideId(numbersId, t.override), timeId ? overrideId(timeId, t.override) : ""].filter(Boolean);
   if (!t.slot) return [];
   return [
     componentId(numbersId, t.slot),

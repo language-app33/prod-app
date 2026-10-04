@@ -186,7 +186,7 @@ import type { LangChoice } from "./lang-choice.ts";
    language-shaped is: through a registry keyed by language, never by
    naming one. See src/numbers/. */
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
-import type { Ask } from "./numbers/types.ts";
+import type { Ask, Token } from "./numbers/types.ts";
 import {
   askFor,
   confusableTimes,
@@ -194,7 +194,7 @@ import {
   renderAsk,
 } from "./numbers/range.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { componentId, fillerCards, isRangeSkill, overrideId, steeredAsk, systemFor } from "./numbers/generate.ts";
+import { cardsOfToken, fillerCards, isRangeSkill, steeredAsk, systemFor } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
@@ -4335,35 +4335,69 @@ export function marksForAnswer({
   if (item.tokens) {
     const set = systemFor(parentItem, systems);
     const under = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
-    const from = set ? set.numbers.id : "";
-    const said = new Set(
-      ((item.tokens as { slot?: string; override?: string }[]) || [])
-        .map((t) => (t.override ? overrideId(from, t.override) : t.slot ? componentId(from, t.slot) : ""))
-        .filter(Boolean),
-    );
     marks.push(
       ...fillerMarks(
-        [...said]
-          .map((id) => asking.find((i) => i.id === id))
-          .filter(Boolean)
-          .map((card) => {
-            const form = leadOf(card);
-            return {
-              id: (card as Item).id,
-              subId: null,
-              asked: laddered(form, settings).includes(under),
-              ready: (() => {
-                const st = statesOf(form)[under];
-                return !!st && st.phase !== "new" && stateReady(st);
-              })(),
-            };
-          }),
+        tokenCards(
+          (item.tokens as Token[]) || [],
+          set ? set.numbers.id : "",
+          set && set.times ? set.times.id : "",
+          asking,
+        ).map(({ card, form }) => {
+          return {
+            id: card.id,
+            subId: form.id === leadOf(card).id ? null : form.id,
+            asked: laddered(form, settings).includes(under),
+            ready: (() => {
+              const st = statesOf(form)[under];
+              return !!st && st.phase !== "new" && stateReady(st);
+            })(),
+          };
+        }),
         { correct: !!correct },
         practice,
       ).map((mark) => ({ ...mark, under })),
     );
   }
   return marks;
+}
+
+/**
+ * The cards, and the form on each, that the words of a rendered number
+ * or time were written on.
+ *
+ * Three things a slot alone did not say. A time is said partly in the
+ * clock's words, which are the time system's cards and not the numbers'
+ * — looked up under the numbers alone, *quarter past* and *in the
+ * evening* were never credited however often they were read. A numeral
+ * wears a face — *wahde* with a feminine word, the one word before a
+ * noun — and the face is a form of its own with its own schedule, so the
+ * face that was said is the one credited. And a counted noun is the
+ * teacher's own noun card, credited on the form the number called for:
+ * *three books* is the plural read.
+ */
+export function tokenCards(
+  tokens: Token[],
+  numbersId: string,
+  timeId: string,
+  asking: Item[],
+): { card: Item; form: Form }[] {
+  const out: { card: Item; form: Form }[] = [];
+  for (const t of tokens) {
+    if (t.noun) {
+      const card = asking.find((i) => i.id === t.noun);
+      if (!card) continue;
+      const form = formsOf(card).find((f) => String(f.ar || "").trim() === t.text.trim()) || leadOf(card);
+      out.push({ card, form });
+      continue;
+    }
+    for (const id of cardsOfToken(t, numbersId, timeId)) {
+      const card = asking.find((i) => i.id === id);
+      if (!card) continue;
+      const face = t.formKey ? formsOf(card).find((f) => f.id === `${card.id}-f~${t.formKey}`) : null;
+      out.push({ card, form: face || leadOf(card) });
+    }
+  }
+  return out;
 }
 
 /**

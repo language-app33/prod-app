@@ -50,11 +50,11 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { buildSession, installIndexes } = await import(path.join(out, "trainer.js"));
+const { buildSession, installIndexes, tokenCards } = await import(path.join(out, "trainer.js"));
 const { generate, isRangeSkill } = await import(path.join(here, "..", "src", "numbers", "generate.ts"));
 const { arComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.ts"));
 const { arTimeComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.time.ts"));
-const { renderAsk } = await import(path.join(here, "..", "src", "numbers", "range.ts"));
+const { askFor, renderAsk } = await import(path.join(here, "..", "src", "numbers", "range.ts"));
 const { PICK_OPTIONS } = await import(path.join(here, "..", "src", "chance.ts"));
 const { EX, NUMBER_EQUIVALENT, TYPES, levelOf } = await import(path.join(here, "..", "src", "languages.ts"));
 const { gradeInto } = await import(path.join(here, "..", "src", "grade.ts"));
@@ -235,6 +235,57 @@ test("a wrong answer on a range is a wrong answer like any other", () => {
   assert.equal(s.num2fig.wrong, 1);
   assert.deepEqual(s.num2fig.hist, [0]);
   assert.equal(s.num2fig.phase, "learning", "and it comes back within the sitting");
+});
+
+/* ------------------------------------------------------------------
+   Which word cards an answer credits
+   ------------------------------------------------------------------ */
+
+/** The cards a rendered asking credits, as `slot@form` names. @param {any} ask @param {any[]} pool */
+const credited = (ask, pool = generated.items) =>
+  /** @type {string[]} */ (tokenCards(renderAsk(ask, arComposer, SYS, arTimeComposer, TIME).tokens, SYS.id, TIME.id, pool)
+    .map((/** @type {any} */ { card, form }) => `${card.id.split(":").slice(2).join(":")}@${form.id.split("~").pop()}`));
+
+test("a time credits the clock's own words, not only the numbers in it", () => {
+  /* Looked up under the numbers alone, "quarter past" and "in the
+     evening" were never credited however often they were read. */
+  const quarter = credited({ rangeId: "time:quarters-halves", kind: "time", value: 7, minute: 15, style: "colloquial", period: false });
+  assert.ok(quarter.some((c) => c.startsWith("min.15@")), quarter.join(" "));
+  assert.ok(quarter.some((c) => c.startsWith("hour.word@")), quarter.join(" "));
+  const evening = credited({ rangeId: "time:periods", kind: "time", value: 19, minute: 0, style: "colloquial", period: true });
+  assert.ok(evening.some((c) => c.startsWith("period.")), evening.join(" "));
+  /* And every word of every time a learner can be asked is a card. */
+  for (const range of arTimeComposer.ranges()) {
+    for (let i = 0; i < 60; i += 1) {
+      const ask = askFor(range, `t${i}`, SYS, arComposer, TIME, arTimeComposer);
+      const words = renderAsk(ask, arComposer, SYS, arTimeComposer, TIME).tokens.filter((/** @type {any} */ t) => t.slot || t.override);
+      assert.equal(credited(ask).length >= words.length, true, `${range.id}: ${words.length} words, ${credited(ask).length} credited`);
+    }
+  }
+});
+
+test("a numeral is credited on the face it was said in", () => {
+  /* The hour is feminine, so one o'clock says the feminine one — the
+     form of its own a learner climbs for it, not the counting form. */
+  const one = credited({ rangeId: "time:hours", kind: "time", value: 1, minute: 0, style: "colloquial", period: false });
+  assert.ok(one.includes("unit.1@f"), one.join(" "));
+  assert.ok(!one.includes("unit.1@standalone"), one.join(" "));
+});
+
+test("a counted noun is credited on its own card, on the form the number called for", () => {
+  const book = {
+    id: "c-book", lang: "ar-PS", kind: "word", tags: [],
+    forms: [
+      { id: "c-book", ar: SYS.nouns[0].sg, en: "book", lat: "", s: {} },
+      { id: "c-book-pl", ar: SYS.nouns[0].pl, en: "books", lat: "", s: {} },
+    ],
+  };
+  const sys = { ...SYS, nouns: [{ ...SYS.nouns[0], id: "c-book" }] };
+  const tokens = renderAsk({ rangeId: "numbers:count-3-10", kind: "numbers", value: 3, nounId: "c-book" }, arComposer, sys).tokens;
+  const got = tokenCards(tokens, sys.id, "", [...generated.items, book]);
+  const noun = got.find((/** @type {any} */ c) => c.card.id === "c-book");
+  assert.ok(noun, "the noun's card was not credited");
+  assert.equal(must(noun, "noun").form.id, "c-book-pl", "three books is the plural read");
 });
 
 test("every exercise a range is asked has an ordinary key to credit its words under", () => {

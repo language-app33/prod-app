@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.326 — 4 October 2026
+
+**Every word in a number or a time now counts towards a student's
+progress.**
+
+- Answering a time question now counts as practice for the clock's own
+  words: "hour", "past" and "to", "quarter past", "half past" and the rest,
+  and the parts of the day like "in the evening". Before, only the numbers
+  inside a time were counted, so these words never moved however often a
+  student read them.
+- Where a number takes a different form, such as the feminine "one" in
+  "one o'clock" or the word used before a noun, the practice now goes to
+  that form. Before, it always went to the plain counting form.
+- Counting things now counts as practice for the noun as well, on the form
+  the number used: "three books" counts towards the plural of "book".
+- A time you have written out by hand, like noon, is now something
+  students learn and are tracked on, as a number written out by hand
+  already was.
+
 ## 0.325 — 4 October 2026
 
 **Smaller number parts, one Save, and nothing to save on the main number
