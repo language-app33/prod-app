@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.341 — 4 October 2026
+
+**A session of numbers is full again for a beginner.**
+
+- Since 0.340, a beginner's session of numbers could be just 2 or 4
+  questions on one or two words, in a custom session or an everyday one.
+  The words still waiting for their part (the teens, the tens, the
+  hundreds and up) were taking up the places for new words, then had
+  nothing to ask.
+- They no longer take a place, so a session is the length you chose,
+  made of the words you can be asked now (0 to 9 at the start).
+
 ## 0.340 — 4 October 2026
 
 **The words of the numbers come in bottom up, like the numbers.**
