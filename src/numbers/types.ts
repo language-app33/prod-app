@@ -335,6 +335,10 @@ export interface Range {
   marks?: number[];
   style?: TimeStyle;
   period?: boolean;
+  /** The part this one was split out of, where it was: what carries a
+      learner's progress, a deck's choice of parts and a sentence's blank
+      across the split. See `partsNow`, `partTags` and `handOnSplit`. */
+  was?: string;
 }
 
 /**
@@ -466,6 +470,42 @@ export interface Ask {
  * directory existed and it is unchanged.
  */
 export const NUMBER_CEILING = 9999999;
+
+/*
+ * The stretches of the number line, the same in every language.
+ *
+ * They were four — 0 to 10, 11 to 99, 100 to 999 and over a thousand —
+ * and the first two are now three: a learner's first sitting is the
+ * digits, the teens are a pattern of their own in every language here,
+ * and 20 to 99 is the tens and the joining word. Ten went with the teens
+ * because it is the first number with two figures, and where a language
+ * builds its teens on it (Hebrew, Vietnamese) it is where they start. The
+ * two old parts are named in `was`, so nothing anybody had on them is lost.
+ */
+export const NUMBER_RANGES: Range[] = [
+  { id: "numbers:0-9", kind: "numbers", label: "Numbers 0 to 9", from: 0, to: 9, was: "numbers:0-10" },
+  { id: "numbers:10-19", kind: "numbers", label: "Numbers 10 to 19", from: 10, to: 19, was: "numbers:11-99" },
+  { id: "numbers:20-99", kind: "numbers", label: "Numbers 20 to 99", from: 20, to: 99, was: "numbers:11-99" },
+  { id: "numbers:100-999", kind: "numbers", label: "Numbers 100 to 999", from: 100, to: 999 },
+  { id: "numbers:1000+", kind: "numbers", label: "Numbers 1,000 and over", from: 1000, to: NUMBER_CEILING },
+];
+
+/**
+ * A deck's parts as the parts there are now.
+ *
+ * A deck stores the parts it holds by id, and a deck that held 11 to 99
+ * before the split holds an id no part has any more. Read through this,
+ * it holds every part that came out of it — 10 to 19 and 20 to 99 —
+ * which is what the teacher chose; anything else is left as it is.
+ */
+export function partsNow(parts: string[]): string[] {
+  const out: string[] = [];
+  for (const id of parts) {
+    const into = NUMBER_RANGES.filter((r) => r.was === id).map((r) => r.id);
+    for (const now of into.length ? into : [id]) if (!out.includes(now)) out.push(now);
+  }
+  return out;
+}
 
 /*
  * Counting things, as three parts rather than one.

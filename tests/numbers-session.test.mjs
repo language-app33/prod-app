@@ -187,9 +187,17 @@ test("and one that cannot find three is asked another way rather than with two",
    * The same fallback the matching grid makes. A question with two
    * options is a coin toss dressed as a question, so the whole of what is
    * dropped is the choosing: the range is still asked, by being written
-   * out instead.
+   * out instead. Zero is the number that is short — nothing is a digit
+   * away from it below — so it is looked for where it lives, in 0 to 9:
+   * the skill under forty ids over eight sessions, since which number a
+   * skill is asked is drawn from its id and its turn.
    */
-  const picks = over(climbed(["num2fig", "time2fig"]), 12)
+  const zeroToNine = must(
+    climbed(["num2fig"]).find((/** @type {any} */ it) => it.range && it.range.id === "numbers:0-9"),
+    "0 to 9",
+  );
+  const digits = Array.from({ length: 40 }, (_, i) => ({ ...zeroToNine, id: `${zeroToNine.id}#${i}` }));
+  const picks = over(digits, 8)
     .filter((/** @type {any} */ e) => EX[e.type] && EX[e.type].picks === "word");
   const short = picks.filter((/** @type {any} */ e) => !e.options);
   assert.ok(short.length > 0, "no question was ever short of wrong answers, so this rule is untested");

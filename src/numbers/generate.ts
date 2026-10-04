@@ -41,7 +41,7 @@ import type {
   Token,
 } from "./types.ts";
 import { askFor, countable, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
-import { NUMBER_CEILING, SPLIT_FROM } from "./types.ts";
+import { NUMBER_CEILING, SPLIT_FROM, partsNow } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
 const safe = (s: string) => String(s).replace(/\|/g, "~");
@@ -462,8 +462,10 @@ export function handOn(fresh: Item[], held: Item[], sys: NumberSystem): Item[] {
  * What a learner had earned on a range that has since been split, handed
  * to each of its parts.
  *
- * Counting things was one range and is three (see COUNTING_RANGES). The
- * parts have ids of their own, so without this a learner who could count
+ * Counting things was one range and is three (see COUNTING_RANGES), and
+ * 0 to 10 and 11 to 99 are 0 to 9, 10 to 19 and 20 to 99 (see
+ * NUMBER_RANGES, whose `was` names the old part). The parts have ids of
+ * their own, so without this a learner who could count
  * books would start each part from nothing. Same rules as handOn: only
  * onto a part this device has never held, from the old range whether it
  * is still here or set aside in the drawer, and nothing taken away.
@@ -477,7 +479,7 @@ export function handOnSplit(
   const byId = new Map(held.map((i) => [i.id, i]));
   return fresh.map((item) => {
     const range = item.range;
-    const was = range ? SPLIT_FROM[range.id] : "";
+    const was = range ? range.was || SPLIT_FROM[range.id] || "" : "";
     if (!was || byId.has(item.id)) return item;
     const oldId = rangeId(systemId, was);
     const old = byId.get(oldId);
@@ -658,7 +660,9 @@ export function fileIntoDecks(
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
   decks: DeckParts[],
 ): Item[] {
-  const holding = decks.filter((d) => d.parts && d.parts.length);
+  const holding = decks
+    .filter((d) => d.parts && d.parts.length)
+    .map((d) => ({ ...d, parts: partsNow(d.parts) }));
   if (!holding.length) return [];
   const ids = new Set(items.map((it) => it.id));
   const tags = new Map<string, Set<string>>();
@@ -785,8 +789,11 @@ export const COUNT_TAG = "count";
  * sentence of it.
  */
 export function partTags(range: Range): string[] {
-  const own = range.id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
-  return [own, range.counted ? COUNT_TAG : NUMBER_TAG];
+  const tag = (id: string) => id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
+  /* And the tag of the part it was split out of, so a sentence written
+     with `{{11-99}}` before the split is still filled — from 10 to 19
+     and 20 to 99 together. */
+  return [tag(range.id), ...(range.was ? [tag(range.was)] : []), range.counted ? COUNT_TAG : NUMBER_TAG];
 }
 
 /**

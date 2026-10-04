@@ -8,6 +8,29 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.325 — 4 October 2026
+
+**Smaller number parts, one Save, and nothing to save on the main number
+screen.**
+
+- Numbers now come in five parts: 0 to 9, 10 to 19, 20 to 99, 100 to 999,
+  and 1,000 and over. Students keep their progress: what they had on 0 to
+  10 carries into 0 to 9, and what they had on 11 to 99 carries into both
+  10 to 19 and 20 to 99. A deck that held one of the old parts now holds
+  the parts it was split into, and sentences with a {{0-10}} or {{11-99}}
+  blank still work.
+- The Publish button is gone. Saving now sends your numbers to students
+  straight away.
+- The list called "What a student will be asked" is now its own screen,
+  "Correct how a number is said". It shows the numbers you have written out
+  yourself, then a spread of numbers as the app says them. Tap one that is
+  wrong to write it the way it should be said.
+- Telling the time has moved from a tab to its own screen.
+- The main number screen now only lists the parts, the time and
+  corrections, so it has no Save button. Each of those screens has Save in
+  the top right. If you leave one without saving, the app asks whether to
+  save your changes.
+
 ## 0.324 — 4 October 2026
 
 **Progress on numbers, word by word.**

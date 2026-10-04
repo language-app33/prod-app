@@ -4586,3 +4586,47 @@ box, which was weighed and left out until someone asks.
 
 **Revisit if** a teacher asks for خمست أيام spelt that way, or for a
 counted phrase to accept more than one spelling.
+
+---
+
+## Five stretches of the number line, and a save that publishes
+
+**4 October 2026** · `NUMBER_RANGES` and `partsNow` in
+`src/numbers/types.ts`; `partTags` and `handOnSplit` in
+`src/numbers/generate.ts`; `save-system` in `server/api/courses.js`;
+`src/number-system-editor.tsx`
+
+**0 to 10 and 11 to 99 are 0 to 9, 10 to 19 and 20 to 99.** The owner
+asked for smaller parts, and the lines are where the work is: the
+digits, the teens (a pattern of their own in every language here), and
+the tens with the joining word. Ten went with the teens rather than the
+digits because it is the first number of two figures, and where a
+language builds its teens on it, that is where they start. One list now
+serves all three languages, since the stretches never differed.
+
+**Nothing anybody had on the old parts is lost, through one field.** A
+new part names the part it came out of in `was`, and three things read
+it: `handOnSplit` gives a learner's schedule on the old part to each new
+one (onto a device that has never held the new one, as with counting),
+`partsNow` reads a deck that stored the old id as holding the new parts,
+and `partTags` keeps answering to the old blank, so `{{11-99}}` in a
+sentence is filled from 10 to 99. Decks are not rewritten on the server;
+they are read through `partsNow` wherever a deck's parts are read, and
+store the new ids the next time a teacher changes them. The cost:
+`{{0-10}}` now never draws 10, and a sentence approved under the old
+draw may meet numbers the teacher has not seen and wait for review.
+
+**Save publishes.** There was a Save and a Publish, and students got the
+version last published. The owner asked for one button. The record of
+what students get is unchanged — `save-system` now writes it — so a
+device or a server from before this reads it as it always did, and
+`sign-system` is kept for a build that still calls it. What is given up
+is a teacher saving work in progress without students seeing it.
+
+**The number screen lists; other screens edit.** Its only control was
+Save, and everything it saved was edited somewhere else. Each part, the
+clock, and the numbers written out by hand ("Correct how a number is
+said", which was the list called *What a student will be asked*) is a
+screen with Save at its top right. Leaving one with unsaved changes asks
+Save / Don't save / Cancel, because the screen it goes back to has no
+Save to keep them with.

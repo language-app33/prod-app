@@ -66,7 +66,7 @@ const generated = generate({ ...SET, tag: "Numbers", now: 1750000000000 });
 const filed = fileIntoDecks(generated.items, SET, [
   { title: "Numbers", parts: generated.items.filter(isRangeSkill).map((/** @type {any} */ it) => it.range.id) },
 ]);
-const PART = "numbers:11-99";
+const PART = "numbers:20-99";
 const partId = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === PART), PART).id;
 const ninety = componentId(SYS.id, "ten.90");
 
@@ -89,7 +89,7 @@ const allLearntBut = (/** @type {string[]} */ ids) =>
 test("a part filed into a deck carries the words it is built from", () => {
   const part = must(filed.find((/** @type {any} */ it) => it.id === partId), PART);
   const parts = new Set(part.parts);
-  assert.ok(parts.has(ninety), "11 to 99 does not know it is built with ninety");
+  assert.ok(parts.has(ninety), "20 to 99 does not know it is built with ninety");
   assert.ok(parts.has(componentId(SYS.id, "connector")), "nor with the word that joins");
   assert.ok(parts.has(componentId(SYS.id, "unit.4")), "nor with four");
   /* Every one of them is a card the learner holds. */
