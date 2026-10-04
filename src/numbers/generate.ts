@@ -181,6 +181,26 @@ export function figureOf(label: string): number | null {
   return /^\d{1,3}(,\d{3})*$|^\d+$/.test(plain) ? Number(plain.replace(/,/g, "")) : null;
 }
 
+/**
+ * Figures as a language writes them, from the ones English uses: a whole
+ * number, or a clock's hours and minutes either side of a colon. "" where
+ * the language writes them the English way, or cannot write one of them.
+ * The figures themselves are the pack's — `numerals` — so nothing here
+ * holds a character of any language.
+ */
+export function inOwnFigures(digits: string, write?: ((n: number) => string) | null): string {
+  if (!write || !digits) return "";
+  const parts = String(digits).split(":");
+  if (!parts.every((p) => /^\d+$/.test(p))) return "";
+  const written = parts.map((p) =>
+    parts.length > 1
+      /* A clock keeps its leading nought, which a number does not have. */
+      ? [...p].map((d) => write(Number(d))).join("")
+      : write(Number(p)),
+  );
+  return written.every(Boolean) ? written.join(":") : "";
+}
+
 /** That number in the pack's own figures, or "" where it has none. */
 const numeralOf = (label: string, write?: ((n: number) => string) | null): string => {
   const n = figureOf(label);
@@ -206,6 +226,9 @@ function cardOf(made: Made): Item {
        its transliteration is ever put to this card. */
     lat: String(face.lat || "").trim(),
     ...(i === 0 ? null : { row: "number", col: face.key, note: face.label }),
+    /* On every face, because every face is asked: the question at the top
+       of the card's ladder writes the word from these figures. */
+    ...(made.numeral ? { numeral: made.numeral } : null),
     ...(face.audio && face.audio.length
       ? { clips: face.audio, recs: face.audio.map((id) => ({ id, label: "", speed: "" })) }
       : null),
@@ -369,6 +392,10 @@ export function generate({ composer, sys, timeComposer, timeSys, now, numerals }
           slot: `override:${key}`,
           faces: [{ key: "standalone", text: over.text, label: "", lat: over.lat, audio: over.audio }],
           en: clock,
+          /* A time written out by hand is met on a clock as much as a
+             number is on a price, so it carries the clock in the
+             language's own figures as a number card does. */
+          numeral: inOwnFigures(clock, numerals),
           now,
         }),
       );
@@ -398,7 +425,7 @@ export function generate({ composer, sys, timeComposer, timeSys, now, numerals }
   const heard = items.some((it) => ((it.forms[0] || {}).recs || []).length);
   for (const check of checks) {
     if (!check.open) continue;
-    items.push(rangeItem(check.range, sys, lang, now, heard, !!(check.counting && check.counting.open)));
+    items.push(rangeItem(check.range, sys, lang, now, heard, !!(check.counting && check.counting.open), !!numerals));
   }
 
   return { items, checks };
@@ -422,6 +449,9 @@ function rangeItem(
   /* Whether its counting question can be asked: a noun card can be
      counted across the whole stretch. See RangeCheck.counting. */
   counts = false,
+  /* Whether the language writes numbers in figures of its own, which is
+     what the top of the skill is then asked from. */
+  figures = false,
 ): Item {
   const id = rangeId(sys.id, range.id);
   const form: Form = {
@@ -448,6 +478,7 @@ function rangeItem(
     ...(range.kind === "time"
       ? { rangeTime: true }
       : { rangeNumbers: true, ...(counts ? { rangeCounted: true } : null) }),
+    ...(figures ? { rangeFigures: true } : null),
     ...(heard ? { recs: [{ id: "system", label: "", speed: "" }] } : null),
     s: {},
   };

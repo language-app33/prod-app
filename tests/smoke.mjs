@@ -8538,6 +8538,7 @@ const openPronounTables = async () => {
 
   root4.unmount();
   host4.remove();
+
   materialSystems = [];
   materialDecks = [];
   materialQuiet = false;
@@ -9141,6 +9142,134 @@ const openPronounTables = async () => {
   r.unmount();
   host.remove();
   teachesTwo = false;
+}
+
+/* ---- a number at the top of its ladder ----
+
+   A learner whose numbers are up to the top of their ladder, which in
+   Arabic is asked from Arabic's own figures — ٣ for the word, ٤٧ for a
+   stretch — and from nothing else, because that is what "learnt" waits
+   on. Everything below the top is kept and not due; the top has never
+   been answered, which is a learner from before it was asked this way.
+   The questions further down show both figures, so no question on a
+   number shows the English figures alone.
+
+   Last in the file, because every walk shares one seeded sequence of
+   chance and this one draws from it: anywhere earlier it would change
+   what the walks after it are dealt. */
+{
+  const { readFileSync: readGolden } = await import("node:fs");
+  const goldenNumbers = JSON.parse(readGolden(path.resolve("tests/golden/ar-PS.numbers.json"), "utf8")).system;
+  const goldenTimes = JSON.parse(readGolden(path.resolve("tests/golden/ar-PS.times.json"), "utf8")).system;
+  const { generate, isRangeSkill } = await import(path.resolve("src/numbers/generate.ts"));
+  const { arComposer } = await import(path.resolve("src/numbers/ar-PS.ts"));
+  const { arTimeComposer } = await import(path.resolve("src/numbers/ar-PS.time.ts"));
+  const parts = generate({ composer: arComposer, sys: goldenNumbers, timeComposer: arTimeComposer, timeSys: goldenTimes, now: Date.now() })
+    .items.filter(isRangeSkill).map((/** @type {any} */ it) => it.range.id);
+  materialSystems = [goldenNumbers, goldenTimes];
+  materialDecks = [{
+    id: "dn", title: "Numbers deck", lang: "ar-PS", owner: "t-1", cardIds: [], cardCount: 0,
+    courseId: "c1", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 1, parts,
+  }];
+  materialQuiet = true;
+  localStorage.setItem("arabic-trainer:material", JSON.stringify({
+    handle: account.handle, courses: [], decks: materialDecks, systems: materialSystems,
+    version: "v-numbers-figures", at: Date.now(),
+  }));
+  const { LANGUAGES: packs, TYPES: allTypes, levelOf: levelAt } = await import(path.resolve("src/languages.ts"));
+  const { freshState: fresh } = await import(path.resolve("src/scheduler.ts"));
+  const climbed = generate({
+    composer: arComposer, sys: goldenNumbers, timeComposer: arTimeComposer,
+    timeSys: goldenTimes, now: Date.now(), numerals: packs["ar-PS"].numerals,
+  }).items;
+  const keptBelow = () => Object.fromEntries(
+    allTypes.filter((/** @type {string} */ t) => levelAt(t) < 4).map((/** @type {string} */ t) => [t, {
+      ...fresh(), phase: "review", interval: 30, due: Date.now() + 30 * 86400000,
+      reps: 4, right: 4, hist: [1, 1, 1, 1], updated: Date.now() - 86400000,
+    }]),
+  );
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, account,
+    items: climbed.map((/** @type {any} */ it) => ({
+      ...it,
+      tags: ["Numbers deck"],
+      forms: it.forms.map((/** @type {any} */ f) => ({ ...f, s: keptBelow() })),
+    })),
+  }));
+  remoteDocs.clear();
+
+  const host5 = document.createElement("div");
+  document.body.appendChild(host5);
+  const root5 = createRoot(host5);
+  root5.render(React.createElement(App));
+  await sleep(1500);
+  click([...host5.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim())));
+  await sleep(700);
+
+  /** @type {string[]} */
+  const prompts = [];
+  let stopped = "after 30 questions";
+  for (let i = 0; i < 30; i += 1) {
+    const prompt = host5.querySelector('[data-el="question-prompt-text"]');
+    /* A matching grid puts up no one prompt: passed over. */
+    const pass = [...host5.querySelectorAll("button")].find((b) => /^I don.t know$/.test((b.textContent || "").trim()));
+    if (!prompt && pass) {
+      click(pass);
+      await sleep(150);
+      const on = [...host5.querySelectorAll("button")].find((b) => /Continue|Next/.test((b.textContent || "").trim()));
+      if (!on) {
+        stopped = `no way past a grid: ${(host5.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+        break;
+      }
+      click(on);
+      await sleep(250);
+      continue;
+    }
+    if (!prompt) {
+      stopped = `no prompt: ${(host5.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+      break;
+    }
+    prompts.push((prompt.textContent || "").trim());
+    const input = host5.querySelector(".at-answerbox input");
+    const tile = host5.querySelector('[data-el="answer-choices"] .at-reply')
+      || host5.querySelector(".at-answerbox .at-chips button");
+    if (input) {
+      const setter = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "value").set;
+      must(setter, "value setter").call(input, "7");
+      input.dispatchEvent(new w.Event("input", { bubbles: true }));
+      await sleep(50);
+    } else if (tile) {
+      click(tile);
+      await sleep(50);
+    } else {
+      stopped = `nothing to answer with: ${(host5.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+      break;
+    }
+    click([...host5.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim())));
+    await sleep(150);
+    /* A first miss by one letter is asked again rather than marked. */
+    const again = [...host5.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim()));
+    if (again && host5.querySelector(".at-answerbox input")) {
+      click(again);
+      await sleep(150);
+    }
+    const next = [...host5.querySelectorAll("button")].find((b) => /Continue|Next/.test((b.textContent || "").trim()));
+    if (!next) {
+      stopped = `no way on: ${(host5.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+      break;
+    }
+    click(next);
+    await sleep(250);
+  }
+  check("a number at the top of its ladder is asked from Arabic's own figures alone",
+    prompts.some((t) => /^[٠-٩٬:]+$/.test(t)), `${prompts.join(" | ") || "no question came up"} — stopped ${stopped}`);
+  check("and no number is put up in the English figures alone",
+    !prompts.some((t) => /^[0-9,:]+$/.test(t)), prompts.join(" | "));
+  root5.unmount();
+  host5.remove();
+  materialSystems = [];
+  materialDecks = [];
+  materialQuiet = false;
 }
 
 report();

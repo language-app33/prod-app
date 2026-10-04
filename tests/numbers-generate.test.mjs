@@ -504,7 +504,8 @@ test("a card for one number carries it in the language's own figures, and no oth
   assert.equal(three.numeral, "٣");
   for (const it of items) {
     if (!it.numeral) continue;
-    assert.ok(/^[٠-٩٬]+$/.test(it.numeral), `${it.id} carries ${it.numeral}`);
+    /* A number, or a time written out by hand, which is met on a clock. */
+    assert.ok(/^[٠-٩٬]+$|^[٠-٩]{2}:[٠-٩]{2}$/.test(it.numeral), `${it.id} carries ${it.numeral}`);
   }
   assert.ok(items.filter(isRangeSkill).every((it) => !it.numeral), "a skill is not one number");
   /* A pack without figures of its own leaves every card as it was. */

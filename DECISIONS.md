@@ -4898,3 +4898,40 @@ recognised. A learner whose 0 to 9 slips back off cleared loses the
 teens' words from their sessions as well as the teens, until it is
 recovered.
 
+
+## A number is learnt in its own figures
+
+**4 October 2026** · `src/languages.ts` (`own2ar`, `own2num`, `own2time`, `unless`), `src/numbers/generate.ts` (`inOwnFigures`), `src/offers.ts`
+
+The owner's rule: a number, or a number skill, counts as learnt only once
+the learner knows it in the figures the language writes it in — ٣, not 3.
+Since 0.315 a number card had carried those figures and shown them on its
+screen, and nothing ever asked them, so "learnt" could be reached without
+ever reading one.
+
+"Learnt" is the top of a card's ladder answered right twice more on its
+own schedule, so the top is where the figures go. In a language whose pack
+has `numerals`, the question that writes a number out from figures shows
+the language's own and nothing else — the word from ٣, a stretch from ٤٧,
+the clock from ٠٧:١٥ — and the question it replaces declares `unless` the
+card carries them, so a card is never asked both. The questions further
+down that show figures show both, ٤٧ · 47, so the figures are met on the
+way up rather than first at the top.
+
+**A key of its own rather than the old key with a new prompt.** The old
+key's passes were made reading 3. Keeping it would have counted a learner
+from before this as having proved ٣, which is the one thing the rule says
+they have not; the owner asked for those to be proved again. So a number
+learnt before this goes back to its top level not started: cleared once
+the new question is right twice running, and learnt once it is right twice
+more on time — the usual few days.
+Nothing else on the card moves, and the old key's state stays on it,
+unread.
+
+**What it costs.** A range question still credits the words that stood in
+it, now under `own2ar` for a word that is one number, and under `en2ar` for
+a word with no figures of its own — *hundred*, *and* — through
+`NUMBER_FALLBACK`. Counting things (*3 books*) stays in English figures:
+the noun beside it is English, and the figure question at the same level
+is what the passes wait on. Hebrew and Huế have no `numerals` and are
+untouched.

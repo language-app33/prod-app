@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.343 — 4 October 2026
+
+**A number is learnt only once you know it in Arabic figures.**
+
+- The last question on every number now shows the number in Arabic
+  figures alone: ٣ to write the word for three, ٤٧ to write forty-seven
+  out, ٠٧:١٥ to say the time. A number only counts as learnt once you
+  have got that question right on later visits, as with every card.
+- Earlier questions that show a number in figures now show both, ٤٧ · 47,
+  so the Arabic figures are learnt on the way up.
+- Numbers you had already learnt need proving again on the Arabic
+  figures. Until you have, their last step shows as not started, and
+  getting back to learnt takes a few days. Nothing else you had earned on
+  them is lost.
+- Times written out by hand, like noon, are asked from the Arabic clock
+  figures too.
+- Hebrew and Huế Vietnamese write numbers with the same figures as
+  English, so nothing changes there.
+
 ## 0.342 — 4 October 2026
 
 **Your saved sessions are on the home screen, and can be changed.**

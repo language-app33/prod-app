@@ -951,6 +951,18 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   they read the word for *forty* and knew what it meant, on each component
   card's ordinary key.
 
+  **A number is learnt in the figures its language writes it in.** Arabic
+  writes three as ٣, and that is what a learner meets on a price or a bus,
+  so in a language whose pack declares `numerals` the top of a number's
+  ladder — where "learnt" is decided — asks from those figures and from
+  nothing else: the word from ٣, a stretch from ٤٧, the clock from ٠٧:١٥.
+  `own2ar`, `own2num` and `own2time` in `src/languages.ts`, each in place
+  of the question that asked from 3, 47 and 07:15 (`unless` on that one).
+  The questions below the top that show figures show both, ٤٧ · 47, so the
+  figures are met on the way up. A key of its own, so a number learnt from
+  3 before this has to be proved again from ٣. A language that writes its
+  numbers the English way is asked exactly what it always was.
+
   **A number waits on its words.** A learner who knows *forty* and
   *seven* knows *forty-seven*, and one who does not know *forty* yet
   cannot be asked it. So a number is asked only once every word in it is

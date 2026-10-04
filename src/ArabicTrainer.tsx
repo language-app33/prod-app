@@ -162,6 +162,7 @@ import {
   lendsForm,
   lendsInto,
   NUMBER_EQUIVALENT,
+  NUMBER_FALLBACK,
   normEn,
 } from "./languages.ts";
 import {
@@ -194,7 +195,7 @@ import {
   renderAsk,
 } from "./numbers/range.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
+import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, inOwnFigures, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
@@ -2227,6 +2228,10 @@ function castFill(
   };
 }
 
+/** Figures as a language writes them — see inOwnFigures. */
+export const ownFigures = (lang: Lang | undefined, digits: string): string =>
+  inOwnFigures(digits, lang && lang.numerals);
+
 /**
  * A skill, cast as the question it was dealt.
  *
@@ -2257,10 +2262,14 @@ function castRange(
     set.times,
   );
   if (!said.text) return resolved;
+  const figures = ownFigures(LANGUAGES[set.numbers.languageId], said.digits);
   const unit: Form = {
     ...resolved.unit,
     ar: said.text,
     en: said.digits,
+    /* And the same in the language's own figures, where it has them — ٤٧,
+       ٠٧:١٥ — which the top of the skill is asked from. */
+    ...(figures ? { numeral: figures } : null),
     /* What it means in words, where a counted phrase has anything to say
        beyond the figures. */
     ...(said.en && said.en !== said.digits ? { gloss: said.en } : null),
@@ -4627,28 +4636,36 @@ export function marksForAnswer({
    */
   if (item.tokens) {
     const set = systemFor(parentItem, systems);
-    const under = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
+    const equivalent = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
+    /* Per word, because a word with no figures of its own — *hundred*,
+       *and* — does not climb the key a number is asked from in figures. */
+    const underOf: Map<string, string> = new Map();
+    const fillers = tokenCards(
+      (item.tokens as Token[]) || [],
+      set ? set.numbers.id : "",
+      set && set.times ? set.times.id : "",
+      asking,
+    ).map(({ card, form }) => {
+      const keys = laddered(form, settings);
+      const fallback = NUMBER_FALLBACK[equivalent];
+      const under = !keys.includes(equivalent) && fallback && keys.includes(fallback) ? fallback : equivalent;
+      const subId = form.id === leadOf(card).id ? null : form.id;
+      underOf.set(`${card.id} ${subId || ""}`, under);
+      return {
+        id: card.id,
+        subId,
+        asked: keys.includes(under),
+        ready: (() => {
+          const st = statesOf(form)[under];
+          return !!st && st.phase !== "new" && stateReady(st);
+        })(),
+      };
+    });
     marks.push(
-      ...fillerMarks(
-        tokenCards(
-          (item.tokens as Token[]) || [],
-          set ? set.numbers.id : "",
-          set && set.times ? set.times.id : "",
-          asking,
-        ).map(({ card, form }) => {
-          return {
-            id: card.id,
-            subId: form.id === leadOf(card).id ? null : form.id,
-            asked: laddered(form, settings).includes(under),
-            ready: (() => {
-              const st = statesOf(form)[under];
-              return !!st && st.phase !== "new" && stateReady(st);
-            })(),
-          };
-        }),
-        { correct: !!correct },
-        practice,
-      ).map((mark) => ({ ...mark, under })),
+      ...fillerMarks(fillers, { correct: !!correct }, practice).map((mark) => ({
+        ...mark,
+        under: underOf.get(`${mark.id} ${mark.subId || ""}`) || equivalent,
+      })),
     );
   }
   return marks;
@@ -7081,6 +7098,14 @@ function Field({ value, field, kind, lang, name }: {
   if (field === "lat")
     return (
       <p className="at-latin" data-el={name}>
+        {value}
+      </p>
+    );
+  /* A number in the language's own figures, which read left to right
+     whatever the script around them does. */
+  if (field === "numeral")
+    return (
+      <p className="at-en" dir="ltr" data-el={name}>
         {value}
       </p>
     );
@@ -11323,7 +11348,15 @@ export default function ArabicTrainer() {
                       />
                     ) : (
                       <Field
-                        value={item[spec.promptField]}
+                        /* A number met in the figures English uses is met
+                           in the language's own beside them, so ٤٧ is
+                           known by the time the top of the ladder asks
+                           from it alone. */
+                        value={
+                          spec.promptField === "en" && item.numeral && item.en
+                            ? `${item.numeral} · ${item.en}`
+                            : item[spec.promptField]
+                        }
                         field={spec.promptField}
                         kind={item.kind}
                         name="question-prompt-text"
