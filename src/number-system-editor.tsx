@@ -49,6 +49,7 @@ import type {
 import { MINUTE_MARKS, partsNow } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { blocking, probeOf, rangeChecks, seeded } from "./numbers/range.ts";
+import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
 import type { RangeCheck } from "./numbers/range.ts";
 import { figureOf, homesOf, partTags } from "./numbers/generate.ts";
 import { readNouns, withNouns } from "./numbers/nouns.ts";
@@ -140,14 +141,43 @@ function stable(value: unknown): string {
   return JSON.stringify(value === undefined ? null : value);
 }
 
+/* Which document a system is and when it was written, rather than what it
+   says. The server writes all of these on every save, and a clock nobody
+   has saved yet is made afresh — new stamps and all — every time the
+   space draws this screen. */
+const BOOKKEEPING = ["id", "owner", "rev", "created", "updated", "numberSystemId"];
+
+/**
+ * What saving a system would store, as a string to compare.
+ *
+ * Read through the reader the server stores every save through, because
+ * that is what decides whether anything is left to save. The copy being
+ * edited holds a word as it was typed — a space after it, a transliteration
+ * typed and emptied — and the copy a save hands back holds the word as it
+ * was stored. Compared as they were, the two never agreed after a save:
+ * the screen went on calling it unsaved, asked again on the way out, and
+ * the main screen said so with no Save to press.
+ */
+function held<T>(doc: T | null, read: (v: unknown) => T | null): string {
+  const out = doc ? read(doc) : null;
+  if (!out) return "null";
+  const rec = { ...out } as Record<string, unknown>;
+  for (const key of BOOKKEEPING) delete rec[key];
+  return stable(rec);
+}
+
 /* ---- the screen ---- */
 
 export interface EditorProps {
   lang: Lang;
   numbers: NumberSystem;
   times: TimeSystem | null;
-  /** Save one system; awaited where it is followed by leaving a screen. */
+  /** Save one system, resolving to what was saved — or to nothing when the
+      save did not go through, which keeps the teacher where they are. */
   onSave: (kind: "numbers" | "times", system: NumberSystem | TimeSystem) => unknown;
+  /** Why the last thing asked of the server did not happen, if it did not:
+      said on the screen the teacher is on, beside its Save. */
+  error?: string;
   onClose: () => void;
   busy?: boolean;
   /** What the server holds, for saying whether there is anything to save. */
@@ -162,7 +192,7 @@ export interface EditorProps {
 }
 
 export function NumberSystemEditor({
-  lang, numbers, times, onSave, onClose, busy, cards = [], decks = [], onDeckPart,
+  lang, numbers, times, onSave, onClose, busy, error, cards = [], decks = [], onDeckPart,
 }: EditorProps) {
   const composer = composerFor(lang.id);
   const timeComposer = timeComposerFor(lang.id);
@@ -174,6 +204,9 @@ export function NumberSystemEditor({
   /* Where a teacher was going when they had unsaved changes: answered by
      the question below, which saves or drops them first. */
   const [leaving, setLeaving] = useState<null | (() => void)>(null);
+  /* Whether the last save did not go through, which is said on the screen
+     the teacher is on until a save does. */
+  const [failed, setFailed] = useState(false);
   /* What was saved, with anything a composer has since folded into fewer
      boxes folded — see Composer.tidy. The screen opens on it and compares
      against it, so opening is not an unsaved change and the next save
@@ -234,6 +267,12 @@ export function NumberSystemEditor({
   useEffect(() => {
     setClock((c) => (c && tId ? { ...c, id: tId, owner: tOwner, rev: tRev, created: tCreated, updated: tUpdated } : c));
   }, [tId, tOwner, tRev, tCreated, tUpdated]);
+  /* And the numbers a clock reads its hours from, which a clock nobody has
+     saved only learns once the numbers are saved for the first time. */
+  const tNumbers = times ? times.numberSystemId : "";
+  useEffect(() => {
+    setClock((c) => (c && tNumbers && c.numberSystemId !== tNumbers ? { ...c, numberSystemId: tNumbers } : c));
+  }, [tNumbers]);
 
   /* Which part each box belongs to, and what each box is called. The
      connecting words are on their own screen rather than the part that
@@ -260,11 +299,21 @@ export function NumberSystemEditor({
     setDraft((d) => settle(d, q, keep));
   };
 
-  /* Compared by content rather than by how the keys happen to be ordered:
-     what the server hands back is read into a fresh object, whose keys
-     need not come in the order the one being edited has them. */
-  const numbersDirty = stable(draft) !== stable(base);
-  const clockDirty = stable(clock) !== stable(times);
+  /* Compared as what a save would store — see held — and with anything a
+     composer folds folded on both sides, so a save that went through
+     leaves nothing behind whichever box the teacher wrote a word in. */
+  const readNumbers = useMemo(
+    () => (v: unknown) => {
+      const read = readNumberSystem(v);
+      return read && composer && composer.tidy ? readNumberSystem(composer.tidy(read)) : read;
+    },
+    [composer],
+  );
+  const numbersDirty = useMemo(
+    () => held(draft, readNumbers) !== held(base, readNumbers),
+    [draft, base, readNumbers],
+  );
+  const clockDirty = useMemo(() => held(clock, readTimeSystem) !== held(times, readTimeSystem), [clock, times]);
   const dirty = numbersDirty || clockDirty;
 
   if (!composer) {
@@ -292,10 +341,15 @@ export function NumberSystemEditor({
 
   /* Whatever has changed, numbers and clock alike: a change made on one
      screen and not saved there is still a change, and Save is one
-     decision, not one per document. */
-  const save = async () => {
-    if (numbersDirty) await onSave("numbers", draft);
-    if (clockDirty && clock) await onSave("times", clock);
+     decision, not one per document. Whether all of it went through, so
+     that a teacher on their way out is only taken away from the Save
+     button once there is nothing left for it to do. */
+  const save = async (): Promise<boolean> => {
+    let ok = true;
+    if (numbersDirty) ok = !!(await onSave("numbers", draft)) && ok;
+    if (clockDirty && clock) ok = !!(await onSave("times", clock)) && ok;
+    setFailed(!ok);
+    return ok;
   };
 
   /*
@@ -327,7 +381,12 @@ export function NumberSystemEditor({
       onConfirm={() => {
         const go = leaving;
         setLeaving(null);
-        void save().then(go);
+        /* A save that did not go through stays where its Save is, with
+           what went wrong said above the boxes. Leaving anyway took the
+           changes to the main screen, which has no Save to keep them. */
+        void save().then((ok) => {
+          if (ok) go();
+        });
       }}
     />
   ) : null;
@@ -371,6 +430,11 @@ export function NumberSystemEditor({
         onKeep={(text, lat) => {
           setDraft((d) => withOverride(d, writing, text, lat));
           setWriting(null);
+          /* Written out from Check a number on the main screen, which has
+             no Save: it goes back to where the numbers written out by hand
+             are listed, and saved. Kept and taken back to the main screen,
+             it was a change there was no way to keep. */
+          if (!part && !fixing && !timing) setFixing(true);
         }}
         onClose={() => setWriting(null)}
       />
@@ -403,6 +467,9 @@ export function NumberSystemEditor({
       {busy ? "Saving…" : "Save"}
     </Button>
   );
+  const note = failed && dirty ? (
+    <Notice kind="error">{error || "Your changes were not saved. Press Save to try again."}</Notice>
+  ) : null;
 
   const open = part ? checks.find((c) => c.range.id === part) || null : null;
   const view = part === CONNECTING ? (
@@ -413,6 +480,7 @@ export function NumberSystemEditor({
       slots={connecting}
       render={(n) => composer.render(n, counted)}
       saveButton={saveButton}
+      note={note}
       onRecord={(slot, key) => setRecording({ slot, key })}
       onWrite={setWriting}
       onClose={leave(() => setPart(null))}
@@ -432,6 +500,7 @@ export function NumberSystemEditor({
       nouns={nounCards}
       decks={decks}
       saveButton={saveButton}
+      note={note}
       onRecord={(slot, key) => setRecording({ slot, key })}
       onWrite={setWriting}
       onDeckPart={onDeckPart}
@@ -443,12 +512,14 @@ export function NumberSystemEditor({
       draft={draft}
       render={(n) => composer.render(n, counted)}
       saveButton={saveButton}
+      note={note}
       onWrite={setWriting}
       onCheck={() => setTrying(true)}
       onClose={leave(() => setFixing(false))}
     />
   ) : timing ? (
     <Screen title="Telling the time" onBack={leave(() => setTiming(false))} action={saveButton}>
+      {note}
       <TimesTab
         lang={lang}
         numbers={draft}
@@ -477,7 +548,6 @@ export function NumberSystemEditor({
         homes={homes}
         labels={labels}
         twoWords={twoWords}
-        unsaved={dirty}
         connecting={
           connecting.length
             ? connecting.every((s) => s.optional || written(draft, s))
@@ -589,7 +659,7 @@ export function partStatus(
   return before ? `waiting on ${before.range.label}` : waitingOn(check.warnings);
 }
 
-function NumbersTab({ lang, draft, checks, homes, labels, twoWords, unsaved, connecting, time, onOpen, onTime, onFix, onCheck }: {
+function NumbersTab({ lang, draft, checks, homes, labels, twoWords, connecting, time, onOpen, onTime, onFix, onCheck }: {
   lang: Lang;
   draft: NumberSystem;
   checks: RangeCheck[];
@@ -597,9 +667,6 @@ function NumbersTab({ lang, draft, checks, homes, labels, twoWords, unsaved, con
   labels: Map<string, string>;
   /** Boxes that used to be two and still hold two different words. */
   twoWords: TwoWords[];
-  /** Whether anything is changed and not saved — which only a save that
-      did not go through leaves behind; see leave. */
-  unsaved: boolean;
   /** Where the connecting words stand, or null where the language has none. */
   connecting: string | null;
   /** Where telling the time stands, or null where the language has no clock. */
@@ -625,12 +692,6 @@ function NumbersTab({ lang, draft, checks, homes, labels, twoWords, unsaved, con
         and so on up. <b>Nothing here has to be finished</b> — whatever is written works, and
         each part says what it is still waiting for.
       </Help>
-
-      {unsaved ? (
-        <Notice kind="warn">
-          Some changes are not saved yet. Open the part you changed and press Save.
-        </Notice>
-      ) : null}
 
       {asking.length ? (
         <Notice kind="warn">
@@ -710,11 +771,13 @@ function NumbersTab({ lang, draft, checks, homes, labels, twoWords, unsaved, con
  * asked instead of what the app builds. So it is a screen of its own,
  * named for that, with the corrections already made on top.
  */
-function FixScreen({ lang, draft, render, saveButton, onWrite, onCheck, onClose }: {
+function FixScreen({ lang, draft, render, saveButton, note, onWrite, onCheck, onClose }: {
   lang: Lang;
   draft: NumberSystem;
   render: (n: number) => { text: string; warnings: { code: string; slot?: string }[] };
   saveButton: React.ReactNode;
+  /** What went wrong with the last save, if it did not go through. */
+  note?: React.ReactNode;
   onWrite: (key: string) => void;
   onCheck: () => void;
   onClose: () => void;
@@ -724,6 +787,7 @@ function FixScreen({ lang, draft, render, saveButton, onWrite, onCheck, onClose 
   const written = Object.entries(draft.overrides);
   return (
     <Screen title="Correct how a number is said" onBack={onClose} action={saveButton}>
+      {note}
       <Help>
         The app builds every number out of the words in the parts. Where it gets one wrong, tap
         it and write it the way it is said: students are asked your wording for that number, and
@@ -828,7 +892,7 @@ function SampleRows({ lang, draft, values, render, onWrite }: {
  * screen.
  */
 function PartScreen({
-  lang, draft, setDraft, check, checks, homes, slots, render, twoWords, onKeepOne, nouns, decks, saveButton,
+  lang, draft, setDraft, check, checks, homes, slots, render, twoWords, onKeepOne, nouns, decks, saveButton, note,
   onRecord, onWrite, onDeckPart, onClose,
 }: {
   lang: Lang;
@@ -848,6 +912,8 @@ function PartScreen({
   decks: PartDeck[];
   /** Save, for the top bar. */
   saveButton: React.ReactNode;
+  /** What went wrong with the last save, if it did not go through. */
+  note?: React.ReactNode;
   onRecord: (slot: string, key: FormKey) => void;
   onWrite: (key: string) => void;
   onDeckPart?: (deckId: string, rangeId: string, on: boolean) => void;
@@ -876,6 +942,7 @@ function PartScreen({
 
   return (
     <Screen title={range.label} onBack={onClose} action={saveButton} className="cardform">
+      {note}
       {/* First, as a card's editor puts them near the top: where this part
           goes decides whether anybody is ever asked it. */}
       <PartDecks range={range} decks={decks} onDeckPart={onDeckPart} />
@@ -950,19 +1017,22 @@ function written(draft: NumberSystem, slot: SlotSpec): boolean {
  * every language that has one joins a unit to a ten, a hundred and five,
  * and 1,525, which joins more than once where the language does.
  */
-function ConnectingScreen({ lang, draft, setDraft, slots, render, saveButton, onRecord, onWrite, onClose }: {
+function ConnectingScreen({ lang, draft, setDraft, slots, render, saveButton, note, onRecord, onWrite, onClose }: {
   lang: Lang;
   draft: NumberSystem;
   setDraft: (f: (d: NumberSystem) => NumberSystem) => void;
   slots: SlotSpec[];
   render: (n: number) => { text: string; warnings: { code: string; slot?: string }[] };
   saveButton: React.ReactNode;
+  /** What went wrong with the last save, if it did not go through. */
+  note?: React.ReactNode;
   onRecord: (slot: string, key: FormKey) => void;
   onWrite: (key: string) => void;
   onClose: () => void;
 }) {
   return (
     <Screen title="Connecting words" onBack={onClose} action={saveButton} className="cardform">
+      {note}
       <PartBlock
         title="Words"
         role={`The small words ${lang.name} puts between the pieces of a number, like "and" in two hundred and five. They are never asked on their own; every number that needs one is built with it.`}

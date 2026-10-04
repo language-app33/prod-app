@@ -4975,8 +4975,11 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
          teacher asked for a change that did not all happen. */
       if (lockedHits.current.size) snack(lockedNote(lockedHits.current), "warn");
       else if (done) snack(typeof done === "function" ? done(out) : done, "good");
+      /* What it made, for a caller that has to know whether it did. */
+      return out;
     } catch (e) {
       setError(API.explain(e));
+      return undefined;
     } finally {
       setBusy(false);
     }
@@ -5712,6 +5715,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         busy={busy}
         onClose={() => setNumbering(null)}
         onSave={saveSystem}
+        error={error}
         cards={cards as unknown as Record<string, unknown>[]}
         /* The decks in this language and the parts each holds — the same
            setting a deck's Numbers and pronouns screen writes, reached from

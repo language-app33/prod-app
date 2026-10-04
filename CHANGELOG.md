@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.335 — 4 October 2026
+
+**Saving in the number system sticks.**
+
+- After pressing Save on a part of the numbers, leaving it no longer asks
+  whether to save your changes. It did whenever a word had a space after
+  it, or a box had been filled in and emptied again, and for anyone whose
+  *Telling the time* had never been saved it did after every save.
+- The main number system screen no longer says "Some changes are not
+  saved yet. Open the part you changed and press Save."
+- If a save does not go through — no connection, say — you stay on the
+  screen you were on, with its Save button, and it says why. Before, you
+  were taken back to the main screen with the changes still unsaved.
+- A number written out from *Check a number* now takes you to *Correct
+  how a number is said*, where it can be saved, instead of back to the
+  main screen, which has no Save.
+
 ## 0.334 — 4 October 2026
 
 **300 to 900 have word boxes of their own.**
