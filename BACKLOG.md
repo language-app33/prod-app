@@ -51,16 +51,6 @@ asking for either to be thrown away. A learner's schedule on one has
 already been handed to the card that replaces it. One release from now they
 can go, with their recordings kept as clips the system points at.
 
-## Counting the nouns a teacher already wrote
-
-The counting exercise draws its nouns from a short list written in the
-number system rather than off the cards. What blocked that was the axis:
-no card could say a word was a pair. It can since 0.207 — a noun's
-accepted answer may be marked dual, and an adjective beside it takes the
-right form — so what is left is the reading. The curated list then becomes
-the fallback rather than the source, and a counting question asks about
-words the learner is already being taught.
-
 ## A transliteration a number can be built out of
 
 A word in a system may carry a transliteration per face, and the composer

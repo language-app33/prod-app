@@ -32,14 +32,16 @@ import type { Item, Form, LangId, Millis, Parked } from "../types.ts";
 import type {
   Ask,
   Composer,
+  CountedNoun,
   FormKey,
   NumberSystem,
   Range,
   TimeComposer,
   TimeSystem,
+  Token,
 } from "./types.ts";
-import { askFor, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
-import { SPLIT_FROM } from "./types.ts";
+import { askFor, countable, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
+import { NUMBER_CEILING, SPLIT_FROM, partsNow } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
 const safe = (s: string) => String(s).replace(/\|/g, "~");
@@ -98,9 +100,27 @@ interface Made {
   faces: { key: FormKey; text: string; label: string; lat?: string; audio?: string[] }[];
   en: string;
   note?: string;
+  /** The number in the language's own figures, where it has them. */
+  numeral?: string;
   tag: string;
   now: Millis;
 }
+
+/**
+ * The number a box or a written-out number stands for, read off what it is
+ * called — "3", "1,000", or an override's "300|construct.f" — and null for
+ * a box that is not one number, like *hundred* or *and*.
+ */
+export function figureOf(label: string): number | null {
+  const plain = String(label || "").split("|")[0].trim();
+  return /^\d{1,3}(,\d{3})*$|^\d+$/.test(plain) ? Number(plain.replace(/,/g, "")) : null;
+}
+
+/** That number in the pack's own figures, or "" where it has none. */
+const numeralOf = (label: string, write?: ((n: number) => string) | null): string => {
+  const n = figureOf(label);
+  return write && n != null ? String(write(n) || "") : "";
+};
 
 /**
  * A card from one slot's words.
@@ -133,6 +153,7 @@ function cardOf(made: Made): Item {
     tags: [made.tag],
     forms,
     ...(made.note ? { note: made.note } : null),
+    ...(made.numeral ? { numeral: made.numeral } : null),
     /* Where it came from, which is what a refresh matches on and what the
        card's own screen says instead of offering an edit. */
     source: { systemId: made.systemId, slot: made.slot },
@@ -160,9 +181,12 @@ export interface GenerateOpts {
   /** What the cards are filed under in a learner's list. */
   tag: string;
   now: Millis;
+  /** How the language writes a number in its own figures, where it does —
+      the pack's `numerals`. */
+  numerals?: ((n: number) => string) | null;
 }
 
-export function generate({ composer, sys, timeComposer, timeSys, tag, now }: GenerateOpts): Generated {
+export function generate({ composer, sys, timeComposer, timeSys, tag, now, numerals }: GenerateOpts): Generated {
   if (!composer || !sys) return { items: [], checks: [] };
   const lang = sys.languageId;
   const items: Item[] = [];
@@ -176,7 +200,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
       .map((key) => ({
         key,
         text: String(lex.forms[key] || "").trim(),
-        label: labelForFace(key),
+        label: (spec.faceLabels && spec.faceLabels[key]) || labelForFace(key),
         lat: (lex.lat || {})[key],
         audio: (lex.audio || {})[key],
       }))
@@ -191,6 +215,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
         faces,
         en: spec.label,
         note: spec.hint,
+        numeral: numeralOf(spec.label, numerals),
         tag,
         now,
       }),
@@ -219,6 +244,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
         ],
         en: digits,
         note: face ? labelForFace(face as FormKey) : undefined,
+        numeral: numeralOf(digits, numerals),
         tag,
         now,
       }),
@@ -263,6 +289,24 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
           slot: `min.${mark}`,
           faces: [{ key: "standalone", text: expr.text, label: "", lat: expr.lat, audio: expr.audio }],
           en: expr.en || `${mark} ${expr.refHour === "next" ? "to" : "past"}`,
+          tag,
+          now,
+        }),
+      );
+    }
+    /* And a time written out by hand — noon, midnight — for the reason a
+       number written out is a card: it is a thing to learn, and it was
+       not one, so nothing about reading it was ever kept. */
+    for (const [key, over] of Object.entries(timeSys.overrides || {})) {
+      const [clock] = key.split("|");
+      items.push(
+        cardOf({
+          id: overrideId(timeSys.id, key),
+          lang,
+          systemId: timeSys.id,
+          slot: `override:${key}`,
+          faces: [{ key: "standalone", text: over.text, label: "", lat: over.lat, audio: over.audio }],
+          en: clock,
           tag,
           now,
         }),
@@ -436,8 +480,10 @@ export function handOn(fresh: Item[], held: Item[], sys: NumberSystem): Item[] {
  * What a learner had earned on a range that has since been split, handed
  * to each of its parts.
  *
- * Counting things was one range and is three (see COUNTING_RANGES). The
- * parts have ids of their own, so without this a learner who could count
+ * Counting things was one range and is three (see COUNTING_RANGES), and
+ * 0 to 10 and 11 to 99 are 0 to 9, 10 to 19 and 20 to 99 (see
+ * NUMBER_RANGES, whose `was` names the old part). The parts have ids of
+ * their own, so without this a learner who could count
  * books would start each part from nothing. Same rules as handOn: only
  * onto a part this device has never held, from the old range whether it
  * is still here or set aside in the drawer, and nothing taken away.
@@ -451,7 +497,7 @@ export function handOnSplit(
   const byId = new Map(held.map((i) => [i.id, i]));
   return fresh.map((item) => {
     const range = item.range;
-    const was = range ? SPLIT_FROM[range.id] : "";
+    const was = range ? range.was || SPLIT_FROM[range.id] || "" : "";
     if (!was || byId.has(item.id)) return item;
     const oldId = rangeId(systemId, was);
     const old = byId.get(oldId);
@@ -476,7 +522,7 @@ export function handOnSplit(
  * that decides whether the range is open, with a few hundred draws beside
  * it, which reach every word a thousand to a million is built of.
  */
-function askingsOf(range: Range, sys: NumberSystem): Ask[] {
+function askingsOf(range: Range, sys: NumberSystem, composer: Composer | null): Ask[] {
   if (range.kind === "time") {
     const minutes = range.marks && range.marks.length
       ? range.marks
@@ -489,11 +535,11 @@ function askingsOf(range: Range, sys: NumberSystem): Ask[] {
     }
     return out;
   }
-  const nouns = range.counted ? (sys.nouns || []).map((n) => n.id) : [undefined];
+  const nouns = range.counted ? countable(range, composer, sys).map((n) => n.id) : [undefined];
   const values = range.to - range.from <= 1000
     ? Array.from({ length: range.to - range.from + 1 }, (_, i) => range.from + i)
     : probeOf(range).concat(
-        Array.from({ length: 300 }, (_, i) => askFor(range, `words ${i}`, sys).value),
+        Array.from({ length: 300 }, (_, i) => askFor(range, `words ${i}`, sys, composer).value),
       );
   return values.flatMap((value) =>
     nouns.map((nounId) => ({ rangeId: range.id, kind: "numbers" as const, value, ...(nounId ? { nounId } : null) })),
@@ -516,52 +562,113 @@ export function wordsOfRange(
   ids: Set<string>,
 ): Set<string> {
   const out = new Set<string>();
-  for (const ask of askingsOf(range, set.sys)) for (const id of wordsOfAsk(ask, set, ids)) out.add(id);
+  for (const { words } of askingsWithWords(range, set)) {
+    for (const id of words) if (ids.has(id)) out.add(id);
+  }
   return out;
 }
 
 /**
- * The cards one asking is said with: *forty* and *seven* for 47.
+ * The cards one token of a rendering could be written on. A slot names a
+ * box and not a system, and a time is said partly in the clock's words
+ * and partly in the numbers', so a slot is every card it could be and the
+ * caller keeps the ones it holds.
+ */
+export function cardsOfToken(t: Token, numbersId: string, timeId: string): string[] {
+  /* A number written out, or a time: which one is a fact about the
+     document, so both are named and the caller keeps the one it holds. */
+  if (t.override) return [overrideId(numbersId, t.override), timeId ? overrideId(timeId, t.override) : ""].filter(Boolean);
+  if (!t.slot) return [];
+  return [
+    componentId(numbersId, t.slot),
+    timeId ? componentId(timeId, t.slot) : "",
+    /* A minute expression is written `minute.15` in a rendering and made
+       as `min.15` — see generate. */
+    timeId && t.slot.startsWith("minute.") ? componentId(timeId, `min.${t.slot.slice(7)}`) : "",
+  ].filter(Boolean);
+}
+
+/*
+ * Remembered per system: which words each asking of a range stands on is
+ * a fact about the teacher's document, which is a new object whenever it
+ * changes. A hundred to 999 is nine hundred renderings, and a session
+ * asks for them once per question dealt.
+ */
+const ASKINGS: WeakMap<NumberSystem, Map<string, { ask: Ask; words: string[] }[]>> = new WeakMap();
+
+/**
+ * Every asking of a range worth reading, with the cards each one's words
+ * are written on — see askingsOf for which askings, and cardsOfToken for
+ * why a word can be more than one card. An asking the system cannot say
+ * whole is left out: it is never dealt, so it brings no word in.
+ */
+export function askingsWithWords(
+  range: Range,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+): { ask: Ask; words: string[] }[] {
+  const key = `${range.id}|${set.timeSys ? set.timeSys.id : ""}|${set.timeSys ? set.timeSys.rev : ""}`;
+  const mine = ASKINGS.get(set.sys) || new Map();
+  ASKINGS.set(set.sys, mine);
+  const had = mine.get(key);
+  if (had) return had;
+  const numbersId = set.sys.id;
+  const timeId = set.timeSys ? set.timeSys.id : "";
+  const out: { ask: Ask; words: string[] }[] = [];
+  for (const ask of askingsOf(range, set.sys, set.composer)) {
+    const got = renderAsk(ask, set.composer, set.sys, set.timeComposer, set.timeSys);
+    if (!got.text) continue;
+    out.push({ ask, words: [...new Set(got.tokens.flatMap((t) => cardsOfToken(t, numbersId, timeId)))] });
+  }
+  mine.set(key, out);
+  return out;
+}
+
+/**
+ * An asking that brings in a word the learner has not kept yet, or null
+ * where there is none to bring in.
  *
- * What a range brings into a deck is the union of these over its probe —
- * see wordsOfRange — and what a learner has to recognise before 47 may be
- * put to them is this set for 47 alone. One walk for both, so a word that
- * is filed with a range is the word the range then waits on.
+ * Drawn at random, a part leaves some of its words unasked for weeks:
+ * *seventy* is in one number in nine of 11 to 99 and *and* is in nearly
+ * all of them. So the word comes first — one of the ones not yet learnt,
+ * each as likely as the next — and then a number it stands in. That is
+ * what makes every word of a part come up, rather than the ones the
+ * number line happens to be thick with.
+ *
+ * Seeded as `askFor` is, so a missed question comes back the same while
+ * the words still waiting are the same ones.
+ */
+export function steeredAsk(
+  range: Range,
+  seed: string,
+  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
+  waiting: Set<string>,
+  /* Only these askings — the ones whose words are recognised, see
+     askKnown. Every asking of the range when left out. */
+  among?: { ask: Ask; words: string[] }[],
+): Ask | null {
+  if (!waiting.size) return null;
+  const all = among || askingsWithWords(range, set);
+  const reached = new Set(all.flatMap((a) => a.words));
+  const targets = [...waiting].filter((id) => reached.has(id)).sort();
+  if (!targets.length) return null;
+  const rnd = seeded(`${range.id} ${seed} steer`);
+  const target = targets[Math.floor(rnd() * targets.length)];
+  const holding = all.filter((a) => a.words.includes(target));
+  return holding[Math.floor(rnd() * holding.length)].ask;
+}
+
+/**
+ * The cards one asking is said with, among those `ids` holds: *forty* and
+ * *seven* for 47.
  */
 export function wordsOfAsk(
   ask: Ask,
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
   ids: Set<string>,
 ): Set<string> {
-  return readAsk(ask, set, ids).words;
-}
-
-/* The cards an asking is said with, and whether any of it is built from
-   the boxes at all rather than written out whole. */
-function readAsk(
-  ask: Ask,
-  set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
-  ids: Set<string>,
-): { words: Set<string>; built: boolean } {
-  const out = new Set<string>();
-  const numbersId = set.sys.id;
-  const timeId = set.timeSys ? set.timeSys.id : "";
   const got = renderAsk(ask, set.composer, set.sys, set.timeComposer, set.timeSys);
-  for (const t of got.tokens) {
-    const candidates = t.override
-      ? [overrideId(numbersId, t.override)]
-      : t.slot
-      ? [
-          componentId(numbersId, t.slot),
-          timeId ? componentId(timeId, t.slot) : "",
-          /* A minute expression is written `minute.15` in a rendering and
-             made as `min.15` — see generate. */
-          timeId && t.slot.startsWith("minute.") ? componentId(timeId, `min.${t.slot.slice(7)}`) : "",
-        ]
-      : [];
-    for (const id of candidates) if (id && ids.has(id)) out.add(id);
-  }
-  return { words: out, built: got.tokens.some((t) => !!t.slot) };
+  const timeId = set.timeSys ? set.timeSys.id : "";
+  return new Set(got.tokens.flatMap((t) => cardsOfToken(t, set.sys.id, timeId)).filter((id) => ids.has(id)));
 }
 
 /**
@@ -575,37 +682,38 @@ function readAsk(
  * number rather than range by range: 47 can be asked the day *forty* and
  * *seven* are recognised, whether or not *ninety* has been met.
  *
- * `knows` says whether a card is recognised; what that means is the
- * scheduler's, and the caller's to ask. Read over the same askings
- * wordsOfRange files a range's words from, so a range nothing of which
- * can be asked yet is one this comes back empty for.
+ * `ids` is the cards the learner holds and `knows` whether one is
+ * recognised; what that means is the scheduler's, and the caller's to
+ * ask. A word not held is never waited on: nothing could recognise it.
+ *
+ * An asking none of whose words is held — noon written out whole by a
+ * teacher, which no learner has a card for — has nothing to wait on, and
+ * would otherwise open the range before a single word of it was known. It
+ * comes in with the rest once one asking built of held words can, or at
+ * once where the range holds none at all.
  */
 export function askingsKnown(
   range: Range,
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
   ids: Set<string>,
   knows: (id: string) => boolean,
-): Ask[] {
-  const fit = askingsOf(range, set.sys)
-    .map((ask) => ({ ask, ...readAsk(ask, set, ids) }))
-    .filter((r) => [...r.words].every(knows));
-  /* An asking written out whole — noon as a teacher wrote it for the
-     clock, which no learner has a card for — is built of no words, so
-     has nothing to wait on, and would otherwise open the range before a
-     single word of it was known. It comes in with the rest, once one
-     asking built of words can. */
-  return fit.some((r) => r.built) ? fit.map((r) => r.ask) : [];
+): { ask: Ask; words: string[] }[] {
+  const all = askingsWithWords(range, set).map((a) => ({ ask: a.ask, words: a.words.filter((id) => ids.has(id)) }));
+  const fit = all.filter((a) => a.words.every(knows));
+  const opens = fit.some((a) => a.words.length) || !all.some((a) => a.words.length);
+  return opens ? fit : [];
 }
 
 /**
  * One asking of a range, drawn from what the learner can be asked.
  *
- * The plain draw first — `askFor` on the same seed — and kept if every
- * word in it is recognised, so a learner who knows them all is asked
- * exactly what they would have been, from the whole of the range. Only
- * when it is not does the draw fall back to `known`, the askings
- * `askingsKnown` found, picked on the same seed: a missed question still
- * comes back as the same number, and a right one still moves on.
+ * Towards a word the learner has not kept yet, as steeredAsk always did,
+ * but only among `known` — the askings `askingsKnown` found. Failing
+ * that, the plain draw on the same seed, kept if every word in it is
+ * recognised, so a learner who knows them all is asked from the whole of
+ * the range; and failing that, one of `known` picked on the seed. A
+ * missed question still comes back as the same number, and a right one
+ * still moves on.
  *
  * Null when there is nothing to ask yet — `known` empty, so the range has
  * not opened.
@@ -616,12 +724,15 @@ export function askKnown(
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
   ids: Set<string>,
   knows: (id: string) => boolean,
-  known: Ask[],
+  known: { ask: Ask; words: string[] }[],
+  waiting: Set<string>,
 ): Ask | null {
   if (!known.length) return null;
-  const drawn = askFor(range, seed, set.sys);
+  const steered = steeredAsk(range, seed, set, waiting, known);
+  if (steered) return steered;
+  const drawn = askFor(range, seed, set.sys, set.composer);
   if ([...wordsOfAsk(drawn, set, ids)].every(knows)) return drawn;
-  return known[Math.floor(seeded(`${range.id} ${seed} known`)() * known.length)];
+  return known[Math.floor(seeded(`${range.id} ${seed} known`)() * known.length)].ask;
 }
 
 /** A deck as far as filing numbers goes: its name, and the parts it holds. */
@@ -650,7 +761,9 @@ export function fileIntoDecks(
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
   decks: DeckParts[],
 ): Item[] {
-  const holding = decks.filter((d) => d.parts && d.parts.length);
+  const holding = decks
+    .filter((d) => d.parts && d.parts.length)
+    .map((d) => ({ ...d, parts: partsNow(d.parts) }));
   if (!holding.length) return [];
   const ids = new Set(items.map((it) => it.id));
   const tags = new Map<string, Set<string>>();
@@ -671,5 +784,205 @@ export function fileIntoDecks(
   }
   return items
     .filter((it) => tags.has(it.id))
-    .map((it) => ({ ...it, tags: [...new Set(it.tags.concat([...(tags.get(it.id) as Set<string>)]))] }));
+    .map((it) => ({
+      ...it,
+      tags: [...new Set(it.tags.concat([...(tags.get(it.id) as Set<string>)]))],
+      /* And the words a part is made of, on the part itself: what the
+         learner's progress on numbers is read against — a part is learnt
+         only once every one of them is — and what its questions are
+         steered towards. See partsOf. */
+      ...(it.range && words.has(it.range.id) ? { parts: [...(words.get(it.range.id) as Set<string>)] } : null),
+    }));
+}
+
+/* ---- which part a box belongs to ---- */
+
+/*
+ * Remembered per composer: what a box belongs to is a fact about how the
+ * language builds its numbers, not about what any teacher has written.
+ */
+const HOMES: WeakMap<Composer, Map<string, string>> = new WeakMap();
+
+/**
+ * The part of the numbers each box is first needed by — one to ten under
+ * 0 to 10, the tens and the joining word under 11 to 99, and so on.
+ *
+ * Worked out rather than declared, by building every number of each part
+ * out of a stand-in system with every box filled — each with its own slot
+ * name, which is not a word of anything — and reading which boxes each
+ * number's tokens came from. An empty system would not do: a composer
+ * stops reaching for words at the first one missing. So each language gets the
+ * split its own rules make — Huế builds 11 to 99 out of the words for one
+ * to ten and the forms they take in company, so its 11 to 99 has nothing
+ * of its own — and a composer that changes how it builds a number moves
+ * its boxes with it.
+ *
+ * Parts are taken in the order the composer lists them, and the counting
+ * parts are left out: they count with the words the others already hold.
+ * A box no part reaches is filed with the last.
+ */
+export function homesOf(composer: Composer): Map<string, string> {
+  const had = HOMES.get(composer);
+  if (had) return had;
+  const homes: Map<string, string> = new Map();
+  const lexemes: NumberSystem["lexemes"] = {};
+  for (const spec of composer.requiredSlots()) {
+    lexemes[spec.slot] = { slot: spec.slot, forms: Object.fromEntries(spec.formKeys.map((k) => [k, spec.slot])) };
+  }
+  const empty: NumberSystem = {
+    id: "",
+    owner: "",
+    languageId: composer.id,
+    composerVersion: composer.version,
+    lexemes,
+    overrides: {},
+    nouns: [],
+    audioPolicy: "components",
+    rev: 0,
+    created: 0,
+    updated: 0,
+  };
+  const parts = composer.ranges().filter((r) => r.kind === "numbers" && !r.counted);
+  for (const range of parts) {
+    const values = range.to - range.from <= 1000
+      ? Array.from({ length: range.to - range.from + 1 }, (_, i) => range.from + i)
+      : probeOf(range).concat(Array.from({ length: 300 }, (_, i) => askFor(range, `homes ${i}`, empty).value));
+    for (const n of values) {
+      const got = composer.render(n, empty);
+      for (const w of got.warnings) if (w.slot && !homes.has(w.slot)) homes.set(w.slot, range.id);
+      for (const t of got.tokens) if (t.slot && !homes.has(t.slot)) homes.set(t.slot, range.id);
+    }
+  }
+  const last = parts.length ? parts[parts.length - 1].id : "";
+  for (const spec of composer.requiredSlots()) if (!homes.has(spec.slot) && last) homes.set(spec.slot, last);
+  HOMES.set(composer, homes);
+  return homes;
+}
+
+/* ---- numbers standing in sentences ---- */
+
+/** How many fillers a part offers one blank. The whole part where it is
+    this small — 0 to 10 is eleven — and an even spread where it is not. */
+export const FILLERS_PER_PART = 12;
+
+export const fillerId = (systemId: string, rangeId: string, value: number, nounId = "") =>
+  `sys:${systemId}:fill:${rangeId}:${value}${nounId ? `:${safe(nounId)}` : ""}`;
+
+/* The language's own names for a noun's three numbers, as a card stores
+   them — what an adjective beside a counted phrase agrees with. */
+const NUMBER_OF: Record<string, string> = { sg: "singular", dual: "dual", pl: "plural" };
+
+/** The tag every plain part answers to, and the one every counting part
+    does: `{{number}}` is any number at all, `{{count}}` any number of
+    things. */
+export const NUMBER_TAG = "number";
+export const COUNT_TAG = "count";
+
+/**
+ * The blanks a part fills: its own tag, and the general one.
+ *
+ * Fixed rather than chosen, and read off the part's id, so a teacher can
+ * write `{{0-10}}` or `{{number}}` into a sentence card and know what
+ * stands there without setting anything up — and so the names are the same
+ * for every teacher and every language. Counting parts answer to `count`
+ * rather than `number`: a sentence that says *I have {{number}}* wants
+ * *47*, and handing it *3 books* half the time would make a different
+ * sentence of it.
+ */
+export function partTags(range: Range): string[] {
+  const tag = (id: string) => id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
+  /* And the tag of the part it was split out of, so a sentence written
+     with `{{11-99}}` before the split is still filled — from 10 to 19
+     and 20 to 99 together. */
+  return [tag(range.id), ...(range.was ? [tag(range.was)] : []), range.counted ? COUNT_TAG : NUMBER_TAG];
+}
+
+/**
+ * The numbers each part puts into the sentences that ask for it, as cards
+ * a blank can be filled from.
+ *
+ * A part answers to its tags — see partTags — and a sentence with one of
+ * them in it is met with a number from that part, written out in full by
+ * the composer: *I am {{0-10}}* as *I am 7*. A
+ * counting part fills its blank with a number and a thing counted, both
+ * agreeing — *I have {{things}}* as *I have 3 books*, with the plural, the
+ * dual or the singular the number calls for — and says which of those it
+ * is, so an adjective standing after it in the sentence agrees too.
+ *
+ * They are made to be borrowed, never to be asked: in no deck, not
+ * practised on their own, and kept out of `{{word}}`. That makes them what
+ * a name is to a sentence — met through the sentence, at its bottom level
+ * first, and climbing with it (see valuesAt). Which numbers is the same on
+ * every device for the same system and the same nouns, so the sentence a
+ * teacher approves is the sentence a learner is asked.
+ *
+ * Only for a part that can be said whole. A part that cannot fills
+ * nothing, and its sentences wait for it the way a sentence waits for a
+ * name nobody has written.
+ */
+export function fillerCards(composer: Composer | null, sys: NumberSystem | null, now: Millis = 0): Item[] {
+  if (!composer || !sys) return [];
+  const out: Item[] = [];
+  const open = new Set(rangeChecks(composer, sys).filter((c) => c.open).map((c) => c.range.id));
+  for (const range of composer.ranges()) {
+    if (range.kind !== "numbers" || !open.has(range.id)) continue;
+    const names = partTags(range);
+    const nouns = range.counted ? countable(range, composer, sys) : [];
+    /* Every pairing the part could make, then an even spread of them —
+       drawn once from the system and the part, so the same on every
+       device. */
+    const span = Math.min(range.to, NUMBER_CEILING) - range.from + 1;
+    const values = span <= FILLERS_PER_PART * 4
+      ? Array.from({ length: span }, (_, i) => range.from + i)
+      : [...new Set(Array.from({ length: FILLERS_PER_PART * 2 }, (_, i) => askFor(range, `${sys.id} fill ${i}`, sys).value))];
+    const pairs = range.counted
+      ? values.flatMap((value) => nouns.map((noun) => ({ value, noun })))
+      : values.map((value) => ({ value, noun: undefined as CountedNoun | undefined }));
+    const picked = spread(pairs, FILLERS_PER_PART, `${sys.id} ${range.id}`);
+    for (const { value, noun } of picked) {
+      const said = renderAsk(
+        { rangeId: range.id, kind: "numbers", value, ...(noun ? { nounId: noun.id } : null) },
+        composer,
+        sys,
+      );
+      if (!said.text) continue;
+      const id = fillerId(sys.id, range.id, value, noun ? noun.id : "");
+      const grammar = noun
+        ? {
+            number: NUMBER_OF[said.nounForm || "pl"] || "plural",
+            gender: noun.gender === "f" ? "feminine" : "masculine",
+            ...(noun.human ? { human: noun.human } : null),
+          }
+        : null;
+      out.push({
+        id,
+        lang: sys.languageId,
+        /* A phrase, so `{{word}}` — any word in the language — does not
+           take it. See kindOf. */
+        kind: "phrase",
+        tags: [],
+        fills: names,
+        forms: [{ id: `${id}-f0`, ar: said.text, en: said.en || said.digits, lat: "", ...grammar, s: {} }],
+        source: { systemId: sys.id, slot: `fill:${range.id}` },
+        locked: true,
+        drill: false,
+        created: now,
+        updated: now,
+      } as Item);
+    }
+  }
+  return out;
+}
+
+/*
+ * At most `count` of a list, spread over it rather than taken from the
+ * front — so 11 to 99 offers numbers from all of it, and a counting part
+ * offers every noun before any noun twice. The same list for the same
+ * seed.
+ */
+function spread<T>(list: T[], count: number, seed: string): T[] {
+  if (list.length <= count) return list;
+  const step = list.length / count;
+  const start = Math.floor(seeded(seed)() * step);
+  return Array.from({ length: count }, (_, i) => list[Math.min(list.length - 1, Math.floor(start + i * step))]);
 }

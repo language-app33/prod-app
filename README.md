@@ -899,18 +899,22 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
     filled question and a report carries it as `sentence`; `my-reports`
     hands a teacher the reports on cards they can change, where one tap
     strikes it. `src/review-sheet.tsx` is the three screens.
-  - **Numbers and times are signed off, not read.** They run to millions,
-    so a teacher signs off the sample on the numbers screen, and students
-    are sent the version last signed (`sign-system`, kept under
-    `syssigned:`); an edit waits for the next sign-off. A system edited
-    for the first time since this existed keeps what students had.
+  - **Numbers and times are sent as saved.** They run to millions, so
+    nobody reads them sentence by sentence: students are sent the version
+    recorded under `syssigned:`, and since 0.325 every save records its
+    own version there (`save-system`). There was a separate Publish step
+    (`sign-system`, still answered for old builds); it was one decision
+    split over two buttons, and the second was the one forgotten.
 - **A number is built, not memorised, and so is a time.** A learner who
   knows *forty* and *seven* knows *forty-seven*, so numbers are not cards
   one at a time. A language's numbers are **one document** — the words it
   builds them out of, each with the faces it wears — written on one screen
-  and never a card: the teacher fills the boxes in from **Teaching →
-  Cards**, the `#` in the list's toolbar, and a **Time** tab beside them
-  holds the clock. A language and not a deck, because the words are the
+  and never a card: the teacher reaches it from **Teaching → Cards**, the
+  `#` in the list's toolbar. Its first screen only lists — the parts of
+  the numbers (0 to 9, 10 to 19, 20 to 99, 100 to 999, 1,000 and over,
+  and counting things), the clock, and the numbers written out by hand —
+  and each opens on a screen of its own, which is where it is edited and
+  saved. A language and not a deck, because the words are the
   language's.
 
   **The lexicon is data; the composition is code.** There is no rule
@@ -951,9 +955,10 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   recognised — its meaning right twice running, level two of the word's
   own ladder — and number by number rather than range by range: 47 the
   day *forty* and *seven* are, whether or not *ninety* has been met.
-  Until any can be, a session asks the words alone. A word that could
-  never be recognised (not held, not practised, nothing to ask) holds
-  nothing back. `askingsKnown` and `askKnown` in
+  Until any can be, a session asks the words alone. Among the numbers
+  that can be asked, the draw still leans towards a word not yet learnt
+  (`steeredAsk`). A word that could never be recognised (not held, not
+  practised, nothing to ask) holds nothing back. `askingsKnown` and `askKnown` in
   `src/numbers/generate.ts`, read through `knownNumbers` in the app.
 
   **A session of numbers alone keeps to them.** Every card in it from a
