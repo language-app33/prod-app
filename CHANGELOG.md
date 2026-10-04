@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 4 October 2026
+
+**Custom practice on numbers and times shows the number again.**
+
+- A practice session built by hand — every mode except Regular — and the
+  session of what is going wrong could ask "Read the number, then write
+  it in figures" with nothing to read underneath: the number was never
+  picked. Every number and time question in those sessions now has one,
+  just as in an everyday session, and a question that cannot be given one
+  is left out rather than shown empty.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**

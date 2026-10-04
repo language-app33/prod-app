@@ -50,7 +50,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { buildSession, installIndexes } = await import(path.join(out, "trainer.js"));
+const { buildSession, buildManualSession, buildWeakSession, installIndexes } = await import(path.join(out, "trainer.js"));
 const { generate, isRangeSkill } = await import(path.join(here, "..", "src", "numbers", "generate.ts"));
 const { arComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.ts"));
 const { arTimeComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.time.ts"));
@@ -247,4 +247,56 @@ test("every exercise a range is asked has an ordinary key to credit its words un
        whole reason the mapping exists. */
     assert.ok(!NUMBER_EQUIVALENT[under], `${type} maps to another range key`);
   }
+});
+
+/* ------------------------------------------------------------------
+   Built by hand, and the weak-skills sitting
+   ------------------------------------------------------------------ */
+
+/** Every question in a session about a range carries a number that can be said. */
+const allSaid = (/** @type {any[]} */ exercises, /** @type {string} */ how) => {
+  const ranged = exercises.filter((/** @type {any} */ e) => isRangeSkill({ id: e.id }));
+  assert.ok(ranged.length > 0, `${how}: no range was asked at all, so this proves nothing`);
+  for (const ex of ranged) {
+    const ask = must(ex.ask, `${how}: ${ex.id} ${ex.type} was dealt with nothing to ask`);
+    const said = renderAsk(ask, arComposer, SYS, arTimeComposer, TIME);
+    assert.ok(said.text && said.text.trim(), `${how}: ${ex.id} ${ex.type} said nothing`);
+  }
+};
+
+test("a session built by hand draws a number for every range it asks, in every mode", () => {
+  /*
+   * The custom practice screen was the one door that never drew one: its
+   * modes other than Regular took the skills like any card and dealt them
+   * bare, and the learner met "Read the number" over an empty space.
+   */
+  const items = climbed(["num2fig", "time2fig"]);
+  installIndexes(items, settings);
+  const ids = items.map((/** @type {any} */ i) => i.id);
+  for (const mode of ["regular", "ultimate", "started"]) {
+    const got = buildManualSession({ items, settings, ids, mode, count: 45, systems: SETS });
+    assert.equal(got.reason, null, `${mode}: ${got.reason}`);
+    allSaid(got.exercises, mode);
+  }
+});
+
+test("and so does a sitting of what is going wrong", () => {
+  const missed = { ...solid(), phase: "learning", wrong: 2, hist: [0, 0], due: Date.now() - 1000 };
+  const items = skills().map((/** @type {any} */ it) => ({
+    ...it,
+    forms: [{ ...it.forms[0], s: { num2fig: missed, time2fig: missed } }],
+  }));
+  installIndexes(items, settings);
+  const got = buildWeakSession({ items, settings, inDeck: () => true, systems: SETS });
+  assert.equal(got.reason, null, got.reason || "");
+  allSaid(got.exercises, "weak");
+});
+
+test("a range whose system is not on this device is not asked by hand either", () => {
+  const items = climbed(["num2fig", "time2fig"]);
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((/** @type {any} */ i) => i.id), mode: "ultimate", systems: [],
+  });
+  assert.equal(got.exercises.length, 0, "a range was dealt with no system to say it");
 });

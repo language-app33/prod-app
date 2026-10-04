@@ -3270,6 +3270,29 @@ function drawRange(
   return options.length >= PICK_OPTIONS - 1 ? { ask, options } : { ask };
 }
 
+/**
+ * The same drawing, over a queue somebody else built.
+ *
+ * buildSession draws as it deals; the session built by hand and the
+ * weak-skills sitting plan their questions their own way and come through
+ * here afterwards, so a range they ask is never put on screen with nothing
+ * to read. One that cannot be drawn — no composer for its language — is
+ * left out rather than asked bare.
+ */
+function drawRanges(exercises: Question[], items: Item[], sets: SystemSet[]): Question[] {
+  const out: Question[] = [];
+  for (const ex of exercises) {
+    const item = items.find((i) => i.id === ex.id);
+    if (!item || !item.range || ex.ask) {
+      out.push(ex);
+      continue;
+    }
+    const drawn = drawRange(item, item.forms[0], ex.type, sets);
+    if (drawn.ask) out.push({ ...ex, ...drawn });
+  }
+  return out;
+}
+
 export function buildSession({
   items,
   settings,
@@ -3932,7 +3955,10 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
      not a question — which a dealt session has always honoured, through
      isDrillable, and this one never did: picking the deck a frame lives in
      drilled its names as cards in their own right. */
-  const pool = items.filter((i) => chosen.has(i.id) && i.drill !== false);
+  const sets = systems || [];
+  const pool = items.filter(
+    (i) => chosen.has(i.id) && i.drill !== false && (!isRangeSkill(i) || systemFor(i, sets)),
+  );
   const plans: Question[] = [];
   const learnt = [];
   /* What the mode allows of what the form supports, and of that, the
@@ -4013,8 +4039,12 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
      then space the types out. Ultimate ignores the length: it runs until
      everything has gone right at least once. */
   const ordered = varyTypes(
-    withGrids(shuffle(plans), items, settings, (unit, queued) =>
-      shuffle(usableFor(unit)).find((t) => t !== "match" && !queued.has(t)) || null
+    drawRanges(
+      withGrids(shuffle(plans), items, settings, (unit, queued) =>
+        shuffle(usableFor(unit)).find((t) => t !== "match" && !queued.has(t)) || null
+      ),
+      items,
+      sets,
     )
   );
   const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, Math.max(4, count || 0));
@@ -4494,13 +4524,18 @@ export function isWeak(it: Item, settings: Settings): boolean {
   );
 }
 
-export function buildWeakSession({ items, settings, inDeck, budget: budgetIn }: {
+export function buildWeakSession({ items, settings, inDeck, budget: budgetIn, systems }: {
   items: Item[];
   settings: Settings;
   inDeck: (it: Item) => boolean;
   budget?: number;
+  /** As buildSession takes them: a range is asked about a number drawn here. */
+  systems?: SystemSet[];
 }) {
-  const pool = items.filter((it) => inDeck(it) && isDrillable(it, settings));
+  const sets = systems || [];
+  const pool = items.filter(
+    (it) => inDeck(it) && isDrillable(it, settings) && (!isRangeSkill(it) || systemFor(it, sets)),
+  );
   if (!pool.length) return { exercises: [], reason: "none-drillable" };
 
   const budget = Math.max(4, budgetIn || SESSION_SIZE);
@@ -4557,8 +4592,12 @@ export function buildWeakSession({ items, settings, inDeck, budget: budgetIn }: 
   /* The grids, dealt, and the same card kept from being asked twice
      running — both exactly as a dealt session does them. */
   const varied = varyTypes(
-    withGrids(plans, items, settings, (unit, queued) =>
-      pickableTypes(unit, settings).find((t) => t !== "match" && !queued.has(t)) || null
+    drawRanges(
+      withGrids(plans, items, settings, (unit, queued) =>
+        pickableTypes(unit, settings).find((t) => t !== "match" && !queued.has(t)) || null
+      ),
+      items,
+      sets,
     )
   );
   const exercises = withReadThroughs(varied.slice(0, budget), items, settings);
@@ -8925,7 +8964,7 @@ export default function ArabicTrainer() {
    * in a language you have switched off is not what you came to fix.
    */
   function beginWeak() {
-    const built = buildWeakSession({ items: shown, settings, inDeck });
+    const built = buildWeakSession({ items: shown, settings, inDeck, systems });
     if (!built.exercises.length) {
       flash(
         built.reason === "nothing-weak"
