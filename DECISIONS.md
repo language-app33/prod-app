@@ -4997,3 +4997,49 @@ a word with no figures of its own — *hundred*, *and* — through
 the noun beside it is English, and the figure question at the same level
 is what the passes wait on. Hebrew and Huế have no `numerals` and are
 untouched.
+
+## Which decks a course holds is the course's say
+
+**4 October 2026** · `server/api/courses.js` (`linksOf`, `withLinks`, `dropFromCourses`, `canEditDeck`, `attach-deck`)
+
+A deck being in a course is written twice: the course lists the deck's id,
+and the deck lists the course with the day it was added. Every write to
+either was a read, a change in memory, and the whole record written back,
+so two requests touching one course at once each wrote over the other.
+Several decks taken out together, or one taken out while somebody joined,
+left decks that no longer named the course while the course still sent
+them. The two lists were read by different screens: students are sent
+the course's list, and the teacher's course page, Manage decks and a
+deck's settings read the deck's. So the owner's course page said one deck
+while the same course gave its students seven, and Manage decks had no way
+to take out decks it did not show.
+
+Two changes, because either alone leaves the bug half there.
+
+**Every write to a course or a deck goes through `updateJson`.** That is
+adding and removing decks, membership, joining, renaming, language, codes,
+and renaming, locking and setting the numbers parts of a deck. Each changes
+the record as it is when the write lands, so none can undo another. Only a
+record being made for the first time, and a restore, which writes a backup
+back exactly as it was, still write whole.
+
+**The course's list answers, and the deck's own list is kept only for the
+date.** Every deck the server hands a screen has its `courses` worked out
+from the courses that list it (`withLinks`), carrying the date the deck
+recorded where there is one. Who may change a deck, who may read its cards,
+and which courses a deck that is deleted comes out of are all read the same
+way. The course's list wins because it is what students are sent: making
+it the answer changes nothing any student has, and only makes the
+teacher's screens show what is really there. Taking the deck's list as the
+answer would have silently withdrawn decks from students on the strength
+of a record already known to be unreliable.
+
+**What it costs.** Nothing repairs the stored deck lists. A deck that forgot
+its course stays that way until it is next added or removed, and nothing
+reads that list for membership any more. Working the links out means
+reading every course, so who-may-change-this checks, saving a card that
+is in a deck, and reading a deck's cards each now read the course records
+too. A teaching site has few courses, so this costs less
+than the deck reads around it. The lists of which ids exist (`index:`) are
+still written whole and can still lose an entry the same way; nothing has
+been seen to go wrong there, so they are left for another time.

@@ -3205,6 +3205,168 @@ test("a teacher of neither the deck nor the course cannot attach one to the othe
   })();
 });
 
+/* ---- which decks a course holds: one answer, whoever asks ----
+ *
+ * The link is kept on the course and on the deck, and the two came apart:
+ * a teacher's course screen said one deck while the same course handed its
+ * students seven. Three readers are asked here every time — the teacher's
+ * deck list, the course record, and what a student is sent — and they have
+ * to say the same thing.
+ */
+
+/**
+ * What each side is told a course holds, by deck title, sorted.
+ * @param {string} key  Somebody who both teaches and studies the course.
+ * @param {string} courseId
+ */
+const whatEachSees = async (key, courseId) => {
+  const decks = (await api("/api/courses?action=my-decks", { key })).json.decks;
+  const course = must(
+    coursesOf(await api("/api/courses?action=my-courses", { key })).find((c) => c.id === courseId),
+    "the course",
+  );
+  const sent = (await api("/api/courses?action=my-material", { key })).json.decks;
+  const titleOf = (/** @type {string} */ id) => (decks.find((/** @type {any} */ d) => d.id === id) || {}).title;
+  return {
+    teacher: decks
+      .filter((/** @type {any} */ d) => d.courses.some((/** @type {any} */ l) => l.courseId === courseId))
+      .map((/** @type {any} */ d) => d.title)
+      .sort(),
+    course: course.decks.map(titleOf).sort(),
+    student: sent
+      .filter((/** @type {any} */ d) => d.courseId === courseId)
+      .map((/** @type {any} */ d) => d.title)
+      .sort(),
+  };
+};
+
+test("decks added and taken out at the same moment all land, and teacher and student agree", () => {
+  return (async () => {
+    const teacher = await anAdmin("Rafa");
+    const course = await aCourse(teacher.key, "Testing");
+    for (const as of ["assign-teacher", "assign-student"]) {
+      await api(`/api/courses?action=${as}`, {
+        method: "POST", key: teacher.key, body: { courseId: course.id, handle: teacher.handle },
+      });
+    }
+    const titles = ["L0", "L1 greetings", "L1 daily", "L1 vocab", "L1 verbs", "Must know", "Numbers"];
+    /** @type {string[]} */
+    const ids = [];
+    for (const title of titles) ids.push((await aDeck(teacher.key, title)).id);
+
+    /* All seven at once. Each used to read the course, add its own deck
+       and write the course back, so the last one in was the only one the
+       course kept — while every deck said it was in. */
+    const on = await Promise.all(ids.map((deckId) =>
+      api("/api/courses?action=attach-deck", { method: "POST", key: teacher.key, body: { deckId, courseId: course.id } })));
+    for (const r of on) assert.equal(r.status, 200, r.text);
+    const all = titles.slice().sort();
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), { teacher: all, course: all, student: all });
+
+    /* Six out at once, while somebody joins and somebody is put on the
+       course: every one of those writes the course too, and any of them
+       used to put back a deck the others had just taken off. */
+    const newcomer = await someone("Lina");
+    const late = await someone("Omar");
+    const off = await Promise.all([
+      ...ids.slice(0, 6).map((deckId) =>
+        api("/api/courses?action=detach-deck", { method: "POST", key: teacher.key, body: { deckId, courseId: course.id } })),
+      api("/api/courses?action=join-course", { method: "POST", key: newcomer.key, body: { code: course.code } }),
+      api("/api/courses?action=assign-student", {
+        method: "POST", key: teacher.key, body: { courseId: course.id, handle: late.handle },
+      }),
+    ]);
+    for (const r of off) assert.equal(r.status, 200, r.text);
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), {
+      teacher: ["Numbers"], course: ["Numbers"], student: ["Numbers"],
+    }, "a deck taken off came back for one side and not the other");
+
+    /* And the people who joined while that was happening are on it. */
+    const after = must(
+      coursesOf(await api("/api/courses?action=my-courses", { key: teacher.key })).find((c) => c.id === course.id),
+      "the course",
+    );
+    for (const h of [teacher.handle, newcomer.handle, late.handle]) {
+      assert.ok(after.students.includes(h), `${h} is missing from the course`);
+    }
+  })();
+});
+
+test("a course and a deck that already disagree are shown as the course has it, and can be put right", () => {
+  return (async () => {
+    const teacher = await anAdmin("Hiba");
+    const coTeacher = await someone("Yusuf");
+    const course = await aCourse(teacher.key, "Testing");
+    for (const [as, handle] of [
+      ["assign-teacher", teacher.handle], ["assign-student", teacher.handle], ["assign-teacher", coTeacher.handle],
+    ]) {
+      await api(`/api/courses?action=${as}`, { method: "POST", key: teacher.key, body: { courseId: course.id, handle } });
+    }
+    const kept = await aDeck(teacher.key, "Numbers");
+    const forgot = await aDeck(teacher.key, "Verbs");
+    const alsoForgot = await aDeck(teacher.key, "Vocab");
+    const stale = await aDeck(teacher.key, "Old");
+    for (const d of [kept, forgot, alsoForgot]) {
+      await api("/api/courses?action=attach-deck", {
+        method: "POST", key: teacher.key, body: { deckId: d.id, courseId: course.id },
+      });
+    }
+
+    /* What the old writes left behind, put straight into the store: two
+       decks the course still sends that no longer say they are in it, and
+       one that says it is in a course that does not hold it. */
+    const { getStore } = await import("../server/store.js");
+    const store = getStore("arabic-courses");
+    const rewrite = async (/** @type {string} */ id, /** @type {(d: any) => any} */ change) => {
+      const held = JSON.parse(must(await store.get(`deck:${id}`, { type: "text" }), "the deck"));
+      await store.set(`deck:${id}`, JSON.stringify(change(held)));
+    };
+    for (const d of [forgot, alsoForgot]) await rewrite(d.id, (held) => ({ ...held, courses: [] }));
+    await rewrite(stale.id, (held) => ({ ...held, courses: [{ courseId: course.id, addedAt: 1 }] }));
+
+    /* Every side says what the students are actually sent. */
+    const sent = ["Numbers", "Verbs", "Vocab"];
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), { teacher: sent, course: sent, student: sent });
+    const overview = overviewOf(await api("/api/courses?action=admin-overview", { key: teacher.key }));
+    assert.deepEqual(must(overview.decks.find((d) => d.id === forgot.id), "Verbs").courseTitles, ["Testing"]);
+    assert.deepEqual(must(overview.decks.find((d) => d.id === stale.id), "Old").courseTitles, [],
+      "a deck the course does not hold is in no course");
+
+    /* A co-teacher may work on a deck the course holds, though the deck
+       itself forgot — the same rule that lists it for them. */
+    const renamed = await api("/api/courses?action=rename-deck", {
+      method: "POST", key: coTeacher.key, body: { deckId: forgot.id, title: "Verbs 1" },
+    });
+    assert.equal(renamed.status, 200, renamed.text);
+
+    /* Taking one of them out now takes it out for the students too. */
+    const off = await api("/api/courses?action=detach-deck", {
+      method: "POST", key: teacher.key, body: { deckId: forgot.id, courseId: course.id },
+    });
+    assert.equal(off.status, 200, off.text);
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), {
+      teacher: ["Numbers", "Vocab"], course: ["Numbers", "Vocab"], student: ["Numbers", "Vocab"],
+    });
+
+    /* Adding the stale one is a fresh add, dated today rather than on the
+       day its leftover link claims. */
+    const on = await api("/api/courses?action=attach-deck", {
+      method: "POST", key: teacher.key, body: { deckId: stale.id, courseId: course.id },
+    });
+    assert.equal(on.status, 200, on.text);
+    const link = must(on.json.deck.courses.find((/** @type {any} */ l) => l.courseId === course.id), "the link");
+    assert.ok(link.addedAt > 1, "the leftover date was kept");
+
+    /* And deleting a deck that forgot its course still takes it off. */
+    const gone = await api("/api/courses?action=delete-deck", {
+      method: "POST", key: teacher.key, body: { deckId: alsoForgot.id },
+    });
+    assert.equal(gone.status, 200, gone.text);
+    const left = ["Numbers", "Old"];
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), { teacher: left, course: left, student: left });
+  })();
+});
+
 /* ---- what a course holds, and who may look ---- */
 
 test("a course's decks are listed to the people in it and to nobody else", () => {

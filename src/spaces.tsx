@@ -3300,7 +3300,9 @@ function ClearScreen({ onClear, onClose }: {
 /* ------------------------------------------------------------------
    Choosing which decks a course carries
 
-   Membership is a property of the deck, and deck settings is still where a
+   Which courses hold a deck is the courses' say — the deck's own list of
+   them arrives worked out from the courses, so it is what students are
+   sent (see linksOf on the server) — and deck settings is still where a
    single deck says which courses it belongs to. But when the question comes
    from the other direction — "what should this course teach?" — sending
    someone off to visit each deck in turn is the wrong shape. Same data,

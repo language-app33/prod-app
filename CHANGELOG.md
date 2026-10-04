@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.346 — 4 October 2026
+
+**A course's page shows the decks its students actually get.**
+
+- Fixed: a course could show one deck on the teacher's page while its
+  students were given seven. This happened when changes to the same
+  course landed together, for example several decks being added or taken
+  out at once, or someone joining the course while a deck was taken out.
+  One change could quietly undo another, so the course and its decks
+  stopped agreeing. Every change now applies on top of what is already
+  saved, so nothing undoes anything else.
+- Everywhere that lists a course's decks now reads the list the students
+  are sent: the course page, Manage decks, a deck's settings, the Decks
+  tab and the administrator's deck list. A course that had already got
+  mixed up now shows every deck its students have, and Manage decks can
+  take out the ones that shouldn't be there. Removing a deck now works
+  for the students too.
+- A co-teacher can now work on every deck their course gives students,
+  including one that had lost track of the course.
+
 ## 0.345 — 4 October 2026
 
 **A number is learnt only once you know it in Arabic figures.**
