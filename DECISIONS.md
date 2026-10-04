@@ -4872,3 +4872,29 @@ checks to a thousand; Hebrew's has no counting rows, as it had none
 before. `{{count}}` in a sentence may now be any number of things, not
 one to twenty; the old `{{count-3-10}}` tags are filled from the
 stretch's counted phrases that fall inside them.
+
+## A number's word waits with its stretch
+
+**4 October 2026** · `src/numbers/generate.ts` (`homeStretch`), `src/ArabicTrainer.tsx` (`quietUnits`)
+
+0.338 made the stretches wait on one another and left their words alone,
+so a beginner's first custom session was the digits beside *nine hundred*,
+*two thousand* and *a million*: every word the teacher had written, from
+every part. The owner, practising as a beginner, read that as the numbers
+not being bottom up at all, and from a learner's chair it is not.
+
+So a word card waits with the stretch it belongs to — the one whose
+screen it is on, which `homesOf` already works out — and a number written
+out by hand with the stretch its number is in. It is quiet while that
+stretch is, through the same `stretchOpen`, so it keeps its schedule and
+opens the moment the stretch does. A word whose stretch the learner does
+not hold waits on nothing, as the stretch would not; the clock's words are
+another system's and wait on nothing either.
+
+**What it costs.** A word now has a second gate beside "recognised
+before its numbers are asked", and the two point the same way: a stretch
+opens, its words come in, and its numbers follow as the words are
+recognised. A learner whose 0 to 9 slips back off cleared loses the
+teens' words from their sessions as well as the teens, until it is
+recovered.
+

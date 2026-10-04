@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.340 — 4 October 2026
+
+**The words of the numbers come in bottom up, like the numbers.**
+
+- A beginner is no longer handed words from every part of the numbers at
+  once. The words for 10 to 19 wait until 0 to 9 is cleared, the tens
+  and "and" until 10 to 19 is, and the hundreds, thousands and millions
+  after that, in the same order the numbers themselves already opened.
+  Before, words like 900, two thousand and a million turned up in a
+  first session, in custom sessions and everyday ones alike.
+- Numbers you wrote out by hand, like 300, wait with their part too.
+- The clock's words are unchanged and come in from the start.
+- If a deck has a part without the parts below it, that part's words come
+  straight away, as the part itself does.
+- Nothing is lost: words a student had already started pause until their
+  part opens, and pick up where they were.
+
 ## 0.339 — 4 October 2026
 
 **Counting things is part of each stretch of numbers, and each number has its own panel.**
