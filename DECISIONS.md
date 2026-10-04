@@ -4941,7 +4941,7 @@ until their questions reach it, and the next is taken while a question
 falls out as it is dealt. When every card the session may use is in and it
 is still short, each form is asked more — whatever else it has open, then
 the same questions again, a round at a time — up to `MAX_ASKS_PER_UNIT`
-(four). A grid counts as the words in it. The ten-new-word limit is kept;
+(four). The ten-new-word limit is kept;
 the owner chose asking each new word more over letting more words in.
 
 **Short is agreed in one case: not enough material** — every card the
@@ -4997,3 +4997,23 @@ a word with no figures of its own — *hundred*, *and* — through
 the noun beside it is English, and the figure question at the same level
 is what the passes wait on. Hebrew and Huế have no `numerals` and are
 untouched.
+
+## A session's length is screens, and a grid is one
+
+**4 October 2026** · `src/ArabicTrainer.tsx` (`cutAtLength`, and the filling in `buildSession`, `buildManualSession`, `buildWeakSession`), `tests/session-fill.test.mjs`
+
+For one release a session's length was counted in questions, with a
+matching grid as the five words in it: twenty questions was twenty
+questions whichever exercises they came as, but a session of twenty with a
+grid in it read "1 / 16" on its counter. The owner chose screens: a
+session of twenty is twenty on the counter, and a grid is one of them.
+
+A grid takes several planned questions onto one screen, so a session
+filled to its length in questions comes out short in screens. Each
+builder now deals its grids, sees how many screens they took, and fills
+again by that much — on top of what it already has, not on top of the
+length, which it may already be past — until the screens reach the length
+or there is nothing more to add. A session with grids in it asks a few
+more words than one without; that is the cost of the counter meaning what
+it says.
+

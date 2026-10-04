@@ -19,8 +19,9 @@
  * behind one, and an entry nothing matches is a failure too, so the list
  * cannot rot.
  *
- * What counts: questions, and a matching grid is as many questions as the
- * words in it.
+ * What counts: screens, as the counter in a session reads them — a
+ * matching grid is one, however many words are in it. The owner's choice:
+ * a session of twenty is twenty on its counter.
  */
 
 import { test } from "node:test";
@@ -146,8 +147,8 @@ const TIMED_MINUTES = 5;
 const timed = (/** @type {any[]} */ items) =>
   buildManualSession({ items, settings, ids: items.map((i) => i.id), mode: "regular", minutes: TIMED_MINUTES, systems: SETS });
 
-/** Questions, with a grid counted as the words in it. @param {{ exercises: any[] }} s */
-const questions = (s) => s.exercises.reduce((n, e) => n + 1 + (e.mates || []).length, 0);
+/** Screens, with a grid counted as one. @param {{ exercises: any[] }} s */
+const questions = (s) => s.exercises.length;
 
 /* ---- what is agreed to be short ---- */
 
@@ -209,8 +210,7 @@ for (const [material, make] of Object.entries(MATERIAL)) {
             const got = questions(run(items, length));
             const want = rule ? Math.min(length, rule.size) : length;
             if (rule && rule.size < length) used.add(rule);
-            /* A grid may carry a session a few words past its length,
-               never short of it — and an agreed size is exact. */
+            /* Never short of its length — and an agreed size is exact. */
             const ok = rule && rule.size < length ? got === want : got >= want;
             if (!ok) short.push(`${session} of ${length}: ${got} questions, ${rule && rule.size < length ? `agreed ${want} (${rule.why})` : `wanted ${want}`}`);
           }

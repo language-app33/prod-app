@@ -3148,17 +3148,13 @@ const MAX_UNITS_PER_FAMILY = 2;
 const MAX_ASKS_PER_UNIT = 4;
 
 /*
- * Where a queue reaches a session's length, counted in questions: a grid
- * is as many questions as the words in it — one screen, five words, each
- * marked and scheduled in its own right. Counted as one, a session with a
- * grid in it came up four short.
+ * Where a queue reaches a session's length, which is counted in screens:
+ * a grid is one screen however many words are in it, so a session of
+ * twenty shows twenty on its counter. The owner's choice over counting the
+ * words in a grid, which made a session of twenty read "1 / 16".
  */
-function cutAtLength(queue: { mates?: unknown[] }[], length: number): number {
-  let cut = 0;
-  for (let words = 0; cut < queue.length && words < length; cut += 1) {
-    words += 1 + (queue[cut].mates || []).length;
-  }
-  return cut;
+function cutAtLength(queue: unknown[], length: number): number {
+  return Math.min(queue.length, length);
 }
 
 /* And of a conversation, in one sitting. Deliberate rather than
@@ -4015,17 +4011,13 @@ export function buildSession({
     return out;
   };
 
-  /* Card by card until the questions reach the budget — and never fewer
+  /* Card by card until the questions reach the target — and never fewer
      cards than the learner asked for. The cards they marked already rank
      ahead of everything else, so taking at least as many as there are of
      them is the whole of it: the session grows to hold what was asked for
      rather than turning the rest away. */
   let taken = 0;
   let count = 0;
-  while (taken < candidates.length && (taken < Math.max(1, askedFor) || count < budget)) {
-    count += asks(plansOfCard(candidates[taken]));
-    taken += 1;
-  }
   /* Easiest first, and cards of the same difficulty in no particular
      order — which is most of them, since a card nobody has been wrong
      about yet is unrated. A card the learner asked for opens the session
@@ -4033,31 +4025,42 @@ export function buildSession({
      it behind eight other words would be the app quietly declining. */
   const ordered = (n: number) =>
     inOrder(candidates.slice(0, n), (c) => (c.urgent ? -1 : DIFF_RANK[itemDifficulty(c.it, settings)]));
-  let warmed = ordered(taken);
-  let plans = warmed.flatMap(plansOfCard);
-  let exercises = deal(plans);
-  /* A question can still fall out as it is dealt — a number nobody can be
-     asked yet — so a session short of its budget takes the next card
-     while there is one. */
-  while (exercises.length < budget && taken < candidates.length) {
-    taken += 1;
+  let warmed = ordered(0);
+  let plans: Plan[] = [];
+  let exercises: ReturnType<typeof deal> = [];
+  /* Filled to `target` questions, carrying on from wherever the last call
+     left off, so a session found short after its grids are dealt can be
+     filled further without being started again. */
+  const fill = (target: number) => {
+    while (taken < candidates.length && (taken < Math.max(1, askedFor) || count < target)) {
+      count += asks(plansOfCard(candidates[taken]));
+      taken += 1;
+    }
     warmed = ordered(taken);
     plans = warmed.flatMap(plansOfCard);
     exercises = deal(plans);
-  }
-  /*
-   * And when every card it may take is taken and it is still short — a
-   * beginner, whose new words come ten at a time — each word is asked
-   * more: first whatever else it has open, then the same questions again,
-   * up to MAX_ASKS_PER_UNIT, a round at a time so a word asked twice has
-   * the session between the two. Two right answers running is what opens
-   * a word's next level, so the second asking is not idle. A skill is
-   * never asked the same exercise twice: its number is drawn once, and the
-   * second asking would be the same number.
-   */
-  if (exercises.length < budget) {
+    /* A question can still fall out as it is dealt — a number nobody can
+       be asked yet — so a session short of its target takes the next card
+       while there is one. */
+    while (exercises.length < target && taken < candidates.length) {
+      count += asks(plansOfCard(candidates[taken]));
+      taken += 1;
+      warmed = ordered(taken);
+      plans = warmed.flatMap(plansOfCard);
+      exercises = deal(plans);
+    }
+    /*
+     * And when every card it may take is taken and it is still short — a
+     * beginner, whose new words come ten at a time — each word is asked
+     * more: first whatever else it has open, then the same questions
+     * again, up to MAX_ASKS_PER_UNIT, a round at a time so a word asked
+     * twice has the session between the two. Two right answers running is
+     * what opens a word's next level, so the second asking is not idle. A
+     * skill is never asked the same exercise twice: its number is drawn
+     * once, and the second asking would be the same number.
+     */
     let grown = true;
-    while (exercises.length < budget && grown) {
+    while (exercises.length < target && grown) {
       grown = false;
       for (const p of plans) {
         if (p.types.length >= MAX_ASKS_PER_UNIT) continue;
@@ -4072,18 +4075,37 @@ export function buildSession({
       }
       exercises = deal(plans);
     }
-  }
+  };
 
   /* The grids, dealt: every word the plans mean to ask as a pair is put in
      one, and a word whose grid could not be filled is asked its next
      exercise instead. */
-  const varied = varyTypes(
-    withGrids(exercises, gridCompany(exercises, items), settings, (unit, queued) =>
-      pickableTypes(unit, settings).find(
-        (t) => t !== "match" && !queued.has(t) && (!onlyNumbers || !borrowsPhrase(t))
-      ) || null
-    )
-  );
+  const gridded = () =>
+    varyTypes(
+      withGrids(exercises, gridCompany(exercises, items), settings, (unit, queued) =>
+        pickableTypes(unit, settings).find(
+          (t) => t !== "match" && !queued.has(t) && (!onlyNumbers || !borrowsPhrase(t))
+        ) || null
+      )
+    );
+  /*
+   * The length is in screens: a session of twenty is twenty things on
+   * screen, the way its counter reads, and a grid is one of them however
+   * many words are in it. A grid takes several questions into one screen,
+   * so a session filled to its length in questions comes out short in
+   * screens; it is filled further by what the grids took, until the
+   * screens reach the length or there is nothing more to add.
+   */
+  let target = budget;
+  fill(target);
+  let varied = gridded();
+  for (let round = 0; round < 8 && varied.length < budget; round += 1) {
+    const had = exercises.length;
+    target = had + (budget - varied.length);
+    fill(target);
+    if (exercises.length === had) break;
+    varied = gridded();
+  }
   /* Rule 1, judged on the material: a session is refused for want of
      variety when the cards in it support only one exercise between them,
      not when the ladder has opened only one so far. A deck of new scenes
@@ -4478,12 +4500,14 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
    */
   const length = count && count < 999 && !everyTypeMode(mode) ? count : 0;
   const extra: Question[] = [];
-  if (length && plans.length < length) {
+  /* Asked more, until the questions reach `target`, carrying on from where
+     the last call left off. */
+  const growTo = (target: number) => {
     let grown = true;
-    while (plans.length + extra.length < length && grown) {
+    while (plans.length + extra.length < target && grown) {
       grown = false;
       for (const a of asked) {
-        if (a.taken.length >= MAX_ASKS_PER_UNIT || plans.length + extra.length >= length) continue;
+        if (a.taken.length >= MAX_ASKS_PER_UNIT || plans.length + extra.length >= target) continue;
         const t = a.more.length
           ? (a.more.shift() as string)
           : a.skill
@@ -4496,7 +4520,8 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
         grown = true;
       }
     }
-  }
+  };
+  if (length) growTo(length);
 
   /* Shuffle first, so the queue doesn't track the order of your card list,
      then space the types out. Ultimate ignores the length: it runs until
@@ -4504,20 +4529,32 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
      the rest, shuffled among themselves. */
   const keptFirst = keptToNumbers(plans);
   const numbersOnly = keptFirst !== plans;
-  const keptMore = numbersOnly ? keptToNumbers(extra) : extra;
-  const kept = keptFirst.concat(keptMore);
-  const ordered = varyTypes(
-    drawRanges(
-      withGrids(shuffle(keptFirst).concat(shuffle(keptMore)), gridCompany(kept, items), settings, (unit, queued) =>
-        shuffle(usableFor(unit)).find(
-          (t) => t !== "match" && !queued.has(t) && !(numbersOnly && borrowsPhrase(t))
-        ) || null
-      ),
-      items,
-      sets,
-      settings,
-    )
-  );
+  const queue = () => {
+    const keptMore = numbersOnly ? keptToNumbers(extra) : extra;
+    const kept = keptFirst.concat(keptMore);
+    return varyTypes(
+      drawRanges(
+        withGrids(shuffle(keptFirst).concat(shuffle(keptMore)), gridCompany(kept, items), settings, (unit, queued) =>
+          shuffle(usableFor(unit)).find(
+            (t) => t !== "match" && !queued.has(t) && !(numbersOnly && borrowsPhrase(t))
+          ) || null
+        ),
+        items,
+        sets,
+        settings,
+      )
+    );
+  };
+  let ordered = queue();
+  /* The length is in screens, and a grid is one screen for several
+     questions — see cutAtLength — so what the grids took is asked again
+     until the screens reach the length or nothing more can be added. */
+  for (let round = 0; length && round < 8 && ordered.length < length; round += 1) {
+    const had = extra.length;
+    growTo(plans.length + extra.length + (length - ordered.length));
+    if (extra.length === had) break;
+    ordered = queue();
+  }
   const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, cutAtLength(ordered, Math.max(4, count || 0)));
 
   /* The same minimum again, and the one easily missed: when every card chosen
@@ -5099,30 +5136,47 @@ export function buildWeakSession({ items, settings, inDeck, budget: budgetIn, sy
      skill is not asked the same exercise twice, since its number is drawn
      once and the second asking would be the same number. */
   const isSkill = new Set(pool.filter((it) => isRangeSkill(it)).map((it) => it.id));
-  for (let round = 0; round < Math.max(depth, MAX_ASKS_PER_UNIT) && plans.length < budget; round++) {
-    for (const u of order) {
-      const type = round < u.keys.length ? u.keys[round] : isSkill.has(u.id) ? undefined : u.keys[round % u.keys.length];
-      if (!type) continue;
-      const ctx = pickContext(u.unit, type);
-      plans.push({ id: u.id, subId: u.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+  const rounds = Math.max(depth, MAX_ASKS_PER_UNIT);
+  let round = 0;
+  /* Round by round until the questions reach `target`, carrying on from
+     the last round dealt. */
+  const dealTo = (target: number) => {
+    for (; round < rounds && plans.length < target; round++) {
+      for (const u of order) {
+        const type = round < u.keys.length ? u.keys[round] : isSkill.has(u.id) ? undefined : u.keys[round % u.keys.length];
+        if (!type) continue;
+        const ctx = pickContext(u.unit, type);
+        plans.push({ id: u.id, subId: u.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+      }
     }
-  }
+  };
+  dealTo(budget);
 
   /* The grids, dealt, and the same card kept from being asked twice
      running — both exactly as a dealt session does them. */
-  const kept = keptToNumbers(plans);
-  const varied = varyTypes(
-    drawRanges(
-      withGrids(kept, gridCompany(kept, items), settings, (unit, queued) =>
-        pickableTypes(unit, settings).find(
-          (t) => t !== "match" && !queued.has(t) && !(kept !== plans && borrowsPhrase(t))
-        ) || null
-      ),
-      items,
-      sets,
-      settings,
-    )
-  );
+  const queue = () => {
+    const kept = keptToNumbers(plans);
+    return varyTypes(
+      drawRanges(
+        withGrids(kept, gridCompany(kept, items), settings, (unit, queued) =>
+          pickableTypes(unit, settings).find(
+            (t) => t !== "match" && !queued.has(t) && !(kept !== plans && borrowsPhrase(t))
+          ) || null
+        ),
+        items,
+        sets,
+        settings,
+      )
+    );
+  };
+  let varied = queue();
+  /* The length is in screens, and a grid is one screen for several
+     questions — see cutAtLength — so a session the grids left short goes
+     round again while there is a round left. */
+  while (varied.length < budget && round < rounds) {
+    dealTo(plans.length + (budget - varied.length));
+    varied = queue();
+  }
   const exercises = withReadThroughs(varied.slice(0, cutAtLength(varied, budget)), items, settings);
   const dealt = new Set(exercises.map((e) => e.id));
 

@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.346 — 4 October 2026
+
+**A session of 20 is 20 screens again.**
+
+- A session's length is counted the way its counter reads: a matching
+  grid is one screen, however many words are in it. A session of 20 with
+  a grid in it shows "1 / 20", not "1 / 16".
+- It still fills to the length chosen. Where grids take several words
+  onto one screen, more is added until there are 20 screens, so a session
+  with grids in it asks a few more words than one without.
+- The automatic check on session lengths now counts screens, and still
+  fails on any short session that isn't agreed.
+
 ## 0.345 — 4 October 2026
 
 **A number is learnt only once you know it in Arabic figures.**
@@ -41,8 +54,9 @@ and moves once per batch of work you would notice, not once per commit.
 - Get started, Not seen lately, Fix mistakes and Weak skills fill to their
   length the same way, from the words that belong in them. Fix mistakes
   and Weak skills still only ask what is going wrong.
-- A matching grid counts as the words in it, so a session with a grid in
-  it is no longer four questions short.
+- A session's length counted a matching grid as the five words in it, so
+  a session of 20 with a grid showed fewer than 20 on its counter. (Changed
+  in 0.346: a grid now counts as one.)
 - A session is still shorter than chosen when there aren't enough words
   for it, every word asked four times: a deck of 3 words gives 12
   questions. That is the one agreed exception, and a new automatic check
