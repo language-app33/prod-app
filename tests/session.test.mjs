@@ -1051,9 +1051,16 @@ test("and the session says how much of it was actually waiting", () => {
 /* Which cards a session took. The order questions are *asked* in is the
    interleave's business — it spaces a card's own exercises apart and
    shuffles what the due list calls equal — so what is asserted here is
-   which cards got in, which is what being due decides. */
+   which cards got in, which is what being due decides.
+
+   A matching grid is a question about every word in it, and it names the
+   words besides its own in `mates`. Reading `id` alone missed a card dealt
+   into a grid — the overdue card below, about one run in two hundred, so
+   the test failed now and then on a session that was right. */
 const dealtCards = (/** @type {any} */ got) =>
-  new Set(got.exercises.map((/** @type {any} */ x) => x.id));
+  new Set(
+    got.exercises.flatMap((/** @type {any} */ x) => [x.id, ...(x.mates || []).map((/** @type {any} */ m) => m.id)]),
+  );
 
 test("an overdue card is taken ahead of cards that are not due", () => {
   /* More cards than a session holds, so getting in is a choice rather than
