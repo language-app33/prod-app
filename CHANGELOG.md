@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 4 October 2026
+
+**Numbers are learnt from the bottom up.**
+
+- Each stretch of numbers now waits for the one before it: 11 to 99 is
+  not asked until 0 to 10 is cleared, 100 to 999 not until 11 to 99 is,
+  and so on. Bigger numbers are built out of the smaller ones, so they
+  now arrive once those are in hand rather than all on the first day.
+- If a stretch you had cleared slips back, the ones above it pause until
+  it is recovered. Nothing earned on them is lost; it is waiting when
+  they open again.
+- A stretch only waits on one you actually have. If your course teaches
+  11 to 99 without 0 to 10, it is asked straight away. Counting things
+  and telling the time are unchanged.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**

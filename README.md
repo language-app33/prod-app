@@ -950,6 +950,18 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   range is offered only once the whole of it can be said, so a system that
   stops at ten is a practice that counts to ten and stops.
 
+  **The number line is learnt bottom up.** 11 to 99 is said out of the
+  words 0 to 10 teaches, so a stretch is not asked until the one below it
+  is *cleared* — the ladder's own word, read off its own keys — and every
+  one under that too. Until then the stretch is held back the way a verb's
+  unopened row is (`stretchBefore` in `src/numbers/generate.ts`, read by
+  `quietUnits`), so it keeps its place and its schedule and opens the
+  moment the one below clears; a stretch below that slips back off
+  cleared shuts it again until it is recovered. Only a stretch the learner
+  actually has is waited on — a deck that teaches 11 to 99 alone is not
+  held behind a 0 to 10 nobody sent — and counting things and the clock
+  are not stretches of the number line and wait on nothing.
+
   **A deck holds the parts it teaches.** A system is one document per
   language and not cards, so a deck cannot list it among its cards: it
   names the ranges it teaches (`parts` on the deck, set through

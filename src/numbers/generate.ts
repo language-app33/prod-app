@@ -87,6 +87,34 @@ export const isFromSystem = (it: { id?: string } | null | undefined): boolean =>
 export const isRangeSkill = (it: { id?: string } | null | undefined): boolean =>
   /^sys:[^:]+:range:/.test(String((it && it.id) || ""));
 
+/**
+ * The stretch of the number line a range waits on, if it waits on one.
+ *
+ * Numbers are learnt bottom up: 11 to 99 is said out of the words 0 to 10
+ * taught, so it is not asked until 0 to 10 is cleared, and so on up. The
+ * one below is the plain number range of the same system with the highest
+ * start under this one's. Counting things and the clock are not stretches
+ * of the number line and wait on nothing here — see `rangeChecks`.
+ *
+ * Found among the items given, so a stretch the learner was never handed —
+ * a deck that teaches 11 to 99 and not the numbers under it — holds
+ * nothing back: waiting on a skill that will never be asked would be
+ * waiting for ever.
+ */
+export function stretchBefore<T extends Item>(it: T, items: T[]): T | null {
+  const range = it.range;
+  if (!isRangeSkill(it) || !range || range.kind !== "numbers" || range.counted) return null;
+  const system = systemIdOf(it);
+  let below: T | null = null;
+  for (const other of items) {
+    const r = other.range;
+    if (other === it || !isRangeSkill(other) || !r || r.kind !== "numbers" || r.counted) continue;
+    if (systemIdOf(other) !== system || r.from >= range.from) continue;
+    if (!below || r.from > (below.range as Range).from) below = other;
+  }
+  return below;
+}
+
 /* ---- one card ---- */
 
 interface Made {

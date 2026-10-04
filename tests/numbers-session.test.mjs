@@ -94,6 +94,14 @@ const climbed = (/** @type {string[]} */ types) =>
     forms: [{ ...it.forms[0], s: Object.fromEntries(types.map((t) => [t, solid()])) }],
   }));
 
+/** And every stretch of the number line cleared but the top one, so the
+    big numbers are dealt — each waits on the stretch below it. */
+const opened = (/** @type {any[]} */ items) =>
+  items.map((/** @type {any} */ it) =>
+    ["numbers:0-10", "numbers:11-99", "numbers:100-999"].includes(it.range.id)
+      ? { ...it, forms: [{ ...it.forms[0], s: { ...Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, solid()])), ...it.forms[0].s } }] }
+      : it);
+
 /** Deal one, the way a render does. */
 const deal = (/** @type {any[]} */ items) => {
   installIndexes(items, settings);
@@ -165,7 +173,7 @@ test("a number to choose between offers three wrong answers, all of them sayable
    * actually say. Drawn from the learner's vocabulary instead, the
    * question would be a reading test with a number in it.
    */
-  const picks = over(climbed(["num2fig", "time2fig"]), 12)
+  const picks = over(opened(climbed(["num2fig", "time2fig"])), 12)
     .filter((/** @type {any} */ e) => EX[e.type] && EX[e.type].picks === "word");
   assert.ok(picks.length > 0, "no question that offers a choice was ever dealt");
 
@@ -247,4 +255,47 @@ test("every exercise a range is asked has an ordinary key to credit its words un
        whole reason the mapping exists. */
     assert.ok(!NUMBER_EQUIVALENT[under], `${type} maps to another range key`);
   }
+});
+
+/* ------------------------------------------------------------------
+   Bottom up
+   ------------------------------------------------------------------ */
+
+/** Which skills a few sessions dealt anything from. */
+const dealtFrom = (/** @type {any[]} */ items) =>
+  new Set(over(items, 8).map((/** @type {any} */ e) => must(e.ask, "an ask").rangeId));
+
+/** The skills, with the named ones cleared at every exercise there is. */
+const clearedOnly = (/** @type {string[]} */ ids) =>
+  skills().map((/** @type {any} */ it) =>
+    ids.includes(it.range.id)
+      ? { ...it, forms: [{ ...it.forms[0], s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, solid()])) }] }
+      : it);
+
+test("a stretch of the number line waits until the one below it is cleared", () => {
+  const fresh = dealtFrom(skills());
+  assert.ok(fresh.has("numbers:0-10"), "the first stretch is not dealt");
+  for (const id of ["numbers:11-99", "numbers:100-999", "numbers:1000+"]) {
+    assert.ok(!fresh.has(id), `${id} was dealt before the stretch below it was cleared`);
+  }
+  /* The clock is not a stretch of the number line, and waits on nothing. */
+  assert.ok([...fresh].some((id) => id.startsWith("time:")), "the clock was held back");
+
+  const next = dealtFrom(clearedOnly(["numbers:0-10"]));
+  assert.ok(next.has("numbers:11-99"), "11 to 99 did not open once 0 to 10 was cleared");
+  assert.ok(!next.has("numbers:100-999"), "100 to 999 opened on 0 to 10 alone");
+});
+
+test("and waits all the way down, not just on the stretch beside it", () => {
+  /* 11 to 99 cleared and 0 to 10 not: progress made before the rule. */
+  const got = dealtFrom(clearedOnly(["numbers:11-99"]));
+  assert.ok(!got.has("numbers:100-999"), "100 to 999 opened over an uncleared 0 to 10");
+  assert.ok(!got.has("numbers:11-99"), "11 to 99 was dealt over an uncleared 0 to 10");
+});
+
+test("a stretch the learner was never handed holds nothing back", () => {
+  /* A deck that teaches 11 to 99 and not the numbers under it. */
+  const got = dealtFrom(skills().filter((/** @type {any} */ it) => it.range.id !== "numbers:0-10"));
+  assert.ok(got.has("numbers:11-99"), "11 to 99 waited on a stretch that is not here");
+  assert.ok(!got.has("numbers:100-999"), "100 to 999 did not wait on 11 to 99");
 });
