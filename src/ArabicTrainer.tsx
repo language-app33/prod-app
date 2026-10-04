@@ -3704,7 +3704,15 @@ export function buildSession({
       !isNew &&
       units.some(({ unit }) => !throughDoor(laddered(unit, settings), (t: string) => stateOf(unit, t)));
     return { it, units, soonest, isNew, urgent, lastSeen, resting, climbing };
-  });
+  })
+    /* And a card with nothing it can be asked yet is not a candidate at
+       all: a word waiting with a stretch that has not opened (see
+       homeStretch), or one whose every form is resting. It has no units,
+       so it read as new — every() over nothing — and took a place in the
+       room for new cards that it could never use. A beginner's numbers
+       session was two or four questions, the rest of its places spent on
+       the words for ninety and a million. */
+    .filter((c) => c.units.length > 0);
 
   /* Ordered before anything is filtered, because the filter below keeps
      the first few new cards and "the first few" is decided here. Anything

@@ -625,3 +625,19 @@ test("a word whose stretch the learner was never handed waits on nothing", () =>
   assert.ok(got.has("numbers:10-19"), "the teens waited on a stretch that is not here");
   assert.ok(!got.has("numbers:20-99"), "the tens did not wait on 10 to 19");
 });
+
+test("a beginner's session of numbers is full, and all of it is words they can be asked", () => {
+  /* The words waiting with a stretch that has not opened have nothing to
+     ask. They used to take the places new cards are given anyway, so a
+     session of twenty built from the numbers alone came out as two or four
+     questions on one card. */
+  const items = skills().filter((/** @type {any} */ it) => it.range.kind === "numbers").concat(words().filter((/** @type {any} */ it) => it.source.systemId === SYS.id));
+  installIndexes(items, settings);
+  const byId = new Map(items.map((/** @type {any} */ it) => [it.id, it]));
+  const ids = items.map((/** @type {any} */ it) => it.id);
+  for (let i = 0; i < 5; i += 1) {
+    const got = buildManualSession({ items, settings, ids, mode: "regular", count: 20, systems: SETS });
+    assert.ok(got.exercises.length >= 16, `only ${got.exercises.length} questions`);
+    for (const ex of got.exercises) assert.equal(homeOf(byId.get(ex.id)), "numbers:0-9", `${ex.id} was asked`);
+  }
+});
