@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.327 — 4 October 2026
+
+**A custom practice on a deck you haven't started now starts.**
+
+- When you build a custom practice on particular decks in the everyday
+  style, the limit on new words now looks only at the cards in those
+  decks. Before, a deck where everything was new could come up empty with
+  "Nothing new to bring in yet" because you were already learning new
+  words from other decks.
+- New cards from those decks still come in a few at a time.
+- The session from the home screen is unchanged: it still counts new
+  words across all your decks.
+
 ## 0.326 — 4 October 2026
 
 **Every word in a number or a time now counts towards a student's
