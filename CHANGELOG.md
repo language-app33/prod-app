@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.342 — 4 October 2026
+## 0.343 — 4 October 2026
 
 **Every practice session is the length you chose.**
 
@@ -29,6 +29,21 @@ and moves once per batch of work you would notice, not once per commit.
   questions. That is the one agreed exception, and a new automatic check
   now runs every kind of session to make sure nothing else comes out
   short.
+
+## 0.342 — 4 October 2026
+
+**Your saved sessions are on the home screen, and can be changed.**
+
+- Under the Saved sessions button, each session you kept is now a small
+  tile, two or three to a row. Tap one to start it.
+- Each tile shows how much of its cards you have learnt, as a percentage
+  with a bar under it, counted the same way as the ring at the top.
+- In Saved sessions, each one has an Edit button. It opens the Build
+  screen with everything already filled in — the mode, the cards, the
+  length and the name — and the last step saves your changes in place of
+  starting.
+- Changing a session keeps any of its cards you can't see right now,
+  such as cards in another language while the switch is on one.
 
 ## 0.341 — 4 October 2026
 

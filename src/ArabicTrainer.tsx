@@ -8139,6 +8139,7 @@ export default function ArabicTrainer() {
      material request answers it, so it is no longer asked twice. */
   const [building, setBuilding] = useState(false);
   const [showingSaved, setShowingSaved] = useState(false);
+  const [editingSaved, setEditingSaved] = useState<SavedSession | null>(null);
   /* Which language the session on screen is drawn from: a language id, ""
      for all of them at once, or null for never asked — which is what keeps
      the picker from opening with an answer already marked. It stays on the
@@ -9204,6 +9205,17 @@ export default function ArabicTrainer() {
 
   function dropSession(id: string) {
     setSetting("savedSessions", savedSessions.filter((x) => x.id !== id));
+  }
+
+  /* Kept under the same id and date, so it stays where it was in the list
+     and a tile on the home screen is the same tile with new contents. */
+  function changeSession(id: string, changed: Omit<SavedSession, "id" | "created">) {
+    setSetting("savedSessions", savedSessions.map((x) => (x.id === id ? { ...x, ...changed } : x)));
+    flash(`Saved changes to ${changed.name}`);
+  }
+
+  function startSaved(s: SavedSession) {
+    beginManual({ ids: s.ids, mode: s.mode, count: s.count, minutes: s.minutes });
   }
 
   /* A session assembled by hand on the Build screen. */
@@ -11186,11 +11198,19 @@ export default function ArabicTrainer() {
                       the way to find this is to save one, which the Build
                       screen offers where the session is finished. */}
                   {savedSessions.length > 0 && (
-                    <div className="at-row at-mt3">
-                      <Button variant="ghost" onClick={() => setShowingSaved(true)}>
-                        Saved sessions
-                      </Button>
-                    </div>
+                    <>
+                      <div className="at-row at-mt3">
+                        <Button variant="ghost" onClick={() => setShowingSaved(true)}>
+                          Saved sessions
+                        </Button>
+                      </div>
+                      <SavedTiles
+                        sessions={savedSessions}
+                        items={items}
+                        settings={settings}
+                        onStart={startSaved}
+                      />
+                    </>
                   )}
 
                   {!readyCount && drillable.length > 0 && (
@@ -12064,16 +12084,34 @@ export default function ArabicTrainer() {
           />
         )}
 
-        {showingSaved && (
+        {showingSaved && !editingSaved && (
           <SavedSessionsSheet
             sessions={savedSessions}
             items={items}
             onStart={(s) => {
               setShowingSaved(false);
-              beginManual({ ids: s.ids, mode: s.mode, count: s.count, minutes: s.minutes });
+              startSaved(s);
             }}
+            onEdit={setEditingSaved}
             onDelete={dropSession}
             onClose={() => setShowingSaved(false)}
+          />
+        )}
+
+        {/* The Build screen again, opened on what was kept. Saving goes
+            back to the list, which is where it was opened from. */}
+        {editingSaved && (
+          <ManualSessionSheet
+            items={shown}
+            allTags={allTags}
+            settings={settings}
+            editing={editingSaved}
+            onStart={beginManual}
+            onSave={(changed) => {
+              changeSession(editingSaved.id, changed);
+              setEditingSaved(null);
+            }}
+            onClose={() => setEditingSaved(null)}
           />
         )}
 
@@ -12323,31 +12361,41 @@ export default function ArabicTrainer() {
  * of a job, and the whole point of the card it sits on is the button
  * underneath.
  */
+/*
+ * How much of some cards is learnt: the ring's numbers, for any set of them.
+ *
+ * `cards` are the ones being measured and `all` the collection they sit in,
+ * which a card's standing needs to read what it waits on. The home screen's
+ * ring passes the same list twice; a saved session's tile passes its own
+ * cards, so the two percentages are worked out the one way.
+ */
+function climbOf(cards: Item[], settings: Settings, all: Item[]) {
+  /* The four levels, then the cards with nothing above them left to open
+     — the same five buckets the tiles in Progress count. */
+  const spread = [0, 0, 0, 0, 0];
+  let n = 0;
+  let learnt = 0;
+  let got = 0;
+  for (const it of cards) {
+    const rows = cardStandings(it, settings, all);
+    const at = standing(rows);
+    /* A card with nothing it can be asked yet is on no level, so it is
+       not progress to be short of — the exclusion Progress makes too. */
+    if (!at) continue;
+    n++;
+    /* A level a card has no material for is not a level it is short of,
+       so the denominator is the levels it actually has. */
+    got += rows.filter((r) => r.status === "done").length / rows.length;
+    if (at.status === "done") {
+      learnt++;
+      spread[4]++;
+    } else spread[at.level - 1]++;
+  }
+  return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
+}
+
 function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
-  const climb = useMemo(() => {
-    /* The four levels, then the cards with nothing above them left to open
-       — the same five buckets the tiles in Progress count. */
-    const spread = [0, 0, 0, 0, 0];
-    let n = 0;
-    let learnt = 0;
-    let got = 0;
-    for (const it of items) {
-      const rows = cardStandings(it, settings, items);
-      const at = standing(rows);
-      /* A card with nothing it can be asked yet is on no level, so it is
-         not progress to be short of — the exclusion Progress makes too. */
-      if (!at) continue;
-      n++;
-      /* A level a card has no material for is not a level it is short of,
-         so the denominator is the levels it actually has. */
-      got += rows.filter((r) => r.status === "done").length / rows.length;
-      if (at.status === "done") {
-        learnt++;
-        spread[4]++;
-      } else spread[at.level - 1]++;
-    }
-    return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
-  }, [items, settings]);
+  const climb = useMemo(() => climbOf(items, settings, items), [items, settings]);
 
   /* Nothing practisable, nothing to draw. The card below still offers what
      it can, and the reason there is nothing is the Cards tab's to give. */
@@ -12398,6 +12446,61 @@ function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
           )}
         </span>
       </div>
+    </div>
+  );
+}
+
+/*
+ * The sessions somebody kept, as tiles under the button that lists them.
+ *
+ * A tile and not a row: these sit on the home screen's own card, between
+ * buttons, and a full-width row each would push Start session's neighbours
+ * off the screen after three or four of them. Small enough to sit two or
+ * three abreast, which is a glance at all of them.
+ *
+ * Each carries how much of its own cards is learnt, worked out the way the
+ * ring above it is, so "Thursday's verbs · 40%" and the ring cannot be
+ * counting different things. Pressing one starts it, which is what Start
+ * does on the list; changing or forgetting one is the list's to do.
+ */
+function SavedTiles({ sessions, items, settings, onStart }: {
+  sessions: SavedSession[];
+  items: Item[];
+  settings: Settings;
+  onStart: (session: SavedSession) => void;
+}) {
+  const tiles = useMemo(() => {
+    const byId = new Map(items.map((it) => [it.id, it]));
+    /* Newest first, as the list has them. */
+    return [...sessions]
+      .sort((a, b) => (b.created || 0) - (a.created || 0))
+      .map((s) => {
+        const cards = s.ids.map((id) => byId.get(id)).filter((it): it is Item => !!it);
+        return { s, alive: cards.length, pct: climbOf(cards, settings, items).pct };
+      });
+  }, [sessions, items, settings]);
+
+  if (!tiles.length) return null;
+  return (
+    <div className="at-savedtiles">
+      {tiles.map(({ s, alive, pct }) => (
+        <button
+          key={s.id}
+          className="at-savedtile"
+          disabled={!alive}
+          aria-label={`Start ${s.name}, ${pct}% learnt`}
+          onClick={() => onStart(s)}
+        >
+          <span className="nm">{s.name}</span>
+          <span className="pc" aria-hidden="true">
+            {pct}
+            <i>%</i>
+          </span>
+          <span className="bar" aria-hidden="true">
+            {pct > 0 && <i style={{ width: `${pct}%` }} />}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -14007,10 +14110,11 @@ const TIME_CHOICES = [2, 5, 10, 15, 30];
    ground, practised again, with everything edited since included.
    ------------------------------------------------------------------ */
 
-function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
+function SavedSessionsSheet({ sessions, items, onStart, onEdit, onDelete, onClose }: {
   sessions: SavedSession[];
   items: Item[];
   onStart: (session: SavedSession) => void;
+  onEdit: (session: SavedSession) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }) {
@@ -14067,6 +14171,11 @@ function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
                 Start
               </Button>
               <IconButton
+                icon="edit"
+                label={`Edit ${s.name}`}
+                onClick={() => onEdit(s)}
+              />
+              <IconButton
                 icon="delete"
                 label={`Forget ${s.name}`}
                 danger
@@ -14087,33 +14196,59 @@ function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
   );
 }
 
-function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose }: {
+/*
+ * `editing` opens it on a session already kept, to change it rather than
+ * start one: every step is filled in with what was kept, and the last one
+ * saves over it instead of starting. The answers being there already is the
+ * one case where a lit choice is not a guess on the learner's behalf.
+ */
+function ManualSessionSheet({ items, allTags, settings, editing, onStart, onSave, onClose }: {
   items: Item[];
   allTags: string[];
   settings: Settings;
+  editing?: SavedSession;
   onStart: (plan: any) => void;
   onSave: (session: { name: string; ids: string[]; mode: string; count: number; minutes: number }) => void;
   onClose: () => void;
 }) {
+  const eligible = useMemo(
+    () => items.filter((i) => availableTypes(leadOf(i)).length >= 2 || subFormsOf(i).length),
+    [items]
+  );
+
   const [step, setStep] = useState(0);
   /* No mode until one is chosen. A pre-selected card looks like an answer
      already given, so the first screen gets read as "confirm this" rather
      than "pick one" — and Ultimate, which is the longest session on offer,
      is the last one to hand somebody by default. */
-  const [mode, setMode] = useState("");
-  const [picked, setPicked] = useState(() => new Set());
+  const [mode, setMode] = useState(editing ? editing.mode : "");
+  const [picked, setPicked] = useState(() => {
+    if (!editing) return new Set();
+    const here = new Set(eligible.map((i) => i.id));
+    return new Set(editing.ids.filter((id) => here.has(id)));
+  });
+  /* The kept cards this screen cannot show — another language's, under the
+     switch, or one that has gone — carried through a save untouched, so
+     changing the length of a session does not quietly take cards out of it. */
+  const [elsewhere] = useState(() => {
+    if (!editing) return [] as string[];
+    const here = new Set(eligible.map((i) => i.id));
+    return editing.ids.filter((id) => !here.has(id));
+  });
   const [openTag, setOpenTag] = useState<string | null>(null);
   /* "" until one of the two is chosen — the same reason the mode starts
      unset. It used to open on 20 questions already lit, which is a length
      nobody asked for sitting where the answer goes. */
-  const [limitKind, setLimitKind] = useState(""); // "" | count | time
-  const [count, setCount] = useState(20);
-  const [minutes, setMinutes] = useState(5);
+  const [limitKind, setLimitKind] = useState( // "" | count | time
+    !editing ? "" : editing.minutes ? "time" : editing.count && editing.count < 999 ? "count" : ""
+  );
+  const [count, setCount] = useState(editing && editing.count && editing.count < 999 ? editing.count : 20);
+  const [minutes, setMinutes] = useState(editing && editing.minutes ? editing.minutes : 5);
   /* What it would be called, and what was last kept under that name. Held
      as the description rather than as a flag, so changing the length or
      the cards after saving offers the button again — what is on screen is
      no longer what was kept. */
-  const [name, setName] = useState("");
+  const [name, setName] = useState(editing ? editing.name : "");
   const [savedSpec, setSavedSpec] = useState("");
   const [q, setQ] = useState("");
 
@@ -14127,11 +14262,6 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
       document.body.style.overflow = prev;
     };
   }, [onClose]);
-
-  const eligible = useMemo(
-    () => items.filter((i) => availableTypes(leadOf(i)).length >= 2 || subFormsOf(i).length),
-    [items]
-  );
 
   /* Tags first: picking one selects everything under it. */
   const tagGroups = useMemo(() => {
@@ -14254,9 +14384,19 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
     });
   }
 
+  function keep() {
+    onSave({
+      name: name.trim() || (editing && editing.name) || suggestion,
+      ids: [...picked, ...elsewhere] as string[],
+      mode,
+      count: limitKind === "count" ? count : 999,
+      minutes: limitKind === "time" && needsLength ? minutes : 0,
+    });
+  }
+
   return (
     <Screen
-      title={steps[step]}
+      title={editing ? `Edit · ${steps[step]}` : steps[step]}
       onBack={() => (step === 0 ? onClose() : setStep(step - 1))}
       action={
         <span className="at-sheetnote">
@@ -14278,8 +14418,8 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
                   {onButton(stepProblem) || "Next"}
                 </Button>
               ) : (
-                <Button variant="primary" disabled={!!problem} onClick={start}>
-                  {onButton(problem) || "Start"}
+                <Button variant="primary" disabled={!!problem} onClick={editing ? keep : start}>
+                  {onButton(problem) || (editing ? "Save changes" : "Start")}
                 </Button>
               )}
         </>
@@ -14465,7 +14605,21 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
         * An extra rather than the way on: Start is still the button, and a
         * session nobody saves behaves exactly as it did.
         */}
-      {step === 2 && (
+      {/* Editing, the name is all there is to this: the footer saves. */}
+      {step === 2 && editing && (
+        <div className="at-formblock at-mt5">
+          <FormField label="Name">
+            <input
+              className="at-input"
+              placeholder={editing.name || suggestion}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FormField>
+        </div>
+      )}
+
+      {step === 2 && !editing && (
         <div className="at-formblock at-mt5">
           <FormField
             label="Keep this session"
@@ -14484,13 +14638,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
               icon={saved ? "check" : "save"}
               disabled={!!problem || saved}
               onClick={() => {
-                onSave({
-                  name: name.trim() || suggestion,
-                  ids: [...picked] as string[],
-                  mode,
-                  count: limitKind === "count" ? count : 999,
-                  minutes: limitKind === "time" && needsLength ? minutes : 0,
-                });
+                keep();
                 setSavedSpec(spec);
               }}
             >
