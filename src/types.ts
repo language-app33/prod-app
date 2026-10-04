@@ -341,6 +341,20 @@ export interface GrammarDim {
    */
   perCard?: boolean;
   retired?: boolean;
+  /**
+   * What is particular about one value, where something is.
+   *
+   * Arabic's plural after three to ten is the case this exists for: a box
+   * on a noun card and nothing anywhere else, a line under that box saying
+   * which nouns want it, and not a word to be asked on its own — it is
+   * said inside a counted phrase, *khams tiyyām*, and nowhere else.
+   *
+   *   * `onlyOn` — the kinds of word it is offered on; absent is all.
+   *   * `help` — said under the box it is the number of.
+   *   * `unasked` — a form of it starts switched off in practice; the
+   *     ticks are still there to switch it on.
+   */
+  optionRules?: Record<string, { onlyOn?: string[]; help?: string; unasked?: boolean }>;
 }
 
 /* ---- a language ----
@@ -539,6 +553,19 @@ export interface Lang {
   /** And how it tells the time, which is a separate answer: a language
       may build numbers and have nobody yet who knows its clock. */
   times?: import("./numbers/types.ts").TimeComposer | null;
+  /**
+   * How this language writes a number in figures, where it has figures of
+   * its own — ٣ for 3 in Arabic — rather than the ones English uses.
+   *
+   * A function rather than ten characters, because not every numbering is
+   * a digit swapped for a digit, and a pack that has one of those can say
+   * so here without anything else having to change. "" for a number it
+   * cannot write. Here and not beside the composer, because the figures
+   * are the language's own letters and src/numbers/ holds none of those.
+   * A pack without one writes its numbers the way English does, and its
+   * number cards carry no figures of their own.
+   */
+  numerals?: (n: number) => string;
 }
 
 /**
@@ -1235,6 +1262,26 @@ export type Item = {
    * schedule — see src/numbers/generate.ts.
    */
   range?: SkillRange;
+  /**
+   * The cards a range's words are written on — *four*, *seventy* and *and*
+   * under 11 to 99 — by id, where it is a skill.
+   *
+   * Written when a part is filed into a deck, which is the one place that
+   * already works it out. Two things read it: whether the part is learnt,
+   * which waits on every one of these being learnt too, and which number
+   * it is asked next, which is steered towards the ones that are not. See
+   * `partsOf` in the app.
+   */
+  parts?: string[];
+  /**
+   * The number a card out of a number system stands for, in the figures
+   * its language writes numbers in — ٣ on the card for *three*.
+   *
+   * Written by the generation from the pack's `numerals`, so a language
+   * whose figures are the ones English uses has none, and neither does a
+   * card that is not one number: *hundred*, *and*, *a quarter past*.
+   */
+  numeral?: string;
   /**
    * The learner has asked for this card.
    *

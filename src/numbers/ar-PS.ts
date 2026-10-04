@@ -14,15 +14,20 @@
  *     join uniform.
  *   * **The unit before the ten**, the opposite of English and of Hebrew.
  *   * **Only one and two inflect for gender**, so the hour is feminine at
- *     one and two o'clock and plain at three. Asking the other units for a
- *     gendered form would be asking a teacher to fill in boxes that hold
- *     the same word twice.
+ *     one and two o'clock and plain at three. Three to nineteen have a
+ *     form of their own before a noun, and it is **one** form: *khams
+ *     wlād*, *khams banāt*. The written language's reversed agreement is
+ *     not the dialect's, and asking a teacher for a word before a
+ *     masculine noun and another before a feminine one was asking them to
+ *     write the same word twice — or to write the written language's two
+ *     and have it taught as the dialect. See DECISIONS.md, 0.321.
  *   * **Counting a noun changes the shape of the phrase, not only the
  *     word.** One is said after its noun; two is the noun's dual with no
  *     numeral at all; three to ten take a form of their own and the
- *     noun's plural; everything above eleven takes the noun's singular.
- *     Which is why `render` places the noun rather than handing back a
- *     numeral and leaving the caller to guess.
+ *     noun's plural — or, for the few nouns that have one, the plural they
+ *     take only there, *tiyyām* beside *ayyām*; everything above eleven
+ *     takes the noun's singular. Which is why `render` places the noun
+ *     rather than handing back a numeral and leaving the caller to guess.
  *   * **The fused hundreds and thousands are overrides, not compositions.**
  *     Three hundred is one word in this dialect and cannot be built out of
  *     *three* and *hundred*; the system carries it as a hand-written
@@ -39,14 +44,16 @@ import type {
   RenderCtx,
   Rendering,
   SlotSpec,
+  TwoWords,
 } from "./types.ts";
-import { COUNTING_RANGES, NUMBER_CEILING } from "./types.ts";
+import { COUNTING_RANGES, NUMBER_CEILING, NUMBER_RANGES } from "./types.ts";
 import { Build } from "./build.ts";
 import { chunksOf, genderKeyOf, nounTextOf } from "./compose.ts";
 import type { VerbSpec } from "../types.ts";
 
-/** Bumped when a change here could make an existing override wrong. */
-export const AR_COMPOSER_VERSION = 1;
+/** Bumped when a change here could make an existing override wrong.
+    2: one word before a noun for three to nineteen, whatever its gender. */
+export const AR_COMPOSER_VERSION = 2;
 
 /* ---- the slots ---- */
 
@@ -56,30 +63,40 @@ const run = (from: number, to: number, step: number): number[] => {
   return out;
 };
 
-/** Counting aloud, and the two faces a numeral takes beside a noun. */
+/**
+ * Counting aloud, and the faces a numeral takes beside a noun.
+ *
+ * From three to nineteen that is one face, stored as `construct.m` and
+ * called what it is. `construct.f` is not a box any more; a system written
+ * while it was is read in `beforeNoun`, and its teacher is asked which of
+ * the two words they say — see `twoWordsBeforeNoun`.
+ */
 const COUNTING: FormKey[] = ["standalone"];
 const GENDERED: FormKey[] = ["standalone", "m", "f"];
-const CONSTRUCT: FormKey[] = ["standalone", "construct.m", "construct.f"];
+const CONSTRUCT: FormKey[] = ["standalone", "construct.m"];
+const BEFORE_A_NOUN = { "construct.m": "before a noun" };
 
 export const AR_SLOTS: SlotSpec[] = [
   ...run(0, 10, 1).map((v) => ({
     slot: `unit.${v}`,
     formKeys: v === 0 ? COUNTING : v <= 2 ? GENDERED : CONSTRUCT,
+    ...(v >= 3 ? { faceLabels: BEFORE_A_NOUN } : null),
     label: String(v),
     group: "units",
     hint:
       v === 1 || v === 2
-        ? "Gender only: one and two agree with what they count."
+        ? "One and two agree with what they count, so they have a word for each gender."
         : v >= 3
-        ? "The counting form, and the form that goes before a noun."
+        ? "The counting form, and the form that goes before a noun — the same before a masculine or a feminine one."
         : undefined,
   })),
   ...run(11, 19, 1).map((v) => ({
     slot: `teen.${v}`,
     formKeys: CONSTRUCT,
+    faceLabels: BEFORE_A_NOUN,
     label: String(v),
     group: "teens",
-    hint: "One word. The second box is the form before a noun, where your dialect has one.",
+    hint: "One word. The second box is the form before a noun, where your dialect has one — the same for either gender.",
   })),
   ...run(20, 90, 10).map((v) => ({
     slot: `ten.${v}`,
@@ -105,7 +122,7 @@ export const AR_SLOTS: SlotSpec[] = [
     label: "thousands",
     group: "thousands",
     optional: true,
-    hint: "The plural, as in three thousand. Leave it empty and write 3,000 to 9,000 out below.",
+    hint: "The plural, as it is said after three to ten — with the t it takes there, as in three thousand. Leave it empty and write 3,000 to 10,000 out instead.",
   },
   { slot: "million.1", formKeys: COUNTING, label: "1,000,000", group: "millions" },
   { slot: "million.2", formKeys: COUNTING, label: "2,000,000", group: "millions" },
@@ -129,32 +146,27 @@ export const AR_SLOTS: SlotSpec[] = [
 /**
  * The ranges a learner is scheduled on.
  *
- * Four stretches of the number line and one skill that is not a stretch
+ * Five stretches of the number line (NUMBER_RANGES) and one skill that is not a stretch
  * at all: counting a noun is a different thing to know from saying a
  * number, and a learner solid on one is routinely lost on the other. That
  * skill comes in three parts — see COUNTING_RANGES.
  */
 export const AR_RANGES: Range[] = [
-  { id: "numbers:0-10", kind: "numbers", label: "Numbers 0 to 10", from: 0, to: 10 },
-  { id: "numbers:11-99", kind: "numbers", label: "Numbers 11 to 99", from: 11, to: 99 },
-  { id: "numbers:100-999", kind: "numbers", label: "Numbers 100 to 999", from: 100, to: 999 },
-  { id: "numbers:1000+", kind: "numbers", label: "Numbers over a thousand", from: 1000, to: NUMBER_CEILING },
+  ...NUMBER_RANGES,
   ...COUNTING_RANGES,
 ];
 
 /*
  * How the forms lay out as cells of the component card.
  *
- * One row, a column per face, and the two construct columns pick on the
- * gender of whatever they stand before — the same shape the `counted`
- * table had, with the construct forms it never had a column for.
+ * One row, a column per face: the two genders of one and two, and the one
+ * word three to nineteen take before a noun of either.
  */
 export const AR_NUMBER_TABLE: VerbSpec = {
   persons: [
     { id: "m", label: "with a masculine word", picks: { gender: "masculine" } },
     { id: "f", label: "with a feminine word", picks: { gender: "feminine" } },
-    { id: "construct.m", label: "before a masculine noun" },
-    { id: "construct.f", label: "before a feminine noun" },
+    { id: "construct.m", label: "before a noun" },
   ],
   tenses: [{ id: "number", label: "number" }],
   label: "the forms a number takes",
@@ -166,19 +178,19 @@ export const AR_NUMBER_TABLE: VerbSpec = {
 /**
  * Which faces to try, in order, for one that was asked for.
  *
- * Across the two genders only where the two are usually the same word:
- * the form before a masculine noun and the form before a feminine one are
- * one word in this dialect more often than not, so borrowing is right
- * there. It is wrong between the masculine and feminine of *one*, which
- * are two words a learner has to tell apart, and answering with the one
- * the teacher did not mean is a mistake nobody can see.
+ * Never across the genders of one and two, which are two words a learner
+ * has to tell apart: answering with the one the teacher did not mean is a
+ * mistake nobody can see. The word before a noun falls back to the
+ * counting form, which is the nearest thing a teacher has written.
  */
 const FALLBACK: Record<FormKey, FormKey[]> = {
   standalone: ["standalone"],
   m: ["m", "standalone"],
   f: ["f", "standalone"],
-  "construct.m": ["construct.m", "construct.f", "m", "standalone"],
-  "construct.f": ["construct.f", "construct.m", "f", "standalone"],
+  "construct.m": ["construct.m", "m", "standalone"],
+  /* Not a face any slot offers since 0.321 — see beforeNoun, which reads
+     what a system written before then still holds. */
+  "construct.f": ["construct.m", "m", "standalone"],
   /* Not a face this language has. Declared so the table is complete and
      a fourth language adding one cannot make this file stop compiling
      without anybody noticing. */
@@ -201,6 +213,119 @@ function join(b: Build, pieces: string[]): string {
 
 const build = (sys: NumberSystem) => new Build(sys, AR_SLOTS, FALLBACK);
 
+/* ---- what a system written before 0.321 may still hold ---- */
+
+const textOf = (sys: NumberSystem, slot: string, key: FormKey): string =>
+  String((((sys.lexemes || {})[slot] || { forms: {} }).forms || {})[key] || "").trim();
+
+const overrideText = (sys: NumberSystem, key: string): string =>
+  String(((sys.overrides || {})[key] || { text: "" }).text || "").trim();
+
+/** The slot three to nineteen keep their word before a noun in. */
+const slotOf = (n: number): string => (n <= 10 ? `unit.${n}` : `teen.${n}`);
+
+/**
+ * Where a teacher wrote two different words before a noun for one number,
+ * and has not yet said which of them they say.
+ *
+ * Until 0.321 three to nineteen had a box before a masculine noun and
+ * another before a feminine one. Most teachers wrote one word twice, or
+ * one box only, and those systems simply read as one word. One who wrote
+ * two different words is asked which is theirs, and until they answer
+ * their students are told exactly what they were told before — the second
+ * word before a feminine noun. A correction written for one gender is the
+ * same question about a whole number.
+ */
+export function twoWordsBeforeNoun(sys: NumberSystem): TwoWords[] {
+  const out: TwoWords[] = [];
+  for (let n = 3; n <= 19; n += 1) {
+    const slot = slotOf(n);
+    const m = textOf(sys, slot, "construct.m");
+    const f = textOf(sys, slot, "construct.f");
+    if (m && f && m !== f) out.push({ n, kind: "box", key: slot, masculine: m, feminine: f });
+    const fo = overrideText(sys, `${n}|construct.f`);
+    if (!fo) continue;
+    const mo = overrideText(sys, `${n}|construct.m`) || overrideText(sys, String(n)) || m || f;
+    if (fo !== mo) out.push({ n, kind: "correction", key: `${n}|construct.f`, masculine: mo, feminine: fo });
+  }
+  return out;
+}
+
+/**
+ * The answer to one of those questions, as the system it leaves.
+ *
+ * Keeping either word leaves one: the box holds it and the feminine box is
+ * emptied, with whatever was recorded for the word that went. A correction
+ * kept for a feminine noun becomes the correction for every noun.
+ */
+export function keepOneWord(sys: NumberSystem, q: TwoWords, keep: "masculine" | "feminine"): NumberSystem {
+  if (q.kind === "box") {
+    const lex = (sys.lexemes || {})[q.key];
+    if (!lex) return sys;
+    /* The kept word goes into the one box with its own transliteration and
+       recording, or with none — never with the other word's. */
+    const settle = <T,>(rec: Partial<Record<FormKey, T>> | undefined): Partial<Record<FormKey, T>> | undefined => {
+      if (!rec) return rec;
+      const next = { ...rec };
+      if (keep === "feminine") {
+        if (rec["construct.f"] !== undefined) next["construct.m"] = rec["construct.f"];
+        else delete next["construct.m"];
+      }
+      delete next["construct.f"];
+      return next;
+    };
+    const lat = settle(lex.lat);
+    const audio = settle(lex.audio);
+    return {
+      ...sys,
+      lexemes: {
+        ...sys.lexemes,
+        [q.key]: {
+          ...lex,
+          forms: settle(lex.forms) || {},
+          ...(lat ? { lat } : null),
+          ...(audio ? { audio } : null),
+        },
+      },
+      updated: Date.now(),
+    };
+  }
+  const overrides = { ...(sys.overrides || {}) };
+  const had = overrides[q.key];
+  delete overrides[q.key];
+  if (keep === "feminine" && had) overrides[`${q.n}|construct.m`] = had;
+  return { ...sys, overrides, updated: Date.now() };
+}
+
+/**
+ * A system with everything that is not a question folded into one box.
+ *
+ * Most systems written before 0.321 hold one word in both boxes, or a word
+ * in the feminine box only. Both read as one word already (`beforeNoun`),
+ * but left as they are the editor would show an empty box where a word is
+ * in use, and a stale copy would turn into a question the moment the
+ * teacher changed the box it copies. So the editor opens on this: the same
+ * words, in the one box, and only two different words left to ask about.
+ * The same object back where there is nothing to fold.
+ */
+export function tidyBeforeNoun(sys: NumberSystem): NumberSystem {
+  let out = sys;
+  for (let n = 3; n <= 19; n += 1) {
+    const slot = slotOf(n);
+    const m = textOf(out, slot, "construct.m");
+    const f = textOf(out, slot, "construct.f");
+    const has = (out.lexemes[slot] || { forms: {} }).forms || {};
+    if ("construct.f" in has && (!f || !m || f === m)) {
+      out = keepOneWord(out, { n, kind: "box", key: slot, masculine: m, feminine: f }, !m && f ? "feminine" : "masculine");
+    }
+    const key = `${n}|construct.f`;
+    if (key in (out.overrides || {}) && overrideText(out, key) === overrideText(out, `${n}|construct.m`)) {
+      out = keepOneWord(out, { n, kind: "correction", key, masculine: "", feminine: "" }, "masculine");
+    }
+  }
+  return out;
+}
+
 /* ---- composing ---- */
 
 const genderKey = genderKeyOf;
@@ -214,9 +339,33 @@ const genderKey = genderKeyOf;
  */
 const inflects = (n: number): boolean => n === 1 || n === 2;
 
+/**
+ * The word three to nineteen take before a noun — one word, whatever the
+ * noun's gender.
+ *
+ * Two readings of a system written before there was one box, and nothing
+ * else: a word written only in the old box before a feminine noun is the
+ * word, and a feminine word that differs from the masculine one is still
+ * said before a feminine noun until its teacher picks — see TwoWords.
+ */
+function beforeNoun(b: Build, slot: string, gender: "m" | "f" | undefined): string {
+  const sys = b.sys as NumberSystem;
+  const m = textOf(sys, slot, "construct.m");
+  const f = textOf(sys, slot, "construct.f");
+  if (f && (!m || (gender === "f" && f !== m))) {
+    b.tokens.push({ text: f, slot, formKey: "construct.f" });
+    return f;
+  }
+  return b.word(slot, "construct.m");
+}
+
 /** Which face the whole rendering stands in, for looking up an override. */
-function topKey(n: number, gender: "m" | "f" | undefined, counted: boolean): FormKey {
-  if (counted && n >= 3 && n <= 19) return genderKey(gender, true);
+function topKey(sys: NumberSystem, n: number, gender: "m" | "f" | undefined, counted: boolean): FormKey {
+  if (counted && n >= 3 && n <= 19) {
+    /* A correction a teacher wrote before a feminine noun is read for one
+       until they say which of their two words they say. */
+    return gender === "f" && overrideText(sys, `${n}|construct.f`) ? "construct.f" : "construct.m";
+  }
   if (counted && inflects(n)) return genderKey(gender, false);
   if (!counted && gender && inflects(n)) return genderKey(gender, false);
   return "standalone";
@@ -237,14 +386,14 @@ function under1000(b: Build, n: number, gender: "m" | "f" | undefined): string {
       /* Three hundred as two words, for a dialect that says it that way.
          The unit goes in front in its before-a-noun form, because a
          hundred is the noun it is counting. */
-      const unit = b.word(`unit.${hundreds / 100}`, "construct.m");
+      const unit = beforeNoun(b, `unit.${hundreds / 100}`, undefined);
       const word = b.word("hundred.n", "standalone");
       pieces.push([unit, word].filter(Boolean).join(" "));
     }
   }
 
   if (tail) {
-    const written = b.override(tail, topKey(tail, gender, false));
+    const written = b.override(tail, topKey(b.sys as NumberSystem, tail, gender, false));
     if (written) pieces.push(written);
     else if (tail <= 10) pieces.push(b.word(`unit.${tail}`, inflects(tail) ? genderKey(gender, false) : "standalone"));
     else if (tail <= 19) pieces.push(b.word(`teen.${tail}`, "standalone"));
@@ -278,7 +427,7 @@ function scale(b: Build, count: number, unit: number, name: string): string {
   if (count === 1) return b.word(`${name}.1`, "standalone");
   if (count === 2) return b.word(`${name}.2`, "standalone");
   if (count <= 10) {
-    const said = b.word(`unit.${count}`, "construct.m");
+    const said = beforeNoun(b, `unit.${count}`, undefined);
     const word = b.word(`${name}.n`, "standalone");
     return [said, word].filter(Boolean).join(" ");
   }
@@ -289,11 +438,10 @@ function scale(b: Build, count: number, unit: number, name: string): string {
 
 /** The numeral alone, in whichever face was asked for. */
 function numeral(b: Build, n: number, gender: "m" | "f" | undefined, counted: boolean): string {
-  const written = b.override(n, topKey(n, gender, counted));
+  const written = b.override(n, topKey(b.sys as NumberSystem, n, gender, counted));
   if (written) return written;
 
-  if (counted && n >= 3 && n <= 10) return b.word(`unit.${n}`, genderKey(gender, true));
-  if (counted && n >= 11 && n <= 19) return b.word(`teen.${n}`, genderKey(gender, true));
+  if (counted && n >= 3 && n <= 19) return beforeNoun(b, slotOf(n), gender);
   /* Nought has no chunks to be built out of, so it is said before the
      building starts rather than falling through it and coming out empty. */
   if (n === 0) return b.word("unit.0", "standalone");
@@ -353,7 +501,11 @@ export function renderAr(n: number, sys: NumberSystem, ctx: RenderCtx = {}): Ren
   }
 
   const said = numeral(b, n, gender, true);
-  const word = nounTextOf(b, noun, form);
+  /* The few nouns with a plural of their own after three to ten — *tiyyām*
+     for days — say it here and nowhere else. The rest say their plural. */
+  const counted = n >= 3 && n <= 10 ? String(noun.plCounted || "").trim() : "";
+  if (counted) b.tokens.push({ text: counted, noun: noun.id });
+  const word = counted || nounTextOf(b, noun, form);
   /* One follows its noun; everything else leads. */
   const text = (n === 1 ? [word, said] : [said, word]).filter(Boolean).join(" ");
   return { text, tokens: b.tokens, nounForm: form, warnings: b.warnings };
@@ -381,6 +533,9 @@ export const arComposer: Composer = {
   id: "ar-PS",
   version: AR_COMPOSER_VERSION,
   requiredSlots: () => AR_SLOTS,
+  twoWords: twoWordsBeforeNoun,
+  keepOne: keepOneWord,
+  tidy: tidyBeforeNoun,
   liftCard: liftArCard,
   table: () => AR_NUMBER_TABLE,
   ranges: () => AR_RANGES,
