@@ -220,6 +220,7 @@ const PLACES: Record<string, [string, string]> = {
   FixScreen: [TEACH, "A language's number system · correcting how a number is said"],
   SampleRows: [TEACH, "A language's number system · numbers as a student will be asked them"],
   PartBlock: [TEACH, "A language's number system · a section of a part's screen"],
+  ConnectingScreen: [TEACH, "A language's number system · the words between a number's pieces"],
   PartScreen: [TEACH, "A language's number system · one part, on a screen of its own"],
   WordGrid: [TEACH, "A language's number system · the words a part is built out of"],
   FoldedBox: [TEACH, "Editing a card · a box most nouns leave empty, folded"],

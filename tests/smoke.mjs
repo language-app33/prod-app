@@ -8207,6 +8207,26 @@ const openPronounTables = async () => {
     (up().textContent || "").slice(0, 300).replace(/\s+/g, " "));
   await goBack();
 
+  /* The word between a number's pieces is not a number, and is on a
+     screen of its own beside the parts rather than among the tens. */
+  click(tileNamed("Numbers 20 to 99"));
+  await sleep(250);
+  check("the part that first needs the connecting word does not hold its box",
+    !!screenNamed("Numbers 20 to 99") && !!boxNamed("40, counting") && !boxNamed("and, counting"),
+    [...up().querySelectorAll("input")].map((i) => i.getAttribute("aria-label")).slice(0, 12).join(" | "));
+  await goBack();
+  check("the main screen offers the connecting words as a screen of their own",
+    !!tileNamed("Connecting words") && /not written yet/.test((tileNamed("Connecting words") || {}).textContent || ""),
+    ((tileNamed("Connecting words") || {}).textContent || "(no tile)").trim());
+  click(tileNamed("Connecting words"));
+  await sleep(250);
+  check("which holds the box for and, and nothing else",
+    !!screenNamed("Connecting words") && up().querySelectorAll(".at-numrow").length === 1 && !!boxNamed("and, counting"),
+    `${up().querySelectorAll(".at-numrow").length} rows`);
+  check("with numbers under it that use the word",
+    [...up().querySelectorAll(".at-numsamplerow .at-numfig")].some((f) => f.textContent === "21"));
+  await goBack();
+
   /* And the last screen: type a number, see it said. */
   click(buttonIn(/^Check a number$/));
   await sleep(250);

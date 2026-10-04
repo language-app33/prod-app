@@ -138,7 +138,7 @@ export const AR_SLOTS: SlotSpec[] = [
     slot: "connector",
     formKeys: COUNTING,
     label: "and",
-    group: "joining",
+    group: "connecting words",
     hint: "What goes between the pieces of a number — and in front of the word after it, with no space.",
   },
 ];

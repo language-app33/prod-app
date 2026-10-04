@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.329 — 4 October 2026
+
+**The words that join a number have a screen of their own.**
+
+- On a language's number system, the small words that go between the
+  pieces of a number — "and" in Palestinian Arabic and in Hebrew — are now
+  under their own **Connecting words** button beside the parts, instead
+  of sitting among the tens on Numbers 20 to 99.
+- The screen shows a few numbers that use the word, so you can see what it
+  does as soon as it is typed, and tap one to correct it.
+- A part that cannot be asked until the word is written says so and
+  offers the way to it.
+- Vietnamese has no such word, so it has no such screen.
+
 ## 0.328 — 4 October 2026
 
 **Custom practice on numbers and times shows the number again.**
