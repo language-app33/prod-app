@@ -92,6 +92,22 @@ export const NUMBER_EQUIVALENT: Record<string, string> = {
   fig2time: "en2ar",
   clock2time: "en2ar",
   rec2dial: "rec2en",
+  /* Written out from the language's own figures: what a number card's own
+     question asks, where the card is one number. A word that is not one —
+     *hundred*, *and*, *quarter past* — has no figures to be asked from and
+     is credited the way it always was; see NUMBER_FALLBACK. */
+  own2num: "own2ar",
+  own2time: "own2ar",
+};
+
+/**
+ * Where a component card cannot be credited under its equivalent, the key
+ * it is credited under instead. Only ever towards a question that shows
+ * less: a word with no figures of its own climbs *English → script*, and
+ * reading it inside ٤٧ is evidence for that.
+ */
+export const NUMBER_FALLBACK: Record<string, string> = {
+  own2ar: "en2ar",
 };
 
 export const TYPES = [
@@ -102,7 +118,7 @@ export const TYPES = [
   /* 3: write it from a cue */
   "tr2ar", "rec2ar", "rec2attr",
   /* 4: write it from its meaning */
-  "en2ar", "img2ar", "ctx2ar", "rec2ctx",
+  "en2ar", "own2ar", "img2ar", "ctx2ar", "rec2ctx",
   /* and a conversation, on its own levels: 1, 3, 3 */
   "dlgwhole", "dlgpick", "dlgorder",
   /* and a range of numbers or of times, which is a skill and climbs the
@@ -110,8 +126,8 @@ export const TYPES = [
      range is never dealt an exercise above because it has no word of its
      own to be asked about, and a word is never dealt one of these because
      it is not a range — both fall out of what each `needs`. */
-  "num2fig", "fig2pick", "rec2fig", "fig2num", "count2phrase",
-  "time2fig", "time2dial", "rec2dial", "fig2time", "clock2time",
+  "num2fig", "fig2pick", "rec2fig", "fig2num", "own2num", "count2phrase",
+  "time2fig", "time2dial", "rec2dial", "fig2time", "own2time", "clock2time",
 ];
 
 export const EX: Record<string, ExerciseSpec> = {
@@ -282,6 +298,9 @@ export const EX: Record<string, ExerciseSpec> = {
     label: "English → {script}",
     short: "E→{S}",
     needs: ["en", "ar"],
+    /* A number in a language with figures of its own is asked from those
+       figures instead — own2ar, below. */
+    unless: ["numeral"],
     question: "Write this in {script}",
     placeholder: "",
     promptField: "en",
@@ -293,6 +312,29 @@ export const EX: Record<string, ExerciseSpec> = {
        read it and all that is left is to spell out what it says, which is
        the level below this one. So it is not opened for you, and taking it
        costs the answer its good mark. */
+    hintTells: true,
+    answerMode: "ar",
+  },
+  /* English → {script} for a number card, from the figures the language
+     writes numbers in: ٣, and the word for three. A number is not learnt
+     until it can be read the way it is met on a price or a bus, so the
+     top of its ladder — where a card's passes are made — shows the
+     language's figures alone. A key of its own rather than en2ar with a
+     different prompt, so a card learnt from 3 before this existed is
+     asked again from ٣ rather than counted as having been. */
+  own2ar: {
+    level: 4,
+    instruction: "Write this number in {script}",
+    label: "{Script} figures → {script}",
+    short: "#→{S}",
+    needs: ["numeral", "ar"],
+    question: "Write this in {script}",
+    placeholder: "",
+    promptField: "numeral",
+    answerField: "ar",
+    hintField: "lat",
+    hintLabel: "Show {translit}",
+    hintHideLabel: "Hide {translit}",
     hintTells: true,
     answerMode: "ar",
   },
@@ -487,9 +529,25 @@ export const EX: Record<string, ExerciseSpec> = {
     label: "Figures → {script}",
     short: "#→{S}",
     needs: ["rangeNumbers"],
+    unless: ["rangeFigures"],
     question: "Write this number out",
     placeholder: "",
     promptField: "en",
+    answerField: "ar",
+    answerMode: "ar",
+  },
+  /* The same, from the language's own figures — ٤٧ rather than 47 — where
+     it has them, and in place of the one above. See own2ar for why it is
+     a key of its own. */
+  own2num: {
+    level: 4,
+    instruction: "Write this number in {script}",
+    label: "{Script} figures → {script}",
+    short: "#→{S}",
+    needs: ["rangeNumbers", "rangeFigures"],
+    question: "Write this number out",
+    placeholder: "",
+    promptField: "numeral",
     answerField: "ar",
     answerMode: "ar",
   },
@@ -552,9 +610,23 @@ export const EX: Record<string, ExerciseSpec> = {
     label: "Clock → {script}",
     short: "⏱→{S}",
     needs: ["rangeTime"],
+    unless: ["rangeFigures"],
     question: "How would you say this time?",
     placeholder: "",
     promptField: "en",
+    answerField: "ar",
+    answerMode: "ar",
+  },
+  /* And from the clock in the language's own figures, ٧:١٥, in its place. */
+  own2time: {
+    level: 4,
+    instruction: "Say this time in {script}",
+    label: "{Script} figures → {script}",
+    short: "⏱→{S}",
+    needs: ["rangeTime", "rangeFigures"],
+    question: "How would you say this time?",
+    placeholder: "",
+    promptField: "numeral",
     answerField: "ar",
     answerMode: "ar",
   },
@@ -3772,6 +3844,58 @@ export function checkAr(given: string, expected: string, settings: Settings) {
   return worst;
 }
 
+/* A number as typed, with the notation taken off: the digits an Arabic or
+   Persian keyboard writes, folded to the ones the card is stored with;
+   thousands separators in the several shapes they are written — spaces of
+   every width, commas, full stops, apostrophes, the Arabic thousands mark;
+   and a stray plus, since no number here carries a sign. */
+function figures(s: unknown): string {
+  return String(s == null ? "" : s)
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[\s,._'\u00A0\u2009\u202F\u066C]/g, "")
+    .replace(/^\+/, "");
+}
+
+/* Digits alone, or digits grouped in threes. Strict on purpose: "1, 2" is
+   not twelve, and a meaning that only might be a number is a word. */
+const NUMERAL = /^\d+$|^\d{1,3}(?:[,. '\u00A0\u2009\u202F\u066C]\d{3})+$/;
+
+/**
+ * The numbers a meaning accepts, where every answer it accepts is a number
+ * written in figures — the word for 40, for 1,000, a number a teacher
+ * wrote out by hand — and null where any of them is a word. "five / 5" is
+ * a word: it can be answered with letters.
+ *
+ * Split on a slash or a semicolon and never a comma, which in a number is
+ * grouping rather than a second answer.
+ */
+export function numeralMeanings(expected: unknown): string[] | null {
+  const parts = String(expected == null ? "" : expected)
+    .split(/[/;]/)
+    .map((s) =>
+      s
+        .trim()
+        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0)),
+    )
+    .filter(Boolean);
+  return parts.length && parts.every((p) => NUMERAL.test(p)) ? parts : null;
+}
+
+/**
+ * Whether this question's answer is typed in figures and nothing else, so
+ * the answer box asks a phone for its number pad. The questions that ask
+ * for figures always are; one asking for the meaning is when every meaning
+ * the card accepts is a number. A time is not — a number pad has no colon.
+ */
+export function answersInFigures(item: Record<string, any> | null | undefined, key: string): boolean {
+  const spec = EX[typeOf(key)];
+  if (!spec || !item) return false;
+  if (spec.answerMode === "fig") return true;
+  return spec.answerMode === "en" && !!numeralMeanings(item[spec.answerField]);
+}
+
 export function checkAnswer(typed: string, item: Record<string, any>, key: string, settings: Settings) {
   const spec = EX[typeOf(key)];
   const mode = spec.answerMode;
@@ -3868,24 +3992,20 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
    * the digits their own keyboard makes should not be told they are
    * wrong.
    */
-  if (mode === "fig") {
-    const figures = (s: unknown) =>
-      String(s == null ? "" : s)
-        /* Arabic-Indic and Extended Arabic-Indic digits, folded to the
-           ones the card is stored with. */
-        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-        /* Thousands separators, in the several shapes they are written:
-           spaces of every width, commas, full stops, apostrophes, and the
-           Arabic thousands mark. */
-        .replace(/[\s,._'\u00A0\u2009\u202F\u066C]/g, "")
-        /* A number written with no sign on it, so a stray plus is not the
-           difference between right and wrong. */
-        .replace(/^\+/, "");
+  /*
+   * And a meaning that is a number is marked the same way. The word for
+   * 2,000 asked in English went through the English marking, which read
+   * its comma as two answers — so 1 was right for 1,000 — and called 3000
+   * a typo of 2000. See `numeralMeanings`.
+   */
+  const numerals = mode === "en" ? numeralMeanings(expected) : null;
+  if (mode === "fig" || numerals) {
     const got = figures(typed);
     if (!got || !/^\d+$/.test(got)) return { ok: false, reason: "wrong" };
     /* Leading zeros are notation too: 047 is 47 written out of habit. */
-    const same = String(Number(got)) === String(Number(figures(expected)));
+    const same = (numerals || [String(expected == null ? "" : expected)]).some(
+      (want) => String(Number(got)) === String(Number(figures(want))),
+    );
     return same ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
   }
   /*

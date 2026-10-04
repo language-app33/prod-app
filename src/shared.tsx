@@ -388,11 +388,22 @@ export function plural(n: number, one: string, many?: string) {
  * of numbers saying "0 cards". The parts are said beside the cards rather
  * than added into them, and a deck of nothing but parts leaves the
  * "0 cards" off.
+ *
+ * And it says when a part sends students nothing. A part is a promise of
+ * numbers that only the teacher's words keep, and "5 number parts" on a
+ * deck whose numbers were never written read as a full deck while its
+ * students were told there was nothing to practise. Said only where the
+ * server has worked it out (`partsWaiting`), so a deck from anywhere else
+ * says what it always did.
  */
-export function deckSize(d: { cardCount?: number; parts?: string[] }, cards = d.cardCount || 0) {
-  const parts = (d.parts || []).length;
+export function deckSize(d: { cardCount?: number; parts?: string[]; partsWaiting?: string[] }, cards = d.cardCount || 0) {
+  const held = d.parts || [];
+  const parts = held.length;
   if (!parts) return plural(cards, "card");
-  const said = plural(parts, "number part");
+  const waiting = (d.partsWaiting || []).filter((p) => held.includes(p)).length;
+  const said =
+    plural(parts, "number part") +
+    (waiting === parts ? " · none ready yet" : waiting ? ` · ${waiting} not ready yet` : "");
   return cards ? `${plural(cards, "card")} · ${said}` : said;
 }
 

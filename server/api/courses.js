@@ -23,7 +23,9 @@ import { holedParts, isSentenceKey, reviewOf } from "../../src/review.ts";
    answer is: hand-written, total, and silent about why. See
    src/numbers/schema.ts, and DECISIONS.md on why not a schema library. */
 import { clipsOfSystem, emptyNumberSystem, readNumberSystem, readTimeSystem } from "../../src/numbers/schema.ts";
-import { composerFor } from "../../src/numbers/index.ts";
+import { composerFor, timeComposerFor } from "../../src/numbers/index.ts";
+import { rangeChecks } from "../../src/numbers/range.ts";
+import { partsNow } from "../../src/numbers/types.ts";
 import { migrateCards } from "../../src/numbers/migrate.ts";
 import { liftSubtypeTagsIn } from "../../src/subtype-tags.ts";
 
@@ -268,9 +270,10 @@ const K = {
   timeSys: (id) => `timesys:${id}`,
   /**
    * The version of a number or time system its teacher last signed off,
-   * kept whole: what students are sent while later edits wait. Absent on a
-   * system nobody has edited since sign-off existed, which is sent as it
-   * stands. See sign-system.
+   * kept whole. It was what students were sent while later edits waited;
+   * since a save signs itself, students are sent the saved system and
+   * this is only written, for a build that still reads it. See
+   * save-system and my-material.
    * @param {string} id
    */
   sysSigned: (id) => `syssigned:${id}`,
@@ -524,12 +527,90 @@ const inCourse = (course, h) => isTeacher(course, h) || isStudent(course, h);
    a screen into a waterfall of round trips. Reads are safe to run together;
    writes are not, because course and deck records are read-modify-write, so
    the destructive loops below stay deliberately sequential. */
+/*
+ * Which courses a deck is in — read off the courses, never off the deck.
+ *
+ * The link is written in two places: the course lists the deck, and the
+ * deck lists the course with the day it was added. The two came apart. A
+ * course could go on handing a deck to its students while the deck no
+ * longer said it was in that course, so the teacher's course screen showed
+ * one deck and the student's showed seven, and Manage decks could not take
+ * out what it could not see. Whichever request wrote last won; see
+ * updateJson for why that is no longer how they are written.
+ *
+ * The course's list is the one a student's device is sent, so it is the one
+ * that answers. The deck's own list is kept for the date and for nothing
+ * else: every screen that says which courses hold a deck is given links
+ * worked out here, so it says what the students actually have.
+ */
+/**
+ * @param {Deck} deck
+ * @param {Course[]} courses  Every course on the site, or at least every one that may list it.
+ * @returns {import("../../src/types.ts").DeckLink[]}
+ */
+function linksOf(deck, courses) {
+  const added = new Map((deck.courses || []).map((l) => [l.courseId, l.addedAt]));
+  return courses
+    .filter((c) => c && (c.decks || []).includes(deck.id))
+    .map((c) => {
+      const at = added.get(c.id);
+      return at ? { courseId: c.id, addedAt: at } : { courseId: c.id };
+    });
+}
+
+/**
+ * Every course on the site, read once for a caller that needs to know which
+ * of them list a deck.
+ * @param {Store} store
+ * @returns {Promise<Course[]>}
+ */
+async function everyCourse(store) {
+  const ids = await readIndex(store, "courses");
+  return (await readManyJson(store, ids.map((id) => K.course(id)))).filter(Boolean);
+}
+
+/**
+ * Decks as a screen is given them: with the courses that hold them, read
+ * off those courses — see linksOf.
+ * @template {Deck} D
+ * @param {Store} store
+ * @param {D[]} decks
+ * @param {Course[]} [courses]  Already read, where the caller has them.
+ * @returns {Promise<D[]>}
+ */
+async function withLinks(store, decks, courses) {
+  if (!decks.length) return decks;
+  const all = courses || (await everyCourse(store));
+  return decks.map((d) => ({ ...d, courses: linksOf(d, all) }));
+}
+
+/**
+ * A deck that is going, taken out of every course that lists it.
+ *
+ * Every course, not the ones the deck names: a course the deck had
+ * forgotten it was in would otherwise keep a deck that no longer exists.
+ * @param {Store} store
+ * @param {string} deckId
+ */
+async function dropFromCourses(store, deckId) {
+  for (const c of await everyCourse(store)) {
+    if (!(c.decks || []).includes(deckId)) continue;
+    await updateJson(store, K.course(c.id), (/** @type {Course | null} */ fresh) =>
+      fresh && (fresh.decks || []).includes(deckId)
+        ? { ...fresh, decks: fresh.decks.filter((x) => x !== deckId) }
+        : null
+    );
+  }
+}
+
 /* Who may change a deck.
  *
  * Its owner, an administrator, or any teacher of a course the deck is in.
  * A course is shared work: a teacher brought in to help cannot be expected
  * to ask the original author before fixing a card. Merely studying a course
- * grants nothing. */
+ * grants nothing. "In" is the course's say, as everywhere — the same rule
+ * my-decks lists a co-teacher's decks by, so a deck a teacher is shown is
+ * one they may work on. */
 /**
  * @param {Store} store
  * @param {Deck | null} deck
@@ -539,11 +620,7 @@ const inCourse = (course, h) => isTeacher(course, h) || isStudent(course, h);
 async function canEditDeck(store, deck, handle, isAdmin) {
   if (!deck) return false;
   if (isAdmin || deck.owner === handle) return true;
-  for (const link of deck.courses || []) {
-    const course = await readCourse(store, link.courseId);
-    if (course && isTeacher(course, handle)) return true;
-  }
-  return false;
+  return (await everyCourse(store)).some((c) => (c.decks || []).includes(deck.id) && isTeacher(c, handle));
 }
 
 /**
@@ -645,12 +722,7 @@ async function wipeAccount(store, handle) {
       }
       continue;
     }
-    for (const link of d.courses || []) {
-      const c = await readCourse(store, link.courseId);
-      if (!c) continue;
-      c.decks = c.decks.filter((x) => x !== id);
-      await writeJson(store, K.course(c.id), c);
-    }
+    await dropFromCourses(store, id);
     await store.delete(K.deck(id)).catch(() => {});
   }
   await writeJson(store, K.index("decks"), keptDecks);
@@ -665,13 +737,14 @@ async function wipeAccount(store, handle) {
   await store.delete(K.tagLift(handle)).catch(() => {});
 
   for (const id of await readIndex(store, "courses")) {
-    const c = await readCourse(store, id);
-    if (!c) continue;
-    if (c.teachers.includes(handle) || c.students.includes(handle)) {
-      c.teachers = c.teachers.filter((x) => x !== handle);
-      c.students = c.students.filter((x) => x !== handle);
-      await writeJson(store, K.course(c.id), c);
-    }
+    await updateJson(store, K.course(id), (/** @type {Course | null} */ c) => {
+      if (!c || !(c.teachers.includes(handle) || c.students.includes(handle))) return null;
+      return {
+        ...c,
+        teachers: c.teachers.filter((x) => x !== handle),
+        students: c.students.filter((x) => x !== handle),
+      };
+    });
   }
 
   if (user.keyHash) await store.delete(K.keyOf(user.keyHash)).catch(() => {});
@@ -992,6 +1065,95 @@ export default async (req) => {
       if (!keys.length) return [];
       const rows = await readManyJson(store, keys, EVENTUAL);
       return rows.filter(Boolean);
+    }
+
+    /**
+     * Which of each deck's number parts its students would get nothing
+     * from, keyed by deck id — the parts as the deck stores them.
+     *
+     * A deck names its parts and a student's device builds them out of the
+     * teachers' numbers, so a part whose words are not all written yet is a
+     * part that sends nothing: no question on it, and none of the words it
+     * would have brought. The deck went on saying "5 number parts" all the
+     * same, and a deck of numbers nobody had written read as full while its
+     * students were told there was nothing to practise.
+     *
+     * Read the way the device reads it: the numbers of everyone whose
+     * material reaches a student of a course that holds the deck — the
+     * deck's owner, and each such course's teachers and the owners of its
+     * other decks — in the deck's language, each with its clock, and a part
+     * open where rangeChecks opens it in any of them. A part stored under
+     * its old name is ready only when every part it became is.
+     * @param {Deck[]} decks
+     * @param {Course[]} courses  Every course on the site.
+     * @returns {Promise<Map<string, string[]>>}
+     */
+    async function partsWaiting(decks, courses) {
+      /** @type {Map<string, string[]>} */
+      const out = new Map();
+      const withParts = decks.filter((d) => (d.parts || []).length);
+      if (!withParts.length) return out;
+      /* A deck's owner, for the decks beside these in their courses that
+         are not in this list. */
+      const ownerOf = new Map(decks.map((d) => [d.id, d.owner]));
+      const beside = courses.filter((c) => withParts.some((d) => (c.decks || []).includes(d.id)));
+      const unknown = [...new Set(beside.flatMap((c) => c.decks || []))].filter((id) => !ownerOf.has(id));
+      (await readManyJson(store, unknown.map((id) => K.deck(id)))).forEach((d, i) => {
+        if (d) ownerOf.set(unknown[i], d.owner);
+      });
+
+      /** @type {Map<string, Promise<Set<string>>>} */
+      const openFor = new Map();
+      /** What one person's numbers, in one language, open. */
+      const opens = (/** @type {string} */ owner, /** @type {string} */ lang) => {
+        const at = `${owner} ${lang}`;
+        const held = openFor.get(at);
+        if (held) return held;
+        const work = (async () => {
+          const index = await systemIndex(owner);
+          const [numbers, times] = await Promise.all([
+            index.numbers[lang] ? readJson(store, K.numSys(index.numbers[lang])) : null,
+            index.times[lang] ? readJson(store, K.timeSys(index.times[lang])) : null,
+          ]);
+          const sys = numbers ? readNumberSystem(numbers) : null;
+          const clock = times ? readTimeSystem(times) : null;
+          return new Set(
+            rangeChecks(
+              composerFor(lang),
+              sys,
+              timeComposerFor(lang),
+              clock && sys && clock.numberSystemId === sys.id ? clock : null,
+            )
+              .filter((c) => c.open)
+              .map((c) => c.range.id),
+          );
+        })();
+        openFor.set(at, work);
+        return work;
+      };
+
+      for (const d of withParts) {
+        const holding = courses.filter((c) => (c.decks || []).includes(d.id));
+        const lang = d.lang || (holding[0] && holding[0].language) || "";
+        const whose = [
+          ...new Set(
+            [d.owner]
+              .concat(holding.flatMap((c) => (c.teachers || []).concat((c.decks || []).map((x) => ownerOf.get(x) || ""))))
+              .filter(Boolean),
+          ),
+        ];
+        /** @type {Set<string>} */
+        const open = new Set();
+        for (const ids of await Promise.all(whose.map((h) => opens(h, lang)))) for (const id of ids) open.add(id);
+        out.set(
+          d.id,
+          (d.parts || []).filter((p) => {
+            const now = partsNow([p]);
+            return !now.length || !now.every((id) => open.has(id));
+          }),
+        );
+      }
+      return out;
     }
 
     /**
@@ -2006,7 +2168,9 @@ export default async (req) => {
       return json({
         ok: true,
         card: { ...saved, decks: final },
-        decks: deckRecords,
+        /* The screen folds these over the decks it holds, so they say
+           which courses hold them the way my-decks does. */
+        decks: await withLinks(store, deckRecords),
         ...(trimmed.length ? { trimmed } : {}),
         ...(refusedLocked.length ? { locked: refusedLocked } : {}),
       });
@@ -2195,15 +2359,22 @@ export default async (req) => {
       /* Mine, plus every deck in a course I teach — those are mine to work on
          too, and hiding them meant a co-teacher could not find the material
          they had been brought in to look after. */
-      const courseIds = await readIndex(store, "courses");
-      const courses = (await readManyJson(store, courseIds.map((id) => K.course(id)))).filter(
-        (c) => c && isTeacher(c, mine)
-      );
-      const teaching = new Set(courses.flatMap((c) => c.decks || []));
+      const courses = await everyCourse(store);
+      const teaching = new Set(courses.filter((c) => isTeacher(c, mine)).flatMap((c) => c.decks || []));
 
-      const decks = rows
-        .filter((d) => d.owner === mine || teaching.has(d.id))
-        .map((d) => ({ ...d, cardCount: (d.cardIds || []).length, mine: d.owner === mine }));
+      /* With the courses that hold each one read off those courses, which
+         is what the course screen, Manage decks and a deck's settings all
+         show — see linksOf. */
+      const shown = rows.filter((d) => d.owner === mine || teaching.has(d.id));
+      /* And which of its number parts reach nobody yet — see partsWaiting. */
+      const waiting = await partsWaiting(shown, courses);
+      const decks = shown.map((d) => ({
+        ...d,
+        courses: linksOf(d, courses),
+        cardCount: (d.cardIds || []).length,
+        mine: d.owner === mine,
+        ...(waiting.has(d.id) ? { partsWaiting: waiting.get(d.id) } : null),
+      }));
       return json({ ok: true, decks });
     }
 
@@ -2214,7 +2385,13 @@ export default async (req) => {
         return json({ error: "not-yours" }, 403);
       const title = String(body.title || "").trim().slice(0, 60);
       if (!title) return json({ error: "title-required" }, 400);
-      await writeJson(store, K.deck(deck.id), { ...deck, title, updated: Date.now() });
+      /* The title onto the deck as it is now, not onto the copy read above:
+         written whole, that copy undid whatever landed in between — a card
+         filed into it, a course it was added to. The same for every change
+         to a deck below. */
+      await updateJson(store, K.deck(deck.id), (/** @type {Deck | null} */ fresh) =>
+        fresh ? { ...fresh, title, updated: Date.now() } : null
+      );
       await taught();
       return json({ ok: true, title });
     }
@@ -2230,9 +2407,11 @@ export default async (req) => {
       if (!(await canEditDeck(store, deck, mine, me.admin)))
         return json({ error: "not-yours" }, 403);
       const locked = !!body.locked;
-      const { locked: _was, ...rest } = /** @type {any} */ (deck);
-      const next = locked ? { ...rest, locked: true } : rest;
-      await writeJson(store, K.deck(deck.id), { ...next, updated: Date.now() });
+      await updateJson(store, K.deck(deck.id), (/** @type {Deck | null} */ fresh) => {
+        if (!fresh) return null;
+        const { locked: _was, ...rest } = fresh;
+        return { ...(locked ? { ...rest, locked: true } : rest), updated: Date.now() };
+      });
       await taught();
       return json({ ok: true, locked });
     }
@@ -2262,10 +2441,15 @@ export default async (req) => {
             .filter((/** @type {string} */ p) => /^(numbers|time):[a-z0-9+-]{1,40}$/.test(p))
         ),
       ].slice(0, 50);
-      const { parts: _was, ...rest } = /** @type {any} */ (deck);
-      await writeJson(store, K.deck(deck.id), { ...rest, ...(parts.length ? { parts } : null), updated: Date.now() });
+      const next = await updateJson(store, K.deck(deck.id), (/** @type {Deck | null} */ fresh) => {
+        if (!fresh) return null;
+        const { parts: _was, ...rest } = fresh;
+        return { ...rest, ...(parts.length ? { parts } : null), updated: Date.now() };
+      });
       await taught();
-      return json({ ok: true, parts });
+      /* And which of them reach nobody yet, so the deck can say so at once. */
+      const waiting = next ? (await partsWaiting([next], await everyCourse(store))).get(next.id) : null;
+      return json({ ok: true, parts, partsWaiting: waiting || [] });
     }
 
     /* The deck goes; the cards it held stay in the library. A locked deck
@@ -2278,13 +2462,7 @@ export default async (req) => {
         return json({ error: "not-yours" }, 403);
       if (deck.locked) return json({ error: "deck-locked" }, 409);
 
-      for (const link of deck.courses || []) {
-        const c = await readCourse(store, link.courseId);
-        if (c) {
-          c.decks = c.decks.filter((x) => x !== deck.id);
-          await writeJson(store, K.course(link.courseId), c);
-        }
-      }
+      await dropFromCourses(store, deck.id);
       await store.delete(K.deck(deck.id)).catch(() => {});
       await store.delete(K.cards(deck.id)).catch(() => {});
       const ids = await readIndex(store, "decks");
@@ -2293,7 +2471,17 @@ export default async (req) => {
       return json({ ok: true });
     }
 
-    /* Adding a deck to a course, and taking it away again. */
+    /*
+     * Adding a deck to a course, and taking it away again.
+     *
+     * Both records are changed as they stand when the write lands. They
+     * used to be read here and written back whole, so two of these at once
+     * — or one of these and somebody joining the course — each wrote over
+     * the other: a deck taken out came back on the course while the deck
+     * itself no longer said so, and students went on being sent what the
+     * teacher's screen said was gone. The course first, because it is the
+     * one students are sent and the one every screen reads — see linksOf.
+     */
     if (action === "attach-deck" || action === "detach-deck") {
       const deck = await readDeck(store, String(body.deckId || ""));
       const course = await readCourse(store, String(body.courseId || ""));
@@ -2302,19 +2490,37 @@ export default async (req) => {
         return json({ error: "not-yours" }, 403);
       if (!isTeacher(course, mine) && !me.admin) return json({ error: "not-teaching" }, 403);
 
-      if (action === "attach-deck") {
-        if (!deck.courses.some((c) => c.courseId === course.id)) {
-          deck.courses.push({ courseId: course.id, addedAt: Date.now() });
-        }
-        if (!course.decks.includes(deck.id)) course.decks.push(deck.id);
-      } else {
-        deck.courses = deck.courses.filter((c) => c.courseId !== course.id);
-        course.decks = course.decks.filter((d) => d !== deck.id);
-      }
-      await writeJson(store, K.deck(deck.id), deck);
-      await writeJson(store, K.course(course.id), course);
+      const adding = action === "attach-deck";
+      /* Whether the course held it before this, which decides whether the
+         deck's date is a new one: a deck the course already had keeps the
+         day it was first added. */
+      let held = false;
+      const nextCourse = await updateJson(store, K.course(course.id), (/** @type {Course | null} */ fresh) => {
+        if (!fresh) return null;
+        held = (fresh.decks || []).includes(deck.id);
+        if (adding === held) return null;
+        return {
+          ...fresh,
+          decks: adding ? (fresh.decks || []).concat([deck.id]) : fresh.decks.filter((d) => d !== deck.id),
+        };
+      });
+      if (!nextCourse) return json({ error: "not-found" }, 404);
+      const now = Date.now();
+      const nextDeck = await updateJson(store, K.deck(deck.id), (/** @type {Deck | null} */ fresh) => {
+        if (!fresh) return null;
+        const others = (fresh.courses || []).filter((l) => l.courseId !== course.id);
+        const mineNow = (fresh.courses || []).find((l) => l.courseId === course.id);
+        if (!adding) return mineNow ? { ...fresh, courses: others } : null;
+        if (mineNow && held) return null;
+        /* Held already but not noted on the deck: the day is not known, and
+           a guess would be printed as a fact on the course screen. */
+        const link = held ? { courseId: course.id } : { courseId: course.id, addedAt: now };
+        return { ...fresh, courses: others.concat([link]) };
+      });
+      if (!nextDeck) return json({ error: "not-found" }, 404);
       await taught();
-      return json({ ok: true, deck, course });
+      const [shown] = await withLinks(store, [nextDeck]);
+      return json({ ok: true, deck: shown, course: nextCourse });
     }
 
     /* ================= courses ================= */
@@ -2363,21 +2569,26 @@ export default async (req) => {
       const target = await readUser(store, handle);
       if (!course || !target) return json({ error: "not-found" }, 404);
 
-      if (action === "assign-teacher") {
-        if (!course.teachers.includes(handle)) course.teachers.push(handle);
-      } else if (action === "assign-student") {
-        if (!course.students.includes(handle)) course.students.push(handle);
-      } else {
-        const only = body.role;
-        if (only === "teacher") course.teachers = course.teachers.filter((h) => h !== handle);
-        else if (only === "student") course.students = course.students.filter((h) => h !== handle);
-        else {
-          course.teachers = course.teachers.filter((h) => h !== handle);
-          course.students = course.students.filter((h) => h !== handle);
+      /* Onto the course as it stands — a stale copy written back whole is
+         how a deck taken off a course came back on it. The same for every
+         change to a course below. */
+      const only = action === "remove-member" ? body.role : null;
+      const next = await updateJson(store, K.course(course.id), (/** @type {Course | null} */ c) => {
+        if (!c) return null;
+        if (action === "assign-teacher") {
+          return c.teachers.includes(handle) ? null : { ...c, teachers: c.teachers.concat([handle]) };
         }
-      }
-      await writeJson(store, K.course(course.id), course);
-      return json({ ok: true, course });
+        if (action === "assign-student") {
+          return c.students.includes(handle) ? null : { ...c, students: c.students.concat([handle]) };
+        }
+        return {
+          ...c,
+          teachers: only === "student" ? c.teachers : c.teachers.filter((h) => h !== handle),
+          students: only === "teacher" ? c.students : c.students.filter((h) => h !== handle),
+        };
+      });
+      if (!next) return json({ error: "not-found" }, 404);
+      return json({ ok: true, course: next });
     }
 
     if (action === "join-course") {
@@ -2393,21 +2604,15 @@ export default async (req) => {
       const asStudent = given === course.code;
       if (!asTeacher && !asStudent) return json({ error: "bad-code" }, 404);
 
-      let changed = false;
-      if (asTeacher) {
-        if (!course.teachers.includes(mine)) {
-          course.teachers.push(mine);
-          changed = true;
-        }
-      } else if (!course.students.includes(mine)) {
-        /* Studying is its own membership. A teacher may hold it too — that is
-           how they get the course's cards into their own practice. */
-        course.students.push(mine);
-        changed = true;
-      }
-      if (changed) await writeJson(store, K.course(course.id), course);
+      /* Studying is its own membership. A teacher may hold it too — that is
+         how they get the course's cards into their own practice. */
+      const as = asTeacher ? "teachers" : "students";
+      const joined = await updateJson(store, K.course(course.id), (/** @type {Course | null} */ c) =>
+        c && !c[as].includes(mine) ? { ...c, [as]: c[as].concat([mine]) } : null
+      );
+      if (!joined) return json({ error: "not-found" }, 404);
 
-      const { code, teacherCode, ...safe } = course;
+      const { code, teacherCode, ...safe } = joined;
       return json({ ok: true, course: safe, role: asTeacher ? "teacher" : "student" });
     }
 
@@ -2676,25 +2881,23 @@ export default async (req) => {
          already tidied. The version was taken a step earlier; where this
          moved anything it moves again, and the device fetches once more. */
       await Promise.all(teacherHandles.map((h) => liftTags(h)));
-      const current = (
+      /*
+       * Each as its teacher last saved it, because a save is what students
+       * get — see save-system.
+       *
+       * This used to send the version last signed off, and nothing at all
+       * where nothing had been. Since Save publishes, every save signs
+       * itself, so the two differ only for a system last saved before that
+       * — under a Publish button that is gone. A system written then and
+       * never published reached no student, with no button left to send
+       * it and nothing on the teacher's screen to say so: a deck holding
+       * only numbers was a deck with nothing in it, and its students were
+       * told there was nothing to practise. The sign-off record is still
+       * written, for a build that reads it; nothing here does.
+       */
+      const systems = (
         await Promise.all(teacherHandles.map((h) => systemsOf(h, langs)))
       ).flat();
-      /* Each as its teacher last signed it off — see sign-system. The one
-         on disk where it has not been edited since sign-off existed, and
-         none at all where nothing has been signed yet. */
-      const signs = await readManyJson(
-        store,
-        current.map((/** @type {any} */ sys) => K.sysSigned(String(sys.id))),
-        EVENTUAL,
-      );
-      const systems = current
-        .map((/** @type {any} */ sys, /** @type {number} */ i) => {
-          const sign = signs[i];
-          if (!sign) return sys;
-          if (Number(sign.rev) === Number(sys.rev)) return sys;
-          return sign.system || null;
-        })
-        .filter(Boolean);
       /** @type {[string, number][]} */
       const systemsAt = systems.map((/** @type {any} */ sys) => [sys.id, Number(sys.rev) || 0]);
       const version = materialVersion(courseRows, deckRows, fillsAt, systemsAt);
@@ -2914,16 +3117,12 @@ export default async (req) => {
       const deck = await readDeck(store, url.searchParams.get("deck") || "");
       if (!deck) return json({ error: "not-found" }, 404);
 
-      let allowed = deck.owner === mine || me.admin;
-      if (!allowed) {
-        for (const link of deck.courses) {
-          const c = await readCourse(store, link.courseId);
-          if (inCourse(c, mine)) {
-            allowed = true;
-            break;
-          }
-        }
-      }
+      /* Somebody in a course that lists it — the course's say, which is
+         what sends it to them in the first place. */
+      const allowed =
+        deck.owner === mine ||
+        me.admin ||
+        (await everyCourse(store)).some((c) => (c.decks || []).includes(deck.id) && inCourse(c, mine));
       if (!allowed) return json({ error: "no-access" }, 403);
 
       const cards = (
@@ -3019,14 +3218,22 @@ export default async (req) => {
         /** @type {Record<string, string>} */
       const nameOf = {};
         for (const u of userRows) if (u) nameOf[u.handle] = u.displayName;
-        const decks = deckRows.filter(Boolean).map((d) => ({
-          ...d,
-          cardCount: (d.cardIds || []).length,
-          ownerName: nameOf[d.owner] || d.owner,
-          courseTitles: d.courses
-            .map((/** @type {{ courseId: string }} */ l) => (courses.find((c) => c.id === l.courseId) || {}).title)
-            .filter(Boolean),
-        }));
+        /* Which courses hold a deck, said by the courses — see linksOf —
+           and which of its number parts reach nobody yet. */
+        const waiting = await partsWaiting(deckRows.filter(Boolean), courses);
+        const decks = deckRows.filter(Boolean).map((d) => {
+          const courseLinks = linksOf(d, courses);
+          return {
+            ...d,
+            courses: courseLinks,
+            ...(waiting.has(d.id) ? { partsWaiting: waiting.get(d.id) } : null),
+            cardCount: (d.cardIds || []).length,
+            ownerName: nameOf[d.owner] || d.owner,
+            courseTitles: courseLinks
+              .map((l) => (courses.find((c) => c.id === l.courseId) || {}).title)
+              .filter(Boolean),
+          };
+        });
         /*
          * What became of each flagged card, which decides what the report
          * is still worth: one edited since is probably already fixed, one
@@ -3434,17 +3641,18 @@ export default async (req) => {
            across a deploy adds the role it meant rather than the default. */
         const courseId = String(body.courseId || "");
         if (courseId) {
-          const course = await readCourse(store, courseId);
-          if (course) {
-            const asked = Array.isArray(body.roles)
-              ? body.roles
-              : [body.role === "student" ? "student" : "teacher"];
+          const asked = Array.isArray(body.roles)
+            ? body.roles
+            : [body.role === "student" ? "student" : "teacher"];
+          await updateJson(store, K.course(courseId), (/** @type {Course | null} */ course) => {
+            if (!course) return null;
+            const next = { ...course, teachers: course.teachers.slice(), students: course.students.slice() };
             for (const role of asked) {
               const as = role === "student" ? "students" : "teachers";
-              if (!course[as].includes(handle)) course[as].push(handle);
+              if (!next[as].includes(handle)) next[as].push(handle);
             }
-            await writeJson(store, K.course(courseId), course);
-          }
+            return next;
+          });
         }
         return json({ ok: true, user, key });
       }
@@ -3481,12 +3689,11 @@ export default async (req) => {
         if (!course) return json({ error: "not-found" }, 404);
 
         for (const deckId of course.decks || []) {
-          const d = await readDeck(store, deckId);
-          if (!d) continue;
-          await writeJson(store, K.deck(deckId), {
-            ...d,
-            courses: (d.courses || []).filter((l) => l.courseId !== course.id),
-          });
+          await updateJson(store, K.deck(deckId), (/** @type {Deck | null} */ d) =>
+            d && (d.courses || []).some((l) => l.courseId === course.id)
+              ? { ...d, courses: d.courses.filter((l) => l.courseId !== course.id) }
+              : null
+          );
         }
         if (course.code) await store.delete(K.code(course.code)).catch(() => {});
         await store.delete(K.course(course.id)).catch(() => {});
@@ -3507,7 +3714,9 @@ export default async (req) => {
         if (!course) return json({ error: "not-found" }, 404);
         const title = String(body.title || "").trim().slice(0, 80);
         if (!title) return json({ error: "title-required" }, 400);
-        await writeJson(store, K.course(course.id), { ...course, title, updated: Date.now() });
+        await updateJson(store, K.course(course.id), (/** @type {Course | null} */ c) =>
+          c ? { ...c, title, updated: Date.now() } : null
+        );
         return json({ ok: true, title });
       }
 
@@ -3520,11 +3729,9 @@ export default async (req) => {
            says plainly that a blank is not an answer, which whitespace is. */
         const language = String(body.language || "").trim().slice(0, 20);
         if (!language) return json({ error: "language-required" }, 400);
-        await writeJson(store, K.course(course.id), {
-          ...course,
-          language,
-          updated: Date.now(),
-        });
+        await updateJson(store, K.course(course.id), (/** @type {Course | null} */ c) =>
+          c ? { ...c, language, updated: Date.now() } : null
+        );
         return json({ ok: true, language });
       }
 
@@ -3539,7 +3746,9 @@ export default async (req) => {
         const code = makeCode();
         if (course[which]) await store.delete(K.code(course[which])).catch(() => {});
         await writeJson(store, K.code(code), course.id);
-        await writeJson(store, K.course(course.id), { ...course, [which]: code });
+        await updateJson(store, K.course(course.id), (/** @type {Course | null} */ c) =>
+          c ? { ...c, [which]: code } : null
+        );
         return json({ ok: true, code, which });
       }
 

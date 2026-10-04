@@ -488,13 +488,13 @@ test("every question shows one accepted answer, and the typed ones still take an
      writing the other one, on a guess, is worse than accepting both. */
   const keepsAll = TYPES.filter((t) => !showsOneAnswer(t));
   assert.deepEqual(keepsAll, [
-    "rec2ar", "en2ar", "img2ar", "ctx2ar", "rec2ctx",
-    /* And the four that ask for a number or a time to be written out. A
+    "rec2ar", "en2ar", "own2ar", "img2ar", "ctx2ar", "rec2ctx",
+    /* And the six that ask for a number or a time to be written out. A
        skill has exactly one way of saying what it drew, so narrowing it
        would be narrowing a list of one — the rule holds trivially here
        and is listed rather than excepted, so the day a composer offers a
        second wording this says so. */
-    "fig2num", "count2phrase", "fig2time", "clock2time",
+    "fig2num", "own2num", "count2phrase", "fig2time", "own2time", "clock2time",
   ]);
 
   /* And pronunciation is the one that types the script and narrows anyway,

@@ -836,7 +836,7 @@ test("a hint that gives the answer away is declared as one, and nothing else is"
      what it says, which is the question one level down. Marked so the
      trainer can keep it shut and mark an answer written under it as the
      near miss it is. */
-  assert.deepEqual(TYPES.filter((t) => EX[t].hintTells), ["en2ar", "img2ar", "ctx2ar"]);
+  assert.deepEqual(TYPES.filter((t) => EX[t].hintTells), ["en2ar", "own2ar", "img2ar", "ctx2ar"]);
   for (const t of TYPES) {
     const spec = EX[t];
     if (!spec.hintTells) continue;

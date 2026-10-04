@@ -1128,6 +1128,11 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       ((document.querySelector('[data-el="verdict"]') || {}).textContent || "").trim());
     setValue("");
     await sleep(50);
+    /* A word is answered in letters, so the phone's keyboard is the whole
+       of it, not the number pad a figure gets. */
+    check("an answer in words leaves the phone its letters",
+      typedField.getAttribute("inputmode") !== "numeric",
+      String(typedField.getAttribute("inputmode")));
   }
 
   /* Names on the parts of a question and an answer. They are how a change
@@ -1522,6 +1527,15 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("a kept session puts a way back to it on the home screen",
     !!buttonNamed(/^Saved sessions$/),
     [...document.querySelectorAll("button")].map((b) => b.textContent).join("|").slice(0, 120));
+  /* And as a tile under that button, with how much of it is learnt —
+     a glance at each without opening the list. */
+  const tile = [...document.querySelectorAll(".at-savedtile")]
+    .find((b) => /Thursday's verbs/.test(b.textContent || ""));
+  check("a kept session is a tile on the home screen too", !!tile,
+    [...document.querySelectorAll(".at-savedtile")].map((b) => b.textContent).join("|") || "no tiles");
+  check("and the tile says how much of its cards is learnt",
+    !!tile && /^\d{1,3}%$/.test(((tile.querySelector(".pc") || {}).textContent || "").trim()),
+    tile ? (tile.textContent || "").trim() : "(no tile)");
   if (buttonNamed(/^Saved sessions$/)) {
     clickNamed(/^Saved sessions$/);
     await sleep(250);
@@ -1538,6 +1552,40 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Leave session"));
     await sleep(120);
     clickNamed(/^Leave$/);
+    await sleep(250);
+
+    /* Changed rather than built again: the Build screen opens on what was
+       kept, and saving puts the change back under the same session. */
+    clickNamed(/^Saved sessions$/);
+    await sleep(250);
+    click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Edit Thursday's verbs"));
+    await sleep(250);
+    check("a kept session opens on the Build screen to be changed",
+      !!document.querySelector(".at-modecard.on"),
+      (document.body.textContent || "").slice(0, 120));
+    clickNamed(/^Next$/);
+    await sleep(120);
+    check("with its cards already picked", !!document.querySelector(".at-tagpick.on"),
+      (document.body.textContent || "").slice(0, 120));
+    clickNamed(/^Next$/);
+    await sleep(120);
+    const renameBox = [...document.querySelectorAll(".at-formblock")]
+      .find((d) => /Name/.test(d.textContent || ""))?.querySelector("input");
+    if (renameBox) {
+      must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value")?.set, "the input's value setter")
+        .call(renameBox, "Friday's verbs");
+      renameBox.dispatchEvent(new w.Event("input", { bubbles: true }));
+      await sleep(60);
+    }
+    check("and its last step saves rather than starts",
+      !!buttonNamed(/^Save changes$/) && !buttonNamed(/^Start$/),
+      [...document.querySelectorAll("button")].map((b) => b.textContent).join("|").slice(-120));
+    clickNamed(/^Save changes$/);
+    await sleep(250);
+    const listed = document.querySelector(".at-list")?.textContent || "";
+    check("and the change is kept under the same session",
+      /Friday's verbs/.test(listed) && !/Thursday's verbs/.test(listed), listed.slice(0, 120));
+    click(document.querySelector('[aria-label="Back"]'));
     await sleep(250);
   }
 
@@ -8461,6 +8509,9 @@ const openPronounTables = async () => {
   const numTile = host4.querySelector('[data-el="answer-choices"] .at-reply')
     || host4.querySelector(".at-answerbox .at-chips button");
   const beforeNum = schedules();
+  const numPad = !!numInput && numInput.getAttribute("inputmode") === "numeric";
+  const numFigures = /figures/i.test((numAsk && numAsk.textContent) || "");
+  if (numFigures) check("a question asking for figures brings up the number pad", numPad);
   if (numInput) {
     const setter = must(
       Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
@@ -8482,6 +8533,15 @@ const openPronounTables = async () => {
   check("a number answered is marked",
     /The answer is:|Incorrect\.|Correct!|Good job!|Nicely done!|Great!/.test(host4.textContent || ""),
     (host4.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  /* Where the answer is put up — 7 was wrong — it says whether the pad
+     was right to come up: figures and nothing else, or a word. */
+  const numWanted = host4.querySelector('[data-el="answer-value-text"]');
+  if (numInput && numWanted) {
+    const wanted = (numWanted.textContent || "").trim();
+    check("the number pad came up exactly where the answer is figures",
+      numPad === /^\d{1,3}(?:,\d{3})*$|^\d+$/.test(wanted),
+      `${wanted}: ${numPad ? "number pad" : "letters"}`);
+  }
 
   click([...host4.querySelectorAll("button")].find((b) => /Continue|Next/.test((b.textContent || "").trim())));
   await sleep(900); // the save debounce
@@ -8490,11 +8550,42 @@ const openPronounTables = async () => {
     numWrote.length > 0 && numWrote.every((k) => k.startsWith("sys:")),
     numWrote.join(" | ") || "nothing was written");
 
+  /* On through the sitting to a number word asked for in writing — what it
+     means, typed — which is the question the number pad is about. "I don't
+     know" puts the answer up, and the answer says whether the pad was right
+     to come up: figures and nothing else, or a word. */
+  {
+    const press = (/** @type {RegExp} */ name) =>
+      click([...host4.querySelectorAll("button")].find((b) => name.test((b.textContent || "").trim())));
+    /** @type {string[]} */
+    const seen = [];
+    let padWrong = "";
+    for (let i = 0; i < 18; i++) {
+      const box = host4.querySelector('[data-el="answer-input"]');
+      if (host4.querySelector('[data-el="answer-match"]') || !host4.querySelector(".at-instruction")) break;
+      const pad = !!box && box.getAttribute("inputmode") === "numeric";
+      press(/^I don't know$/);
+      await sleep(150);
+      const wanted = ((host4.querySelector('[data-el="answer-value-text"]') || {}).textContent || "").trim();
+      if (box && wanted) {
+        seen.push(`${wanted}: ${pad ? "number pad" : "letters"}`);
+        if (pad !== /^\d{1,3}(?:,\d{3})*$|^\d+$/.test(wanted)) padWrong = padWrong || seen[seen.length - 1];
+      }
+      press(/Continue|Next/);
+      await sleep(250);
+    }
+    check("a number word's meaning brings up the number pad exactly where it is figures",
+      seen.length > 0 && !padWrong, padWrong || seen.join(" | ") || "nothing typed was asked");
+    check("and the walk met a meaning in figures, with the pad up",
+      seen.some((s) => s.endsWith("number pad")), seen.join(" | "));
+  }
+
   check("and nothing threw while a number was asked and answered",
     errors.length === before, errors.slice(before, before + 3).join(" | "));
 
   root4.unmount();
   host4.remove();
+
   materialSystems = [];
   materialDecks = [];
   materialQuiet = false;
@@ -8812,6 +8903,13 @@ const openPronounTables = async () => {
   const upTo4 = known([...level1, "match", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
   /** @param {any[]} items */
   const walk = async (items) => {
+    /* Its own five words and nothing else, as the walks above clear the
+       server for theirs. Left alone, the sync on start brought in what
+       earlier walks had left there — due cards and new ones, which a full
+       session rightly asks before five words not due for days, so whether
+       the picture questions came up at all was down to how much had been
+       left behind. */
+    remoteDocs.clear();
     localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
       version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, account, items,
     }));
@@ -9098,6 +9196,134 @@ const openPronounTables = async () => {
   r.unmount();
   host.remove();
   teachesTwo = false;
+}
+
+/* ---- a number at the top of its ladder ----
+
+   A learner whose numbers are up to the top of their ladder, which in
+   Arabic is asked from Arabic's own figures — ٣ for the word, ٤٧ for a
+   stretch — and from nothing else, because that is what "learnt" waits
+   on. Everything below the top is kept and not due; the top has never
+   been answered, which is a learner from before it was asked this way.
+   The questions further down show both figures, so no question on a
+   number shows the English figures alone.
+
+   Last in the file, because every walk shares one seeded sequence of
+   chance and this one draws from it: anywhere earlier it would change
+   what the walks after it are dealt. */
+{
+  const { readFileSync: readGolden } = await import("node:fs");
+  const goldenNumbers = JSON.parse(readGolden(path.resolve("tests/golden/ar-PS.numbers.json"), "utf8")).system;
+  const goldenTimes = JSON.parse(readGolden(path.resolve("tests/golden/ar-PS.times.json"), "utf8")).system;
+  const { generate, isRangeSkill } = await import(path.resolve("src/numbers/generate.ts"));
+  const { arComposer } = await import(path.resolve("src/numbers/ar-PS.ts"));
+  const { arTimeComposer } = await import(path.resolve("src/numbers/ar-PS.time.ts"));
+  const parts = generate({ composer: arComposer, sys: goldenNumbers, timeComposer: arTimeComposer, timeSys: goldenTimes, now: Date.now() })
+    .items.filter(isRangeSkill).map((/** @type {any} */ it) => it.range.id);
+  materialSystems = [goldenNumbers, goldenTimes];
+  materialDecks = [{
+    id: "dn", title: "Numbers deck", lang: "ar-PS", owner: "t-1", cardIds: [], cardCount: 0,
+    courseId: "c1", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 1, parts,
+  }];
+  materialQuiet = true;
+  localStorage.setItem("arabic-trainer:material", JSON.stringify({
+    handle: account.handle, courses: [], decks: materialDecks, systems: materialSystems,
+    version: "v-numbers-figures", at: Date.now(),
+  }));
+  const { LANGUAGES: packs, TYPES: allTypes, levelOf: levelAt } = await import(path.resolve("src/languages.ts"));
+  const { freshState: fresh } = await import(path.resolve("src/scheduler.ts"));
+  const climbed = generate({
+    composer: arComposer, sys: goldenNumbers, timeComposer: arTimeComposer,
+    timeSys: goldenTimes, now: Date.now(), numerals: packs["ar-PS"].numerals,
+  }).items;
+  const keptBelow = () => Object.fromEntries(
+    allTypes.filter((/** @type {string} */ t) => levelAt(t) < 4).map((/** @type {string} */ t) => [t, {
+      ...fresh(), phase: "review", interval: 30, due: Date.now() + 30 * 86400000,
+      reps: 4, right: 4, hist: [1, 1, 1, 1], updated: Date.now() - 86400000,
+    }]),
+  );
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, account,
+    items: climbed.map((/** @type {any} */ it) => ({
+      ...it,
+      tags: ["Numbers deck"],
+      forms: it.forms.map((/** @type {any} */ f) => ({ ...f, s: keptBelow() })),
+    })),
+  }));
+  remoteDocs.clear();
+
+  const host5 = document.createElement("div");
+  document.body.appendChild(host5);
+  const root5 = createRoot(host5);
+  root5.render(React.createElement(App));
+  await sleep(1500);
+  click([...host5.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim())));
+  await sleep(700);
+
+  /** @type {string[]} */
+  const prompts = [];
+  let stopped = "after 30 questions";
+  for (let i = 0; i < 30; i += 1) {
+    const prompt = host5.querySelector('[data-el="question-prompt-text"]');
+    /* A matching grid puts up no one prompt: passed over. */
+    const pass = [...host5.querySelectorAll("button")].find((b) => /^I don.t know$/.test((b.textContent || "").trim()));
+    if (!prompt && pass) {
+      click(pass);
+      await sleep(150);
+      const on = [...host5.querySelectorAll("button")].find((b) => /Continue|Next/.test((b.textContent || "").trim()));
+      if (!on) {
+        stopped = `no way past a grid: ${(host5.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+        break;
+      }
+      click(on);
+      await sleep(250);
+      continue;
+    }
+    if (!prompt) {
+      stopped = `no prompt: ${(host5.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+      break;
+    }
+    prompts.push((prompt.textContent || "").trim());
+    const input = host5.querySelector(".at-answerbox input");
+    const tile = host5.querySelector('[data-el="answer-choices"] .at-reply')
+      || host5.querySelector(".at-answerbox .at-chips button");
+    if (input) {
+      const setter = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "value").set;
+      must(setter, "value setter").call(input, "7");
+      input.dispatchEvent(new w.Event("input", { bubbles: true }));
+      await sleep(50);
+    } else if (tile) {
+      click(tile);
+      await sleep(50);
+    } else {
+      stopped = `nothing to answer with: ${(host5.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+      break;
+    }
+    click([...host5.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim())));
+    await sleep(150);
+    /* A first miss by one letter is asked again rather than marked. */
+    const again = [...host5.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim()));
+    if (again && host5.querySelector(".at-answerbox input")) {
+      click(again);
+      await sleep(150);
+    }
+    const next = [...host5.querySelectorAll("button")].find((b) => /Continue|Next/.test((b.textContent || "").trim()));
+    if (!next) {
+      stopped = `no way on: ${(host5.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+      break;
+    }
+    click(next);
+    await sleep(250);
+  }
+  check("a number at the top of its ladder is asked from Arabic's own figures alone",
+    prompts.some((t) => /^[٠-٩٬:]+$/.test(t)), `${prompts.join(" | ") || "no question came up"} — stopped ${stopped}`);
+  check("and no number is put up in the English figures alone",
+    !prompts.some((t) => /^[0-9,:]+$/.test(t)), prompts.join(" | "));
+  root5.unmount();
+  host5.remove();
+  materialSystems = [];
+  materialDecks = [];
+  materialQuiet = false;
 }
 
 report();

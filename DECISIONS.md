@@ -4623,6 +4623,14 @@ device or a server from before this reads it as it always did, and
 `sign-system` is kept for a build that still calls it. What is given up
 is a teacher saving work in progress without students seeing it.
 
+*0.348:* students are now sent the saved system itself, and the signed
+record is no longer read. While it was, a system last saved before Save
+published, and never published, reached no student. It held a "nothing
+published" record that only the gone Publish button could replace, and
+a deck holding only numbers arrived empty. A system published and edited
+since before the change is sent as last saved too, because a save is
+what students get.
+
 **The number screen lists; other screens edit.** Its only control was
 Save, and everything it saved was edited somewhere else. Each part, the
 clock, and the numbers written out by hand ("Correct how a number is
@@ -4898,3 +4906,196 @@ recognised. A learner whose 0 to 9 slips back off cleared loses the
 teens' words from their sessions as well as the teens, until it is
 recovered.
 
+
+## A number in figures is typed on the number pad, and marked as a number
+
+**4 October 2026** · `src/languages.ts` (`answersInFigures`, `numeralMeanings`, `checkAnswer`), `src/ArabicTrainer.tsx`
+
+The owner asked that an answer that is only a numeral — 5, 81, 10384 —
+bring up a phone's number pad. Two questions have one: writing a number
+in figures, always; and the meaning of a word whose meaning is a number,
+which every word card a number system builds has (`en` is the slot's
+label, "40" or "1,000", or the digits of a number written out by hand).
+The second is read off the card: every accepted meaning must be figures,
+digits alone or grouped in threes, so "five / 5" keeps the letters it can
+be answered in. A time is left out because a number pad has no colon.
+
+Looking at it turned up the marking under it. Those meanings went through
+the English marking, which splits on commas — so *1* was right for
+*1,000* — and forgives one letter in four, so *3000* was a typo of
+*2,000* and marked right, and *7* for *8* was "very close". That is the
+fault the figures mode was made to stop, never carried over to a word
+whose meaning is a figure. A meaning `numeralMeanings` accepts is now
+marked the way figures are: exact or wrong, with the notation forgiven.
+
+**What it costs.** On a word's meaning, the pad coming up says the answer
+is a number before the word has been read — a small hint, taken on the
+owner's request. A meaning that only might be a number ("1, 2") is read as
+words, so it keeps the English marking and the full keyboard.
+
+## A session fills to its length, and the one reason it may not
+
+**4 October 2026** · `src/ArabicTrainer.tsx` (`buildSession`, `buildManualSession`, `buildWeakSession`, `cutAtLength`, `MAX_ASKS_PER_UNIT`), `tests/session-fill.test.mjs`
+
+A session took a number of cards worked out up front from its length and
+the average card, and never went back for more. A card with fewer
+questions open than the average left it two or three short in twenty; a
+grid counted as one question though it asks five words; and a beginner,
+whose new words come ten at a time, got half the session they chose. Twice
+in one day a short session reached the owner before any test noticed.
+
+**Now every builder fills to its length.** Cards are taken one at a time
+until their questions reach it, and the next is taken while a question
+falls out as it is dealt. When every card the session may use is in and it
+is still short, each form is asked more — whatever else it has open, then
+the same questions again, a round at a time — up to `MAX_ASKS_PER_UNIT`
+(four). The ten-new-word limit is kept;
+the owner chose asking each new word more over letting more words in.
+
+**Short is agreed in one case: not enough material** — every card the
+session may use, each asked four times. Fix mistakes and Weak skills, whose
+material is what is going wrong, are covered by it, and so is Not seen
+lately. `tests/session-fill.test.mjs` walks every session against five
+learners, four kinds of material and three lengths, and fails on any short
+session not in its `AGREED` table. Each entry there is an exact size with
+its reason, so a bug cannot shelter under one, and an entry nothing matches
+fails too.
+
+**What it costs.** Weak skills used to ask a failing question once and
+stop, on the grounds that padding a short session was the button lying
+about what was wrong; it now asks only what is wrong, but asks it again to
+the session's length. A beginner's long session repeats each new word up to
+four times in a sitting. A skill is never asked the same exercise twice in
+one sitting, since its number is drawn once and the repeat would be the
+same number.
+
+## A number is learnt in its own figures
+
+**4 October 2026** · `src/languages.ts` (`own2ar`, `own2num`, `own2time`, `unless`), `src/numbers/generate.ts` (`inOwnFigures`), `src/offers.ts`
+
+The owner's rule: a number, or a number skill, counts as learnt only once
+the learner knows it in the figures the language writes it in — ٣, not 3.
+Since 0.315 a number card had carried those figures and shown them on its
+screen, and nothing ever asked them, so "learnt" could be reached without
+ever reading one.
+
+"Learnt" is the top of a card's ladder answered right twice more on its
+own schedule, so the top is where the figures go. In a language whose pack
+has `numerals`, the question that writes a number out from figures shows
+the language's own and nothing else — the word from ٣, a stretch from ٤٧,
+the clock from ٠٧:١٥ — and the question it replaces declares `unless` the
+card carries them, so a card is never asked both. The questions further
+down that show figures show both, ٤٧ · 47, so the figures are met on the
+way up rather than first at the top.
+
+**A key of its own rather than the old key with a new prompt.** The old
+key's passes were made reading 3. Keeping it would have counted a learner
+from before this as having proved ٣, which is the one thing the rule says
+they have not; the owner asked for those to be proved again. So a number
+learnt before this goes back to its top level not started: cleared once
+the new question is right twice running, and learnt once it is right twice
+more on time — the usual few days.
+Nothing else on the card moves, and the old key's state stays on it,
+unread.
+
+**What it costs.** A range question still credits the words that stood in
+it, now under `own2ar` for a word that is one number, and under `en2ar` for
+a word with no figures of its own — *hundred*, *and* — through
+`NUMBER_FALLBACK`. Counting things (*3 books*) stays in English figures:
+the noun beside it is English, and the figure question at the same level
+is what the passes wait on. Hebrew and Huế have no `numerals` and are
+untouched.
+
+## A session's length is screens, and a grid is one
+
+**4 October 2026** · `src/ArabicTrainer.tsx` (`cutAtLength`, and the filling in `buildSession`, `buildManualSession`, `buildWeakSession`), `tests/session-fill.test.mjs`
+
+For one release a session's length was counted in questions, with a
+matching grid as the five words in it: twenty questions was twenty
+questions whichever exercises they came as, but a session of twenty with a
+grid in it read "1 / 16" on its counter. The owner chose screens: a
+session of twenty is twenty on the counter, and a grid is one of them.
+
+A grid takes several planned questions onto one screen, so a session
+filled to its length in questions comes out short in screens. Each
+builder now deals its grids, sees how many screens they took, and fills
+again by that much — on top of what it already has, not on top of the
+length, which it may already be past — until the screens reach the length
+or there is nothing more to add. A session with grids in it asks a few
+more words than one without; that is the cost of the counter meaning what
+it says.
+
+## Which decks a course holds is the course's say
+
+**4 October 2026** · `server/api/courses.js` (`linksOf`, `withLinks`, `dropFromCourses`, `canEditDeck`, `attach-deck`)
+
+A deck being in a course is written twice: the course lists the deck's id,
+and the deck lists the course with the day it was added. Every write to
+either was a read, a change in memory, and the whole record written back,
+so two requests touching one course at once each wrote over the other.
+Several decks taken out together, or one taken out while somebody joined,
+left decks that no longer named the course while the course still sent
+them. The two lists were read by different screens: students are sent
+the course's list, and the teacher's course page, Manage decks and a
+deck's settings read the deck's. So the owner's course page said one deck
+while the same course gave its students seven, and Manage decks had no way
+to take out decks it did not show.
+
+Two changes, because either alone leaves the bug half there.
+
+**Every write to a course or a deck goes through `updateJson`.** That is
+adding and removing decks, membership, joining, renaming, language, codes,
+and renaming, locking and setting the numbers parts of a deck. Each changes
+the record as it is when the write lands, so none can undo another. Only a
+record being made for the first time, and a restore, which writes a backup
+back exactly as it was, still write whole.
+
+**The course's list answers, and the deck's own list is kept only for the
+date.** Every deck the server hands a screen has its `courses` worked out
+from the courses that list it (`withLinks`), carrying the date the deck
+recorded where there is one. Who may change a deck, who may read its cards,
+and which courses a deck that is deleted comes out of are all read the same
+way. The course's list wins because it is what students are sent: making
+it the answer changes nothing any student has, and only makes the
+teacher's screens show what is really there. Taking the deck's list as the
+answer would have silently withdrawn decks from students on the strength
+of a record already known to be unreliable.
+
+**What it costs.** Nothing repairs the stored deck lists. A deck that forgot
+its course stays that way until it is next added or removed, and nothing
+reads that list for membership any more. Working the links out means
+reading every course, so who-may-change-this checks, saving a card that
+is in a deck, and reading a deck's cards each now read the course records
+too. A teaching site has few courses, so this costs less
+than the deck reads around it. The lists of which ids exist (`index:`) are
+still written whole and can still lose an entry the same way; nothing has
+been seen to go wrong there, so they are left for another time.
+
+## A deck's number parts are said with whether they reach anybody
+
+**4 October 2026** · `partsWaiting` in `server/api/courses.js`, `deckSize` in `src/shared.tsx`, `BACKUP_PARTS` in `src/spaces.tsx`
+
+A deck names its number parts, and each student's device builds them out
+of the teachers' words. A part is built only once every word it needs is
+written, and one gap holds every later part shut. So "5 number parts" on
+a deck could mean nothing at all reaching a student. That is what the
+owner met after a restore that brought back no numbers, because no part
+of a backup held them (they were in the server's manifest and in no
+`BACKUP_PARTS` entry, so the app dropped them both ways). They now ride
+with Cards, as clearing already had it.
+
+**Worked out on the server, by the device's rule.** `partsWaiting` reads
+the numbers of everyone whose material reaches a student of a course that
+holds the deck — its owner, and each such course's teachers and the
+owners of its other decks — in the deck's language. A part counts as
+ready if `rangeChecks` opens it in any of them. my-decks and
+admin-overview carry the answer, and set-deck-parts answers with it; it
+is never stored. The teacher screen fetches its decks again after
+numbers are saved, since that is what moves it.
+
+**What it costs.** A student in several courses can be sent numbers by a
+teacher of another course too, which this does not count, so in that
+case a part can say "not ready" when it does reach them. Working this
+out renders each part's sample numbers once per teacher and language on
+every deck list. That is a few hundred numbers, less than reading the
+cards beside them.

@@ -123,6 +123,7 @@ import {
   TYPES,
   activeLang,
   checkAnswer,
+  answersInFigures,
   answerFields,
   derivedValue,
   dimValues,
@@ -162,6 +163,7 @@ import {
   lendsForm,
   lendsInto,
   NUMBER_EQUIVALENT,
+  NUMBER_FALLBACK,
   normEn,
 } from "./languages.ts";
 import {
@@ -194,7 +196,7 @@ import {
   renderAsk,
 } from "./numbers/range.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
+import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, inOwnFigures, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
@@ -2227,6 +2229,10 @@ function castFill(
   };
 }
 
+/** Figures as a language writes them — see inOwnFigures. */
+export const ownFigures = (lang: Lang | undefined, digits: string): string =>
+  inOwnFigures(digits, lang && lang.numerals);
+
 /**
  * A skill, cast as the question it was dealt.
  *
@@ -2257,10 +2263,14 @@ function castRange(
     set.times,
   );
   if (!said.text) return resolved;
+  const figures = ownFigures(LANGUAGES[set.numbers.languageId], said.digits);
   const unit: Form = {
     ...resolved.unit,
     ar: said.text,
     en: said.digits,
+    /* And the same in the language's own figures, where it has them — ٤٧,
+       ٠٧:١٥ — which the top of the skill is asked from. */
+    ...(figures ? { numeral: figures } : null),
     /* What it means in words, where a counted phrase has anything to say
        beyond the figures. */
     ...(said.en && said.en !== said.digits ? { gloss: said.en } : null),
@@ -3128,6 +3138,25 @@ const KEEN_DAY = 2 * SESSION_SIZE;
  */
 const MAX_UNITS_PER_FAMILY = 2;
 
+/*
+ * The most times one form is asked in one session, when the session has
+ * nothing else to ask — see buildSession. Two is the rule (PER_UNIT); four
+ * is a beginner with only their ten new words to practise, asked each of
+ * them a second round rather than handed a session half the length they
+ * chose.
+ */
+const MAX_ASKS_PER_UNIT = 4;
+
+/*
+ * Where a queue reaches a session's length, which is counted in screens:
+ * a grid is one screen however many words are in it, so a session of
+ * twenty shows twenty on its counter. The owner's choice over counting the
+ * words in a grid, which made a session of twenty read "1 / 16".
+ */
+function cutAtLength(queue: unknown[], length: number): number {
+  return Math.min(queue.length, length);
+}
+
 /* And of a conversation, in one sitting. Deliberate rather than
    discovered: without it a six-line scene is the whole session, and the
    first thing anyone would have written is a scene with six lines. */
@@ -3883,57 +3912,33 @@ export function buildSession({
   if (!candidates.length) return { exercises: [], reason: "nothing-due" };
 
   /*
-   * How many cards the budget buys, and which ones.
+   * Which cards, and how many: as many as it takes to fill the session.
    *
-   * A card brings as many forms as it lays out, capped, and each form is
-   * asked PER_UNIT ways — so the number of cards is the budget divided by
-   * what a card costs. They are taken straight off the front of the due
-   * list: the most overdue first, and chance between everything the due
-   * list calls equal.
+   * Taken straight off the front of the due list — the most overdue first,
+   * and chance between everything the due list calls equal — one card at a
+   * time until the questions they bring reach the budget. A card brings as
+   * many forms as it lays out, capped, and each form is asked PER_UNIT ways
+   * where it has that many open.
    *
-   * This used to reach three to six times further down that list and then
+   * This used to work out a number of cards up front, from the budget and
+   * the average card, and take that many. A card with fewer questions open
+   * than the average — a word on its first level, a skill with one
+   * exercise climbed — left the session short, two or three questions in
+   * every twenty, and nothing went back for more. Counting what each card
+   * actually brings is the same order and the same cards, until the
+   * session is full.
+   *
+   * It used to reach three to six times further down that list and then
    * pick, out of the reach, whatever was most like the cards already
-   * chosen — a shared root, a shared tag, the same afternoon's entry. It
-   * read well and it was the wrong trade. A session of near-identical
-   * words is a session that feels like one word, which is the complaint
-   * this whole change came from, and the cost was paid in scheduling: the
-   * card the reach passed over was one that was actually due.
-   */
-  const avgUnits =
-    candidates.reduce((n, c) => n + Math.min(c.units.length, MAX_UNITS_PER_FAMILY), 0) /
-    candidates.length;
-  /*
-   * And never fewer than were asked for.
-   *
-   * The arithmetic above is about how many cards a session of this length
-   * holds, which is the right question for the cards the app picks and the
-   * wrong one for the cards the learner did. A deck of ordinary two-form
-   * cards buys five places — so somebody who had marked eight cards was
-   * handed five of them, a different five each sitting, by a screen that
-   * had told them each one was in their next session. They already rank
-   * ahead of everything else, so taking at least as many as there are of
-   * them is the whole of it: the session grows to hold what was asked for
-   * rather than turning the rest away.
+   * chosen. A session of near-identical words is a session that feels like
+   * one word, and the card the reach passed over was one actually due.
    */
   const askedFor = candidates.filter((c) => c.urgent).length;
-  const wanted = Math.max(
-    1,
-    askedFor,
-    Math.round(budget / (PER_UNIT * Math.max(1, avgUnits)))
-  );
-  const chosen = candidates.slice(0, Math.min(candidates.length, wanted));
-
-  /* Easiest first, and cards of the same difficulty in no particular
-     order — which is most of them, since a card nobody has been wrong
-     about yet is unrated. A card the learner asked for opens the session
-     ahead of all of it: they went and marked it, and a warm-up that buried
-     it behind eight other words would be the app quietly declining. */
-  const warmed = inOrder(chosen, (c) => (c.urgent ? -1 : DIFF_RANK[itemDifficulty(c.it, settings)]));
 
   /* --- rules 2 and 6: every unit gets several exercise types, and a
          family's sub-items come along in the same session --- */
-  const plans = [];
-  for (const c of warmed) {
+  type Plan = { id: string; subId: string | null; unit: Form; types: string[]; more: string[]; range: boolean };
+  const planOf = (c: (typeof candidates)[number]): Plan[] => {
     // Parent first, then whichever sub-items are most overdue.
     const parent = c.units.filter((u) => !u.isSub);
     const subs = inOrder(
@@ -3949,59 +3954,158 @@ export function buildSession({
     const take = isDialog(c.it)
       ? parent.concat(subs.slice(0, MAX_DIALOG_LINES))
       : parent.concat(subs).slice(0, MAX_UNITS_PER_FAMILY);
-
-    for (const { unit, isSub } of take) {
+    return take.map(({ unit, isSub }) => {
       const ordered = pickableTypes(unit, settings).filter((t) => !onlyNumbers || !borrowsPhrase(t));
       const picked = ordered.slice(0, Math.min(PER_UNIT, ordered.length));
       /* Asked in the table's own order, which runs from recognition to
          production: which exercises a unit gets is a matter of chance,
          the order they come in is not. */
       picked.sort((x, y) => TYPES.indexOf(typeOf(x)) - TYPES.indexOf(typeOf(y)));
-      plans.push({ id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked });
-    }
-  }
+      return {
+        id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked,
+        /* What else is open, for a session the cards in it cannot fill —
+           see the filling below. */
+        more: ordered.filter((t) => !picked.includes(t)),
+        range: !!c.it.range,
+      };
+    });
+  };
+  const planned = new Map<string, Plan[]>();
+  const plansOfCard = (c: (typeof candidates)[number]) => {
+    if (!planned.has(c.it.id)) planned.set(c.it.id, planOf(c));
+    return planned.get(c.it.id) as Plan[];
+  };
+  const asks = (list: Plan[]) => list.reduce((n, p) => n + p.types.length, 0);
 
   /* --- interleave, so a unit recurs with a gap rather than back to back --- */
-  const exercises = [];
-  const depth = Math.max(...plans.map((p) => p.types.length));
-  for (let round = 0; round < depth; round++) {
-    for (const p of plans) {
-      if (p.types[round]) {
-        const type = p.types[round];
-        /* Which phrase, decided when the queue is built rather than at the
-           moment of asking, so the question does not change under the
-           learner if the cards are refreshed mid-session. */
-        const ctx = p.unit && !onlyNumbers ? pickContext(p.unit, type) : null;
-        /* And which number or time, for the same reason and by the same
-           rule: drawn once, here, from a seed that moves on a right
-           answer so a missed question comes back unchanged. */
-        const item = byIdOf(items).get(p.id);
-        const drawn = drawRange(item, p.unit, type, sets, items, settings, numbers);
-        /* A range none of whose numbers its words can say yet. The pool
-           has already left those out; this is a seed that found none. */
-        if (item && item.range && !drawn.ask) continue;
-        exercises.push({
-          id: p.id,
-          subId: p.subId,
-          type,
-          ...(ctx ? { ctx: ctx.id } : null),
-          ...drawn,
-          ...(onlyNumbers ? { within: "numbers" as const } : null),
-        });
+  const deal = (plans: Plan[]) => {
+    const out = [];
+    const depth = Math.max(0, ...plans.map((p) => p.types.length));
+    for (let round = 0; round < depth; round++) {
+      for (const p of plans) {
+        if (p.types[round]) {
+          const type = p.types[round];
+          /* Which phrase, decided when the queue is built rather than at the
+             moment of asking, so the question does not change under the
+             learner if the cards are refreshed mid-session. */
+          const ctx = p.unit && !onlyNumbers ? pickContext(p.unit, type) : null;
+          /* And which number or time, for the same reason and by the same
+             rule: drawn once, here, from a seed that moves on a right
+             answer so a missed question comes back unchanged. */
+          const item = byIdOf(items).get(p.id);
+          const drawn = drawRange(item, p.unit, type, sets, items, settings, numbers);
+          /* A range none of whose numbers its words can say yet. The pool
+             has already left those out; this is a seed that found none. */
+          if (item && item.range && !drawn.ask) continue;
+          out.push({
+            id: p.id,
+            subId: p.subId,
+            type,
+            ...(ctx ? { ctx: ctx.id } : null),
+            ...drawn,
+            ...(onlyNumbers ? { within: "numbers" as const } : null),
+          });
+        }
       }
     }
-  }
+    return out;
+  };
+
+  /* Card by card until the questions reach the target — and never fewer
+     cards than the learner asked for. The cards they marked already rank
+     ahead of everything else, so taking at least as many as there are of
+     them is the whole of it: the session grows to hold what was asked for
+     rather than turning the rest away. */
+  let taken = 0;
+  let count = 0;
+  /* Easiest first, and cards of the same difficulty in no particular
+     order — which is most of them, since a card nobody has been wrong
+     about yet is unrated. A card the learner asked for opens the session
+     ahead of all of it: they went and marked it, and a warm-up that buried
+     it behind eight other words would be the app quietly declining. */
+  const ordered = (n: number) =>
+    inOrder(candidates.slice(0, n), (c) => (c.urgent ? -1 : DIFF_RANK[itemDifficulty(c.it, settings)]));
+  let warmed = ordered(0);
+  let plans: Plan[] = [];
+  let exercises: ReturnType<typeof deal> = [];
+  /* Filled to `target` questions, carrying on from wherever the last call
+     left off, so a session found short after its grids are dealt can be
+     filled further without being started again. */
+  const fill = (target: number) => {
+    while (taken < candidates.length && (taken < Math.max(1, askedFor) || count < target)) {
+      count += asks(plansOfCard(candidates[taken]));
+      taken += 1;
+    }
+    warmed = ordered(taken);
+    plans = warmed.flatMap(plansOfCard);
+    exercises = deal(plans);
+    /* A question can still fall out as it is dealt — a number nobody can
+       be asked yet — so a session short of its target takes the next card
+       while there is one. */
+    while (exercises.length < target && taken < candidates.length) {
+      count += asks(plansOfCard(candidates[taken]));
+      taken += 1;
+      warmed = ordered(taken);
+      plans = warmed.flatMap(plansOfCard);
+      exercises = deal(plans);
+    }
+    /*
+     * And when every card it may take is taken and it is still short — a
+     * beginner, whose new words come ten at a time — each word is asked
+     * more: first whatever else it has open, then the same questions
+     * again, up to MAX_ASKS_PER_UNIT, a round at a time so a word asked
+     * twice has the session between the two. Two right answers running is
+     * what opens a word's next level, so the second asking is not idle. A
+     * skill is never asked the same exercise twice: its number is drawn
+     * once, and the second asking would be the same number.
+     */
+    let grown = true;
+    while (exercises.length < target && grown) {
+      grown = false;
+      for (const p of plans) {
+        if (p.types.length >= MAX_ASKS_PER_UNIT) continue;
+        const next = p.more.length
+          ? (p.more.shift() as string)
+          : p.range
+          ? null
+          : p.types[p.types.length % Math.max(1, Math.min(p.types.length, PER_UNIT))] || null;
+        if (!next) continue;
+        p.types.push(next);
+        grown = true;
+      }
+      exercises = deal(plans);
+    }
+  };
 
   /* The grids, dealt: every word the plans mean to ask as a pair is put in
      one, and a word whose grid could not be filled is asked its next
      exercise instead. */
-  const varied = varyTypes(
-    withGrids(exercises, gridCompany(exercises, items), settings, (unit, queued) =>
-      pickableTypes(unit, settings).find(
-        (t) => t !== "match" && !queued.has(t) && (!onlyNumbers || !borrowsPhrase(t))
-      ) || null
-    )
-  );
+  const gridded = () =>
+    varyTypes(
+      withGrids(exercises, gridCompany(exercises, items), settings, (unit, queued) =>
+        pickableTypes(unit, settings).find(
+          (t) => t !== "match" && !queued.has(t) && (!onlyNumbers || !borrowsPhrase(t))
+        ) || null
+      )
+    );
+  /*
+   * The length is in screens: a session of twenty is twenty things on
+   * screen, the way its counter reads, and a grid is one of them however
+   * many words are in it. A grid takes several questions into one screen,
+   * so a session filled to its length in questions comes out short in
+   * screens; it is filled further by what the grids took, until the
+   * screens reach the length or there is nothing more to add.
+   */
+  let target = budget;
+  fill(target);
+  let varied = gridded();
+  for (let round = 0; round < 8 && varied.length < budget; round += 1) {
+    const had = exercises.length;
+    target = had + (budget - varied.length);
+    fill(target);
+    if (exercises.length === had) break;
+    varied = gridded();
+  }
   /* Rule 1, judged on the material: a session is refused for want of
      variety when the cards in it support only one exercise between them,
      not when the ladder has opened only one so far. A deck of new scenes
@@ -4035,8 +4139,8 @@ export function buildSession({
    * asked once before any card is asked twice and the reach is a handful
    * of questions rather than a session of a different size.
    */
+  let cut = cutAtLength(varied, budget);
   const askedIds = new Set(warmed.filter((c) => c.urgent).map((c) => c.it.id));
-  let cut = budget;
   for (const id of askedIds) {
     const at = varied.findIndex((e) => e.id === id);
     if (at >= 0) cut = Math.max(cut, at + 1);
@@ -4329,6 +4433,9 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
   /* Every exercise the chosen forms support between them, for the
      variety rule below. */
   const offered: Set<string> = new Set();
+  /* What each form was asked and what else it has open, for a session the
+     forms cannot fill at PER_UNIT apiece — see the filling below. */
+  const asked: { id: string; subId: string | null; unit: Form; taken: string[]; more: string[]; skill: boolean }[] = [];
 
   for (const it of pool) {
     let anyUsable = false;
@@ -4358,6 +4465,10 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
         const ctx = pickContext(unit, t);
         plans.push({ id: it.id, subId: isSub ? unit.id : null, type: t, ...(ctx ? { ctx: ctx.id } : null) });
       }
+      asked.push({
+        id: it.id, subId: isSub ? unit.id : null, unit, taken: take.slice(),
+        more: usable.filter((t) => !take.includes(t)), skill: isRangeSkill(it),
+      });
     }
 
     if (!anyUsable && anyLearnt) learnt.push(it);
@@ -4377,23 +4488,74 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
     };
   }
 
+  /*
+   * A session with a length that the forms chosen cannot fill at PER_UNIT
+   * apiece: each is asked more — first whatever else it has open, then the
+   * same again — a round at a time, up to MAX_ASKS_PER_UNIT. The same rule
+   * a dealt session follows (see buildSession), so twenty questions on
+   * five words is twenty questions, not ten. Added after the rest and
+   * shuffled among themselves, so a word's second asking comes in the
+   * later part of the session rather than beside its first. A skill is
+   * never asked the same exercise twice.
+   */
+  const length = count && count < 999 && !everyTypeMode(mode) ? count : 0;
+  const extra: Question[] = [];
+  /* Asked more, until the questions reach `target`, carrying on from where
+     the last call left off. */
+  const growTo = (target: number) => {
+    let grown = true;
+    while (plans.length + extra.length < target && grown) {
+      grown = false;
+      for (const a of asked) {
+        if (a.taken.length >= MAX_ASKS_PER_UNIT || plans.length + extra.length >= target) continue;
+        const t = a.more.length
+          ? (a.more.shift() as string)
+          : a.skill
+          ? null
+          : a.taken[a.taken.length % Math.min(a.taken.length, PER_UNIT)];
+        if (!t) continue;
+        a.taken.push(t);
+        const ctx = pickContext(a.unit, t);
+        extra.push({ id: a.id, subId: a.subId, type: t, ...(ctx ? { ctx: ctx.id } : null) });
+        grown = true;
+      }
+    }
+  };
+  if (length) growTo(length);
+
   /* Shuffle first, so the queue doesn't track the order of your card list,
      then space the types out. Ultimate ignores the length: it runs until
-     everything has gone right at least once. */
-  const kept = keptToNumbers(plans);
-  const ordered = varyTypes(
-    drawRanges(
-      withGrids(shuffle(kept), gridCompany(kept, items), settings, (unit, queued) =>
-        shuffle(usableFor(unit)).find(
-          (t) => t !== "match" && !queued.has(t) && !(kept !== plans && borrowsPhrase(t))
-        ) || null
-      ),
-      items,
-      sets,
-      settings,
-    )
-  );
-  const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, Math.max(4, count || 0));
+     everything has gone right at least once. The extra askings go after
+     the rest, shuffled among themselves. */
+  const keptFirst = keptToNumbers(plans);
+  const numbersOnly = keptFirst !== plans;
+  const queue = () => {
+    const keptMore = numbersOnly ? keptToNumbers(extra) : extra;
+    const kept = keptFirst.concat(keptMore);
+    return varyTypes(
+      drawRanges(
+        withGrids(shuffle(keptFirst).concat(shuffle(keptMore)), gridCompany(kept, items), settings, (unit, queued) =>
+          shuffle(usableFor(unit)).find(
+            (t) => t !== "match" && !queued.has(t) && !(numbersOnly && borrowsPhrase(t))
+          ) || null
+        ),
+        items,
+        sets,
+        settings,
+      )
+    );
+  };
+  let ordered = queue();
+  /* The length is in screens, and a grid is one screen for several
+     questions — see cutAtLength — so what the grids took is asked again
+     until the screens reach the length or nothing more can be added. */
+  for (let round = 0; length && round < 8 && ordered.length < length; round += 1) {
+    const had = extra.length;
+    growTo(plans.length + extra.length + (length - ordered.length));
+    if (extra.length === had) break;
+    ordered = queue();
+  }
+  const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, cutAtLength(ordered, Math.max(4, count || 0)));
 
   /* The same minimum again, and the one easily missed: when every card chosen
      supports a single gentle type the whole session is that one type, so
@@ -4409,7 +4571,7 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
     mode,
     learnt,
     items: new Set(exercises.map((e) => e.id)).size,
-    units: plans.length,
+    units: plans.length + extra.length,
   };
 }
 
@@ -4627,28 +4789,36 @@ export function marksForAnswer({
    */
   if (item.tokens) {
     const set = systemFor(parentItem, systems);
-    const under = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
+    const equivalent = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
+    /* Per word, because a word with no figures of its own — *hundred*,
+       *and* — does not climb the key a number is asked from in figures. */
+    const underOf: Map<string, string> = new Map();
+    const fillers = tokenCards(
+      (item.tokens as Token[]) || [],
+      set ? set.numbers.id : "",
+      set && set.times ? set.times.id : "",
+      asking,
+    ).map(({ card, form }) => {
+      const keys = laddered(form, settings);
+      const fallback = NUMBER_FALLBACK[equivalent];
+      const under = !keys.includes(equivalent) && fallback && keys.includes(fallback) ? fallback : equivalent;
+      const subId = form.id === leadOf(card).id ? null : form.id;
+      underOf.set(`${card.id} ${subId || ""}`, under);
+      return {
+        id: card.id,
+        subId,
+        asked: keys.includes(under),
+        ready: (() => {
+          const st = statesOf(form)[under];
+          return !!st && st.phase !== "new" && stateReady(st);
+        })(),
+      };
+    });
     marks.push(
-      ...fillerMarks(
-        tokenCards(
-          (item.tokens as Token[]) || [],
-          set ? set.numbers.id : "",
-          set && set.times ? set.times.id : "",
-          asking,
-        ).map(({ card, form }) => {
-          return {
-            id: card.id,
-            subId: form.id === leadOf(card).id ? null : form.id,
-            asked: laddered(form, settings).includes(under),
-            ready: (() => {
-              const st = statesOf(form)[under];
-              return !!st && st.phase !== "new" && stateReady(st);
-            })(),
-          };
-        }),
-        { correct: !!correct },
-        practice,
-      ).map((mark) => ({ ...mark, under })),
+      ...fillerMarks(fillers, { correct: !!correct }, practice).map((mark) => ({
+        ...mark,
+        under: underOf.get(`${mark.id} ${mark.subId || ""}`) || equivalent,
+      })),
     );
   }
   return marks;
@@ -4960,31 +5130,54 @@ export function buildWeakSession({ items, settings, inDeck, budget: budgetIn, sy
      failing gets one question each and the worst of them first. */
   const plans: Question[] = [];
   const depth = Math.max(...order.map((u) => u.keys.length));
-  for (let round = 0; round < depth && plans.length < budget; round++) {
-    for (const u of order) {
-      const type = u.keys[round];
-      if (!type) continue;
-      const ctx = pickContext(u.unit, type);
-      plans.push({ id: u.id, subId: u.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+  /* And past the last failing question, round again — up to
+     MAX_ASKS_PER_UNIT a form — while the session is short of its length:
+     the same thing a dealt session does with a beginner's ten words. A
+     skill is not asked the same exercise twice, since its number is drawn
+     once and the second asking would be the same number. */
+  const isSkill = new Set(pool.filter((it) => isRangeSkill(it)).map((it) => it.id));
+  const rounds = Math.max(depth, MAX_ASKS_PER_UNIT);
+  let round = 0;
+  /* Round by round until the questions reach `target`, carrying on from
+     the last round dealt. */
+  const dealTo = (target: number) => {
+    for (; round < rounds && plans.length < target; round++) {
+      for (const u of order) {
+        const type = round < u.keys.length ? u.keys[round] : isSkill.has(u.id) ? undefined : u.keys[round % u.keys.length];
+        if (!type) continue;
+        const ctx = pickContext(u.unit, type);
+        plans.push({ id: u.id, subId: u.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+      }
     }
-  }
+  };
+  dealTo(budget);
 
   /* The grids, dealt, and the same card kept from being asked twice
      running — both exactly as a dealt session does them. */
-  const kept = keptToNumbers(plans);
-  const varied = varyTypes(
-    drawRanges(
-      withGrids(kept, gridCompany(kept, items), settings, (unit, queued) =>
-        pickableTypes(unit, settings).find(
-          (t) => t !== "match" && !queued.has(t) && !(kept !== plans && borrowsPhrase(t))
-        ) || null
-      ),
-      items,
-      sets,
-      settings,
-    )
-  );
-  const exercises = withReadThroughs(varied.slice(0, budget), items, settings);
+  const queue = () => {
+    const kept = keptToNumbers(plans);
+    return varyTypes(
+      drawRanges(
+        withGrids(kept, gridCompany(kept, items), settings, (unit, queued) =>
+          pickableTypes(unit, settings).find(
+            (t) => t !== "match" && !queued.has(t) && !(kept !== plans && borrowsPhrase(t))
+          ) || null
+        ),
+        items,
+        sets,
+        settings,
+      )
+    );
+  };
+  let varied = queue();
+  /* The length is in screens, and a grid is one screen for several
+     questions — see cutAtLength — so a session the grids left short goes
+     round again while there is a round left. */
+  while (varied.length < budget && round < rounds) {
+    dealTo(plans.length + (budget - varied.length));
+    varied = queue();
+  }
+  const exercises = withReadThroughs(varied.slice(0, cutAtLength(varied, budget)), items, settings);
   const dealt = new Set(exercises.map((e) => e.id));
 
   /* How many of them were actually waiting, for the line at the end. A
@@ -7084,6 +7277,14 @@ function Field({ value, field, kind, lang, name }: {
         {value}
       </p>
     );
+  /* A number in the language's own figures, which read left to right
+     whatever the script around them does. */
+  if (field === "numeral")
+    return (
+      <p className="at-en" dir="ltr" data-el={name}>
+        {value}
+      </p>
+    );
   return (
     <p className="at-en" data-el={name}>
       {value}
@@ -8018,6 +8219,7 @@ export default function ArabicTrainer() {
      material request answers it, so it is no longer asked twice. */
   const [building, setBuilding] = useState(false);
   const [showingSaved, setShowingSaved] = useState(false);
+  const [editingSaved, setEditingSaved] = useState<SavedSession | null>(null);
   /* Which language the session on screen is drawn from: a language id, ""
      for all of them at once, or null for never asked — which is what keeps
      the picker from opening with an answer already marked. It stays on the
@@ -9083,6 +9285,17 @@ export default function ArabicTrainer() {
 
   function dropSession(id: string) {
     setSetting("savedSessions", savedSessions.filter((x) => x.id !== id));
+  }
+
+  /* Kept under the same id and date, so it stays where it was in the list
+     and a tile on the home screen is the same tile with new contents. */
+  function changeSession(id: string, changed: Omit<SavedSession, "id" | "created">) {
+    setSetting("savedSessions", savedSessions.map((x) => (x.id === id ? { ...x, ...changed } : x)));
+    flash(`Saved changes to ${changed.name}`);
+  }
+
+  function startSaved(s: SavedSession) {
+    beginManual({ ids: s.ids, mode: s.mode, count: s.count, minutes: s.minutes });
   }
 
   /* A session assembled by hand on the Build screen. */
@@ -11065,11 +11278,19 @@ export default function ArabicTrainer() {
                       the way to find this is to save one, which the Build
                       screen offers where the session is finished. */}
                   {savedSessions.length > 0 && (
-                    <div className="at-row at-mt3">
-                      <Button variant="ghost" onClick={() => setShowingSaved(true)}>
-                        Saved sessions
-                      </Button>
-                    </div>
+                    <>
+                      <div className="at-row at-mt3">
+                        <Button variant="ghost" onClick={() => setShowingSaved(true)}>
+                          Saved sessions
+                        </Button>
+                      </div>
+                      <SavedTiles
+                        sessions={savedSessions}
+                        items={items}
+                        settings={settings}
+                        onStart={startSaved}
+                      />
+                    </>
                   )}
 
                   {!readyCount && drillable.length > 0 && (
@@ -11303,7 +11524,15 @@ export default function ArabicTrainer() {
                       />
                     ) : (
                       <Field
-                        value={item[spec.promptField]}
+                        /* A number met in the figures English uses is met
+                           in the language's own beside them, so ٤٧ is
+                           known by the time the top of the ladder asks
+                           from it alone. */
+                        value={
+                          spec.promptField === "en" && item.numeral && item.en
+                            ? `${item.numeral} · ${item.en}`
+                            : item[spec.promptField]
+                        }
                         field={spec.promptField}
                         kind={item.kind}
                         name="question-prompt-text"
@@ -11500,6 +11729,10 @@ export default function ArabicTrainer() {
                             checked ? (checked.ok ? " ok" : " no") : ""
                           }`}
                           data-el="answer-input"
+                          /* A number in figures and nothing else: a phone's
+                             number pad, not its letters. Not a time — the
+                             pad has no colon. */
+                          inputMode={exercise && answersInFigures(item, exercise.type) ? "numeric" : undefined}
                           value={typed}
                           readOnly={!!checked}
                           placeholder={spec.placeholder}
@@ -11943,16 +12176,34 @@ export default function ArabicTrainer() {
           />
         )}
 
-        {showingSaved && (
+        {showingSaved && !editingSaved && (
           <SavedSessionsSheet
             sessions={savedSessions}
             items={items}
             onStart={(s) => {
               setShowingSaved(false);
-              beginManual({ ids: s.ids, mode: s.mode, count: s.count, minutes: s.minutes });
+              startSaved(s);
             }}
+            onEdit={setEditingSaved}
             onDelete={dropSession}
             onClose={() => setShowingSaved(false)}
+          />
+        )}
+
+        {/* The Build screen again, opened on what was kept. Saving goes
+            back to the list, which is where it was opened from. */}
+        {editingSaved && (
+          <ManualSessionSheet
+            items={shown}
+            allTags={allTags}
+            settings={settings}
+            editing={editingSaved}
+            onStart={beginManual}
+            onSave={(changed) => {
+              changeSession(editingSaved.id, changed);
+              setEditingSaved(null);
+            }}
+            onClose={() => setEditingSaved(null)}
           />
         )}
 
@@ -12202,31 +12453,41 @@ export default function ArabicTrainer() {
  * of a job, and the whole point of the card it sits on is the button
  * underneath.
  */
+/*
+ * How much of some cards is learnt: the ring's numbers, for any set of them.
+ *
+ * `cards` are the ones being measured and `all` the collection they sit in,
+ * which a card's standing needs to read what it waits on. The home screen's
+ * ring passes the same list twice; a saved session's tile passes its own
+ * cards, so the two percentages are worked out the one way.
+ */
+function climbOf(cards: Item[], settings: Settings, all: Item[]) {
+  /* The four levels, then the cards with nothing above them left to open
+     — the same five buckets the tiles in Progress count. */
+  const spread = [0, 0, 0, 0, 0];
+  let n = 0;
+  let learnt = 0;
+  let got = 0;
+  for (const it of cards) {
+    const rows = cardStandings(it, settings, all);
+    const at = standing(rows);
+    /* A card with nothing it can be asked yet is on no level, so it is
+       not progress to be short of — the exclusion Progress makes too. */
+    if (!at) continue;
+    n++;
+    /* A level a card has no material for is not a level it is short of,
+       so the denominator is the levels it actually has. */
+    got += rows.filter((r) => r.status === "done").length / rows.length;
+    if (at.status === "done") {
+      learnt++;
+      spread[4]++;
+    } else spread[at.level - 1]++;
+  }
+  return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
+}
+
 function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
-  const climb = useMemo(() => {
-    /* The four levels, then the cards with nothing above them left to open
-       — the same five buckets the tiles in Progress count. */
-    const spread = [0, 0, 0, 0, 0];
-    let n = 0;
-    let learnt = 0;
-    let got = 0;
-    for (const it of items) {
-      const rows = cardStandings(it, settings, items);
-      const at = standing(rows);
-      /* A card with nothing it can be asked yet is on no level, so it is
-         not progress to be short of — the exclusion Progress makes too. */
-      if (!at) continue;
-      n++;
-      /* A level a card has no material for is not a level it is short of,
-         so the denominator is the levels it actually has. */
-      got += rows.filter((r) => r.status === "done").length / rows.length;
-      if (at.status === "done") {
-        learnt++;
-        spread[4]++;
-      } else spread[at.level - 1]++;
-    }
-    return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
-  }, [items, settings]);
+  const climb = useMemo(() => climbOf(items, settings, items), [items, settings]);
 
   /* Nothing practisable, nothing to draw. The card below still offers what
      it can, and the reason there is nothing is the Cards tab's to give. */
@@ -12277,6 +12538,61 @@ function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
           )}
         </span>
       </div>
+    </div>
+  );
+}
+
+/*
+ * The sessions somebody kept, as tiles under the button that lists them.
+ *
+ * A tile and not a row: these sit on the home screen's own card, between
+ * buttons, and a full-width row each would push Start session's neighbours
+ * off the screen after three or four of them. Small enough to sit two or
+ * three abreast, which is a glance at all of them.
+ *
+ * Each carries how much of its own cards is learnt, worked out the way the
+ * ring above it is, so "Thursday's verbs · 40%" and the ring cannot be
+ * counting different things. Pressing one starts it, which is what Start
+ * does on the list; changing or forgetting one is the list's to do.
+ */
+function SavedTiles({ sessions, items, settings, onStart }: {
+  sessions: SavedSession[];
+  items: Item[];
+  settings: Settings;
+  onStart: (session: SavedSession) => void;
+}) {
+  const tiles = useMemo(() => {
+    const byId = new Map(items.map((it) => [it.id, it]));
+    /* Newest first, as the list has them. */
+    return [...sessions]
+      .sort((a, b) => (b.created || 0) - (a.created || 0))
+      .map((s) => {
+        const cards = s.ids.map((id) => byId.get(id)).filter((it): it is Item => !!it);
+        return { s, alive: cards.length, pct: climbOf(cards, settings, items).pct };
+      });
+  }, [sessions, items, settings]);
+
+  if (!tiles.length) return null;
+  return (
+    <div className="at-savedtiles">
+      {tiles.map(({ s, alive, pct }) => (
+        <button
+          key={s.id}
+          className="at-savedtile"
+          disabled={!alive}
+          aria-label={`Start ${s.name}, ${pct}% learnt`}
+          onClick={() => onStart(s)}
+        >
+          <span className="nm">{s.name}</span>
+          <span className="pc" aria-hidden="true">
+            {pct}
+            <i>%</i>
+          </span>
+          <span className="bar" aria-hidden="true">
+            {pct > 0 && <i style={{ width: `${pct}%` }} />}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -13886,10 +14202,11 @@ const TIME_CHOICES = [2, 5, 10, 15, 30];
    ground, practised again, with everything edited since included.
    ------------------------------------------------------------------ */
 
-function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
+function SavedSessionsSheet({ sessions, items, onStart, onEdit, onDelete, onClose }: {
   sessions: SavedSession[];
   items: Item[];
   onStart: (session: SavedSession) => void;
+  onEdit: (session: SavedSession) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }) {
@@ -13946,6 +14263,11 @@ function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
                 Start
               </Button>
               <IconButton
+                icon="edit"
+                label={`Edit ${s.name}`}
+                onClick={() => onEdit(s)}
+              />
+              <IconButton
                 icon="delete"
                 label={`Forget ${s.name}`}
                 danger
@@ -13966,33 +14288,59 @@ function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
   );
 }
 
-function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose }: {
+/*
+ * `editing` opens it on a session already kept, to change it rather than
+ * start one: every step is filled in with what was kept, and the last one
+ * saves over it instead of starting. The answers being there already is the
+ * one case where a lit choice is not a guess on the learner's behalf.
+ */
+function ManualSessionSheet({ items, allTags, settings, editing, onStart, onSave, onClose }: {
   items: Item[];
   allTags: string[];
   settings: Settings;
+  editing?: SavedSession;
   onStart: (plan: any) => void;
   onSave: (session: { name: string; ids: string[]; mode: string; count: number; minutes: number }) => void;
   onClose: () => void;
 }) {
+  const eligible = useMemo(
+    () => items.filter((i) => availableTypes(leadOf(i)).length >= 2 || subFormsOf(i).length),
+    [items]
+  );
+
   const [step, setStep] = useState(0);
   /* No mode until one is chosen. A pre-selected card looks like an answer
      already given, so the first screen gets read as "confirm this" rather
      than "pick one" — and Ultimate, which is the longest session on offer,
      is the last one to hand somebody by default. */
-  const [mode, setMode] = useState("");
-  const [picked, setPicked] = useState(() => new Set());
+  const [mode, setMode] = useState(editing ? editing.mode : "");
+  const [picked, setPicked] = useState(() => {
+    if (!editing) return new Set();
+    const here = new Set(eligible.map((i) => i.id));
+    return new Set(editing.ids.filter((id) => here.has(id)));
+  });
+  /* The kept cards this screen cannot show — another language's, under the
+     switch, or one that has gone — carried through a save untouched, so
+     changing the length of a session does not quietly take cards out of it. */
+  const [elsewhere] = useState(() => {
+    if (!editing) return [] as string[];
+    const here = new Set(eligible.map((i) => i.id));
+    return editing.ids.filter((id) => !here.has(id));
+  });
   const [openTag, setOpenTag] = useState<string | null>(null);
   /* "" until one of the two is chosen — the same reason the mode starts
      unset. It used to open on 20 questions already lit, which is a length
      nobody asked for sitting where the answer goes. */
-  const [limitKind, setLimitKind] = useState(""); // "" | count | time
-  const [count, setCount] = useState(20);
-  const [minutes, setMinutes] = useState(5);
+  const [limitKind, setLimitKind] = useState( // "" | count | time
+    !editing ? "" : editing.minutes ? "time" : editing.count && editing.count < 999 ? "count" : ""
+  );
+  const [count, setCount] = useState(editing && editing.count && editing.count < 999 ? editing.count : 20);
+  const [minutes, setMinutes] = useState(editing && editing.minutes ? editing.minutes : 5);
   /* What it would be called, and what was last kept under that name. Held
      as the description rather than as a flag, so changing the length or
      the cards after saving offers the button again — what is on screen is
      no longer what was kept. */
-  const [name, setName] = useState("");
+  const [name, setName] = useState(editing ? editing.name : "");
   const [savedSpec, setSavedSpec] = useState("");
   const [q, setQ] = useState("");
 
@@ -14006,11 +14354,6 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
       document.body.style.overflow = prev;
     };
   }, [onClose]);
-
-  const eligible = useMemo(
-    () => items.filter((i) => availableTypes(leadOf(i)).length >= 2 || subFormsOf(i).length),
-    [items]
-  );
 
   /* Tags first: picking one selects everything under it. */
   const tagGroups = useMemo(() => {
@@ -14133,9 +14476,19 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
     });
   }
 
+  function keep() {
+    onSave({
+      name: name.trim() || (editing && editing.name) || suggestion,
+      ids: [...picked, ...elsewhere] as string[],
+      mode,
+      count: limitKind === "count" ? count : 999,
+      minutes: limitKind === "time" && needsLength ? minutes : 0,
+    });
+  }
+
   return (
     <Screen
-      title={steps[step]}
+      title={editing ? `Edit · ${steps[step]}` : steps[step]}
       onBack={() => (step === 0 ? onClose() : setStep(step - 1))}
       action={
         <span className="at-sheetnote">
@@ -14157,8 +14510,8 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
                   {onButton(stepProblem) || "Next"}
                 </Button>
               ) : (
-                <Button variant="primary" disabled={!!problem} onClick={start}>
-                  {onButton(problem) || "Start"}
+                <Button variant="primary" disabled={!!problem} onClick={editing ? keep : start}>
+                  {onButton(problem) || (editing ? "Save changes" : "Start")}
                 </Button>
               )}
         </>
@@ -14344,7 +14697,21 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
         * An extra rather than the way on: Start is still the button, and a
         * session nobody saves behaves exactly as it did.
         */}
-      {step === 2 && (
+      {/* Editing, the name is all there is to this: the footer saves. */}
+      {step === 2 && editing && (
+        <div className="at-formblock at-mt5">
+          <FormField label="Name">
+            <input
+              className="at-input"
+              placeholder={editing.name || suggestion}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FormField>
+        </div>
+      )}
+
+      {step === 2 && !editing && (
         <div className="at-formblock at-mt5">
           <FormField
             label="Keep this session"
@@ -14363,13 +14730,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
               icon={saved ? "check" : "save"}
               disabled={!!problem || saved}
               onClick={() => {
-                onSave({
-                  name: name.trim() || suggestion,
-                  ids: [...picked] as string[],
-                  mode,
-                  count: limitKind === "count" ? count : 999,
-                  minutes: limitKind === "time" && needsLength ? minutes : 0,
-                });
+                keep();
                 setSavedSpec(spec);
               }}
             >

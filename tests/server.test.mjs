@@ -9,6 +9,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { must } from "./helpers.mjs";
 import { mkdtemp, rm } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -2868,6 +2869,61 @@ test("a teacher's numbers reach their students, and the version moves when a wor
   assert.equal(nothing.json.unchanged, true);
 });
 
+/*
+ * Numbers saved under the Publish button, which is gone.
+ *
+ * Before Save published, a system's first save recorded "nothing published
+ * yet", and students got nothing until Publish was pressed. The button went
+ * and the record stayed: a deck holding only numbers reached its students
+ * as a deck with nothing in it, and nothing on the teacher's screen said
+ * why. A save is what students get, whenever it was made.
+ */
+test("numbers saved before Save published still reach students, as last saved", async () => {
+  const teacher = await anAdmin("Rafa");
+  const course = await aCourse(teacher.key, "Testing");
+  const deck = (await api("/api/courses?action=create-deck", {
+    method: "POST", key: teacher.key, body: { title: "Numbers", lang: "ar-PS" },
+  })).json.deck;
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key: teacher.key, body: { deckId: deck.id, courseId: course.id },
+  });
+  const student = await someone("Nour");
+  await api("/api/courses?action=join-course", { method: "POST", key: student.key, body: { code: course.code } });
+
+  const saved = (await api("/api/courses?action=save-system", {
+    method: "POST", key: teacher.key, body: { kind: "numbers", system: numberSystem() },
+  })).json.system;
+  const { getStore } = await import("../server/store.js");
+  const store = getStore("arabic-courses");
+
+  /* Never published: what a first save wrote before Save published. */
+  await store.set(`syssigned:${saved.id}`, JSON.stringify({
+    rev: null, at: Date.now(), by: teacher.handle, system: null,
+  }));
+  const unpublished = await api("/api/courses?action=my-material", { key: student.key });
+  assert.equal(unpublished.status, 200, unpublished.text);
+  assert.deepEqual(
+    unpublished.json.systems.map((/** @type {any} */ s) => s.id),
+    [saved.id],
+    "the numbers were never sent, so a deck of numbers held nothing",
+  );
+
+  /* Published once, then saved again before Save published: the later
+     save is what was last saved, and so what is sent. */
+  await store.set(`numsys:${saved.id}`, JSON.stringify({
+    ...saved,
+    rev: 2,
+    lexemes: { ...saved.lexemes, "unit.1": { slot: "unit.1", forms: { standalone: "wahad" } } },
+  }));
+  await store.set(`syssigned:${saved.id}`, JSON.stringify({
+    rev: 1, at: Date.now(), by: teacher.handle, system: saved,
+  }));
+  const behind = await api("/api/courses?action=my-material", { key: student.key });
+  assert.equal(behind.json.systems[0].rev, 2);
+  assert.equal(behind.json.systems[0].lexemes["unit.1"].forms.standalone, "wahad");
+  assert.notEqual(behind.json.version, unpublished.json.version, "and the device is told to fetch it");
+});
+
 test("a system in a language nobody is learning is not sent", async () => {
   const teacher = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Tariq" } });
   const tkey = teacher.json.key;
@@ -2964,6 +3020,144 @@ test("a backup holds a teacher's numbers, and a restore puts them back", async (
   const back = (await api("/api/courses?action=my-systems", { key })).json.systems;
   assert.equal(back.length, 1);
   assert.equal(back[0].lexemes["unit.1"].forms.standalone, "one");
+});
+
+/*
+ * The same, through the app's own backup and restore.
+ *
+ * The test above holds the server to its half, and it always kept it: the
+ * numbers were in the manifest's plan. The app then kept only the chunks
+ * that belong to a part an administrator can tick, and no part named the
+ * numbers — so every file was made without them, and a file restored with
+ * "Cards" ticked put the cards back and left the numbers screen empty.
+ */
+test("a backup of the cards made and restored by the app carries the numbers", async () => {
+  const { build } = await import("esbuild");
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  const out = path.join(here, ".backup-build", "app.js");
+  /* One bundle for both, so the key the client is given is the key the
+     backup's requests carry. React is left external and resolved from the
+     project, which is why the bundle is built inside it. */
+  await build({
+    stdin: {
+      contents:
+        'export { BACKUP_PARTS, buildBackup, restoreBackup } from "../src/spaces.tsx";\n' +
+        'export { setKey } from "../src/courses-api.ts";\n',
+      resolveDir: here,
+      loader: "ts",
+    },
+    outfile: out,
+    bundle: true,
+    format: "esm",
+    jsx: "automatic",
+    external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
+    loader: { ".jsx": "jsx" },
+    logLevel: "silent",
+  });
+  const app = await import(out);
+
+  const admin = await anAdmin("Rafa");
+  const saved = (await api("/api/courses?action=save-system", {
+    method: "POST", key: admin.key, body: { kind: "numbers", system: numberSystem() },
+  })).json.system;
+
+  /* Every chunk the server plans belongs to a part, and every key in it
+     to that part's prefixes — or it is in no file and back from none. */
+  const manifest = (await api("/api/courses?action=admin-backup-manifest", { key: admin.key })).json.manifest;
+  for (const chunk of manifest.plan) {
+    const part = app.BACKUP_PARTS.find((/** @type {any} */ p) => p.kinds.includes(chunk.kind));
+    assert.ok(part, `no part of a backup holds the server's "${chunk.kind}" records`);
+    for (const k of chunk.keys) {
+      assert.ok(part.prefixes.some((/** @type {string} */ x) => k.startsWith(x)), `${k} would not be restored`);
+    }
+  }
+
+  /* What the owner did: back up the cards and the decks, and restore them. */
+  const browser = /** @type {any} */ (globalThis);
+  const hadWindow = browser.window;
+  browser.window = { location: { origin } };
+  try {
+    app.setKey(admin.key);
+    const { blob } = await app.buildBackup(() => {}, ["cards", "decks"]);
+    const file = JSON.parse(await blob.text());
+    assert.ok(file.records[`numsys:${saved.id}`], "the numbers are not in the file");
+    assert.ok(file.records[`mysystems:${admin.handle}`], "nor what says whose they are");
+
+    await api("/api/courses?action=delete-system", {
+      method: "POST", key: admin.key, body: { kind: "numbers", languageId: "ar-PS" },
+    });
+    assert.deepEqual((await api("/api/courses?action=my-systems", { key: admin.key })).json.systems, []);
+
+    await app.restoreBackup(file, () => {}, ["cards", "decks"]);
+  } finally {
+    browser.window = hadWindow;
+  }
+  const back = (await api("/api/courses?action=my-systems", { key: admin.key })).json.systems;
+  assert.deepEqual(back.map((/** @type {any} */ s) => s.id), [saved.id], "the numbers did not come back");
+  assert.equal(back[0].lexemes["unit.1"].forms.standalone, "one");
+});
+
+/*
+ * A deck says when its number parts send students nothing.
+ *
+ * A part is built on the device out of the teacher's words, so a part
+ * whose words are not all written sends nothing at all — and one gap
+ * holds every later part shut. The deck said "5 number parts" regardless,
+ * which is how a restore that brought back no numbers looked like a full
+ * deck while its students were told there was nothing to practise.
+ */
+test("a deck says which of its number parts reach nobody yet", async () => {
+  const teacher = await anAdmin("Rafa");
+  const course = await aCourse(teacher.key, "Testing");
+  await api("/api/courses?action=assign-teacher", {
+    method: "POST", key: teacher.key, body: { courseId: course.id, handle: teacher.handle },
+  });
+  const deck = (await api("/api/courses?action=create-deck", {
+    method: "POST", key: teacher.key, body: { title: "Numbers", lang: "ar-PS" },
+  })).json.deck;
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key: teacher.key, body: { deckId: deck.id, courseId: course.id },
+  });
+  const waitingNow = async () => {
+    const mine = (await api("/api/courses?action=my-decks", { key: teacher.key })).json.decks;
+    const seen = overviewOf(await api("/api/courses?action=admin-overview", { key: teacher.key })).decks;
+    const asTeacher = must(mine.find((/** @type {any} */ d) => d.id === deck.id), "the deck").partsWaiting;
+    assert.deepEqual(must(seen.find((d) => d.id === deck.id), "the deck").partsWaiting, asTeacher,
+      "the administrator is told the same");
+    return asTeacher;
+  };
+
+  /* No numbers written at all: every part waits, and the answer to
+     setting them says so straight away. */
+  const all = ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+"];
+  const set = await api("/api/courses?action=set-deck-parts", {
+    method: "POST", key: teacher.key, body: { deckId: deck.id, parts: all },
+  });
+  assert.deepEqual(set.json.partsWaiting, all);
+  assert.deepEqual(await waitingNow(), all);
+
+  /* Written but for seven: 0 to 9 is short, and nothing after it opens. */
+  const golden = JSON.parse(readFileSync(new URL("./golden/ar-PS.numbers.json", import.meta.url), "utf8")).system;
+  const { "unit.7": _seven, ...short } = golden.lexemes;
+  const save = (/** @type {number} */ rev, /** @type {any} */ lexemes) =>
+    api("/api/courses?action=save-system", {
+      method: "POST", key: teacher.key, body: { kind: "numbers", system: { ...golden, id: "", rev, lexemes } },
+    });
+  assert.equal((await save(0, short)).status, 200);
+  assert.deepEqual(await waitingNow(), all);
+
+  /* Whole: nothing waits. */
+  assert.equal((await save(1, golden.lexemes)).status, 200);
+  assert.deepEqual(await waitingNow(), []);
+
+  /* Without the joining word, 20 and up wait — and a part stored under
+     its old name waits until every part it became is ready. */
+  const { connector: _and, ...noAnd } = golden.lexemes;
+  assert.equal((await save(2, noAnd)).status, 200);
+  await api("/api/courses?action=set-deck-parts", {
+    method: "POST", key: teacher.key, body: { deckId: deck.id, parts: ["numbers:0-9", "numbers:11-99"] },
+  });
+  assert.deepEqual(await waitingNow(), ["numbers:11-99"]);
 });
 
 test("closing an account takes its numbers with it", async () => {
@@ -3202,6 +3396,168 @@ test("a teacher of neither the deck nor the course cannot attach one to the othe
       method: "POST", key: teacher.key, body: { deckId: mine.id, courseId: theirCourse.id },
     });
     assert.equal(allowed.status, 200, allowed.text);
+  })();
+});
+
+/* ---- which decks a course holds: one answer, whoever asks ----
+ *
+ * The link is kept on the course and on the deck, and the two came apart:
+ * a teacher's course screen said one deck while the same course handed its
+ * students seven. Three readers are asked here every time — the teacher's
+ * deck list, the course record, and what a student is sent — and they have
+ * to say the same thing.
+ */
+
+/**
+ * What each side is told a course holds, by deck title, sorted.
+ * @param {string} key  Somebody who both teaches and studies the course.
+ * @param {string} courseId
+ */
+const whatEachSees = async (key, courseId) => {
+  const decks = (await api("/api/courses?action=my-decks", { key })).json.decks;
+  const course = must(
+    coursesOf(await api("/api/courses?action=my-courses", { key })).find((c) => c.id === courseId),
+    "the course",
+  );
+  const sent = (await api("/api/courses?action=my-material", { key })).json.decks;
+  const titleOf = (/** @type {string} */ id) => (decks.find((/** @type {any} */ d) => d.id === id) || {}).title;
+  return {
+    teacher: decks
+      .filter((/** @type {any} */ d) => d.courses.some((/** @type {any} */ l) => l.courseId === courseId))
+      .map((/** @type {any} */ d) => d.title)
+      .sort(),
+    course: course.decks.map(titleOf).sort(),
+    student: sent
+      .filter((/** @type {any} */ d) => d.courseId === courseId)
+      .map((/** @type {any} */ d) => d.title)
+      .sort(),
+  };
+};
+
+test("decks added and taken out at the same moment all land, and teacher and student agree", () => {
+  return (async () => {
+    const teacher = await anAdmin("Rafa");
+    const course = await aCourse(teacher.key, "Testing");
+    for (const as of ["assign-teacher", "assign-student"]) {
+      await api(`/api/courses?action=${as}`, {
+        method: "POST", key: teacher.key, body: { courseId: course.id, handle: teacher.handle },
+      });
+    }
+    const titles = ["L0", "L1 greetings", "L1 daily", "L1 vocab", "L1 verbs", "Must know", "Numbers"];
+    /** @type {string[]} */
+    const ids = [];
+    for (const title of titles) ids.push((await aDeck(teacher.key, title)).id);
+
+    /* All seven at once. Each used to read the course, add its own deck
+       and write the course back, so the last one in was the only one the
+       course kept — while every deck said it was in. */
+    const on = await Promise.all(ids.map((deckId) =>
+      api("/api/courses?action=attach-deck", { method: "POST", key: teacher.key, body: { deckId, courseId: course.id } })));
+    for (const r of on) assert.equal(r.status, 200, r.text);
+    const all = titles.slice().sort();
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), { teacher: all, course: all, student: all });
+
+    /* Six out at once, while somebody joins and somebody is put on the
+       course: every one of those writes the course too, and any of them
+       used to put back a deck the others had just taken off. */
+    const newcomer = await someone("Lina");
+    const late = await someone("Omar");
+    const off = await Promise.all([
+      ...ids.slice(0, 6).map((deckId) =>
+        api("/api/courses?action=detach-deck", { method: "POST", key: teacher.key, body: { deckId, courseId: course.id } })),
+      api("/api/courses?action=join-course", { method: "POST", key: newcomer.key, body: { code: course.code } }),
+      api("/api/courses?action=assign-student", {
+        method: "POST", key: teacher.key, body: { courseId: course.id, handle: late.handle },
+      }),
+    ]);
+    for (const r of off) assert.equal(r.status, 200, r.text);
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), {
+      teacher: ["Numbers"], course: ["Numbers"], student: ["Numbers"],
+    }, "a deck taken off came back for one side and not the other");
+
+    /* And the people who joined while that was happening are on it. */
+    const after = must(
+      coursesOf(await api("/api/courses?action=my-courses", { key: teacher.key })).find((c) => c.id === course.id),
+      "the course",
+    );
+    for (const h of [teacher.handle, newcomer.handle, late.handle]) {
+      assert.ok(after.students.includes(h), `${h} is missing from the course`);
+    }
+  })();
+});
+
+test("a course and a deck that already disagree are shown as the course has it, and can be put right", () => {
+  return (async () => {
+    const teacher = await anAdmin("Hiba");
+    const coTeacher = await someone("Yusuf");
+    const course = await aCourse(teacher.key, "Testing");
+    for (const [as, handle] of [
+      ["assign-teacher", teacher.handle], ["assign-student", teacher.handle], ["assign-teacher", coTeacher.handle],
+    ]) {
+      await api(`/api/courses?action=${as}`, { method: "POST", key: teacher.key, body: { courseId: course.id, handle } });
+    }
+    const kept = await aDeck(teacher.key, "Numbers");
+    const forgot = await aDeck(teacher.key, "Verbs");
+    const alsoForgot = await aDeck(teacher.key, "Vocab");
+    const stale = await aDeck(teacher.key, "Old");
+    for (const d of [kept, forgot, alsoForgot]) {
+      await api("/api/courses?action=attach-deck", {
+        method: "POST", key: teacher.key, body: { deckId: d.id, courseId: course.id },
+      });
+    }
+
+    /* What the old writes left behind, put straight into the store: two
+       decks the course still sends that no longer say they are in it, and
+       one that says it is in a course that does not hold it. */
+    const { getStore } = await import("../server/store.js");
+    const store = getStore("arabic-courses");
+    const rewrite = async (/** @type {string} */ id, /** @type {(d: any) => any} */ change) => {
+      const held = JSON.parse(must(await store.get(`deck:${id}`, { type: "text" }), "the deck"));
+      await store.set(`deck:${id}`, JSON.stringify(change(held)));
+    };
+    for (const d of [forgot, alsoForgot]) await rewrite(d.id, (held) => ({ ...held, courses: [] }));
+    await rewrite(stale.id, (held) => ({ ...held, courses: [{ courseId: course.id, addedAt: 1 }] }));
+
+    /* Every side says what the students are actually sent. */
+    const sent = ["Numbers", "Verbs", "Vocab"];
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), { teacher: sent, course: sent, student: sent });
+    const overview = overviewOf(await api("/api/courses?action=admin-overview", { key: teacher.key }));
+    assert.deepEqual(must(overview.decks.find((d) => d.id === forgot.id), "Verbs").courseTitles, ["Testing"]);
+    assert.deepEqual(must(overview.decks.find((d) => d.id === stale.id), "Old").courseTitles, [],
+      "a deck the course does not hold is in no course");
+
+    /* A co-teacher may work on a deck the course holds, though the deck
+       itself forgot — the same rule that lists it for them. */
+    const renamed = await api("/api/courses?action=rename-deck", {
+      method: "POST", key: coTeacher.key, body: { deckId: forgot.id, title: "Verbs 1" },
+    });
+    assert.equal(renamed.status, 200, renamed.text);
+
+    /* Taking one of them out now takes it out for the students too. */
+    const off = await api("/api/courses?action=detach-deck", {
+      method: "POST", key: teacher.key, body: { deckId: forgot.id, courseId: course.id },
+    });
+    assert.equal(off.status, 200, off.text);
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), {
+      teacher: ["Numbers", "Vocab"], course: ["Numbers", "Vocab"], student: ["Numbers", "Vocab"],
+    });
+
+    /* Adding the stale one is a fresh add, dated today rather than on the
+       day its leftover link claims. */
+    const on = await api("/api/courses?action=attach-deck", {
+      method: "POST", key: teacher.key, body: { deckId: stale.id, courseId: course.id },
+    });
+    assert.equal(on.status, 200, on.text);
+    const link = must(on.json.deck.courses.find((/** @type {any} */ l) => l.courseId === course.id), "the link");
+    assert.ok(link.addedAt > 1, "the leftover date was kept");
+
+    /* And deleting a deck that forgot its course still takes it off. */
+    const gone = await api("/api/courses?action=delete-deck", {
+      method: "POST", key: teacher.key, body: { deckId: alsoForgot.id },
+    });
+    assert.equal(gone.status, 200, gone.text);
+    const left = ["Numbers", "Old"];
+    assert.deepEqual(await whatEachSees(teacher.key, course.id), { teacher: left, course: left, student: left });
   })();
 });
 

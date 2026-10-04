@@ -8,6 +8,146 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.349 — 4 October 2026
+
+**Backups keep your numbers, and a deck says when its number parts are
+empty.**
+
+- Fixed: a backup left out every teacher's numbers and clock, even with
+  everything ticked, and restoring "Cards" didn't put them back. They are
+  now part of "Cards", both when a backup is made and when one is
+  restored. A backup made before this version has no numbers in it, so
+  make a new backup to keep them.
+- A deck that holds number parts now says when students get nothing from
+  them: "5 number parts · none ready yet", or "3 not ready yet" when only
+  some are. A part is ready once every word it needs is written on the
+  Numbers screen. Until then students get nothing from it, not even the
+  words already written, and a missing word in one part also holds back
+  the parts after it.
+
+## 0.348 — 4 October 2026
+
+**Numbers saved before Save started publishing now reach students.**
+
+- Fixed: a course whose deck holds only numbers could leave its students
+  with "Nothing to practice yet". This happened when the teacher's numbers
+  were last saved before 0.325, when students only got numbers after the
+  Publish button was pressed. If they were never published, students
+  got nothing. The Publish button is gone, so nothing on the teacher's
+  screen showed this and there was no way to send them.
+- Students now always get the numbers as the teacher last saved them,
+  whenever that was. Numbers that were published and then changed and
+  saved before 0.325 now reach students as changed too.
+
+## 0.347 — 4 October 2026
+
+**A course's page shows the decks its students actually get.**
+
+- Fixed: a course could show one deck on the teacher's page while its
+  students were given seven. This happened when changes to the same
+  course landed together, for example several decks being added or taken
+  out at once, or someone joining the course while a deck was taken out.
+  One change could quietly undo another, so the course and its decks
+  stopped agreeing. Every change now applies on top of what is already
+  saved, so nothing undoes anything else.
+- Everywhere that lists a course's decks now reads the list the students
+  are sent: the course page, Manage decks, a deck's settings, the Decks
+  tab and the administrator's deck list. A course that had already got
+  mixed up now shows every deck its students have, and Manage decks can
+  take out the ones that shouldn't be there. Removing a deck now works
+  for the students too.
+- A co-teacher can now work on every deck their course gives students,
+  including one that had lost track of the course.
+
+## 0.346 — 4 October 2026
+
+**A session of 20 is 20 screens again.**
+
+- A session's length is counted the way its counter reads: a matching
+  grid is one screen, however many words are in it. A session of 20 with
+  a grid in it shows "1 / 20", not "1 / 16".
+- It still fills to the length chosen. Where grids take several words
+  onto one screen, more is added until there are 20 screens, so a session
+  with grids in it asks a few more words than one without.
+- The automatic check on session lengths now counts screens, and still
+  fails on any short session that isn't agreed.
+
+## 0.345 — 4 October 2026
+
+**A number is learnt only once you know it in Arabic figures.**
+
+- The last question on every number now shows the number in Arabic
+  figures alone: ٣ to write the word for three, ٤٧ to write forty-seven
+  out, ٠٧:١٥ to say the time. A number only counts as learnt once you
+  have got that question right on later visits, as with every card.
+- Earlier questions that show a number in figures now show both, ٤٧ · 47,
+  so the Arabic figures are learnt on the way up.
+- Numbers you had already learnt need proving again on the Arabic
+  figures. Until you have, their last step shows as not started, and
+  getting back to learnt takes a few days. Nothing else you had earned on
+  them is lost.
+- Times written out by hand, like noon, are asked from the Arabic clock
+  figures too.
+- Hebrew and Huế Vietnamese write numbers with the same figures as
+  English, so nothing changes there.
+
+## 0.344 — 4 October 2026
+
+**Every practice session is the length you chose.**
+
+- Everyday sessions and custom Regular sessions were often a few
+  questions short, such as 8 of 10 or 17 of 20, even with plenty to
+  practise. They now fill to the length chosen.
+- A beginner with only their 10 new words is no longer handed half a
+  session. Each word is asked more ways, and then a second time later in
+  the session, up to four times per word. Answering right twice in a row
+  is what opens a word's next level, so the repeats move it along.
+- Get started, Not seen lately, Fix mistakes and Weak skills fill to their
+  length the same way, from the words that belong in them. Fix mistakes
+  and Weak skills still only ask what is going wrong.
+- A session's length counted a matching grid as the five words in it, so
+  a session of 20 with a grid showed fewer than 20 on its counter. (Changed
+  in 0.346: a grid now counts as one.)
+- A session is still shorter than chosen when there aren't enough words
+  for it, every word asked four times: a deck of 3 words gives 12
+  questions. That is the one agreed exception, and a new automatic check
+  now runs every kind of session to make sure nothing else comes out
+  short.
+
+## 0.343 — 4 October 2026
+
+**A number is typed on the number pad, and marked as a number.**
+
+- When the answer is a number in figures, tapping the answer box brings
+  up the phone's number pad instead of the full keyboard. That is the
+  "write the number in figures" questions, and "what does this mean?" on
+  a word whose meaning is a number — the word for 5, 40 or 1,000, or a
+  number a teacher wrote out by hand.
+- A word that can also be answered in letters ("five / 5") keeps the
+  full keyboard, and so do times like 7:15, since a number pad has no
+  colon.
+- Those "what does this mean?" questions were marking a number as if it
+  were an English word. Typing 1 was right for the word for 1,000, one
+  figure out on a long number counted as a typo and was marked right
+  (3000 for 2,000), and 7 for 8 was "very close". Now a number there is
+  right or wrong, as it already was when writing a number in figures —
+  with commas, spaces and Arabic digits still not held against you.
+
+## 0.342 — 4 October 2026
+
+**Your saved sessions are on the home screen, and can be changed.**
+
+- Under the Saved sessions button, each session you kept is now a small
+  tile, two or three to a row. Tap one to start it.
+- Each tile shows how much of its cards you have learnt, as a percentage
+  with a bar under it, counted the same way as the ring at the top.
+- In Saved sessions, each one has an Edit button. It opens the Build
+  screen with everything already filled in — the mode, the cards, the
+  length and the name — and the last step saves your changes in place of
+  starting.
+- Changing a session keeps any of its cards you can't see right now,
+  such as cards in another language while the switch is on one.
+
 ## 0.341 — 4 October 2026
 
 **A session of numbers is full again for a beginner.**

@@ -61,6 +61,13 @@ export interface ExerciseSpec {
   short: string;
   /** Fields a card must have for this to be asked. */
   needs: string[];
+  /**
+   * Fields that mean another exercise asks this one's question instead:
+   * a card carrying any of them is not asked this. A number in a language
+   * with figures of its own is written out from those figures, never from
+   * the ones English uses — see `own2ar`.
+   */
+  unless?: string[];
   question: string;
   placeholder: string;
   /** "audio" marks the listening exercises. */
@@ -927,6 +934,13 @@ export interface Deck {
    * fileIntoDecks in numbers/generate.ts.
    */
   parts?: string[];
+  /**
+   * Which of `parts` its students get nothing from yet, because the words
+   * those parts are built of are not all written. Worked out by the
+   * server for the screens that show a deck, never stored — see
+   * partsWaiting in server/api/courses.js.
+   */
+  partsWaiting?: string[];
 }
 
 export interface Course {
@@ -1297,6 +1311,10 @@ export type Item = {
    * Written by the generation from the pack's `numerals`, so a language
    * whose figures are the ones English uses has none, and neither does a
    * card that is not one number: *hundred*, *and*, *a quarter past*.
+   *
+   * On the card for its screen, and on every form of it for the question
+   * that asks the word from these figures — `own2ar`, which is the top of
+   * such a card's ladder, so the card is learnt only once the figures are.
    */
   numeral?: string;
   /**
