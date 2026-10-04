@@ -105,9 +105,9 @@ export function probeOf(range: Range): number[] {
   /* Every round hundred and every round thousand up to ten of them. A
      spread lands on 369 and 459 and never on 300 or 400, and those are
      the numbers a language most often says as one word of its own:
-     Palestinian 300 to 900 and 3,000 to 10,000 are, and have no box, so
-     a teacher writes each out from this list. Leaving them out hid them
-     from the teacher and from the check that a part is ready. */
+     Palestinian 300 to 900 and 3,000 to 10,000 are. The thousands have
+     no box, so a teacher writes each out from this list. Leaving them out
+     hid them from the teacher and from the check that a part is ready. */
   for (const unit of [100, 1000]) {
     for (let k = 1; k <= 10; k += 1) out.push(k * unit);
   }

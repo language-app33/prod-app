@@ -4773,3 +4773,30 @@ is read in, which matters only to a learner of two languages holding cards
 saved before cards said which language they were in. Both are the same in
 0.330 and unchanged by this; each would be a change to what is dealt, not
 to how fast, and is left for a decision of its own.
+
+## Palestinian three to nine hundred are boxes, not corrections
+
+**4 October 2026** · `src/numbers/ar-PS.ts` (`AR_SLOTS`, `tidyHundreds`), `src/numbers/migrate.ts`, `src/numbers/generate.ts` (`homesOf`)
+
+Three hundred to nine hundred are one word each in the dialect and cannot
+be built from *three* and *hundred*. Until 0.334 they had no box: a teacher
+wrote each one out under the part's samples, where it was kept as a number
+written out by hand. That is where a correction goes, not where a word is
+looked for, and the teacher who asked for this went to the words and found
+only 100 and 200.
+
+They are now seven optional boxes, `hundred.3` to `hundred.9`, beside the
+other two. The composer says a written-out number first, as it always did,
+then the box, and builds from `hundred.n` only where the box is empty and
+the bare word is written; neither written, it asks for the box. Opening the
+editor moves anything written out for 300 to 900 into its box with its
+transliteration and recording, and `migratedFrom` names the written-out
+card so `handOn` carries a learner's schedule to the box's card. Old number
+cards for those values now fill the boxes on migration too.
+
+**What it costs.** Hebrew and Arabic no longer ask for the same boxes;
+seven more rows on the 100 to 999 screen. The bare *hundred* is never
+reached for once the seven are written, so `homesOf` now puts a box no
+number reached for beside the others in its group, rather than on the last
+part. The thousands, which fuse the same way, are left as they are; nobody
+asked, and it is the same change again if they do.

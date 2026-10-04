@@ -853,8 +853,17 @@ export function homesOf(composer: Composer): Map<string, string> {
       for (const t of got.tokens) if (t.slot && !homes.has(t.slot)) homes.set(t.slot, range.id);
     }
   }
+  /* A box no number reached for in a system with every box written — the
+     bare *hundred* where three hundred has a word of its own — goes
+     beside the boxes of its own group, and only then to the last part. */
   const last = parts.length ? parts[parts.length - 1].id : "";
-  for (const spec of composer.requiredSlots()) if (!homes.has(spec.slot) && last) homes.set(spec.slot, last);
+  const specs = composer.requiredSlots();
+  for (const spec of specs) {
+    if (homes.has(spec.slot)) continue;
+    const kin = specs.find((s) => s.group === spec.group && homes.has(s.slot));
+    const home = kin ? homes.get(kin.slot) : last;
+    if (home) homes.set(spec.slot, home);
+  }
   HOMES.set(composer, homes);
   return homes;
 }

@@ -56,12 +56,16 @@ test("Huế asks for a third of the boxes the Semitic pair do, and they ask for 
   const vi = must(composerFor("vi-Hue"), "vi").requiredSlots();
   const ar = must(composerFor("ar-PS"), "ar").requiredSlots();
   assert.ok(vi.length * 2 < ar.length, `${vi.length} against ${ar.length}`);
-  assert.equal(he.length, ar.length, "the two Semitic packs ask for the same boxes");
+  /* The same boxes, but for Palestinian three to nine hundred, which are
+     one word each and have a box each (0.334). */
+  const fused = ar.filter((s) => /^hundred\.[3-9]$/.test(s.slot));
+  assert.equal(fused.length, 7);
+  assert.equal(he.length, ar.length - fused.length, "the two Semitic packs otherwise ask for the same boxes");
   /* Fifty-five before this, because every hundred, thousand and million
      was a box of its own. Saying *one*, *two* and *the plural* instead
      takes seventeen rows off the screen a teacher has to fill in, and the
-     dialects that fuse them write those out as corrections instead. */
-  assert.ok(ar.length < 40, `${ar.length} boxes is more than the old screen asked for`);
+     thousands a dialect fuses are written out as corrections instead. */
+  assert.ok(ar.length < 55, `${ar.length} boxes is more than the old screen asked for`);
   /* And the reason: Huế is regular, so its scale words are bare and it has
      no hundreds or thousands to write out one at a time. */
   assert.deepEqual(
