@@ -4801,7 +4801,29 @@ number reached for beside the others in its group, rather than on the last
 part. The thousands, which fuse the same way, are left as they are; nobody
 asked, and it is the same change again if they do.
 
----
+## A number is filed under its decks and nothing else
+
+**4 October 2026** · `generate` and `fileIntoDecks` in `src/numbers/generate.ts`, `pullCourses` in `src/shared.tsx`
+
+The owner asked why students had a deck called "Palestinian Arabic
+numbers". Every card a number system made was tagged with the language's
+name and "numbers", so a learner looking for the word for forty would find
+it where they look for words. That was written when numbers went to every
+student outside any deck, and the tag was the only filing they had. Since
+numbers reach a learner only through a deck (see *Numbers reach a learner
+only through a deck*), `fileIntoDecks` files each card under the decks
+that hold it, and the old tag stayed beside those as one more deck on the
+learner's side: every part a teacher had handed out, whatever deck it was
+in.
+
+**Now `generate` tags nothing** and the decks are the cards' only tags.
+The fold takes a course card's tags from the fresh copy, so devices that
+already hold the old tag lose it on the next refresh; progress is kept by
+the fold as for any other change of wording.
+
+**What it costs.** A learner who had picked the old tag to practise, or
+named it in a prep, finds it gone; a prep that named only it reads as
+empty, which is what a prep says of a deck a teacher has deleted.
 
 ## Counting is a question a stretch asks
 
@@ -4821,7 +4843,9 @@ marked as counting, so every probe, draw and filler that already knew how
 to count a noun works unchanged on it. **Counting never holds a stretch
 back**: whether it can be asked is `counting` on the stretch's check, apart
 from `open`, and needs the stretch open and one noun card countable across
-the whole of it.
+the whole of it. Nor does it hold back the stretch above: whether the one
+below is cleared, which 10 to 19 waits on, is read off its number
+questions alone (`stretchOpen`).
 
 **What a learner had is moved, not copied.** The stretch is usually already
 on the device with schedules of its own, and the fold keeps a held card's
@@ -4844,6 +4868,7 @@ leave it out, apart from the numbers; a deck that held a counting part now
 holds the whole stretch. 0 to 9 counts only once a noun card has its plural
 as well as its pair form, where "1 and 2" used to start without one.
 Counting now reaches past twenty, which the Palestinian golden table
-checks to a thousand; Hebrew's has no counting rows, as it had none before. `{{count}}` in a sentence may now be any number of things, not
-one to twenty; the old `{{count-3-10}}` tags are filled from the stretch's
-counted phrases that fall inside them.
+checks to a thousand; Hebrew's has no counting rows, as it had none
+before. `{{count}}` in a sentence may now be any number of things, not
+one to twenty; the old `{{count-3-10}}` tags are filled from the
+stretch's counted phrases that fall inside them.

@@ -90,6 +90,35 @@ export const isFromSystem = (it: { id?: string } | null | undefined): boolean =>
 export const isRangeSkill = (it: { id?: string } | null | undefined): boolean =>
   /^sys:[^:]+:range:/.test(String((it && it.id) || ""));
 
+/**
+ * The stretch of the number line a range waits on, if it waits on one.
+ *
+ * Numbers are learnt bottom up: 10 to 19 is said out of the words 0 to 9
+ * taught, so it is not asked until 0 to 9 is cleared, and so on up. The
+ * one below is the plain number range of the same system with the highest
+ * start under this one's. The clock is not a stretch of the number line
+ * and waits on nothing here — see `rangeChecks` — and a stretch's own
+ * counting question is not what the one above waits on (`stretchOpen`).
+ *
+ * Found among the items given, so a stretch the learner was never handed —
+ * a deck that teaches 10 to 19 and not the numbers under it — holds
+ * nothing back: waiting on a skill that will never be asked would be
+ * waiting for ever.
+ */
+export function stretchBefore<T extends Item>(it: T, items: T[]): T | null {
+  const range = it.range;
+  if (!isRangeSkill(it) || !range || range.kind !== "numbers" || range.counted) return null;
+  const system = systemIdOf(it);
+  let below: T | null = null;
+  for (const other of items) {
+    const r = other.range;
+    if (other === it || !isRangeSkill(other) || !r || r.kind !== "numbers" || r.counted) continue;
+    if (systemIdOf(other) !== system || r.from >= range.from) continue;
+    if (!below || r.from > (below.range as Range).from) below = other;
+  }
+  return below;
+}
+
 /* ---- one card ---- */
 
 interface Made {
@@ -103,7 +132,6 @@ interface Made {
   note?: string;
   /** The number in the language's own figures, where it has them. */
   numeral?: string;
-  tag: string;
   now: Millis;
 }
 
@@ -151,7 +179,10 @@ function cardOf(made: Made): Item {
     id: made.id,
     lang: made.lang,
     kind: "word",
-    tags: [made.tag],
+    /* Filed under a deck by fileIntoDecks, and under nothing else: a
+       name of the system's own would be one more deck on the learner's
+       side, holding every part whatever the teacher handed out. */
+    tags: [],
     forms,
     ...(made.note ? { note: made.note } : null),
     ...(made.numeral ? { numeral: made.numeral } : null),
@@ -179,15 +210,13 @@ export interface GenerateOpts {
   sys: NumberSystem | null;
   timeComposer?: TimeComposer | null;
   timeSys?: TimeSystem | null;
-  /** What the cards are filed under in a learner's list. */
-  tag: string;
   now: Millis;
   /** How the language writes a number in its own figures, where it does —
       the pack's `numerals`. */
   numerals?: ((n: number) => string) | null;
 }
 
-export function generate({ composer, sys, timeComposer, timeSys, tag, now, numerals }: GenerateOpts): Generated {
+export function generate({ composer, sys, timeComposer, timeSys, now, numerals }: GenerateOpts): Generated {
   if (!composer || !sys) return { items: [], checks: [] };
   const lang = sys.languageId;
   const items: Item[] = [];
@@ -217,7 +246,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
         en: spec.label,
         note: spec.hint,
         numeral: numeralOf(spec.label, numerals),
-        tag,
         now,
       }),
     );
@@ -246,7 +274,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
         en: digits,
         note: face ? labelForFace(face as FormKey) : undefined,
         numeral: numeralOf(digits, numerals),
-        tag,
         now,
       }),
     );
@@ -274,7 +301,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
           ],
           en: spec.label,
           note: spec.hint,
-          tag,
           now,
         }),
       );
@@ -290,7 +316,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
           slot: `min.${mark}`,
           faces: [{ key: "standalone", text: expr.text, label: "", lat: expr.lat, audio: expr.audio }],
           en: expr.en || `${mark} ${expr.refHour === "next" ? "to" : "past"}`,
-          tag,
           now,
         }),
       );
@@ -308,7 +333,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
           slot: `override:${key}`,
           faces: [{ key: "standalone", text: over.text, label: "", lat: over.lat, audio: over.audio }],
           en: clock,
-          tag,
           now,
         }),
       );
@@ -322,7 +346,6 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
           slot: `period.${period.slot}`,
           faces: [{ key: "standalone", text: period.text, label: "", lat: period.lat, audio: period.audio }],
           en: period.en || period.slot,
-          tag,
           now,
         }),
       );
@@ -339,7 +362,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now, numer
   const heard = items.some((it) => ((it.forms[0] || {}).recs || []).length);
   for (const check of checks) {
     if (!check.open) continue;
-    items.push(rangeItem(check.range, sys, lang, tag, now, heard, !!(check.counting && check.counting.open)));
+    items.push(rangeItem(check.range, sys, lang, now, heard, !!(check.counting && check.counting.open)));
   }
 
   return { items, checks };
@@ -358,7 +381,6 @@ function rangeItem(
   range: Range,
   sys: NumberSystem,
   lang: LangId,
-  tag: string,
   now: Millis,
   heard: boolean,
   /* Whether its counting question can be asked: a noun card can be
@@ -397,7 +419,7 @@ function rangeItem(
     id,
     lang,
     kind: "word",
-    tags: [tag],
+    tags: [],
     name: range.label,
     forms: [form],
     range,

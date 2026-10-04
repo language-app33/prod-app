@@ -65,7 +65,7 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { localIdFor, cardToItem, serverCardId, foldCourses } = await import(path.join(out, "shared.js"));
+const { localIdFor, cardToItem, serverCardId, foldCourses, deckSize } = await import(path.join(out, "shared.js"));
 
 /* And which recording a question leads with, which is a plain function of a
    card's progress and belongs with the rest of them. The trainer is bundled
@@ -2859,4 +2859,15 @@ test("a noun opened from storage reads its old grammar into the boxes, and saves
   const placed = placeNounForms(forms, nounBoxes(arPS(), "paired"), "paired");
   assert.deepEqual(placed.at, { "masculine:singular": 0, "feminine:singular": 1 });
   assert.deepEqual(placed.extras, []);
+});
+
+/* A deck of numbers holds parts, not cards, and used to say "0 cards" for
+   it — the teacher had just added them and the deck said it was empty. */
+test("a deck's size counts its number parts beside its cards", () => {
+  assert.equal(deckSize({ cardCount: 0 }), "0 cards");
+  assert.equal(deckSize({ cardCount: 1, parts: [] }), "1 card");
+  assert.equal(deckSize({ cardCount: 0, parts: ["numbers:0-10", "time:hours"] }), "2 number parts");
+  assert.equal(deckSize({ cardCount: 5, parts: ["numbers:0-10"] }), "5 cards · 1 number part");
+  /* An open deck counts the cards it has in hand rather than the record's. */
+  assert.equal(deckSize({ cardCount: 9, parts: ["numbers:0-10"] }, 3), "3 cards · 1 number part");
 });

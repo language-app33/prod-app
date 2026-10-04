@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.336 — 4 October 2026
+## 0.339 — 4 October 2026
 
 **Counting things is part of each stretch of numbers, and each number has its own panel.**
 
@@ -17,7 +17,9 @@ and moves once per batch of work you would notice, not once per commit.
   "How would you say this? · 3 books" with its own numbers, in Palestinian
   Arabic and Hebrew. Counting now goes past 20.
 - Students get counting questions in a part once they can read and choose
-  its numbers, next to writing the number out.
+  its numbers, next to writing the number out. Counting never holds back
+  the next part: 10 to 19 opens once 0 to 9 is cleared on its numbers,
+  whether or not its counting is.
 - A part's other questions never wait for noun cards. Its counting
   questions start once one of your noun cards can be counted across the
   whole part. In Palestinian Arabic, 0 to 9 needs a noun card with its
@@ -40,6 +42,51 @@ and moves once per batch of work you would notice, not once per commit.
 - A part's screen has a "Counting things" section listing which noun cards
   it counts and what the others are missing. On the main number screen,
   each part says where its counting stands.
+
+## 0.338 — 4 October 2026
+
+**Numbers are learnt from the bottom up.**
+
+- Each stretch of numbers now waits for the one before it: 10 to 19 is
+  not asked until 0 to 9 is cleared, 20 to 99 not until 10 to 19 is,
+  and so on up to the thousands. Bigger numbers are built out of the
+  smaller ones, so they now arrive once those are in hand rather than
+  all on the first day.
+- If a stretch you had cleared slips back, the ones above it pause until
+  it is recovered. Nothing earned on them is lost; it is waiting when
+  they open again.
+- A stretch only waits on one you actually have. If your course teaches
+  10 to 19 without 0 to 9, it is asked straight away. Counting things
+  and telling the time are unchanged.
+
+## 0.337 — 4 October 2026
+
+**Numbers are found under your teacher's decks, and nowhere else.**
+
+- Students no longer see a deck called "Palestinian Arabic numbers" (or
+  the same for any other language). It was a leftover from when numbers
+  went to every student outside any deck. Since 0.305 numbers come only
+  through a deck your teacher puts them in, so that extra entry only
+  listed the same cards a second time, and lumped every part together
+  whatever week the teacher had put it in.
+- The number and time cards are where they already were, under the decks
+  your teacher put them in, and keep every bit of progress you had on
+  them.
+- If you had chosen that entry to practise or to prep for, choose your
+  teacher's deck instead. A prep that named only that entry will say it
+  has nothing left in it.
+
+## 0.336 — 4 October 2026
+
+**A deck with numbers in it no longer says "0 cards".**
+
+- In Teaching, a deck's size now counts its number parts as well as its
+  cards: "5 cards · 2 number parts", or just "2 number parts" for a deck
+  that holds only numbers. Before, number parts were left out, so a deck
+  you had just filled with numbers still said "0 cards".
+- The same count shows wherever a deck is listed: the deck list, an open
+  deck, the deck choices when adding cards or filtering them, and Admin.
+- Nothing changes for students: their decks already counted numbers.
 
 ## 0.335 — 4 October 2026
 

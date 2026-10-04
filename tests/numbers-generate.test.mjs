@@ -21,10 +21,10 @@ import { must } from "./helpers.mjs";
 import { arComposer } from "../src/numbers/ar-PS.ts";
 import { arTimeComposer } from "../src/numbers/ar-PS.time.ts";
 import {
-  componentId, fileIntoDecks, generate, handOn, handOnCounting, handOnSplit, isFromSystem, isRangeSkill, rangeId,
-  wordsOfRange,
+  askingsKnown, askKnown, componentId, fileIntoDecks, generate, handOn, handOnCounting, handOnSplit, isFromSystem,
+  isRangeSkill, rangeId, wordsOfRange,
 } from "../src/numbers/generate.ts";
-import { partsNow } from "../src/numbers/types.ts";
+import { countingOf, partsNow } from "../src/numbers/types.ts";
 import { formsOf, leadOf, subFormsOf } from "../src/cards.ts";
 
 const load = (/** @type {string} */ name) =>
@@ -41,7 +41,6 @@ const made = (/** @type {Record<string, any>} */ over = {}) =>
     sys: SYS,
     timeComposer: arTimeComposer,
     timeSys: TIME,
-    tag: "Numbers",
     now: NOW,
     ...over,
   });
@@ -89,7 +88,7 @@ test("a system becomes a card per word and a skill per range", () => {
     assert.ok(isFromSystem(it), `${it.id} does not say where it came from`);
     assert.equal(it.locked, true, `${it.id} should not be the learner's to edit`);
     assert.equal(it.lang, "ar-PS");
-    assert.deepEqual(it.tags, ["Numbers"]);
+    assert.deepEqual(it.tags, [], `${it.id} is filed under something other than a deck`);
   }
 });
 
@@ -320,7 +319,7 @@ const oldCard = (/** @type {string} */ id, /** @type {any} */ over = {}) => ({
 
 test("a learner's year on the card a box was filled from goes to the card that replaces it", () => {
   const sys = { ...SYS, migratedFrom: { "ten.40": "k40", "unit.7": "k7" } };
-  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, now: NOW });
   const held = [oldCard("k40")];
   const handed = handOn(fresh.items, held, sys);
 
@@ -340,7 +339,7 @@ test("and a card the device already holds keeps its own schedule, not an older o
   /* Whatever this device has learnt since is the answer. Handing the old
      card's schedule to a card already being asked would undo a week. */
   const sys = { ...SYS, migratedFrom: { "ten.40": "k40" } };
-  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, now: NOW });
   const id = componentId(sys.id, "ten.40");
   const held = [
     oldCard("k40"),
@@ -351,7 +350,7 @@ test("and a card the device already holds keeps its own schedule, not an older o
 });
 
 test("a system that was never migrated hands nothing on, and neither does an empty card", () => {
-  const fresh = generate({ composer: arComposer, sys: SYS, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const fresh = generate({ composer: arComposer, sys: SYS, timeComposer: null, timeSys: null, now: NOW });
   assert.equal(handOn(fresh.items, [oldCard("k40")], SYS), fresh.items, "no map, nothing to do");
   /* A card that was written and never answered has nothing to hand on, so
      the new card is left as the new card it is rather than being given an
@@ -379,7 +378,9 @@ test("a part in a deck brings its skill and the words it is built of, and nothin
   assert.ok(!ids.has(rangeId(SYS.id, "numbers:10-19")), "a part the deck does not hold");
   assert.ok(!ids.has(componentId(SYS.id, "hundred.1")), "a word only bigger numbers use");
   assert.ok(!filed.some((i) => i.range && i.range.kind === "time"), "nothing of the clock");
-  for (const it of filed) assert.ok(it.tags.includes("Week 1"), `${it.id} is not filed under its deck`);
+  /* Under its deck and nothing else: a name of the system's own would be
+     one more deck on the learner's side, holding every part at once. */
+  for (const it of filed) assert.deepEqual(it.tags, ["Week 1"], `${it.id} is not filed under its deck alone`);
 });
 
 test("nothing is sent from parts that are in no deck", () => {
@@ -445,6 +446,26 @@ test("what a learner earned counting things carries into the stretch that counts
   const counting = { ...mine, forms: [{ ...mine.forms[0], s: { ...reading, ...count(1) } }] };
   const settled = byId(handOnCounting(items, /** @type {any} */ ([...old, counting]), {}, SYS.id), stretch);
   assert.equal(settled.forms[0].carried, undefined);
+});
+
+test("a counting question is asked about any noun, not the one its askings were worked out with", () => {
+  /* The askings of a counted stretch are worked out with one noun of each
+     gender — the words are the same for every noun of a gender — so the
+     noun asked is drawn afresh among those of its gender, on the seed. */
+  const range = countingOf(must(arComposer.ranges().find((r) => r.id === "numbers:0-9"), "0-9"));
+  const { items } = made();
+  const ids = new Set(items.filter((i) => !isRangeSkill(i)).map((i) => i.id));
+  const known = askingsKnown(range, SET, ids, () => true);
+  assert.ok(known.length > 0);
+  assert.deepEqual([...new Set(known.map((a) => a.ask.nounId))].sort(), ["book", "girl"], "one of each gender");
+  const asked = Array.from({ length: 60 }, (_, i) =>
+    must(askKnown(range, `seed ${i}`, SET, ids, () => true, known, new Set([...ids].slice(0, 5))), "an ask"));
+  assert.deepEqual([...new Set(asked.map((a) => a.nounId))].sort(), ["book", "girl", "minute"]);
+  /* And the same seed is the same question, noun and all. */
+  assert.deepEqual(
+    askKnown(range, "seed 7", SET, ids, () => true, known, new Set([...ids].slice(0, 5))),
+    asked[7],
+  );
 });
 
 test("what a learner earned on 0 to 10 and 11 to 99 carries into the parts split out of them", () => {

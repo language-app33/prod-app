@@ -8383,7 +8383,7 @@ const openPronounTables = async () => {
 
   const built = generate({
     composer: arComposer, sys: goldenNumbers, timeComposer: arTimeComposer,
-    timeSys: goldenTimes, tag: "Numbers", now: Date.now(),
+    timeSys: goldenTimes, now: Date.now(),
   });
   /* The skills alone. The component words are cards like any other and
      are asked here only as themselves; what this walk is about is the
