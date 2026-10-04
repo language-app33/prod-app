@@ -194,7 +194,7 @@ import {
   renderAsk,
 } from "./numbers/range.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { componentId, fillerCards, isRangeSkill, overrideId, systemFor } from "./numbers/generate.ts";
+import { componentId, fillerCards, isRangeSkill, overrideId, steeredAsk, systemFor } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
@@ -299,8 +299,69 @@ const itemDifficulty = (it: Item, settings: Settings): string =>
    climbs — see `laddered`. Everything that puts progress on a screen reads
    this, so what a learner is told and what the scheduler does are the one
    answer said twice rather than two answers that can drift. */
-const cardStandings = (it: Item, settings: Settings): Standing[] =>
-  standingsOf(it, (u) => laddered(u, settings));
+/*
+ * A number part is learnt only once the words it is made of are.
+ *
+ * Its own ladder says the learner is getting numbers right, which a run of
+ * easy ones can say about 11 to 99 while *ninety* has never been kept. So
+ * where the collection is to hand, a part whose top is done but whose words
+ * are not is held at Cleared, with how many words it is waiting on. A
+ * caller that cannot see the collection — one card's own line — reads the
+ * part on its own ladder, which is all it ever did.
+ */
+export const cardStandings = (it: Item, settings: Settings, among?: Item[]): Standing[] => {
+  const rows = standingsOf(it, (u) => laddered(u, settings));
+  if (!it.parts || !among || !rows.length) return rows;
+  const held = partsOf(it, among, settings).filter((p) => p.validated === false).length;
+  if (!held) return rows;
+  const top = rows[rows.length - 1];
+  return rows.slice(0, -1).concat([{ ...top, status: top.status === "done" ? "cleared" : top.status, held }]);
+};
+
+/* Every card in a collection by id, once per collection: a part asks after
+   thirty words, and a screen asks after every part. */
+const BY_ID: WeakMap<Item[], Map<string, Item>> = new WeakMap();
+function byIdOf(items: Item[]): Map<string, Item> {
+  const had = BY_ID.get(items);
+  if (had) return had;
+  const made = new Map(items.map((it) => [it.id, it]));
+  BY_ID.set(items, made);
+  return made;
+}
+
+/**
+ * The words a number part is made of, as the learner stands on each.
+ *
+ * `validated` is the app's own standard for a card — learnt, its ladder
+ * cleared and its passes made — and null for a word that cannot be asked
+ * at all, which nothing could ever validate and so holds nothing back. A
+ * word in no card this learner holds is left out for the same reason.
+ * `met` is whether any question on it has been answered, which is what
+ * tells a word under way from one not started.
+ */
+export function partsOf(
+  it: Item,
+  among: Item[],
+  settings: Settings,
+): { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] {
+  const byId = byIdOf(among);
+  const out: { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] = [];
+  for (const id of it.parts || []) {
+    const card = byId.get(id);
+    if (!card) continue;
+    const rows = standingsOf(card, (u) => laddered(u, settings));
+    const at = standing(rows);
+    out.push({
+      card,
+      at,
+      validated: at ? at.status === "done" : null,
+      met: unitsOf(card).some(({ unit }) =>
+        laddered(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
+      ),
+    });
+  }
+  return out;
+}
 
 /* ------------------------------------------------------------------
    What one answer moved
@@ -342,8 +403,8 @@ export function movesAmong(
     const has = now.get(id);
     if (!had || !has) continue;
     const move = movedTo(
-      standing(cardStandings(had, settings)),
-      standing(cardStandings(has, settings)),
+      standing(cardStandings(had, settings, before)),
+      standing(cardStandings(has, settings, after)),
     );
     if (move) out.push({ id, move });
   }
@@ -635,6 +696,12 @@ const STATUS_RUNS = [
 function standingLabel(at: Standing | null): string {
   if (!at) return "Can't practice yet";
   if (at.status === "done") return "Learnt";
+  /* A number part whose own reviews are made and whose words are not: the
+     reviews line would say "0 reviews to go" over a part that is not
+     learnt, so it says what it is waiting on instead. */
+  if (at.status === "cleared" && at.held && at.passes >= PASSES_TO_LEARN) {
+    return `Cleared · ${plural(at.held, "word")} to learn`;
+  }
   if (at.status === "cleared") {
     return `Cleared · ${PASSES_TO_LEARN - at.passes} ${
       PASSES_TO_LEARN - at.passes === 1 ? "review" : "reviews"
@@ -3234,6 +3301,8 @@ function drawRange(
   unit: Form,
   type: string,
   sets: SystemSet[],
+  items: Item[],
+  settings: Settings,
 ): { ask?: Ask; options?: string[] } {
   const range = item && item.range;
   if (!range) return {};
@@ -3244,7 +3313,18 @@ function drawRange(
   if (!composer) return {};
 
   const turn = turnOf(statesOf(unit)[type]);
-  const ask = askFor(range, `${item.id} ${type} ${turn}`, set.numbers, composer);
+  /* Towards a word of the part the learner has not kept yet, while there
+     is one — see steeredAsk — and anywhere in the part once every word is
+     learnt. */
+  const waiting = new Set(
+    partsOf(item, items, settings)
+      .filter((p) => p.validated === false)
+      .map((p) => p.card.id),
+  );
+  const seed = `${item.id} ${type} ${turn}`;
+  const ask =
+    steeredAsk(range, seed, { composer, sys: set.numbers, timeComposer: times, timeSys: set.times }, waiting) ||
+    askFor(range, seed, set.numbers, composer);
 
   if (EX[type] && EX[type].picks !== "word") return { ask };
   /*
@@ -3622,7 +3702,7 @@ export function buildSession({
         /* And which number or time, for the same reason and by the same
            rule: drawn once, here, from a seed that moves on a right
            answer so a missed question comes back unchanged. */
-        const drawn = drawRange(items.find((i) => i.id === p.id), p.unit, type, sets);
+        const drawn = drawRange(byIdOf(items).get(p.id), p.unit, type, sets, items, settings);
         exercises.push({
           id: p.id,
           subId: p.subId,
@@ -4397,7 +4477,7 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
   let unseen = 0;
   let floor = 0;
   for (const it of cards) {
-    const where = standing(cardStandings(it, settings));
+    const where = standing(cardStandings(it, settings, cards));
     if (!where || where.status === "done") continue;
     left += 1;
     let fresh = true;
@@ -11787,7 +11867,7 @@ function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
     let learnt = 0;
     let got = 0;
     for (const it of items) {
-      const rows = cardStandings(it, settings);
+      const rows = cardStandings(it, settings, items);
       const at = standing(rows);
       /* A card with nothing it can be asked yet is on no level, so it is
          not progress to be short of — the exclusion Progress makes too. */
@@ -11912,7 +11992,7 @@ function WhatMoved({
            somebody they had done the very thing they are about to be
            asked. A card with no standing has nothing to report and is
            dropped rather than given a number. */
-        const at = standing(cardStandings(card, settings));
+        const at = standing(cardStandings(card, settings, items));
         const level = at && LEVEL_REACHED[at.level];
         return level ? { id, name, said: `up to ${level}` } : null;
       })
@@ -11956,8 +12036,8 @@ function WhatMoved({
  * may have nothing on the third. The ladder passes those straight through,
  * so listing them would be listing work that does not exist.
  */
-function CardLadder({ card, settings }: { card: Item; settings: Settings }) {
-  const levels = cardStandings(card, settings);
+function CardLadder({ card, items, settings }: { card: Item; items?: Item[]; settings: Settings }) {
+  const levels = cardStandings(card, settings, items);
   const at = standing(levels);
   if (!levels.length || !at) return null;
   return (
@@ -12028,7 +12108,7 @@ function CardScreen({ card, items, settings, onPriority, onBack, action }: {
         reader="both"
       />
 
-      <CardLadder card={live} settings={settings} />
+      <CardLadder card={live} items={items} settings={settings} />
 
       {onPriority && (
         <div className="at-card at-mt4">
@@ -14636,6 +14716,13 @@ export function nextPassAt(it: Item, settings: Settings): Millis {
   return soonest;
 }
 
+/* The small print on a number part held at Cleared by its words, once its
+   own reviews are made — there is no review left for passLine to name. */
+function heldLine(at: Standing | null): string {
+  if (!at || !at.held || at.passes < PASSES_TO_LEARN) return "";
+  return `Waiting on ${plural(at.held, "word")}`;
+}
+
 /* Which review of the ones that make a card learnt, as a word. There are
    two today; the rest are here so that raising PASSES_TO_LEARN changes a
    number and not a sentence. */
@@ -14821,7 +14908,7 @@ export function prepStatus(
   at: Millis = now(),
 ): "active" | "past" | "done" | "empty" {
   if (at >= prepStart(prep.date)) return "past";
-  const cards = items.filter(prepDeckOf(prep.decks)).filter((it) => standing(cardStandings(it, settings)));
+  const cards = items.filter(prepDeckOf(prep.decks)).filter((it) => standing(cardStandings(it, settings, items)));
   if (!cards.length) return "empty";
   return workloadOf(cards, settings, at).left ? "active" : "done";
 }
@@ -15135,6 +15222,139 @@ export function forecastWords(at: Millis | null, from: Millis = now()): string {
   return `${date} (${off})`;
 }
 
+/*
+ * Numbers, word by word.
+ *
+ * A number part is one skill on the ladder, and the ladder can say it is
+ * going well while one of its words has never been kept: a learner can be
+ * right about 11 to 99 a dozen times without meeting *ninety*. So each part
+ * is shown here with every word it is built from — each unit, ten and
+ * hundred, and the word that joins them — and whether that word is
+ * validated, which is the app's standard for any card: learnt. The part
+ * itself is learnt only once all of them are (see `cardStandings`), and its
+ * questions are steered towards the ones that are not (see `drawRange`), so
+ * this is the same answer the scheduler is acting on, drawn.
+ */
+type WordState = "done" | "going" | "new";
+const WORD_STATE_LABEL: Record<WordState, string> = {
+  done: "Learnt",
+  going: "Learning",
+  new: "Not started",
+};
+
+/* Where a word stands, in the three states the page draws. */
+const wordStateOf = (p: { validated: boolean | null; met: boolean }): WordState =>
+  p.validated ? "done" : p.met ? "going" : "new";
+
+/* The figure a word stands for, for ordering: one before ten before a
+   hundred, and the words that are not a number — *and*, *hundred* — after
+   them all. */
+const figureOf = (card: Item): number => {
+  const n = Number(String(leadOf(card).en || "").replace(/,/g, ""));
+  return Number.isFinite(n) && String(leadOf(card).en || "").trim() !== "" ? n : Infinity;
+};
+
+function NumberParts({
+  items,
+  settings,
+  progressOf,
+  onCard,
+}: {
+  items: Item[];
+  settings: Settings;
+  progressOf: Map<string, Standing | null>;
+  onCard: (it: Item) => void;
+}) {
+  const parts = useMemo(
+    () =>
+      items
+        .filter((it) => isRangeSkill(it) && (it.parts || []).length)
+        .map((it) => {
+          const words = partsOf(it, items, settings)
+            .filter((p) => p.validated !== null)
+            .sort((a, b) => figureOf(a.card) - figureOf(b.card));
+          return {
+            it,
+            name: String(it.name || (it.range && it.range.label) || ""),
+            words,
+            learnt: words.filter((p) => p.validated).length,
+          };
+        })
+        .filter((p) => p.words.length),
+    [items, settings],
+  );
+  const [open, setOpen] = useState<string>("");
+  if (!parts.length) return null;
+  const showing = parts.find((p) => p.it.id === open);
+  return (
+    <Section
+      title="Numbers"
+      lede="Each part of the numbers you're studying, and how many of the words it is built from you have learnt. A part counts as learnt only once every one of its words is."
+    >
+      <div className="at-deckprog">
+        {parts.map((p) => {
+          const at = progressOf.get(p.it.id) || null;
+          const all = p.learnt === p.words.length;
+          return (
+            <button
+              type="button"
+              className={`at-deckstat${all && at && at.status === "done" ? " done" : ""}`}
+              key={p.it.id}
+              aria-haspopup="dialog"
+              onClick={() => setOpen(p.it.id)}
+            >
+              <span className="at-deckstatname">{p.name}</span>
+              <b>
+                {p.learnt}
+                <i>/{p.words.length}</i>
+              </b>
+              <span className="at-deckbar" aria-hidden="true">
+                <span style={{ width: `${Math.round((p.learnt / p.words.length) * 100)}%` }} />
+              </span>
+              <span className="at-deckstatnote">
+                {plural(p.words.length, "word")} · {standingLabel(at)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {showing && (
+        <Screen title={showing.name} onBack={() => setOpen("")}>
+          <Lede>
+            {showing.learnt === showing.words.length
+              ? `Every word in ${showing.name} is learnt.`
+              : `${showing.learnt} of ${plural(showing.words.length, "word")} learnt. The numbers you are asked here lean towards the ones still to learn.`}
+          </Lede>
+          <Help>Where the part itself stands: {standingLabel(progressOf.get(showing.it.id) || null)}.</Help>
+          <div className="at-numwords">
+            {showing.words.map((p) => {
+              const state = wordStateOf(p);
+              const lead = leadOf(p.card);
+              return (
+                <button
+                  type="button"
+                  className={`at-numword ${state}`}
+                  key={p.card.id}
+                  aria-haspopup="dialog"
+                  aria-label={`${lead.en || lead.ar}: ${WORD_STATE_LABEL[state]}`}
+                  onClick={() => onCard(p.card)}
+                >
+                  <span className="at-numwordfig">{p.card.numeral || lead.en}</span>
+                  <span className="at-numwordsaid" dir="auto">
+                    {lead.ar}
+                  </span>
+                  <span className="at-numwordstate">{WORD_STATE_LABEL[state]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Screen>
+      )}
+    </Section>
+  );
+}
+
 function DeckScreen({
   name,
   cards,
@@ -15278,7 +15498,7 @@ function ProgressTab({
        `nextPassAt` — and its line names that review. */
     const next: Map<string, Millis> = new Map();
     for (const it of items) {
-      const rows = cardStandings(it, settings);
+      const rows = cardStandings(it, settings, items);
       const one = standing(rows);
       at.set(it.id, one);
       /* A level a card has no material for is not a level it is short of —
@@ -15512,7 +15732,8 @@ function ProgressTab({
                 showing === "all"
                   ? standingShort(progressOf.get(it.id) || null)
                   : showing === "cleared"
-                  ? passLine(progress.next.get(it.id) || 0, progressOf.get(it.id)?.passes || 0)
+                  ? heldLine(progressOf.get(it.id) || null) ||
+                    passLine(progress.next.get(it.id) || 0, progressOf.get(it.id)?.passes || 0)
                   : onTop
                   ? reviewLine(progress.next.get(it.id) || 0)
                   : undefined
@@ -15539,6 +15760,8 @@ function ProgressTab({
         </Screen>
       )}
       </Section>
+
+      <NumberParts items={items} settings={settings} progressOf={progressOf} onCard={(it) => setViewing(it)} />
 
       {/* ---- the decks, as how far each one is from finished ----
 

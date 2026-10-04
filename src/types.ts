@@ -1263,6 +1263,17 @@ export type Item = {
    */
   range?: SkillRange;
   /**
+   * The cards a range's words are written on — *four*, *seventy* and *and*
+   * under 11 to 99 — by id, where it is a skill.
+   *
+   * Written when a part is filed into a deck, which is the one place that
+   * already works it out. Two things read it: whether the part is learnt,
+   * which waits on every one of these being learnt too, and which number
+   * it is asked next, which is steered towards the ones that are not. See
+   * `partsOf` in the app.
+   */
+  parts?: string[];
+  /**
    * The number a card out of a number system stands for, in the figures
    * its language writes numbers in — ٣ on the card for *three*.
    *

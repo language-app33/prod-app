@@ -3185,6 +3185,46 @@ keeps a half-written system from putting an unanswerable question up.
 
 ---
 
+## A number part is learnt only once its words are, and is steered towards them
+
+**4 October 2026** · `src/numbers/generate.ts` (`fileIntoDecks`,
+`askingsWithWords`, `steeredAsk`), `src/ArabicTrainer.tsx`
+(`cardStandings`, `partsOf`, `drawRange`, `NumberParts`)
+
+A part's own ladder said whether the learner was getting numbers right,
+and a run of easy ones could say it about 11 to 99 while *ninety* had never
+been kept. Nothing showed the words a part is built from, and the draw was
+uniform over the number line, so *and* came up in nearly every question and
+*seventy* in one in nine.
+
+**The words are written on the part.** `fileIntoDecks` already works out
+every card a part's askings stand on, to file them with it; it now leaves
+that list on the part as `parts`, so nothing downstream has to render a
+part's numbers again to know what it is made of.
+
+**Validated is learnt.** The app's own standard for any card, read through
+the same standings every screen reads. A word that cannot be asked at all
+holds nothing back, since nothing could ever validate it.
+
+**The part waits on them.** `cardStandings` takes the collection where the
+caller has it, and a part whose top is done while any of its words is not
+learnt is held at *cleared*, with `held` saying how many. Without the
+collection a part reads as its own ladder, as before; only one card's own
+line has no collection to hand.
+
+**Questions lean towards them.** `steeredAsk` picks a word not yet learnt,
+each as likely as the next, and then one of the part's askings that stands
+on it; the ordinary draw resumes once every word is learnt. Word first, so
+a word the number line is thin on is reached as often as one it is thick
+with. Seeded as before, so a missed question comes back the same while the
+words waiting are the same ones.
+
+**What it costs.** One more pass over a part's askings per system, cached
+per system object. A part already in a collection learns its words at the
+next course refresh; until then it reads and draws as it did.
+
+---
+
 ## A time is a number with a feminine noun
 
 **22 September 2026** · `src/numbers/compose.ts` (`renderClock`),

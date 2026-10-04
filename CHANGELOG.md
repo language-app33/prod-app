@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.324 — 4 October 2026
+
+**Progress on numbers, word by word.**
+
+- Progress has a new Numbers section. Each stretch of numbers a student is
+  studying (0 to 10, 11 to 99 and so on) shows how many of the words it is
+  built from they have learnt. Tapping a stretch shows every word in it
+  (each unit, teen, ten and hundred, and the word for "and") marked
+  Learnt, Learning or Not started. Tapping a word opens that word's card.
+- A stretch now counts as learnt only once every one of its words is
+  learnt. Until then it stays at Cleared and says how many words it is
+  waiting on.
+- The numbers a student is asked now lean towards the words they have not
+  learnt yet. Someone who has never been asked a number in the seventies
+  will get one, instead of waiting for it to come up by chance. Once every
+  word in a stretch is learnt, numbers are picked at random again.
+
 ## 0.323 — 4 October 2026
 
 **Save is in the top corner on the number screens.**
