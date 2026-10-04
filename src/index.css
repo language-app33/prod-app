@@ -2719,6 +2719,27 @@ button.at-stat { transition: border-color 140ms ease; }
 .at-climbband { display:flex; gap:2px; height:10px; }
 .at-climbband i { display:block; min-width:3px; border-radius:999px; }
 
+/* ---- the sessions kept, as tiles under Saved sessions ----
+   Two or three abreast rather than a row each: they share the home card
+   with its buttons, and a list there would push the buttons apart. Each is
+   its name, how much of its cards is learnt, and a bar of the same in the
+   ring's colour, so the two read as one measure. */
+.at-savedtiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(128px, 1fr)); gap:8px;
+  margin-top: var(--s3); }
+.at-savedtile { display:flex; flex-direction:column; align-items:stretch; gap:6px; min-width:0;
+  padding:10px 12px 12px; text-align:start; cursor:pointer; font:inherit; color: var(--text);
+  background: var(--well); border:1px solid transparent; border-radius: var(--r-sm); }
+.at-savedtile:hover:not(:disabled) { border-color: var(--line); }
+.at-savedtile:focus-visible { outline:2px solid var(--jade); outline-offset:2px; }
+.at-savedtile:disabled { opacity:.5; cursor:default; }
+.at-savedtile .nm { font-family: var(--ui); font-size: var(--fs-sm); font-weight:700; line-height:1.25;
+  color: var(--text-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-savedtile .pc { font-family: var(--ui); font-size:20px; line-height:1; font-weight:800;
+  letter-spacing:-.03em; font-variant-numeric: tabular-nums; }
+.at-savedtile .pc i { font-style:normal; font-size:11px; margin-inline-start:1px; }
+.at-savedtile .bar { display:block; height:5px; border-radius:999px; background: var(--surface); overflow:hidden; }
+.at-savedtile .bar i { display:block; height:100%; border-radius:999px; background: var(--jade); }
+
 /* ---- the ladder, on a card's own screen ----
    One row per level the card has material on: which level, what it asks,
    how it is going, and — on the level being worked on — how much of what

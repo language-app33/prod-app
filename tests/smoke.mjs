@@ -1522,6 +1522,15 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("a kept session puts a way back to it on the home screen",
     !!buttonNamed(/^Saved sessions$/),
     [...document.querySelectorAll("button")].map((b) => b.textContent).join("|").slice(0, 120));
+  /* And as a tile under that button, with how much of it is learnt —
+     a glance at each without opening the list. */
+  const tile = [...document.querySelectorAll(".at-savedtile")]
+    .find((b) => /Thursday's verbs/.test(b.textContent || ""));
+  check("a kept session is a tile on the home screen too", !!tile,
+    [...document.querySelectorAll(".at-savedtile")].map((b) => b.textContent).join("|") || "no tiles");
+  check("and the tile says how much of its cards is learnt",
+    !!tile && /^\d{1,3}%$/.test(((tile.querySelector(".pc") || {}).textContent || "").trim()),
+    tile ? (tile.textContent || "").trim() : "(no tile)");
   if (buttonNamed(/^Saved sessions$/)) {
     clickNamed(/^Saved sessions$/);
     await sleep(250);
@@ -1538,6 +1547,40 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Leave session"));
     await sleep(120);
     clickNamed(/^Leave$/);
+    await sleep(250);
+
+    /* Changed rather than built again: the Build screen opens on what was
+       kept, and saving puts the change back under the same session. */
+    clickNamed(/^Saved sessions$/);
+    await sleep(250);
+    click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Edit Thursday's verbs"));
+    await sleep(250);
+    check("a kept session opens on the Build screen to be changed",
+      !!document.querySelector(".at-modecard.on"),
+      (document.body.textContent || "").slice(0, 120));
+    clickNamed(/^Next$/);
+    await sleep(120);
+    check("with its cards already picked", !!document.querySelector(".at-tagpick.on"),
+      (document.body.textContent || "").slice(0, 120));
+    clickNamed(/^Next$/);
+    await sleep(120);
+    const renameBox = [...document.querySelectorAll(".at-formblock")]
+      .find((d) => /Name/.test(d.textContent || ""))?.querySelector("input");
+    if (renameBox) {
+      must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value")?.set, "the input's value setter")
+        .call(renameBox, "Friday's verbs");
+      renameBox.dispatchEvent(new w.Event("input", { bubbles: true }));
+      await sleep(60);
+    }
+    check("and its last step saves rather than starts",
+      !!buttonNamed(/^Save changes$/) && !buttonNamed(/^Start$/),
+      [...document.querySelectorAll("button")].map((b) => b.textContent).join("|").slice(-120));
+    clickNamed(/^Save changes$/);
+    await sleep(250);
+    const listed = document.querySelector(".at-list")?.textContent || "";
+    check("and the change is kept under the same session",
+      /Friday's verbs/.test(listed) && !/Thursday's verbs/.test(listed), listed.slice(0, 120));
+    click(document.querySelector('[aria-label="Back"]'));
     await sleep(250);
   }
 
