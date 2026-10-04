@@ -41,7 +41,7 @@ import type {
 import { MINUTE_MARKS } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { blocking, rangeChecks, seeded } from "./numbers/range.ts";
-import { Button, Help, Meta, Notice, Screen, Section, Segmented, plural } from "./shared.tsx";
+import { Button, Help, Icon, Meta, Notice, Screen, Section, Segmented, plural } from "./shared.tsx";
 import { RecordingScreen, ScriptInput } from "./card-editor.tsx";
 
 /* ---- what a preview shows ---- */
@@ -327,9 +327,13 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
     <Screen
       title="Number system"
       onBack={onClose}
-      footer={
-        <Button variant="primary" wide disabled={!dirty || busy} onClick={save}>
-          {dirty ? "Save" : "Nothing to save"}
+      /* In the top bar, where the card editor keeps its own: the screen is
+         long, and a save at the bottom of it was a scroll away from
+         wherever the change was made. */
+      action={
+        <Button variant="primary" size="sm" disabled={!dirty || busy} onClick={save}>
+          <Icon name="save" />
+          {busy ? "Saving…" : "Save"}
         </Button>
       }
     >
@@ -1082,10 +1086,10 @@ function WrittenOutScreen({ lang, draft, forKey, render, onKeep, onClose }: {
     <Screen
       title={`${Number.isFinite(value) ? value.toLocaleString("en") : forKey}, written out`}
       onBack={onClose}
-      footer={
+      action={
         <Button
           variant="primary"
-          wide
+          size="sm"
           disabled={!changed}
           onClick={() => onKeep(text, lat)}
         >

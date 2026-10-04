@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 4 October 2026
+
+**Save is in the top corner on the number screens.**
+
+- On the number system screen, Save now sits in the top right of the bar,
+  where it is on a card, instead of at the bottom of a long page. It
+  shows "Saving…" while it works and is greyed out when there is nothing
+  new to save.
+- On the screen where one number is written out by hand, "Keep it" (or
+  "Put it back") has moved to the same corner.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**
