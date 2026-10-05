@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.362 — 5 October 2026
+
+**"Learn more" on a number no longer spells it out in English.**
+
+- The English words for a number ("forty-seven") added in 0.354 are gone
+  from "Learn more". English is not what is being learnt; the Arabic
+  figures, the transliteration and the recording stay.
+
 ## 0.361 — 5 October 2026
 
 **A closed form shows only its name.**

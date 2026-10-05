@@ -28,7 +28,6 @@ import {
   confusableTimes,
   confusablesOf,
   heardWhole,
-  inEnglish,
   openRanges,
   probeOf,
   rangeChecks,
@@ -370,34 +369,6 @@ const transliterated = (/** @type {any} */ sys) => ({
 });
 const LAT = transliterated(SYS);
 const num = (/** @type {number} */ value) => ({ rangeId: "numbers:x", kind: /** @type {"numbers"} */ ("numbers"), value });
-
-test("a number is said in English words, the way it is said aloud", () => {
-  const cases = /** @type {[number, string][]} */ ([
-    [0, "zero"],
-    [7, "seven"],
-    [13, "thirteen"],
-    [40, "forty"],
-    [47, "forty-seven"],
-    [100, "one hundred"],
-    [105, "one hundred and five"],
-    [470, "four hundred and seventy"],
-    [1000, "one thousand"],
-    [2005, "two thousand and five"],
-    [1125, "one thousand one hundred and twenty-five"],
-    [3000000, "three million"],
-    [NUMBER_CEILING, "nine million nine hundred and ninety-nine thousand nine hundred and ninety-nine"],
-  ]);
-  for (const [n, words] of cases) assert.equal(inEnglish(n), words, String(n));
-  assert.equal(inEnglish(-1), "");
-  assert.equal(inEnglish(1.5), "");
-});
-
-test("an asking carries its English words, with what it counts beside them", () => {
-  assert.equal(renderAsk(num(47), arComposer, SYS).words, "forty-seven");
-  const noun = SYS.nouns[0];
-  const counted = renderAsk({ ...num(3), nounId: noun.id }, arComposer, SYS);
-  assert.ok(counted.words && counted.words.startsWith("three "), counted.words);
-});
 
 test("a built number is transliterated out of its words, the connector joined to the word it leans on", () => {
   /* Twenty-five is five, then the connector attached to twenty: the

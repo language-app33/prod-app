@@ -402,8 +402,6 @@ export interface Asked {
   lat?: string;
   /** A recording of the whole number, where one exists. See `heardWhole`. */
   recs?: string[];
-  /** The number in English words, with what it counts beside it. */
-  words?: string;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -453,18 +451,16 @@ export function renderAsk(
 
   const noun = ask.nounId ? (sys.nouns || []).find((n) => n.id === ask.nounId) : undefined;
   const got: Rendering = composer.render(ask.value, sys, noun ? { noun } : {});
-  const counted = noun ? englishFor(noun, got.nounForm) : "";
   return {
     ask,
     text: got.text,
     digits: String(ask.value),
-    en: noun ? `${ask.value} ${counted}` : String(ask.value),
+    en: noun ? `${ask.value} ${englishFor(noun, got.nounForm)}` : String(ask.value),
     tokens: got.tokens,
     warnings: got.warnings,
     nounForm: got.nounForm,
     lat: sayAlong(got.text, got.tokens, [sys]),
     recs: noun ? [] : heardWhole(ask.value, got.tokens, sys),
-    words: [inEnglish(ask.value), counted].filter(Boolean).join(" "),
   };
 }
 
@@ -607,39 +603,6 @@ export function recordedWhole(ask: Ask, composer: Composer | null, sys: NumberSy
   return !!got.text && heardWhole(ask.value, got.tokens, sys).length > 0;
 }
 
-const ONES = [
-  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
-];
-const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
-
-/**
- * A number in English words: *forty-seven*, *three hundred and five*.
- *
- * English, because that is the language the app speaks to a learner in,
- * and a number in the language being learnt is the composer's business and
- * never this. Said the way it is said aloud, with the *and* before the
- * last part.
- */
-export function inEnglish(n: number): string {
-  if (!Number.isInteger(n) || n < 0 || n > NUMBER_CEILING) return "";
-  if (n < 20) return ONES[n];
-  const tens = (v: number) => (v < 20 ? ONES[v] : TENS[Math.floor(v / 10)] + (v % 10 ? `-${ONES[v % 10]}` : ""));
-  const hundreds = (v: number) => {
-    const h = Math.floor(v / 100);
-    const r = v % 100;
-    return [h ? `${ONES[h]} hundred` : "", r ? tens(r) : ""].filter(Boolean).join(" and ");
-  };
-  const millions = Math.floor(n / 1000000);
-  const thousands = Math.floor((n % 1000000) / 1000);
-  const rest = n % 1000;
-  const parts = [
-    millions ? `${hundreds(millions)} million` : "",
-    thousands ? `${hundreds(thousands)} thousand` : "",
-  ].filter(Boolean);
-  if (rest) parts.push(parts.length && rest < 100 ? `and ${tens(rest)}` : hundreds(rest));
-  return parts.join(" ");
-}
 
 /** Which hour the clock shows once a colloquial rounding has carried. */
 function carriedHour(h: number, m: number, mark: number | undefined): number {

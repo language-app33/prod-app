@@ -1247,7 +1247,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!alsoBox && alsoBox.classList.contains("at-alsobox") && !!alsoBox.closest(".at-exercise"),
       alsoBox ? alsoBox.className : "no box");
     const inBox = alsoBox ? [...alsoBox.children].map((e) => e.getAttribute("data-el")) : [];
-    const FAMILY = ["also-context", "also-script", "also-hint", "also-figures", "also-words", "also-audio", "related-words"];
+    const FAMILY = ["also-context", "also-script", "also-hint", "also-figures", "also-audio", "related-words"];
     check("and everything in it is one of the blocks that were loose on the page",
       inBox.length > 0 && inBox.every((n) => FAMILY.includes(n || "")), inBox.join(" ") || "empty");
     /* It used to sit three blocks below its own siblings, under the notes. */

@@ -192,13 +192,12 @@ import { countingOf } from "./numbers/types.ts";
 import {
   confusableTimes,
   confusablesOf,
-  inEnglish,
   recordedWhole,
   renderAsk,
   seeded,
 } from "./numbers/range.ts";
 import type { Asking, SystemSet } from "./numbers/generate.ts";
-import { askingsKnown, askKnown, cardsOfToken, fillerCards, figureOf as figureOfLabel, homeStretch, isFromSystem, inOwnFigures, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
+import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, inOwnFigures, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
@@ -2335,20 +2334,6 @@ function castFill(
   };
 }
 
-/**
- * A number question's number in English words: the one a range drew, said
- * when it was drawn, or the one a number card stands for — *forty* on the
- * card for forty. Nothing for a card that is not one number: *hundred*,
- * *and*, *a quarter past*.
- */
-export function numberInWords(unit: Form | null | undefined, parent: Item | null | undefined): string {
-  if (!unit) return "";
-  if (unit.words) return String(unit.words);
-  if (!parent || !isFromSystem(parent) || isRangeSkill(parent)) return "";
-  const n = figureOfLabel(String(unit.en || ""));
-  return n == null ? "" : inEnglish(n);
-}
-
 /** Figures as a language writes them — see inOwnFigures. */
 export const ownFigures = (lang: Lang | undefined, digits: string): string =>
   inOwnFigures(digits, lang && lang.numerals);
@@ -2408,10 +2393,9 @@ function castRange(
        listening question be dealt; left on the form, it was a player on
        the answer screen with nothing behind it. */
     recs: (said.recs || []).map((id) => ({ id, label: "", speed: "" })),
-    /* How it sounds and what it is in English, for the answer screen. The
-       transliteration is only there when every word in it has one. */
+    /* How it sounds, for the answer screen — only there when every word
+       in it has a transliteration. */
     lat: said.lat || "",
-    ...(said.words ? { words: said.words } : null),
     /* Which words stood in it, so a right answer credits the cards they
        are written on — the same crediting a sentence does for the words
        that filled its blanks. */
@@ -12223,21 +12207,6 @@ export default function ArabicTrainer() {
                               In {qLang.scriptLabel} figures
                             </p>
                             <Field value={item.numeral} field="numeral" name="also-figures-text" />
-                          </div>
-                        )}
-                        {/* And in English words. Nothing on a number
-                            question says it — the prompt and the answer
-                            are the figures and the language's words — and
-                            it is the one a learner checks their reading
-                            against. */}
-                        {numberInWords(item, parentItem) && (
-                          <div className="at-answeralso" data-el="also-words">
-                            <p className="at-alsolabel" data-el="also-words-label">
-                              In English
-                            </p>
-                            <p className="at-ctxmeaning" data-el="also-words-text">
-                              {numberInWords(item, parentItem)}
-                            </p>
                           </div>
                         )}
                         {/* Was below the notes, which put it three blocks

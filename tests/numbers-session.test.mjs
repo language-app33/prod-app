@@ -50,7 +50,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { buildSession, buildManualSession, buildWeakSession, installIndexes, numberInWords, resolveQuestion, tokenCards } = await import(path.join(out, "trainer.js"));
+const { buildSession, buildManualSession, buildWeakSession, installIndexes, resolveQuestion, tokenCards } = await import(path.join(out, "trainer.js"));
 const { generate, isRangeSkill } = await import(path.join(here, "..", "src", "numbers", "generate.ts"));
 const { arComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.ts"));
 const { arTimeComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.time.ts"));
@@ -727,10 +727,9 @@ const castFor = (/** @type {any} */ sets, /** @type {any} */ ask, type = "num2fi
   ).unit;
 };
 
-test("a number question carries its English words, and no recording it does not have", () => {
+test("a number question carries no recording it does not have", () => {
   const unit = castFor(SETS, { rangeId: "numbers:20-99", kind: "numbers", value: 47 });
   assert.equal(unit.en, "47");
-  assert.equal(unit.words, "forty-seven");
   /* The marker on the skill says only that something in the system was
      recorded. Left on the question it was a player with nothing behind
      it, under "Learn more". */
@@ -765,16 +764,4 @@ test("a listening question on a range is dealt a number somebody recorded", () =
   }
   assert.ok(heard.length > 0, "no listening question was dealt on the range with a recording in it");
   for (const ex of heard) assert.equal(ex.ask.value, 7);
-});
-
-test("a number card says its number in English words, and a joining word says none", () => {
-  const card = (/** @type {string} */ slot) =>
-    must(generated.items.find((/** @type {any} */ it) => it.source && it.source.slot === slot), slot);
-  const forty = card("ten.40");
-  assert.equal(numberInWords(forty.forms[0], forty), "forty");
-  const and = card("connector");
-  assert.equal(numberInWords(and.forms[0], and), "");
-  /* A card the teacher wrote is not read as a number, whatever its English. */
-  const typed = { id: "c1", forms: [{ id: "c1-f0", ar: "x", en: "7" }] };
-  assert.equal(numberInWords(typed.forms[0], typed), "");
 });
