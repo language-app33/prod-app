@@ -5014,7 +5014,7 @@ const openPronounTables = async () => {
       const screens = () => [...document.querySelectorAll(".at-screen")];
       const top = () => screens()[screens().length - 1];
       check("and the button opens the screen recordings are made on",
-        !!top() && /Recordings/.test(top().getAttribute("aria-label") || ""),
+        !!top() && /^Recording for \S/.test(top().getAttribute("aria-label") || ""),
         top() ? (top().getAttribute("aria-label") || "(unnamed screen)") : "(no screen)");
       click([...(top() ? top().querySelectorAll("button") : [])]
         .find((b) => b.getAttribute("aria-label") === "Back"));
@@ -6787,9 +6787,11 @@ const openPronounTables = async () => {
   click(mic);
   await sleep(300);
   const recTitle = [...document.querySelectorAll(".at-title, h1, h2")]
-    .map((n) => (n.textContent || "").trim()).find((t) => /Recordings/.test(t)) || "";
+    .map((n) => (n.textContent || "").trim()).find((t) => /^Recording for/.test(t)) || "";
+  /* Named by the word in the box, and only form 2's box has one: the
+     word's own would be named by its place in the table instead. */
   check("and the mic beside a box opens that box's recordings",
-    /form 2/.test(recTitle), recTitle || "(no recording screen)");
+    recTitle === "Recording for كتبي", recTitle || "(no recording screen)");
   /* Its own way back, and not the editor's: the recording screen stands
      over the card, so both are on the page and the editor's is the one a
      plain search for "Back" finds first. */

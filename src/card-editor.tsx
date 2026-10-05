@@ -1421,9 +1421,15 @@ function Recordings({ form, onOpen }: {
  * be two microphones, two quota checks and two ideas of what a recording
  * is. What it is handed is a thing with `clips` on it, which a card's
  * form and a system's lexeme both are.
+ *
+ * Its bar reads "Recording for" and the word being recorded, so a teacher
+ * who has opened it from a card can see whose recordings these are without
+ * going back to look. Named by the caller, which is the one that knows what
+ * the word is: an accepted answer, a line of a scene, a cell of a table.
  */
-export function RecordingScreen({ title, form, onChange, onClose }: {
-  title: string;
+export function RecordingScreen({ name, form, onChange, onClose }: {
+  /** The word these recordings are of, as written on the card. */
+  name: string;
   form: { clips?: string[], slowClips?: string[] };
   onChange: (next: { clips: string[], slowClips: string[] }) => void;
   onClose: () => void;
@@ -1446,15 +1452,32 @@ export function RecordingScreen({ title, form, onChange, onClose }: {
       slowClips: key === "slowClips" ? next : form.slowClips || [],
     });
 
-  async function store(blob: Blob, key: "clips" | "slowClips") {
-    setBusy("Saving…");
+  /* Several at once, from a drop or a multiple pick, are saved one after
+     another and added in a single change: adding each as it landed would
+     read the list from before the last one was added, and keep only the
+     final file. Whatever is not audio is left out and said so, rather than
+     uploaded as a recording nobody can play. */
+  async function store(blobs: Blob[], key: "clips" | "slowClips") {
+    const audio = blobs.filter((b) => !b.type || b.type.startsWith("audio/"));
+    const skipped = blobs.length - audio.length;
+    setError(
+      skipped
+        ? `${plural(skipped, "file")} left out — only audio can be a recording`
+        : ""
+    );
+    if (!audio.length) return;
+    const added: string[] = [];
     try {
-      const hash = await hashOf(blob);
-      await API.putClip(hash, await blobToDataUrl(blob));
-      put(key, listOf(key).concat([hash]));
+      for (const blob of audio) {
+        setBusy(audio.length > 1 ? `Saving ${added.length + 1} of ${audio.length}…` : "Saving…");
+        const hash = await hashOf(blob);
+        await API.putClip(hash, await blobToDataUrl(blob));
+        added.push(hash);
+      }
     } catch (e) {
       setError(API.explain(e));
     } finally {
+      if (added.length) put(key, listOf(key).concat(added));
       setBusy("");
     }
   }
@@ -1472,7 +1495,7 @@ export function RecordingScreen({ title, form, onChange, onClose }: {
       mr.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        store(new Blob(chunks, { type: mr.mimeType || "audio/webm" }), key);
+        store([new Blob(chunks, { type: mr.mimeType || "audio/webm" })], key);
       };
       rec.current = mr;
       setElapsed(0);
@@ -1499,7 +1522,12 @@ export function RecordingScreen({ title, form, onChange, onClose }: {
   }
 
   return (
-    <Screen title={title} onBack={onClose} rise backLabel="Back to the card">
+    <Screen
+      title={name.trim() ? `Recording for ${name.trim()}` : "Recording"}
+      onBack={onClose}
+      rise
+      backLabel="Back to the card"
+    >
       <Help>
         You can make one at regular speed, a slow one, or both — or neither:
         a card with no recording is still a card, it just cannot be
@@ -1539,29 +1567,87 @@ export function RecordingScreen({ title, form, onChange, onClose }: {
                   {busy || `Record ${kind.short.toLowerCase()}`}
                 </Button>
               )}
-              {/* An upload beside every Record, because a teacher who has
-                  the file already should never have to play it into a
-                  microphone to get it onto the card. */}
-              <label className="at-btn sm ghost">
-                <Icon name="download" />
-                Upload a file
-                <input
-                  type="file"
-                  accept="audio/*"
-                  className="at-hidden"
-                  disabled={!!recording}
-                  onChange={(e) => {
-                    const f = e.target.files && e.target.files[0];
-                    if (f) store(f, kind.key);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
             </div>
+
+            {/* A box to drop files on beside every Record, because a
+                teacher who has the files already should never have to play
+                them into a microphone to get them onto the card. One per
+                speed, so where a file is dropped is which speed it is.
+                Pressed, it opens the file picker, which is how a phone —
+                with nothing to drag — gets the same thing. */}
+            <ClipDrop
+              label={kind.short}
+              disabled={!!busy || !!recording}
+              onFiles={(files) => store(files, kind.key)}
+            />
           </section>
         );
       })}
     </Screen>
+  );
+}
+
+/*
+ * Where recording files are dropped, or picked, for one speed.
+ *
+ * A label around a hidden file input, so a press or Enter opens the picker
+ * with nothing more written for it. Dragging sets a flag only to light the
+ * box up; `depth` counts the enters and leaves, because the browser sends
+ * a leave every time the pointer crosses onto the text inside.
+ */
+function ClipDrop({ label, disabled, onFiles }: {
+  label: string;
+  disabled: boolean;
+  onFiles: (files: File[]) => void;
+}) {
+  const [over, setOver] = useState(false);
+  const depth = useRef(0);
+  const hasFiles = (e: React.DragEvent) =>
+    Array.from(e.dataTransfer.types || []).includes("Files");
+  return (
+    <label
+      className={`at-drop${over ? " over" : ""}${disabled ? " off" : ""}`}
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current += 1;
+        if (!disabled) setOver(true);
+      }}
+      onDragOver={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = disabled ? "none" : "copy";
+      }}
+      onDragLeave={() => {
+        depth.current = Math.max(0, depth.current - 1);
+        if (!depth.current) setOver(false);
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current = 0;
+        setOver(false);
+        if (!disabled) onFiles(Array.from(e.dataTransfer.files || []));
+      }}
+    >
+      <Icon name="download" />
+      <span>
+        <strong>Drop {label.toLowerCase()} recordings here</strong>
+        <span className="at-drop-sub">or press to choose files — several at once is fine</span>
+      </span>
+      <input
+        type="file"
+        accept="audio/*"
+        multiple
+        className="at-hidden"
+        disabled={disabled}
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          if (files.length) onFiles(files);
+          e.target.value = "";
+        }}
+      />
+    </label>
   );
 }
 
@@ -6594,7 +6680,7 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
     </div>
     {heard !== null && rows[heard] && (
       <RecordingScreen
-        title={rows.length > 1 ? `Recordings · accepted answer ${heard + 1}` : "Recordings"}
+        name={String(rows[heard].text || "")}
         form={rows[heard] as { clips?: string[]; slowClips?: string[] }}
         onChange={(next) => edit(heard, next)}
         onClose={() => setHeard(null)}
@@ -8253,7 +8339,7 @@ function RecordingOverlays({ word, talk }: { word: WordDraft; talk: SceneDraft }
         form back exactly as it was left, scroll position included. */}
     {recordingLine !== null && lines[recordingLine] && (
       <RecordingScreen
-        title={`Recording · line ${recordingLine + 1}`}
+        name={String(lines[recordingLine].ar || "") || `line ${recordingLine + 1}`}
         form={lines[recordingLine]}
         onChange={(next) => setLine(recordingLine, { ...lines[recordingLine], ...next })}
         onClose={() => setRecordingLine(null)}
@@ -8265,13 +8351,13 @@ function RecordingOverlays({ word, talk }: { word: WordDraft; talk: SceneDraft }
         into the card would be overwritten by the next keystroke. */}
     {recordingCell && cellHere && (
       <RecordingScreen
-        /* Named out of whichever table is on screen. It used to be named
-           out of the verb's whatever the card was, so the recording
-           screen over a pronoun table was titled with the row and column
-           ids the pack happens to use rather than its words for them. */
-        title={`Recordings · ${[recordingCell.ofLabel, cellLabel(shownSpec, recordingCell)]
-          .filter(Boolean)
-          .join(" · ")}`}
+        /* Named by the word in the cell — the button that opens this is
+           off until there is one. The cell's name in the table stands in
+           only if that word has since been cleared. */
+        name={
+          String(cellHere.ar || "") ||
+          [recordingCell.ofLabel, cellLabel(shownSpec, recordingCell)].filter(Boolean).join(" · ")
+        }
         form={cellHere}
         onChange={(next) =>
           setCells((x) =>

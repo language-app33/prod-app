@@ -402,9 +402,13 @@ export function NumberSystemEditor({
   })();
 
   if (recording && recTarget) {
+    /* Named by the word itself where it is written, and by its slot only
+       where it is not yet. */
+    const lex = (recording.time && clock ? clock.lexemes : draft.lexemes)[recording.slot];
+    const word = (lex && lex.forms[recording.key]) || "";
     return (
       <RecordingScreen
-        title={`Recording ${recording.slot}`}
+        name={word || recording.slot}
         form={recTarget}
         onChange={(next) => {
           const clips = next.clips;

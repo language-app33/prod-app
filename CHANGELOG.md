@@ -8,6 +8,80 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.353 — 5 October 2026
+
+**The recording screen says which word it is recording.**
+
+- The bar across the top of the recording screen now reads "Recording
+  for" and the word itself — "Recording for شمس" — instead of a general
+  "Recordings". The same holds wherever a recording is made: a card's
+  answers, a line of a scene, a box in a verb or pronoun table, the
+  pronouns list and the number system. Where the word has not been
+  written yet, it names the place instead, as before.
+
+## 0.352 — 5 October 2026
+
+**Drop recordings onto a card instead of uploading them one by one.**
+
+- When adding recordings to a card or to a word in a number system, each
+  speed now has its own box to drop files on: one for regular speed and
+  one for slow. Drag in as many audio files as you like at once and they
+  are all added, in the order they were dropped, under the speed whose
+  box they landed in.
+- On a phone, or anywhere without dragging, press the box to choose files
+  instead — you can pick several at once there too.
+- Anything dropped that is not audio is left out, and the screen says how
+  many files were skipped.
+
+## 0.351 — 5 October 2026
+
+**A word goes inside a sentence or a number only once you've cleared it.**
+
+- A "building block" is any card used inside another card: a word that
+  fills a blank in a sentence or a conversation, the words a number or a
+  time is made of, and the noun a number counts.
+- A building block now has to be cleared (every level of it done) before
+  it appears inside anything. Before, a word answered once, even wrongly,
+  could appear in a sentence, and a number like 47 could be asked once
+  *forty* and *seven* were only recognised.
+- It must be cleared in the form that is shown: the feminine of an
+  adjective, the right person of a verb, the form a number word takes
+  inside a bigger number, the plural after three.
+- Where one combination isn't ready yet, a sentence uses the next one
+  that is, rather than waiting.
+- Names, and anything else never asked on its own, are still introduced
+  by the sentence itself.
+- Fixed: a form ticked "inside sentence cards" but not "on its own", on a
+  card that is otherwise practised, never appeared in any sentence. It
+  now does.
+- Sentences and number practice that are waiting for their words don't
+  take up places for new words.
+- Sentences and numbers built on new words now come a little later: about
+  a day for someone who practises several times a day, a few days for
+  once a day. A deck's earliest possible date allows for this on
+  sentences.
+- If you were already being asked sentences or numbers whose words aren't
+  cleared yet, they pause until the words catch up. Nothing is lost.
+
+## 0.350 — 5 October 2026
+
+**Progress on numbers counts every number, not just the ones reached so
+far.**
+
+- Fixed: a percentage on a deck of numbers counted only the parts a
+  learner had reached. Someone who knew the words for 0 to 9 saw 90% on a
+  deck of all the numbers, when they had learnt 10 of its 49 cards. The
+  figure then dropped to 50% once they finished 0 to 9 and 10 to 19
+  opened, so learning more made the number go down.
+- Numbers still waiting for their part now count as not learnt yet, so
+  that learner sees 20%, and the percentage only goes up as they learn.
+  This applies everywhere a percentage is shown: the ring on the home
+  screen, the saved-session tiles, the prep tile and the decks on the
+  Progress tab.
+- If a part slips back, the numbers above it wait again but keep what
+  they had learnt, so the percentage dips by the part that slipped and no
+  more.
+
 ## 0.349 — 4 October 2026
 
 **Backups keep your numbers, and a deck says when its number parts are

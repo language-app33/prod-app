@@ -378,9 +378,11 @@ test("a range whose system is not on this device is not asked by hand either", (
    The words first
 
    A learner who knows *forty* and *seven* knows *forty-seven* — and one
-   who does not know *forty* yet cannot be asked it. A number waits until
-   every word in it is recognised: its meaning answered right twice
-   running, which is what opens level two of the word's own ladder.
+   who does not know *forty* yet cannot be asked it. Each word is a
+   building block, and a number waits until every one of them is cleared:
+   up every level of its own ladder, the writing included. Recognising
+   the word — its meaning right twice running — was the bar until 0.351,
+   and is not enough now.
    ------------------------------------------------------------------ */
 
 const { companyOf, contextIndexOf } = await import(path.join(out, "trainer.js"));
@@ -397,6 +399,16 @@ const climbedTo = (/** @type {any} */ it, /** @type {(level: number) => boolean}
 });
 /** Recognised, and nothing more. */
 const recognised = (/** @type {any} */ it) => climbedTo(it, (l) => l === 1);
+/** Every form of the word up every level, its faces included: the word
+    cleared in whichever face a number says it in. */
+const clearedEvery = (/** @type {any} */ it) => ({
+  ...it,
+  forms: it.forms.map((/** @type {any} */ f) => ({
+    ...f, s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, solid()])),
+  })),
+});
+/** Up every level: cleared. */
+const clearedWord = (/** @type {any} */ it) => climbedTo(it, () => true);
 /** Every exercise climbed, so any of them can be dealt. */
 const known = (/** @type {any} */ it) => climbedTo(it, () => true);
 
@@ -411,7 +423,7 @@ const dealIn = (/** @type {any[]} */ items, /** @type {(it: any) => boolean} */ 
   return buildSession({ items, settings, inDeck, includeAll: true, systems: SETS });
 };
 
-test("no number is asked while none of its words is recognised", () => {
+test("no number is asked while none of its words is cleared", () => {
   const items = skills().concat(words());
   const asked = [];
   for (let i = 0; i < 10; i += 1) asked.push(...dealIn(items, () => true).exercises);
@@ -419,12 +431,12 @@ test("no number is asked while none of its words is recognised", () => {
   assert.deepEqual(asked.filter((e) => isRangeSkill(e)).map((e) => e.id), [], "a number was asked before its words");
 });
 
-test("a number is asked once its words are recognised, and only numbers whose words are", () => {
+test("a number is asked once its words are cleared, and only numbers whose words are", () => {
   const fortySeven = wordsOfAsk({ rangeId: "numbers:20-99", kind: "numbers", value: 47 }, SET, IDS);
   assert.ok(fortySeven.size >= 2, `47 is built of ${[...fortySeven].join(", ")}`);
   /* The stretches under it cleared, which 20 to 99 waits on as well. */
   const items = clearedOnly(["numbers:0-9", "numbers:10-19"])
-    .concat(words().map((/** @type {any} */ w) => (fortySeven.has(w.id) ? recognised(w) : w)));
+    .concat(words().map((/** @type {any} */ w) => (fortySeven.has(w.id) ? clearedWord(w) : w)));
   const range = rangeOf("numbers:20-99");
 
   const asked = [];
@@ -434,19 +446,33 @@ test("a number is asked once its words are recognised, and only numbers whose wo
   assert.ok(asked.length > 0, "the range was never asked, though 47 can be said");
   for (const ex of asked) {
     for (const id of wordsOfAsk(ex.ask, SET, IDS)) {
-      assert.ok(fortySeven.has(id), `${ex.ask.value} was asked, and ${id} is not recognised`);
+      assert.ok(fortySeven.has(id), `${ex.ask.value} was asked, and ${id} is not cleared`);
     }
   }
 });
 
-test("a learner who recognises every word can be asked every range", () => {
+test("recognising a number's words is no longer enough to be asked it", () => {
+  /* forty and seven with their meaning right twice running and nothing
+     above it: 47 waits until they are cleared. */
+  const fortySeven = wordsOfAsk({ rangeId: "numbers:20-99", kind: "numbers", value: 47 }, SET, IDS);
+  const items = clearedOnly(["numbers:0-9", "numbers:10-19"])
+    .concat(words().map((/** @type {any} */ w) => (fortySeven.has(w.id) ? recognised(w) : w)));
+  const range = rangeOf("numbers:20-99");
+  const asked = [];
+  for (let i = 0; i < 10; i += 1) {
+    asked.push(...dealIn(items, (it) => it.id === range.id).exercises.filter((/** @type {any} */ e) => e.ask));
+  }
+  assert.deepEqual(asked.map((/** @type {any} */ e) => e.ask.value), [], "a number was asked on words only recognised");
+});
+
+test("a learner who has cleared every word can be asked every range", () => {
   /* Against what is dealt with no words held at all, which waits on
      nothing: counting needs noun cards this fixture does not have. */
   const asks = (/** @type {any[]} */ items, /** @type {any} */ skill) =>
     dealIn(items, (it) => it.id === skill.id).exercises.filter((/** @type {any} */ e) => e.ask).length > 0;
   /* Every stretch of the number line under the top one cleared, since
      each waits on the one below it. */
-  const items = opened(skills()).concat(words().map(recognised));
+  const items = opened(skills()).concat(words().map(clearedEvery));
   const free = skills().filter((/** @type {any} */ skill) => asks(opened(skills()), skill));
   assert.ok(free.length >= 8, `only ${free.length} ranges could be asked at all`);
   for (const skill of free) assert.ok(asks(items, skill), `${skill.range.id} was not asked`);
@@ -640,4 +666,44 @@ test("a beginner's session of numbers is full, and all of it is words they can b
     assert.ok(got.exercises.length >= 16, `only ${got.exercises.length} questions`);
     for (const ex of got.exercises) assert.equal(homeOf(byId.get(ex.id)), "numbers:0-9", `${ex.id} was asked`);
   }
+});
+
+/* At the end, because the die is shared and a test placed earlier would
+   move every draw after it. */
+test("a counted noun is a building block too: it is counted only once cleared in the form the number calls for", () => {
+  /* The learner holds two of the nouns: girl, met and no more, and
+     minute, cleared in every form. Book they do not hold, so it waits on
+     nothing. Girl is never counted; minute and book are. */
+  const nounCard = (/** @type {any} */ n, /** @type {boolean} */ done) => ({
+    id: n.id, lang: "ar-PS", kind: "word", category: "noun", tags: [], created: 1,
+    forms: [
+      { id: n.id, ar: n.sg, en: n.en, lat: "", number: "singular", gender: n.gender === "f" ? "feminine" : "masculine" },
+      { id: `${n.id}-du`, ar: n.dual, en: `two ${n.en}s`, lat: "", number: "dual" },
+      { id: `${n.id}-pl`, ar: n.pl, en: `${n.en}s`, lat: "", number: "plural" },
+    ].map((f) => ({
+      ...f,
+      s: done
+        ? Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, solid()]))
+        : { ar2en: { ...freshState(), phase: "learning", reps: 1, wrong: 1, hist: [0], due: Date.now() - 60000, updated: 1 } },
+    })),
+  });
+  const girl = must(SYS.nouns.find((/** @type {any} */ n) => n.id === "girl"), "girl");
+  const minute = must(SYS.nouns.find((/** @type {any} */ n) => n.id === "minute"), "minute");
+  const items = climbed(["num2fig", "rec2fig", "fig2pick"])
+    .filter((/** @type {any} */ it) => it.range.kind === "numbers")
+    .concat([nounCard(girl, false), nounCard(minute, true)]);
+  const counted = new Set();
+  /* A counted question moves on only on a right answer, so it is asked at
+     a run of turns. */
+  for (let i = 0; i < 40; i += 1) {
+    const turned = items.map((/** @type {any} */ it) => (isRangeSkill(it)
+      ? { ...it, forms: [{ ...it.forms[0], s: { ...it.forms[0].s, count2phrase: { ...freshState(), right: i } } }] }
+      : it));
+    installIndexes(turned, settings);
+    const got = buildSession({ items: turned, settings, inDeck: (/** @type {any} */ it) => isRangeSkill(it), systems: SETS });
+    for (const ex of got.exercises) if (ex.type === "count2phrase" && ex.ask) counted.add(ex.ask.nounId);
+  }
+  assert.ok(counted.size > 0, "nothing was counted");
+  assert.ok(!counted.has("girl"), "a noun not yet cleared was counted");
+  assert.ok(counted.has("minute"), `the cleared feminine noun was never counted: ${[...counted].join(", ")}`);
 });
