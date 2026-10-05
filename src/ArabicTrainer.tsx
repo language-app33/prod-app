@@ -163,6 +163,7 @@ import {
   lendsInto,
   NUMBER_EQUIVALENT,
   normEn,
+  ownFigures,
 } from "./languages.ts";
 import {
   agreedCell,
@@ -191,6 +192,7 @@ import {
   askFor,
   confusableTimes,
   confusablesOf,
+  heardAsk,
   renderAsk,
 } from "./numbers/range.ts";
 import type { SystemSet } from "./numbers/generate.ts";
@@ -2119,6 +2121,16 @@ function castRange(
     /* The recordings, in order: at most two, the hour and the minutes.
        Nothing inside a number is ever stitched. */
     ...(said.clips && said.clips.length ? { recSeq: said.clips } : null),
+    /* A number's own recording, where it was recorded whole — and none
+       where it was not. The skill carries a marker saying only that
+       *something* in the system was recorded, which is what lets a
+       listening question be dealt; left on the form, it was a player on
+       the answer screen with nothing behind it. */
+    recs: (said.recs || []).map((id) => ({ id, label: "", speed: "" })),
+    /* How it sounds and what it is in English, for the answer screen. The
+       transliteration is only there when every word in it has one. */
+    lat: said.lat || "",
+    ...(said.words ? { words: said.words } : null),
     /* Which words stood in it, so a right answer credits the cards they
        are written on — the same crediting a sentence does for the words
        that filled its blanks. */
@@ -3241,7 +3253,10 @@ function drawRange(
   if (!composer) return {};
 
   const turn = turnOf(statesOf(unit)[type]);
-  const ask = askFor(range, `${item.id} ${type} ${turn}`, set.numbers);
+  const seed = `${item.id} ${type} ${turn}`;
+  /* A listening question is drawn from the numbers that were recorded,
+     since a number nobody recorded is nothing to listen to. */
+  const ask = (isListening(type) && heardAsk(range, seed, composer, set.numbers)) || askFor(range, seed, set.numbers);
 
   if (EX[type] && EX[type].picks !== "word") return { ask };
   /*
@@ -11289,15 +11304,47 @@ export default function ArabicTrainer() {
                             />
                           </div>
                         )}
+                        {/* A number, in the digits the language writes
+                            it in where they are not the ones on the
+                            screen: 47 is ٤٧ on a price tag. */}
+                        {(item.rangeNumbers || item.rangeCounted) && ownFigures(qLang, String(item.en || "")) && (
+                          <div className="at-answeralso" data-el="also-figures">
+                            <p className="at-alsolabel" data-el="also-figures-label">
+                              In {qLang.scriptLabel} figures
+                            </p>
+                            <Field
+                              value={ownFigures(qLang, String(item.en || ""))}
+                              field="ar"
+                              kind="word"
+                              name="also-figures-text"
+                            />
+                          </div>
+                        )}
+                        {/* And in English words. Nothing on a number
+                            question says it — the prompt and the answer
+                            are the figures and the language's words — and
+                            it is the one a learner checks their reading
+                            against. */}
+                        {item.words && (
+                          <div className="at-answeralso" data-el="also-words">
+                            <p className="at-alsolabel" data-el="also-words-label">
+                              In English
+                            </p>
+                            <p className="at-ctxmeaning" data-el="also-words-text">
+                              {item.words}
+                            </p>
+                          </div>
+                        )}
                         {/* Was below the notes, which put it three blocks
                             away from its own siblings. It belongs with
-                            them. */}
-                        {spec.promptField !== "audio" && (item.recs || []).length > 0 && (
+                            them. A time is its hour and its minutes, one
+                            after the other — see audibleOf. */}
+                        {spec.promptField !== "audio" && audibleOf(item).length > 0 && (
                           <div className="at-answeralso" data-el="also-audio">
                             <p className="at-alsolabel" data-el="also-audio-label">
                               This is how it sounds
                             </p>
-                            <AudioPrompt recs={item.recs} lead={leadSpeed(item)} />
+                            <AudioPrompt recs={audibleOf(item)} after={chainOf(item)} lead={leadSpeed(item)} />
                           </div>
                         )}
                         {/* Asked here rather than inside RelatedWords: an

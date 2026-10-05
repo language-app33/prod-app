@@ -26,6 +26,7 @@ import type {
   Ask,
   Composer,
   CountedNoun,
+  FormKey,
   NounForm,
   NumberSystem,
   Range,
@@ -290,6 +291,13 @@ export interface Asked {
   hour?: number;
   minute?: number;
   clips?: string[][];
+  /** How it sounds, put together from what the teacher wrote beside each
+      word — empty unless every word in it has one. See `sayAlong`. */
+  lat?: string;
+  /** A recording of the whole number, where one exists. See `heardWhole`. */
+  recs?: string[];
+  /** The number in English words, with what it counts beside it. */
+  words?: string;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -333,20 +341,219 @@ export function renderAsk(
       hour: shownHour,
       minute: shownMinute,
       clips: got.clips,
+      lat: sayAlong(got.text, got.tokens, [timeSys, sys]),
     };
   }
 
   const noun = ask.nounId ? (sys.nouns || []).find((n) => n.id === ask.nounId) : undefined;
   const got: Rendering = composer.render(ask.value, sys, noun ? { noun } : {});
+  const counted = noun ? englishFor(noun, got.nounForm) : "";
   return {
     ask,
     text: got.text,
     digits: String(ask.value),
-    en: noun ? `${ask.value} ${englishFor(noun, got.nounForm)}` : String(ask.value),
+    en: noun ? `${ask.value} ${counted}` : String(ask.value),
     tokens: got.tokens,
     warnings: got.warnings,
     nounForm: got.nounForm,
+    lat: sayAlong(got.text, got.tokens, [sys]),
+    recs: noun ? [] : heardWhole(ask.value, got.tokens, sys),
+    words: [inEnglish(ask.value), counted].filter(Boolean).join(" "),
   };
+}
+
+/* ---- what else a learner is shown about it ---- */
+
+const trimmed = (s: unknown) => String(s == null ? "" : s).trim();
+
+/**
+ * The faces of one slot that are written the way this token was.
+ *
+ * A token names the face it was looked up under, but what the teacher
+ * recorded or transliterated may sit under another face with the same
+ * word in it — *one* asked for with a masculine word is the counting
+ * *one*, and the recording was made once, in the first box.
+ */
+function facesLike(sys: NumberSystem | TimeSystem, t: Token): FormKey[] {
+  const lex = t.slot ? (sys.lexemes || {})[t.slot] : undefined;
+  if (!lex) return [];
+  const keys = Object.keys(lex.forms || {}) as FormKey[];
+  const same = keys.filter((k) => trimmed(lex.forms[k]) === t.text);
+  return t.formKey && same.includes(t.formKey) ? [t.formKey, ...same.filter((k) => k !== t.formKey)] : same;
+}
+
+/** How one token is said, where the teacher wrote it — or nothing. */
+function latOfToken(t: Token, systems: (NumberSystem | TimeSystem | null | undefined)[]): string {
+  for (const sys of systems) {
+    if (!sys) continue;
+    if (t.override) {
+      const over = (sys.overrides || {})[t.override];
+      if (over && trimmed(over.text) === t.text) return trimmed(over.lat);
+      continue;
+    }
+    if (!t.slot) continue;
+    for (const k of facesLike(sys, t)) {
+      const lat = trimmed(((sys.lexemes[t.slot] || {}).lat || {})[k]);
+      if (lat) return lat;
+    }
+    const time = sys as TimeSystem;
+    if (t.slot.startsWith("minute.") && time.minuteExprs) {
+      const expr = time.minuteExprs[t.slot.slice("minute.".length)];
+      if (expr && trimmed(expr.text) === t.text && trimmed(expr.lat)) return trimmed(expr.lat);
+    }
+    if (t.slot.startsWith("period.") && time.periods) {
+      const period = time.periods.find((p) => `period.${p.slot}` === t.slot && trimmed(p.text) === t.text);
+      if (period && trimmed(period.lat)) return trimmed(period.lat);
+    }
+  }
+  return "";
+}
+
+/**
+ * How a whole number sounds, out of how each of its words does.
+ *
+ * The words come from the rendering itself, read left to right against
+ * the pieces it was made of: the composer knows the order and the join,
+ * and the text it hands back already carries both, so nothing about any
+ * language is decided here. A piece that runs straight into the next one
+ * with no space — a connector attached to the word after it — is joined
+ * to it with a hyphen, which is how a transliteration usually writes a
+ * prefix and the one way of writing it that cannot be mistaken for two
+ * words.
+ *
+ * All or nothing: a number with one word nobody transliterated has no
+ * transliteration, rather than one with a hole in it a learner would read
+ * as the whole.
+ */
+export function sayAlong(
+  text: string,
+  tokens: Token[],
+  systems: (NumberSystem | TimeSystem | null | undefined)[],
+): string {
+  const said = trimmed(text);
+  if (!said) return "";
+  const pieces = new Map<string, string>();
+  for (const t of tokens) {
+    const word = trimmed(t.text);
+    if (!word || pieces.has(word)) continue;
+    const lat = latOfToken({ ...t, text: word }, systems);
+    if (!lat) return "";
+    pieces.set(word, lat);
+  }
+  /* Longest first, so a word is never read as a shorter word that
+     happens to start it. Backtracks where that guess was wrong. */
+  const words = [...pieces.keys()].sort((a, b) => b.length - a.length);
+  const walk = (at: number): string | null => {
+    if (at >= said.length) return "";
+    for (const w of words) {
+      if (!said.startsWith(w, at)) continue;
+      let next = at + w.length;
+      const lat = pieces.get(w) || "";
+      if (next >= said.length) return lat;
+      let spaced = false;
+      while (next < said.length && /\s/.test(said[next])) {
+        next += 1;
+        spaced = true;
+      }
+      const rest = walk(next);
+      if (rest === null) continue;
+      if (spaced) return `${lat} ${rest}`;
+      return /-$/.test(lat) ? `${lat}${rest}` : `${lat}-${rest}`;
+    }
+    return null;
+  };
+  return walk(0) || "";
+}
+
+/**
+ * A recording of the whole number, where there is one.
+ *
+ * Nothing inside a number is ever stitched, so this is a number the
+ * teacher recorded whole — written out by hand, or one word in a box —
+ * and nothing else. Forty-seven built out of *seven* and *forty* has no
+ * recording, and is not given two.
+ */
+export function heardWhole(value: number, tokens: Token[], sys: NumberSystem): string[] {
+  const curated = (sys.curatedAudio || {})[String(value)];
+  if (curated && curated.length) return curated;
+  if (tokens.length !== 1) return [];
+  const t = tokens[0];
+  if (t.override) {
+    const over = (sys.overrides || {})[t.override];
+    return (over && over.audio && over.audio.length ? over.audio : (sys.curatedAudio || {})[t.override]) || [];
+  }
+  const audio = ((t.slot && sys.lexemes[t.slot]) || { audio: {} }).audio || {};
+  for (const k of facesLike(sys, t)) {
+    const clips = audio[k];
+    if (clips && clips.length) return clips;
+  }
+  return [];
+}
+
+/**
+ * An asking of a range that has a recording to play.
+ *
+ * A listening question is only a question if there is something to hear,
+ * and which numbers have been recorded is the teacher's choice: the boxes
+ * they filled, the numbers they wrote out, the ones recorded whole. So the
+ * number is drawn from those, seeded the way any other asking is, and
+ * null where none of them falls in the range — the caller then asks the
+ * ordinary way.
+ */
+export function heardAsk(range: Range, seed: string, composer: Composer, sys: NumberSystem): Ask | null {
+  if (range.kind !== "numbers" || range.counted) return null;
+  const top = Math.min(range.to, NUMBER_CEILING);
+  const found = new Set<number>();
+  const add = (s: string) => {
+    const v = Number(String(s).replace(/,/g, ""));
+    if (Number.isInteger(v) && v >= range.from && v <= top) found.add(v);
+  };
+  for (const spec of composer.requiredSlots()) add(spec.label);
+  for (const key of Object.keys(sys.overrides || {})) if (!key.includes("|")) add(key);
+  for (const key of Object.keys(sys.curatedAudio || {})) if (!key.includes("|")) add(key);
+  const heard = [...found]
+    .sort((a, b) => a - b)
+    .filter((value) => {
+      const got = composer.render(value, sys, {});
+      return got.text && !blocking(got.warnings).length && heardWhole(value, got.tokens, sys).length;
+    });
+  if (!heard.length) return null;
+  const rnd = seeded(`${range.id} ${seed} heard`);
+  return { rangeId: range.id, kind: "numbers", value: heard[Math.floor(rnd() * heard.length)] };
+}
+
+const ONES = [
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+];
+const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+/**
+ * A number in English words: *forty-seven*, *three hundred and five*.
+ *
+ * English, because that is the language the app speaks to a learner in,
+ * and a number in the language being learnt is the composer's business and
+ * never this. Said the way it is said aloud, with the *and* before the
+ * last part.
+ */
+export function inEnglish(n: number): string {
+  if (!Number.isInteger(n) || n < 0 || n > NUMBER_CEILING) return "";
+  if (n < 20) return ONES[n];
+  const tens = (v: number) => (v < 20 ? ONES[v] : TENS[Math.floor(v / 10)] + (v % 10 ? `-${ONES[v % 10]}` : ""));
+  const hundreds = (v: number) => {
+    const h = Math.floor(v / 100);
+    const r = v % 100;
+    return [h ? `${ONES[h]} hundred` : "", r ? tens(r) : ""].filter(Boolean).join(" and ");
+  };
+  const millions = Math.floor(n / 1000000);
+  const thousands = Math.floor((n % 1000000) / 1000);
+  const rest = n % 1000;
+  const parts = [
+    millions ? `${hundreds(millions)} million` : "",
+    thousands ? `${hundreds(thousands)} thousand` : "",
+  ].filter(Boolean);
+  if (rest) parts.push(parts.length && rest < 100 ? `and ${tens(rest)}` : hundreds(rest));
+  return parts.join(" ");
 }
 
 /** Which hour the clock shows once a colloquial rounding has carried. */

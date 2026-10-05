@@ -1270,3 +1270,13 @@ test("a person noted for gender and number is spelt out in full", () => {
   assert.ok(checkEn("you eat", "you (f pl) eat").ok);
   assert.ok(checkEn("you (f pl) eat", "you eat").ok);
 });
+
+test("figures are written in a language's own digits only where it has them", async () => {
+  const { ownFigures, LANGUAGES } = await import("../src/languages.ts");
+  assert.equal(ownFigures(LANGUAGES["ar-PS"], "47"), "٤٧");
+  assert.equal(ownFigures(LANGUAGES["ar-PS"], "1,205"), "١,٢٠٥");
+  /* Hebrew and Huế write 0 to 9, which are already on the screen. */
+  assert.equal(ownFigures(LANGUAGES["he-IL"], "47"), "");
+  assert.equal(ownFigures(LANGUAGES["vi-Hue"], "47"), "");
+  assert.equal(ownFigures(LANGUAGES["ar-PS"], ""), "");
+});

@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 5 October 2026
+
+**"Learn more" on a number question shows everything worth knowing about the number.**
+
+- After a question about a number, "Learn more" now shows the number in
+  English words ("forty-seven"), and for Arabic the number in Arabic
+  figures (٤٧) as it is written on signs and prices.
+- It shows how the number is pronounced whenever the teacher wrote a
+  transliteration for each word in it. A built-up number like 47 is put
+  together from the words it is made of, so writing a transliteration
+  for "seven", "forty" and "and" once covers every number that uses them.
+  Times are covered the same way.
+- It plays the recording when the teacher recorded that number, either as
+  a word of its own or as a whole number. Before, a number question could
+  show a player that had nothing to play.
+- A listening question about numbers now asks a number that was actually
+  recorded, rather than one with nothing to hear.
+- Anything the question already showed is left out, as before.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**

@@ -462,6 +462,14 @@ export interface Lang {
   leading?: number;
   sample: LangSample[];
   translitLabel: string;
+  /**
+   * The digits nought to nine as the language writes them, where it has
+   * its own — ten characters, in order. A number question shows the
+   * number in them beside the answer, because the figures a learner is
+   * asked in are the ones on their keyboard and not always the ones on a
+   * shop sign. A pack whose language writes 0 to 9 declares none.
+   */
+  digits?: string;
   /** Which axes of GRAMMAR this language uses. */
   grammar: string[];
   /**

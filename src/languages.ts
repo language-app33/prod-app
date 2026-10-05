@@ -2858,6 +2858,17 @@ function numberTableOf(id: LangId): VerbSpec {
   );
 }
 
+/**
+ * Figures, written in the language's own digits — or nothing, where it
+ * has none of its own and the figures already on the screen are the ones
+ * it writes. Anything that is not a digit is left as it stands.
+ */
+export function ownFigures(lang: Lang | null | undefined, figures: string): string {
+  const digits = lang && lang.digits;
+  if (!digits || digits.length !== 10 || !/\d/.test(figures)) return "";
+  return figures.replace(/[0-9]/g, (d) => digits[Number(d)]);
+}
+
 export const LANGUAGES: Record<LangId, Lang> = {
   "ar-PS": {
     id: "ar-PS",
@@ -2887,6 +2898,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
       { ar: "واحِد", en: "one", lat: "" },
     ],
     translitLabel: "Transliteration",
+    /* The Eastern Arabic digits, which are what a number is written in on
+       a sign, a price or a bus in the places this dialect is spoken. */
+    digits: "٠١٢٣٤٥٦٧٨٩",
     /* And whether a noun is a person or a thing, which is what an
        adjective beside a plural reads — see GRAMMAR.human. */
     grammar: ["number", "gender", "human"],
