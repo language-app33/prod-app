@@ -333,7 +333,8 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   questions over the length of a session times `PROGRESS_SHARE`, the part
   of a session that moves cards forward. The earliest is a calendar floor
   — `LEARN_DAYS` for a card not yet learnt, the wait for its passes for a
-  cleared one, and never-met cards coming in `FRONT_DOOR_CAP` at a time.
+  cleared one, `CLEAR_DAYS` more for a sentence whose words are not
+  cleared yet, and never-met cards coming in `FRONT_DOOR_CAP` at a time.
   It is instant, and approximate. **It restates the rules rather than
   running them, so a change to the ladder, the passes, the front door or
   what a session deals has to be carried into it by hand** — nothing will
@@ -472,8 +473,24 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   It is the editor that refuses, not the server, so a name that collided
   before the rule existed is stored and read as it always was.
   Every form of a filler lends itself, not only its
-  own word: a plural stands in a sentence its singular does not, gated on
-  what that form itself has climbed. A card with a blank in it never fills
+  own word: a plural stands in a sentence its singular does not.
+
+  **A building block is cleared before anything is built from it.** A
+  building block is any card used inside another card: a word in a
+  sentence's or a conversation's blank, a word of a number or a time, the
+  noun a number counts. It stands there only once the learner has
+  cleared it — been up every level of its own ladder — and in the form
+  it is shown in: the feminine an adjective agrees into, the person of a
+  verb, the face a numeral wears inside a bigger number, the plural after
+  three. One bar for every question the sentence asks (`valuesAt` in
+  `src/variables.ts`, `standsAsShown` in the app). A combination that
+  cannot be made yet is passed over for the next one rather than waited
+  on. A card or a form that is never asked on its own — a name, or a
+  plural kept only for sentences — can never be cleared, and is
+  introduced by the sentence instead, read off the sentence's record of
+  having met it. A sentence or a number part waiting on its building
+  blocks holds no place among the new words (`waitsOnBlocks`), since the
+  places are how those words come in. A card with a blank in it never fills
   one — a sentence dropped into somebody else's hole is a sentence with a
   gap where the point was — and `{{verb}}` on a verb card's own sentence
   means its own place in it rather than any verb, which `ownSlot` in
@@ -965,13 +982,15 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
 
   **A number waits on its words.** A learner who knows *forty* and
   *seven* knows *forty-seven*, and one who does not know *forty* yet
-  cannot be asked it. So a number is asked only once every word in it is
-  recognised — its meaning right twice running, level two of the word's
-  own ladder — and number by number rather than range by range: 47 the
-  day *forty* and *seven* are, whether or not *ninety* has been met.
+  cannot be asked it. Each word is a building block (see above), so a
+  number is asked only once every word in it is cleared, in the face it
+  is said in, and a counted question only with a noun cleared in the form
+  the number puts it in — and number by number rather than range by
+  range: 47 the day *forty*, *seven* and *and* are, whether or not
+  *ninety* has been met. Recognising the words was the bar until 0.351.
   Until any can be, a session asks the words alone. Among the numbers
   that can be asked, the draw still leans towards a word not yet learnt
-  (`steeredAsk`). A word that could never be recognised (not held, not
+  (`steeredAsk`). A word that could never be cleared (not held, not
   practised, nothing to ask) holds nothing back. `askingsKnown` and `askKnown` in
   `src/numbers/generate.ts`, read through `knownNumbers` in the app.
 

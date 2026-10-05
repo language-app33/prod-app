@@ -155,7 +155,6 @@ import {
   keysFor,
   answerOf,
   levelOf,
-  TOP_LEVEL,
   typeOf,
   tablesOf,
   verbOf,
@@ -195,7 +194,7 @@ import {
   confusablesOf,
   renderAsk,
 } from "./numbers/range.ts";
-import type { SystemSet } from "./numbers/generate.ts";
+import type { Asking, SystemSet } from "./numbers/generate.ts";
 import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, inOwnFigures, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
@@ -1061,22 +1060,35 @@ export function setValueIndex(map: Map<string, Value[]>) {
 export const valueKey = (langId: LangId, slot: string) => `${langId}\u0000${slot}`;
 
 /*
- * And how far the learner has got with each of them.
+ * And whether the learner has cleared each of them.
  *
- * A number is how far up its own ladder a value has climbed; null is a
- * value that has no ladder — one the teacher marked as not practised on
- * its own, which is never dealt and so can never climb anything. Which of
- * the two it is decides how a hole is gated; the rule itself is valuesAt,
- * in variables.ts, and this is only where the answer is looked up.
+ * True or false is whether a value has been up every level of its own
+ * ladder; null is a value that has no ladder — one the teacher marked as
+ * not practised on its own, which is never dealt and so can never clear
+ * anything. Which of the two it is decides how a hole is gated; the rule
+ * itself is valuesAt, in variables.ts, and this is only where the answer
+ * is looked up.
  *
  * Beside the index rather than inside the Value, because a Value is the
  * words a card lends and travels into the question itself — how far the
  * learner has got with it is a fact about them, not about the sentence.
  */
-let VALUE_REACH: Map<string, number | null> = new Map();
+let VALUE_REACH: Map<string, boolean | null> = new Map();
 
-function setValueReach(map: Map<string, number | null>) {
+/*
+ * And the same answer for every other form of a card that fills anything,
+ * which is what a sentence puts up where it goes back to the card for the
+ * form that agrees — the feminine of an adjective, the person of a verb.
+ * A building block is cleared in the form that is shown, so that form is
+ * asked too. Kept apart from VALUE_REACH because that map also says which
+ * values a frame keeps a record of having met, and a cell nothing lends
+ * is not one of those.
+ */
+let FORM_CLEARED: Map<string, boolean | null> = new Map();
+
+function setValueReach(map: Map<string, boolean | null>, forms?: Map<string, boolean | null>) {
   VALUE_REACH = map || new Map();
+  FORM_CLEARED = forms || new Map();
   /* A scene's casting reads what each word has climbed. */
   SCENE_FILLS = new WeakMap();
 }
@@ -1126,12 +1138,29 @@ function setValueOwner(map: Map<string, { card: Item; form: Form }>) {
   ASKED_IN = new WeakMap();
 }
 
-/* What a value has climbed, for valuesAt. A value nothing knows about
-   reads as unmet rather than as met: the whole point of the gate is that a
-   word nobody has answered is not one to put in front of somebody. */
-const reachOfValue = (value: Value): number | null => {
+/* Whether a value is cleared, for valuesAt. A value nothing knows about
+   reads as not cleared: the whole point of the gate is that a word the
+   learner has not got is not one to put in front of somebody. */
+const clearedOfValue = (value: Value): boolean | null => {
   const ref = refOf(value);
-  return VALUE_REACH.has(ref) ? (VALUE_REACH.get(ref) as number | null) : 0;
+  return VALUE_REACH.has(ref) ? (VALUE_REACH.get(ref) as boolean | null) : false;
+};
+
+/*
+ * Whether a word may stand where a sentence put it, in the form it was
+ * put there in.
+ *
+ * The pool already holds only cleared values, but an agreeing card lends
+ * its own word and the sentence then puts up another form of it — كبيرة
+ * beside a feminine noun where كبير was lent. That form is a building
+ * block in its own right, with a ladder of its own, and it is the one the
+ * learner reads or writes. A form with no ladder — a card or a form not
+ * practised on its own — is introduced by the sentence, as a name is.
+ */
+const standsAsShown = (value: Value): boolean => {
+  const ref = refOf(value);
+  if (VALUE_REACH.has(ref)) return VALUE_REACH.get(ref) !== false;
+  return FORM_CLEARED.has(ref) ? FORM_CLEARED.get(ref) !== false : true;
 };
 
 /* Whether a frame has to keep a record of having met a value — only the
@@ -1306,7 +1335,7 @@ function fillsAt(unit: Form, key: string, langId?: LangId): Record<string, Value
   const level = levelOf(key);
   const out: Record<string, Value[]> = {};
   for (const [slot, list] of Object.entries(fillsFor(unit, langId))) {
-    out[slot] = valuesAt(list, slot, level, reachOfValue, unit && unit.met);
+    out[slot] = valuesAt(list, slot, level, clearedOfValue, unit && unit.met);
   }
   return out;
 }
@@ -1758,26 +1787,38 @@ export function valueIndexOf(items: Item[], settings: Settings): Map<string, Val
 }
 
 /**
- * And how far the learner has got with each of them, with the form each
+ * And whether the learner has cleared each of them, with the form each
  * was lent by.
  *
  * Only the cards that fill something, so this is a walk over the values
- * rather than over the deck. A value that is drilled on its own carries a
- * number — the highest level it has climbed to, by the same test the ladder
- * makes — and a value that is not carries null, because it is never dealt
- * and has no ladder to read. What each of those means for a hole is
- * valuesAt's business, not this one's.
+ * rather than over the deck. A value that is drilled on its own carries
+ * whether it is cleared — up every level of its own ladder, by the same
+ * test the progress screen makes — and a value that is not carries null,
+ * because it is never dealt and has no ladder to read. What each of those
+ * means for a hole is valuesAt's business, not this one's.
  *
  * Read off the form itself, which is the word a hole borrows: a plural the
- * learner can already write stands in a sentence that asks for writing,
- * whatever the singular beside it has done.
+ * learner has cleared stands in a sentence whatever the singular beside it
+ * has done. A form lent and not asked on its own, on a card that is
+ * otherwise practised — a plural kept for sentences — has no ladder either,
+ * and is read as a name is. It used to read as never met, and so never
+ * stood anywhere.
  */
 export function valueReachOf(
   items: Item[],
   settings: Settings,
-): { map: Map<string, number | null>; owner: Map<string, { card: Item; form: Form }> } {
-  const map: Map<string, number | null> = new Map();
+): {
+  map: Map<string, boolean | null>;
+  forms: Map<string, boolean | null>;
+  owner: Map<string, { card: Item; form: Form }>;
+} {
+  const map: Map<string, boolean | null> = new Map();
+  const forms: Map<string, boolean | null> = new Map();
   const owner: Map<string, { card: Item; form: Form }> = new Map();
+  const clearedOf = (form: Form, drilled: boolean): boolean | null => {
+    if (!drilled || !isAsked(form)) return null;
+    return cleared(laddered(form, settings), (key: string) => statesOf(form)[key]);
+  };
   for (const it of items) {
     const langId = langIdOf(it, settings);
     const lang = LANGUAGES[langId] || langOf(settings);
@@ -1787,22 +1828,7 @@ export function valueReachOf(
       const ref = refOf(value);
       if (!ref) continue;
       owner.set(ref, { card: it, form: form as Form });
-      if (!drilled) {
-        map.set(ref, null);
-        continue;
-      }
-      /* Highest first, so the answer is the furthest it has got rather than
-         the first level that happens to be clear. */
-      const keys = laddered(form as Form, settings);
-      const stateAt = (key: string) => statesOf(form as Form)[key];
-      let climbed = 0;
-      for (let level = TOP_LEVEL; level >= 1; level--) {
-        if (reachedLevel(keys, stateAt, level)) {
-          climbed = level;
-          break;
-        }
-      }
-      map.set(ref, climbed);
+      map.set(ref, clearedOf(form as Form, drilled));
     }
     /*
      * And every other form of the card, for the owner index alone.
@@ -1814,17 +1840,20 @@ export function valueReachOf(
      * blank is a cell nothing lent. Answering such a sentence is answering
      * about that cell, so it has to be findable — see fillersIn.
      *
-     * The reach map is left exactly as it was: which values a hole may
-     * take is read off the pool, and the pool is what a card lends. A
-     * further key here would be an answer nobody asks for.
+     * And whether it is cleared, since it is the form the learner reads —
+     * see standsAsShown. The reach map is left to the lent values: which
+     * values a hole may take is read off the pool, and which of them a
+     * frame records having met is read off the same map.
      */
     for (const form of formsOf(it)) {
       const ref = form.id === it.id ? it.id : form.id;
-      if (!ref || owner.has(ref)) continue;
+      if (!ref) continue;
+      if (!forms.has(ref)) forms.set(ref, clearedOf(form, drilled));
+      if (owner.has(ref)) continue;
       owner.set(ref, { card: it, form });
     }
   }
-  return { map, owner };
+  return { map, forms, owner };
 }
 
 /**
@@ -1863,7 +1892,7 @@ export function installIndexes(items: Item[], settings: Settings, systems: Syste
   setMateCounts(countMates(items, settings));
   setPicturedCounts(countPictured(items, settings));
   const reach = valueReachOf(lent, settings);
-  setValueReach(reach.map);
+  setValueReach(reach.map, reach.forms);
   setValueOwner(reach.owner);
   setQuietUnits(quietUnits(items, settings));
   setEasedUnits(easedUnits(items, settings));
@@ -2117,12 +2146,41 @@ function fillFor(
    */
   const gate = preview ? null : REVIEW_GATE.get(unit.id) || null;
   if (gate) return gatedFill(unit, gate, drawn, pool, seen);
-  const turned = valuesForTurn(drawn, pool, seen);
-  if (!turned) return null;
-  /* An agreeing card lent its own word; the form that agrees with the
-     slot beside it goes in its place. Nothing to put there — a cell the
-     teacher left blank — is no question: there is nothing to ask and
-     nothing to invent, so the whole combination comes back empty. */
+  /*
+   * Forward from the turn to the first combination that makes a sentence
+   * the learner can be put — the same walk a reviewed card takes.
+   *
+   * A combination can fail after the pool has passed it: an agreeing word
+   * whose cell for this partner is blank, or one whose cell is a form the
+   * learner has not cleared yet (see standsAsShown). Waiting on it held
+   * the whole frame, since the turn moves only on a right answer and a
+   * frame that cannot be asked is never answered. So the walk moves on,
+   * and the same count still lands on the same sentence.
+   */
+  const combos = drawn.reduce((n, slot) => n * (pool[slot] || []).length, 1);
+  const walk = drawn.length ? Math.min(combos, SCAN_LIMIT) : 1;
+  for (let i = 0; i < walk; i++) {
+    const turned = valuesForTurn(drawn, pool, seen + i);
+    if (!turned) return null;
+    const took = tookFor(unit, card, turned, slots, drawn, own);
+    if (!took) continue;
+    if (preview || drawn.every((slot) => standsAsShown(took[slot]))) return took;
+  }
+  return null;
+}
+
+/* One combination of values, agreed — the form that agrees with the blank
+   beside it put in place of the word an agreeing card lent — and the
+   verb's own place filled from its table. Null where any of it has
+   nothing to put there: a cell the teacher left blank is no question. */
+function tookFor(
+  unit: Form,
+  card: Item | null,
+  turned: Record<string, Value>,
+  slots: string[],
+  drawn: string[],
+  own: string | null,
+): Record<string, Value> | null {
   const took = agreeTook(
     turned,
     drawn,
@@ -2131,7 +2189,7 @@ function fillFor(
     slotLinks(unit),
   );
   if (!took) return null;
-  if (card && slots.length !== drawn.length) {
+  if (card && own && slots.length !== drawn.length) {
     const agreed = verbValue({ unit, parent: card }, took, leadsOf(
       turned,
       slots,
@@ -2167,6 +2225,8 @@ function gatedFill(
     if (!turned) return null;
     const took = finishTook(unit, gate.card, turned, drawn, ownerOf, langFor);
     if (!took) continue;
+    /* And every word in the form it is shown in cleared — see fillFor. */
+    if (!drawn.every((slot) => standsAsShown(took[slot]))) continue;
     if (passes(gate.review, sentenceKey(fillForm(unit, took, false)))) return took;
   }
   return null;
@@ -2198,13 +2258,12 @@ export function castQuestion(items: Item[], ex: Question, preview = false): Form
    and then asks for a reply in it must not introduce Sami and answer Rami.
    It moves on when the learner has read it through again.
 
-   Filled at the bottom level whatever is being asked. Every question a
-   scene asks is reading — reading it through, choosing a reply, putting it
-   in order — and none asks the learner to write a word that stands in a
-   blank, so a word they have met is a word they can read here. Holding a
-   choice question on the third level to words the learner can already
-   write left names, which have no ladder of their own, out of every turn
-   for ever.
+   Filled at the bottom level whatever is being asked, which matters only
+   to the words with no ladder of their own — names, introduced by the
+   scene itself and read off its record of having met them. Every other
+   word is a building block and stands only once it is cleared, as in a
+   sentence. Holding a choice question on the third level to names already
+   met there left them out of every turn for ever.
    ------------------------------------------------------------------ */
 
 const SCENE_KEY = "dlgwhole";
@@ -2222,6 +2281,9 @@ function sceneFill(scene: Item, preview: boolean): Record<string, Record<string,
     /* A teacher trying their own scene out sees it whatever its review,
        as they do a sentence. */
     gateOf: preview ? undefined : (line) => lineGate(scene, line),
+    /* And every word in the form a line puts it in cleared, as in a
+       sentence — see standsAsShown. */
+    shown: preview ? undefined : standsAsShown,
     turn,
   });
   const map = held || new Map();
@@ -2927,7 +2989,7 @@ function openTypes(it: Form, settings: Settings): string[] {
  * Exported for the pace simulation, which reports what a course costs a
  * learner in days and is the only honest way to choose the two caps.
  */
-export function handCounts(items: Item[], settings: Settings) {
+export function handCounts(items: Item[], settings: Settings, numbers?: KnownNumbers) {
   let front = 0;
   let inHand = 0;
   for (const it of items) {
@@ -2935,6 +2997,13 @@ export function handCounts(items: Item[], settings: Settings) {
     const stage = familyMaturity(it, (u: Form) => reachedTypes(u, settings));
     /* Never met: outside both pools. */
     if (stage === "new") continue;
+    /* Met, and waiting for its building blocks — a sentence whose words the
+       learner has not cleared yet, which can be asked nothing until they
+       are. It holds no place: the places are how those words come in. */
+    if (waitsOnBlocks(it, settings)) continue;
+    /* And a number part waiting on its words the same way — see
+       knownNumbers — where the caller can say. */
+    if (numbers && isRangeSkill(it) && !numbers.ready(it)) continue;
     if (stage !== "mature") inHand += 1;
     /* Over the whole ladder, not the levels reached: cleared is read up
        all of it, which is what the learner is shown. */
@@ -2944,6 +3013,21 @@ export function handCounts(items: Item[], settings: Settings) {
     if (!through) front += 1;
   }
   return { front, inHand };
+}
+
+/*
+ * Whether a card is waiting on its building blocks and nothing else: it
+ * leaves blanks, it has levels open, and not one of them can be filled
+ * with words the learner has cleared. Only a card with blanks is asked,
+ * since every other card has nothing it could be waiting on.
+ */
+function waitsOnBlocks(it: Item, settings: Settings): boolean {
+  const units = drillableUnits(it, settings);
+  if (!units.some(({ unit }) => slotsOf(unit).length > 0)) return false;
+  return units.every(({ unit }) => {
+    const open = openTypes(unit, settings);
+    return open.length > 0 && !open.some((t) => fillableAt(unit, t, settings));
+  });
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -3454,20 +3538,23 @@ interface Session {
 }
 
 /*
- * Which numbers a learner can be asked: the ones whose words they know.
+ * Which numbers a learner can be asked: the ones whose words they have.
  *
- * A word is known, for this, once it is recognised — the meaning answered
- * right twice running, which is what opens level two of its own ladder
- * and the same test a word's attached pronouns wait on. Read through
- * reachedLevel, so a word nobody has answered has reached nothing. Less
- * than `validated` in partsOf, which is learnt: a word recognised is
- * enough to read inside a number, and the number is then one of the
- * places it goes on being learnt.
+ * Each word of a number is a building block — a card used inside another
+ * card — and a building block stands in a number only once the learner has
+ * cleared it: been up every level of it, the writing included. In the form
+ * it is said in, since that is what the learner reads: the face *seven*
+ * wears inside a bigger number, the plural *books* takes after three. It
+ * used to be enough to recognise the word — its meaning right twice
+ * running — which put 47 to somebody who could not yet write *forty*, and
+ * made the number the place *forty* was learnt rather than a use of it.
  *
  * A word that cannot be climbed does not hold anything back: one the
- * teacher marked as not practised on its own, one with nothing to ask,
- * or one this learner does not hold at all. Waiting on a card that can
- * never be recognised would shut the range for good.
+ * teacher marked as not practised on its own, one with nothing to ask, or
+ * one this learner does not hold at all. Waiting on a card that can never
+ * be cleared would shut the range for good. A face still behind its
+ * table's gate is not one of those: it opens once the word itself is under
+ * way, and is waited for.
  */
 interface KnownNumbers {
   /** Whether anything of this range can be asked yet. */
@@ -3479,34 +3566,55 @@ interface KnownNumbers {
 
 /* The askings each range can put, kept against the system they were read
    from — a teacher's edit arrives as a new system and starts afresh — and
-   against the clock and what the learner held and recognised when they
-   were read. Reading them walks every asking of every range, which is
-   tens of milliseconds; what is known changes a few times a day. */
-const KNOWN_ASKINGS: WeakMap<object, Map<string, { ask: Ask; words: string[] }[]>> = new WeakMap();
+   against the clock and which forms the learner held and had cleared when
+   they were read. Reading them walks every asking of every range, which is
+   tens of milliseconds; what is cleared changes a few times a day. */
+const KNOWN_ASKINGS: WeakMap<object, Map<string, Asking[]>> = new WeakMap();
+
+/* The form of a card a word of a number was said in — the face it wore,
+   or for a counted noun the form whose words it was — falling back to the
+   card's own word. The same reading tokenCards makes for the credit. */
+function formOfToken(card: Item, t: Token): Form {
+  if (t.noun) return formsOf(card).find((f) => String(f.ar || "").trim() === t.text.trim()) || leadOf(card);
+  const face = t.formKey ? formsOf(card).find((f) => f.id === `${card.id}-f~${t.formKey}`) : null;
+  return face || leadOf(card);
+}
 
 function knownNumbers(items: Item[], settings: Settings, sets: SystemSet[]): KnownNumbers {
   const byId = byIdOf(items);
   const ids = new Set(items.filter((it) => isFromSystem(it) && !isRangeSkill(it)).map((it) => it.id));
-  const recognised = new Map<string, boolean>();
-  const knows = (id: string): boolean => {
-    const held = recognised.get(id);
+  const done = new Map<string, boolean>();
+  const formDone = (card: Item, form: Form): boolean => {
+    const at = `${card.id}\u0000${form.id}`;
+    const held = done.get(at);
     if (held !== undefined) return held;
+    let ok: boolean;
+    if (!isAsked(form)) ok = true;
+    else {
+      const keys = laddered(form, settings);
+      ok = keys.length ? cleared(keys, (t) => statesOf(form)[t]) : !isQuiet(form);
+    }
+    done.set(at, ok);
+    return ok;
+  };
+  const knows = (id: string, token?: Token): boolean => {
     const card = byId.get(id);
-    /* The card's own word: what a number is said with is the word, and a
-       face it wears inside a bigger number is a form of it. */
-    const own = card && isDrillable(card, settings) ? unitsOf(card).find((u) => !u.isSub) : undefined;
-    const unit = own && own.unit;
-    const types = unit ? supportedTypes(unit, settings) : [];
-    const known = !unit || !types.length || reachedLevel(types, (t) => statesOf(unit)[t], 2);
-    recognised.set(id, known);
-    return known;
+    if (!card || !isDrillable(card, settings)) return true;
+    return formDone(card, token ? formOfToken(card, token) : leadOf(card));
   };
   /* What the learner holds and which of it they know, as one string. Both
      halves, since a word not held counts as known and one held does not
      until it is. */
   let knowing: string | null = null;
   const knowingNow = () =>
-    (knowing ??= [...ids].sort().map((id) => (knows(id) ? `${id}+` : id)).join(" "));
+    (knowing ??= [...ids]
+      .sort()
+      .map((id) => {
+        const card = byId.get(id) as Item;
+        if (!isDrillable(card, settings)) return id;
+        return formsOf(card).map((f) => (formDone(card, f) ? `${f.id}+` : f.id)).join(",");
+      })
+      .join(" "));
   const setOf = (item: Item) => {
     const set = systemFor(item, sets);
     if (!set) return null;
@@ -3918,7 +4026,7 @@ export function buildSession({
      * protection without a rule of its own to keep in step.
      */
     const room = roomForNew(
-      handCounts(newWithin ? items.filter(inDeck) : items, settings),
+      handCounts(newWithin ? items.filter(inDeck) : items, settings, numbers),
       inHandFor(perDay),
       frontDoorFor(perDay),
     );
@@ -4978,6 +5086,15 @@ export function gradingFor(exercise: Question, settings: Settings) {
 export const LEARN_DAYS = 4;
 
 /*
+ * The fewest days the words a sentence is built from take to be cleared,
+ * where they are not yet: a sentence can be asked nothing until they are
+ * (see valuesAt), so its own four days start after them. The pace
+ * simulation measured a word clearing in about a day and a half at fifteen
+ * sittings a day, which is as fast as anybody goes; rounded up.
+ */
+export const CLEAR_DAYS = 2;
+
+/*
  * How much of a session moves the chosen cards forward. The rest is
  * questions asked ahead of time, retests and reviews of what is already
  * known. About half, from the pace simulation's measurements before it was
@@ -5053,6 +5170,8 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
       const next = nextPassAt(it, settings);
       const wait = next > at ? Math.ceil((dayOf(next) - dayOf(at)) / 86400000) : 0;
       floor = Math.max(floor, wait + (passesLeft - 1) * 2);
+    } else if (blocksAhead(it, settings)) {
+      floor = Math.max(floor, CLEAR_DAYS + LEARN_DAYS);
     } else {
       floor = Math.max(floor, LEARN_DAYS);
     }
@@ -5064,6 +5183,17 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
     sessions: questions / (SESSION_SIZE * PROGRESS_SHARE),
     earliestDays: left ? floor : 0,
   };
+}
+
+/* A card with blanks that cannot be asked anything yet, because the words
+   that would fill them are not cleared — its building blocks are still
+   ahead of it. */
+function blocksAhead(it: Item, settings: Settings): boolean {
+  const units = drillableUnits(it, settings);
+  return (
+    units.some(({ unit }) => slotsOf(unit).length > 0) &&
+    units.every(({ unit }) => askableTypes(unit, settings).length === 0)
+  );
 }
 
 /** Days from `at` to the start of the day `days` days on. */
@@ -9050,17 +9180,16 @@ export default function ArabicTrainer() {
   setPicturedCounts(picturedCounts);
 
   /*
-   * And how far the learner has got with each of them.
+   * And whether the learner has cleared each of them.
    *
    * Only the cards that fill something, so this is a walk over the values
-   * rather than over the deck. A value that is drilled on its own carries a
-   * number — the highest level it has climbed to, by the same test the
-   * ladder makes — and a value that is not carries null, because it is
-   * never dealt and has no ladder to read. What each of those means for a
-   * hole is valuesAt's business, not this one's.
+   * rather than over the deck. A value that is drilled on its own carries
+   * whether it is cleared, and a value that is not carries null, because
+   * it is never dealt and has no ladder to read. What each of those means
+   * for a hole is valuesAt's business, not this one's.
    */
   const valueReach = useMemo(() => valueReachOf(valueCards, settings), [valueCards, settings]);
-  setValueReach(valueReach.map);
+  setValueReach(valueReach.map, valueReach.forms);
   setValueOwner(valueReach.owner);
 
   /* And which cells of a verb's table are still behind their row's gate.
@@ -9153,7 +9282,7 @@ export default function ArabicTrainer() {
          of them — the same reckoning buildSession does, so the two cannot
          come to disagree. */
       const fresh = pool.filter((it) => !waiting(it, false) && waiting(it, true)).length;
-      return met + Math.min(fresh, roomForNew(handCounts(items, settings), inHandFor(perDay), frontDoorFor(perDay)));
+      return met + Math.min(fresh, roomForNew(handCounts(items, settings, numbers), inHandFor(perDay), frontDoorFor(perDay)));
     },
     [settings, items, perDay, systems]
   );

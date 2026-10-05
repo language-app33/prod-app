@@ -5133,3 +5133,59 @@ nobody has started. Verb tables also open a row at a time, but the word
 on a verb's front (or the cell that matches it) is met the day the card
 is and never waits, so a verb always stands on a level and this change
 does not touch it.
+
+---
+
+## A building block is cleared before anything is built from it
+
+**5 October 2026** · `valuesAt` in `src/variables.ts`; `valueReachOf`,
+`standsAsShown`, `fillFor`, `knownNumbers`, `waitsOnBlocks`, `CLEAR_DAYS`
+in `src/ArabicTrainer.tsx`; `askingsKnown`, `askKnown` in
+`src/numbers/generate.ts`; `shown` in `src/cast.ts`
+
+Supersedes "A value stands in a hole only as far up as it has climbed
+itself" (14 September), and the recognised bar on a number's words (0.330).
+
+A **building block** is any card used inside another card: a word in a
+sentence's or a conversation's blank, a word of a number or a time, the
+noun a number counts. The name was chosen for being plain and unused;
+*component* already meant the number words and the screen's own pieces.
+
+**The bar was "as far as the question", and it let the word be the
+question.** A word answered once — and missed — stood in a sentence asking
+what it meant; a word never yet written from its meaning stood in one
+asking for the whole sentence to be written. Numbers asked 47 once *forty*
+and *seven* were recognised, which put the writing of *forty* inside the
+number. The sentence and the number are meant to practise what is built
+from the words, and cannot while the words are what is unknown.
+
+**Cleared, not learnt.** The owner chose cleared — up every level of the
+block's own ladder — over learnt, which adds two reviews on separate days.
+Cleared can be bought in an evening, so a keen learner waits a day or so;
+learnt would have added at least four days to every sentence and number,
+for everybody.
+
+**In the form shown.** The feminine an adjective agrees into, the person
+a verb is drawn in, the face a numeral wears, the plural a number counts:
+each is a form with its own ladder, and it is what the learner reads. The
+pool still holds the lent word; the form actually put up is checked where
+the sentence is filled, and a combination that fails is passed over for
+the next one rather than waited on — the turn moves only on a right
+answer, so waiting would have held a frame on a combination that could not
+be asked. The same walk a reviewed card already took.
+
+**What has no ladder is introduced by what it stands in.** A name, a card
+not practised on its own, and now a form lent and not asked on a card that
+is otherwise practised — which used to read as never met, and so never
+stood anywhere. Their record is the frame's `met`, as before.
+
+**What it costs.** Sentences and numbers arrive later, by the time it
+takes to clear their words: about a day for a keen learner, several for
+one who sits down once a day. A sentence or a number part already met and
+now waiting holds no place among the new words, or a learner part-way
+through a course would find new words held back by cards that cannot be
+asked. The deck's earliest date adds `CLEAR_DAYS` for a sentence whose
+words are not cleared; that figure is the pace simulation's measured day
+and a half, rounded up, not a new measurement, because the simulation
+models words alone. Number parts waiting on their words are not yet
+counted into that floor.

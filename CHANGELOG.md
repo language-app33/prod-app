@@ -8,6 +8,36 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.351 — 5 October 2026
+
+**A word goes inside a sentence or a number only once you've cleared it.**
+
+- A "building block" is any card used inside another card: a word that
+  fills a blank in a sentence or a conversation, the words a number or a
+  time is made of, and the noun a number counts.
+- A building block now has to be cleared (every level of it done) before
+  it appears inside anything. Before, a word answered once, even wrongly,
+  could appear in a sentence, and a number like 47 could be asked once
+  *forty* and *seven* were only recognised.
+- It must be cleared in the form that is shown: the feminine of an
+  adjective, the right person of a verb, the form a number word takes
+  inside a bigger number, the plural after three.
+- Where one combination isn't ready yet, a sentence uses the next one
+  that is, rather than waiting.
+- Names, and anything else never asked on its own, are still introduced
+  by the sentence itself.
+- Fixed: a form ticked "inside sentence cards" but not "on its own", on a
+  card that is otherwise practised, never appeared in any sentence. It
+  now does.
+- Sentences and number practice that are waiting for their words don't
+  take up places for new words.
+- Sentences and numbers built on new words now come a little later: about
+  a day for someone who practises several times a day, a few days for
+  once a day. A deck's earliest possible date allows for this on
+  sentences.
+- If you were already being asked sentences or numbers whose words aren't
+  cleared yet, they pause until the words catch up. Nothing is lost.
+
 ## 0.350 — 5 October 2026
 
 **Progress on numbers counts every number, not just the ones reached so

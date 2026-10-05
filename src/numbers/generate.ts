@@ -747,7 +747,41 @@ export function cardsOfToken(t: Token, numbersId: string, timeId: string): strin
  * changes. A hundred to 999 is nine hundred renderings, and a session
  * asks for them once per question dealt.
  */
-const ASKINGS: WeakMap<NumberSystem, Map<string, { ask: Ask; words: string[] }[]>> = new WeakMap();
+const ASKINGS: WeakMap<NumberSystem, Map<string, Asking[]>> = new WeakMap();
+
+/**
+ * One asking of a range, with the cards its words are written on and the
+ * words themselves as said — each with the face it wore and, in a counted
+ * phrase, the noun — which is what says which *form* of each card the
+ * learner reads.
+ */
+export interface Asking {
+  ask: Ask;
+  words: string[];
+  tokens?: Token[];
+}
+
+/**
+ * Whether the learner has a word, as one of a number's building blocks.
+ *
+ * Asked of a card by id and, where there is one, of the word as it was
+ * said in this number — `token` — since a word is a building block in the
+ * form it is shown in: the face *seven* wears inside a bigger number, the
+ * plural *books* is after three. A counted noun is asked by the noun's own
+ * id, which is its card's. What "has" means is the caller's: the scheduler
+ * answers it, and this module knows nothing of schedules.
+ */
+export type Knows = (id: string, token?: Token) => boolean;
+
+/* Every building block of one asking known: each word, in the form it was
+   said, among the cards the learner holds — and the noun it counts. */
+function tokensKnown(tokens: Token[], numbersId: string, timeId: string, ids: Set<string>, knows: Knows): boolean {
+  return tokens.every((t) =>
+    t.noun
+      ? knows(t.noun, t)
+      : cardsOfToken(t, numbersId, timeId).filter((id) => ids.has(id)).every((id) => knows(id, t)),
+  );
+}
 
 /**
  * Every asking of a range worth reading, with the cards each one's words
@@ -758,7 +792,7 @@ const ASKINGS: WeakMap<NumberSystem, Map<string, { ask: Ask; words: string[] }[]
 export function askingsWithWords(
   range: Range,
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
-): { ask: Ask; words: string[] }[] {
+): Asking[] {
   const key = `${range.id}${range.counted ? "#count" : ""}|${set.timeSys ? set.timeSys.id : ""}|${set.timeSys ? set.timeSys.rev : ""}`;
   const mine = ASKINGS.get(set.sys) || new Map();
   ASKINGS.set(set.sys, mine);
@@ -766,11 +800,15 @@ export function askingsWithWords(
   if (had) return had;
   const numbersId = set.sys.id;
   const timeId = set.timeSys ? set.timeSys.id : "";
-  const out: { ask: Ask; words: string[] }[] = [];
+  const out: Asking[] = [];
   for (const ask of askingsOf(range, set.sys, set.composer)) {
     const got = renderAsk(ask, set.composer, set.sys, set.timeComposer, set.timeSys);
     if (!got.text) continue;
-    out.push({ ask, words: [...new Set(got.tokens.flatMap((t) => cardsOfToken(t, numbersId, timeId)))] });
+    out.push({
+      ask,
+      words: [...new Set(got.tokens.flatMap((t) => cardsOfToken(t, numbersId, timeId)))],
+      tokens: got.tokens,
+    });
   }
   mine.set(key, out);
   return out;
@@ -849,10 +887,19 @@ export function askingsKnown(
   range: Range,
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
   ids: Set<string>,
-  knows: (id: string) => boolean,
-): { ask: Ask; words: string[] }[] {
-  const all = askingsWithWords(range, set).map((a) => ({ ask: a.ask, words: a.words.filter((id) => ids.has(id)) }));
-  const fit = all.filter((a) => a.words.every(knows));
+  knows: Knows,
+): Asking[] {
+  const numbersId = set.sys.id;
+  const timeId = set.timeSys ? set.timeSys.id : "";
+  const all = askingsWithWords(range, set).map((a) => ({ ...a, words: a.words.filter((id) => ids.has(id)) }));
+  /* Each word in the face it was said in. The noun a counted asking was
+     read with is a stand-in for any noun of its gender, so it is left to
+     the draw, which picks the noun — see anyOfKind. */
+  const fit = all.filter((a) =>
+    a.tokens
+      ? tokensKnown(a.tokens.filter((t) => !t.noun), numbersId, timeId, ids, knows)
+      : a.words.every((id) => knows(id)),
+  );
   const opens = fit.some((a) => a.words.length) || !all.some((a) => a.words.length);
   return opens ? fit : [];
 }
@@ -862,30 +909,35 @@ export function askingsKnown(
  *
  * Towards a word the learner has not kept yet, as steeredAsk always did,
  * but only among `known` — the askings `askingsKnown` found. Failing
- * that, the plain draw on the same seed, kept if every word in it is
- * recognised, so a learner who knows them all is asked from the whole of
- * the range; and failing that, one of `known` picked on the seed. A
- * missed question still comes back as the same number, and a right one
- * still moves on.
+ * that, the plain draw on the same seed, kept if every word in it is a
+ * building block the learner has, so a learner who has them all is asked
+ * from the whole of the range; and failing that, one of `known` picked on
+ * the seed. A missed question still comes back as the same number, and a
+ * right one still moves on.
  *
  * Null when there is nothing to ask yet — `known` empty, so the range has
- * not opened.
+ * not opened — or when a counted asking has no noun the learner has in
+ * the form the number calls for.
  */
 export function askKnown(
   range: Range,
   seed: string,
   set: { composer: Composer | null; sys: NumberSystem; timeComposer?: TimeComposer | null; timeSys?: TimeSystem | null },
   ids: Set<string>,
-  knows: (id: string) => boolean,
-  known: { ask: Ask; words: string[] }[],
+  knows: Knows,
+  known: Asking[],
   waiting: Set<string>,
 ): Ask | null {
   if (!known.length) return null;
+  const fits = (ask: Ask): boolean => {
+    const got = renderAsk(ask, set.composer, set.sys, set.timeComposer, set.timeSys);
+    return tokensKnown(got.tokens, set.sys.id, set.timeSys ? set.timeSys.id : "", ids, knows);
+  };
   const steered = steeredAsk(range, seed, set, waiting, known);
-  if (steered) return anyOfKind(steered, range, seed, set);
+  if (steered) return anyOfKind(steered, range, seed, set, fits);
   const drawn = askFor(range, seed, set.sys, set.composer);
-  if ([...wordsOfAsk(drawn, set, ids)].every(knows)) return drawn;
-  return anyOfKind(known[Math.floor(seeded(`${range.id} ${seed} known`)() * known.length)].ask, range, seed, set);
+  if (fits(drawn)) return drawn;
+  return anyOfKind(known[Math.floor(seeded(`${range.id} ${seed} known`)() * known.length)].ask, range, seed, set, fits);
 }
 
 /** The first noun of each gender, in the order given. */
@@ -895,21 +947,32 @@ const onePerGender = (nouns: CountedNoun[]): CountedNoun[] =>
 /*
  * An asking found among the stand-ins askingsOf counts with, given any
  * noun the range can count of the same gender — the same words, so the
- * same question as far as what the learner knows, and drawn on the seed
- * so a missed one comes back unchanged.
+ * same question as far as the number goes, and drawn on the seed so a
+ * missed one comes back unchanged.
+ *
+ * Only a noun that `fits`: the noun is a building block too, in the form
+ * the number puts it in — *books* after three — so the draw takes the
+ * nouns of that gender the learner has, in turn from the seed's, and is
+ * null where there is none. An asking with no noun is checked whole.
  */
 function anyOfKind(
   ask: Ask,
   range: Range,
   seed: string,
   set: { composer: Composer | null; sys: NumberSystem },
-): Ask {
-  if (!range.counted || !ask.nounId) return ask;
+  fits: (ask: Ask) => boolean = () => true,
+): Ask | null {
+  if (!range.counted || !ask.nounId) return fits(ask) ? ask : null;
   const nouns = countable(range, set.composer, set.sys);
   const was = nouns.find((n) => n.id === ask.nounId);
   const alike = was ? nouns.filter((n) => n.gender === was.gender) : [];
-  if (!alike.length) return ask;
-  return { ...ask, nounId: alike[Math.floor(seeded(`${range.id} ${seed} noun`)() * alike.length)].id };
+  if (!alike.length) return fits(ask) ? ask : null;
+  const from = Math.floor(seeded(`${range.id} ${seed} noun`)() * alike.length);
+  for (let i = 0; i < alike.length; i++) {
+    const tried = { ...ask, nounId: alike[(from + i) % alike.length].id };
+    if (fits(tried)) return tried;
+  }
+  return null;
 }
 
 /** A deck as far as filing numbers goes: its name, and the parts it holds. */

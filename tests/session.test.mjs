@@ -41,7 +41,7 @@ await build({
 });
 const { lentTags, varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
   fillersIn, buildWeakSession, weakness, isWeak, movesAmong, mergeMoves,
-  saidMoves, sumMoves } = await import(path.join(out, "trainer.js"));
+  saidMoves, sumMoves, laddered, castQuestion, handCounts } = await import(path.join(out, "trainer.js"));
 const langs = await import(path.join(here, "..", "src", "languages.ts"));
 const { TYPES } = langs;
 const { FRONT_DOOR_CAP, FRONT_DOOR_MAX } = await import(path.join(here, "..", "src", "scheduler.ts"));
@@ -1686,4 +1686,148 @@ test("and with nothing left alone among them, it says so", () => {
     items, settings, ids: items.map((i) => i.id), mode: "unseen", count: 20,
   });
   assert.equal(got.reason, "no-unseen");
+});
+
+/* ------------------------------------------------------------------
+   A building block is cleared before anything is built from it
+
+   A word standing in a sentence's blank is a building block: the sentence
+   leans on it, so the learner has to have been up every level of it —
+   cleared — before the sentence is put to them, in the form it is shown
+   in. It used to be enough to be as far along as the question, so a word
+   answered once, and missed, stood in a sentence asking what it meant.
+   ------------------------------------------------------------------ */
+
+/** Right twice running and due, which is what clears a key. */
+const upTwice = () => ({
+  phase: "review", step: 0, ease: 2.5, interval: 1, due: Date.now() - 86400000,
+  reps: 2, lapses: 0, right: 2, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1, 1], updated: 1,
+});
+/** Answered once, and missed. */
+const missedOnce = () => ({
+  phase: "learning", step: 0, ease: 2.3, interval: 0, due: Date.now() - 60000,
+  reps: 1, lapses: 0, right: 0, wrong: 1, skips: 0, near: 0, hints: 0, hist: [0], updated: 1,
+});
+/** A form with the given keys of its own ladder right twice running. */
+const upOn = (/** @type {any} */ form, /** @type {(level: number) => boolean} */ which) => {
+  installIndexes([{ id: "probe", lang: "ar-PS", kind: "word", tags: [], forms: [form] }], settings);
+  return Object.fromEntries(
+    laddered(form, settings)
+      .filter((/** @type {string} */ k) => which(langs.levelOf(k)))
+      .map((/** @type {string} */ k) => [k, upTwice()]),
+  );
+};
+/** Which sentences a frame was put as, over a few deals. */
+const framesShown = (/** @type {any[]} */ items, /** @type {string} */ id = "f1") => {
+  const shown = new Set();
+  for (let i = 0; i < 12; i++) {
+    installIndexes(items, settings);
+    for (const ex of buildSession({ items, settings, inDeck: anyDeck }).exercises) {
+      if (ex.id !== id) continue;
+      const cast = castQuestion(items, ex);
+      if (cast) shown.add(cast.ar);
+    }
+  }
+  return [...shown];
+};
+
+test("a word answered once, and missed, does not stand in a sentence", () => {
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  noun.forms[0].s = { ar2en: missedOnce() };
+  assert.deepEqual(framesShown([frame, noun]), [], "the sentence waits for its word");
+});
+
+test("nor does one up every level but the top", () => {
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  frame.forms[0].s = upOn(frame.forms[0], (l) => l < 4);
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  noun.forms[0].s = upOn(noun.forms[0], (l) => l < 4);
+  assert.deepEqual(framesShown([frame, noun]), [],
+    "a word not yet written from its meaning is not cleared, at any level of the sentence");
+});
+
+test("a cleared word stands in every question the sentence asks", () => {
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  noun.forms[0].s = upOn(noun.forms[0], () => true);
+  assert.deepEqual(framesShown([frame, noun]), ["كِتاب كبير"]);
+  /* And at the top of the sentence's own ladder too. */
+  frame.forms[0].s = upOn(frame.forms[0], (l) => l < 4);
+  assert.deepEqual(framesShown([frame, noun]), ["كِتاب كبير"]);
+});
+
+test("an agreeing word stands only in a form the learner has cleared", () => {
+  /* كبير is lent; beside a feminine noun the sentence puts up كبيرة, which
+     is a form with a ladder of its own. Until that form is cleared the
+     sentence moves on to a combination it can make — the masculine noun —
+     rather than waiting on the one it cannot. */
+  const frame = word("f1", "{{noun}} {{adjective}}", "a {{adjective}} {{noun}}");
+  const adj = {
+    id: "a1", tags: [], created: 2, lang: "ar-PS", kind: "word", category: "adjective",
+    forms: [
+      { id: "a1", ar: "كبير", en: "big", lat: "kabiir", lang: "ar-PS", s: {} },
+      { id: "a-fem", ar: "كبيرة", en: "big (f)", lat: "kabiira", lang: "ar-PS",
+        row: "agreement", col: "feminine", s: {} },
+    ],
+  };
+  const car = word("n1", "سيّارة", "car", { category: "noun", gender: "feminine", number: "singular" });
+  car.forms[0].gender = "feminine";
+  car.forms[0].number = "singular";
+  const book = word("n2", "كتاب", "book", { category: "noun", gender: "masculine", number: "singular" });
+  book.forms[0].gender = "masculine";
+  book.forms[0].number = "singular";
+  for (const n of [car, book]) n.forms[0].s = upOn(n.forms[0], () => true);
+  adj.forms[0].s = upOn(adj.forms[0], () => true);
+  const items = [frame, adj, car, book];
+  const shown = framesShown(items);
+  assert.ok(shown.includes("كتاب كبير"), `the masculine is asked: ${shown.join(" | ")}`);
+  assert.ok(!shown.includes("سيّارة كبيرة"), "the feminine waits for its own form");
+
+  /* Cleared, and the feminine comes in. */
+  installIndexes(items, settings);
+  adj.forms[1].s = upOn(adj.forms[1], () => true);
+  let found = false;
+  for (let i = 0; i < 30 && !found; i++) {
+    const turned = { ...frame, forms: [{ ...frame.forms[0], s: Object.fromEntries(
+      ["ar2en", "ar2pick", "match", "en2pick"].map((k) => [k, { ...upTwice(), right: i }])) }] };
+    found = framesShown([turned, adj, car, book]).includes("سيّارة كبيرة");
+  }
+  assert.ok(found, "the feminine is asked once its own form is cleared");
+});
+
+test("a form lent to sentences and not asked on its own is introduced by the sentence", () => {
+  /* A plural kept for sentences, on a noun that is otherwise practised. It
+     has no ladder, so it can never be cleared — and it used to read as
+     never met, so it never stood anywhere at all. It is read as a name is
+     now: met through the sentence. */
+  const frame = word("f1", "{{noun}} كبار", "big {{noun}}");
+  const noun = {
+    id: "n1", tags: [], created: 2, lang: "ar-PS", kind: "word", category: "noun",
+    forms: [
+      { id: "n1", ar: "كِتاب", en: "book", lat: "kitaab", lang: "ar-PS", s: {} },
+      { id: "n1-pl", ar: "كُتُب", en: "books", lat: "kutub", lang: "ar-PS", s: {}, ask: false, lend: true },
+    ],
+  };
+  noun.forms[0].s = upOn(noun.forms[0], () => true);
+  /* The sentence turns on a right answer, so it is asked a turn on. */
+  const shown = [0, 1].flatMap((right) =>
+    framesShown([{ ...frame, forms: [{ ...frame.forms[0], s: { ar2en: { ...upTwice(), right } } }] }, noun]));
+  assert.ok(shown.includes("كُتُب كبار"), `the plural stands in it: ${shown.join(" | ")}`);
+});
+
+test("a sentence met already and waiting for its words holds no new-card place", () => {
+  /* A learner part-way through a course met this sentence under the old
+     rule, with its word answered once. It now waits for that word to be
+     cleared, and a place it held would be one fewer for the words it is
+     waiting on. */
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  frame.forms[0].s = { ar2en: missedOnce() };
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  noun.forms[0].s = { ar2en: missedOnce() };
+  installIndexes([frame, noun], settings);
+  assert.deepEqual(handCounts([frame, noun], settings), { front: 1, inHand: 1 }, "the word alone");
+  noun.forms[0].s = upOn(noun.forms[0], () => true);
+  installIndexes([frame, noun], settings);
+  assert.equal(handCounts([frame, noun], settings).front, 1, "and the sentence, once it can be asked");
 });
