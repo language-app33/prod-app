@@ -485,7 +485,7 @@ export const EX: Record<string, ExerciseSpec> = {
     short: "{S}→#",
     needs: ["rangeNumbers"],
     question: "Which number is this?",
-    placeholder: "Type the figures",
+    placeholder: "Type the number",
     promptField: "ar",
     answerField: "en",
     /* Figures, not English: exact or wrong, and no edit distance. See
@@ -517,7 +517,7 @@ export const EX: Record<string, ExerciseSpec> = {
        decided when it is dealt, because which number is asked is. */
     needs: ["rangeNumbers", "recs"],
     question: "Which number is this?",
-    placeholder: "Type the figures",
+    placeholder: "Type the number",
     promptField: "audio",
     answerField: "en",
     answerMode: "fig",

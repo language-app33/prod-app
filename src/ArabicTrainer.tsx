@@ -10364,6 +10364,9 @@ export default function ArabicTrainer() {
   /* A right answer written off the hint has a line under it saying so, so
      the praise is not the whole of what came back. */
   const verdictAlone = answerRight && !answerRepeated && !toldAnswer;
+  /* Typed in figures and nothing else, on the phone's number pad. Its box
+     is drawn for a few digits rather than a sentence. */
+  const figures = !!exercise && answersInFigures(item, exercise.type);
 
   useEffect(() => {
     if (exercise && inputRef.current && !checked) inputRef.current.focus();
@@ -11944,16 +11947,19 @@ export default function ArabicTrainer() {
                           lang={spec.answerMode === "ar" ? qLang.id : undefined}
                           dir={spec.answerMode === "ar" ? qLang.direction : undefined}
                           className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
-                            checked ? (checked.ok ? " ok" : " no") : ""
-                          }`}
+                            figures ? " fig" : ""
+                          }${checked ? (checked.ok ? " ok" : " no") : ""}`}
                           data-el="answer-input"
                           /* A number in figures and nothing else: a phone's
                              number pad, not its letters. Not a time — the
-                             pad has no colon. */
-                          inputMode={exercise && answersInFigures(item, exercise.type) ? "numeric" : undefined}
+                             pad has no colon. A number written out in the
+                             language's script is an "ar" answer, not one of
+                             these, and keeps its letters and on-screen keys. */
+                          inputMode={figures ? "numeric" : undefined}
+                          autoComplete={figures ? "off" : undefined}
                           value={typed}
                           readOnly={!!checked}
-                          placeholder={spec.placeholder}
+                          placeholder={figures ? "Type the number" : spec.placeholder}
                           onChange={(e) => setTyped(e.target.value)}
                           /* Only the Check button checks. Enter — and a
                              phone keyboard's Go, which is the same key —

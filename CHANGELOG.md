@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.356 — 5 October 2026
+## 0.358 — 5 October 2026
 
 **Each form on a card opens and closes under its name.**
 
@@ -24,6 +24,26 @@ and moves once per batch of work you would notice, not once per commit.
 - A form you add with "Add a form" opens straight away, ready to write in.
 - The plural after three to ten, which had a fold of its own, now works
   the same way as every other form.
+## 0.357 — 5 October 2026
+
+**The number box asks for "the number", centred.**
+
+- The prompt inside the number answer box now says "Type the number"
+  and sits in the middle of the box. It used to sit too low, and on a
+  word whose meaning is a number it said "Type the English".
+
+## 0.356 — 5 October 2026
+
+**A bigger, number-sized box for answers typed on the number pad.**
+
+- On the questions that bring up the phone's number pad — writing a
+  number in figures, and "what does this mean?" on a word whose meaning
+  is a number — the answer box is now taller and narrower, sits in the
+  middle of the screen, and shows the digits in large type.
+- These questions have no button for the on-screen letter keys.
+- Writing a number out in Arabic or Hebrew is unchanged: it keeps the
+  normal answer box, the letter keyboard and the on-screen keys button.
+  Times like 7:15 also keep the normal box and keyboard.
 
 ## 0.355 — 5 October 2026
 
