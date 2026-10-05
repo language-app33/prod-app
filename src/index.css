@@ -2187,11 +2187,16 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-answerbox .at-input.fig { height:88px; width:100%; max-width:240px; display:block;
   margin-inline:auto; text-align:center; font-family: var(--mono); font-size:36px;
   font-variant-numeric: tabular-nums; letter-spacing:.04em; }
-/* The prompt is set at the box's own size while it shows, rather than as a
-   smaller placeholder inside large type: a field's text sits on the
-   baseline the field's font sets, so a 20px placeholder in a 36px field
-   sat low. The digits take the large size from the first one typed. */
-.at .at-answerbox .at-input.fig:placeholder-shown { font-size:20px; letter-spacing:0; }
+/* The box keeps the digits' size while empty, so the caret in it is the
+   height of what will be typed. Its prompt is drawn over it in smaller
+   type, centred both ways (.at-figprompt); the field's own placeholder is
+   kept for screen readers and hidden, since text that small inside type
+   that large sits on its baseline, low in the box. */
+.at-figwrap { position:relative; max-width:240px; margin-inline:auto; }
+.at-answerbox .at-input.fig::placeholder { color:transparent; }
+.at-figprompt { position:absolute; inset:0; display:flex; align-items:center;
+  justify-content:center; pointer-events:none; font-family: var(--mono);
+  font-size:20px; font-weight:500; color: var(--faint); }
 /*
  * What the learner wrote, once it has been marked, standing where the box
  * they wrote it in stood.

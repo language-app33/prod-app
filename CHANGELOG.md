@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.358 — 5 October 2026
+
+**The cursor in the number box is the size of the numbers.**
+
+- Before you type, the blinking cursor in the number answer box was the
+  height of the small "Type the number" prompt and then jumped to the
+  size of the digits. It is now the height of the digits from the start.
+  The prompt stays small and centred.
+
 ## 0.357 — 5 October 2026
 
 **The number box asks for "the number", centred.**

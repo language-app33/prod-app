@@ -11921,7 +11921,9 @@ export default function ArabicTrainer() {
                         className={
                           spec.answerMode === "ar"
                             ? `at-inputwrap${qLang.direction === "rtl" ? " rtl" : ""}`
-                            : undefined
+                            : figures
+                              ? "at-figwrap"
+                              : undefined
                         }
                       >
                         {spelling ? (
@@ -11972,6 +11974,19 @@ export default function ArabicTrainer() {
                             if (e.key === "Enter") e.preventDefault();
                           }}
                         />
+                        )}
+                        {figures && !checked && !typed && (
+                          /* The number box's prompt, drawn over it rather
+                             than as its placeholder. The field keeps the
+                             digits' large type while empty, so the caret
+                             waiting in it is the height of what will be
+                             typed; a placeholder that small inside type
+                             that large sits on its baseline, low in the
+                             box. The placeholder is still there, unseen,
+                             for whatever reads the field aloud. */
+                          <span className="at-figprompt" aria-hidden="true">
+                            Type the number
+                          </span>
                         )}
                         {!checked && spec.answerMode === "ar" && (
                           /* Keeps the caret where it was: tapping the button
