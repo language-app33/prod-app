@@ -27,9 +27,11 @@ import {
   blocking,
   confusableTimes,
   confusablesOf,
+  heardWhole,
   openRanges,
   probeOf,
   rangeChecks,
+  recordedWhole,
   renderAsk,
   seeded,
 } from "../src/numbers/range.ts";
@@ -347,4 +349,100 @@ test("no wrong answer is offered twice, however few marks the clock has", () => 
       assert.ok(t.h >= 0 && t.h <= 23 && t.m >= 0 && t.m <= 59, `${where} offered ${t.h}:${t.m}`);
     }
   }
+});
+
+/* ---- what the answer screen says besides ---- */
+
+/** The golden system with a transliteration in every box, each naming
+    the box it is in, so what was joined can be read back off the result. */
+const transliterated = (/** @type {any} */ sys) => ({
+  ...sys,
+  lexemes: Object.fromEntries(
+    Object.entries(sys.lexemes).map(([slot, lex]) => [
+      slot,
+      { ...lex, lat: Object.fromEntries(Object.keys(lex.forms).map((key) => [key, `${slot}/${key}`])) },
+    ]),
+  ),
+  overrides: Object.fromEntries(
+    Object.entries(sys.overrides || {}).map(([key, over]) => [key, { ...over, lat: `over/${key}` }]),
+  ),
+});
+const LAT = transliterated(SYS);
+const num = (/** @type {number} */ value) => ({ rangeId: "numbers:x", kind: /** @type {"numbers"} */ ("numbers"), value });
+
+test("a built number is transliterated out of its words, the connector joined to the word it leans on", () => {
+  /* Twenty-five is five, then the connector attached to twenty: the
+     space in the script is a space in the transliteration, and the join
+     with none is a hyphen. */
+  assert.equal(
+    renderAsk(num(25), arComposer, LAT).lat,
+    "unit.5/standalone connector/standalone-ten.20/standalone",
+  );
+  /* A number the teacher wrote out is said the way they wrote it out. */
+  assert.equal(renderAsk(num(300), arComposer, LAT).lat, "over/300");
+  /* And one asked for in a face the box borrows from is read off the
+     face the word is actually written in. */
+  assert.equal(renderAsk(num(7), arComposer, LAT).lat, "unit.7/standalone");
+});
+
+test("a connector already written with its hyphen is not given a second", () => {
+  const sys = { ...LAT, lexemes: { ...LAT.lexemes, connector: { ...LAT.lexemes.connector, lat: { standalone: "w-" } } } };
+  assert.equal(renderAsk(num(25), arComposer, sys).lat, "unit.5/standalone w-ten.20/standalone");
+});
+
+test("a number with one word nobody transliterated has no transliteration at all", () => {
+  const holed = { ...LAT, lexemes: { ...LAT.lexemes, connector: { ...LAT.lexemes.connector, lat: {} } } };
+  assert.equal(renderAsk(num(25), arComposer, holed).lat, "");
+  /* Its words without the connector still have theirs. */
+  assert.equal(renderAsk(num(7), arComposer, holed).lat, "unit.7/standalone");
+  assert.equal(renderAsk(num(25), arComposer, SYS).lat, "");
+});
+
+test("a time is transliterated out of its words as well", () => {
+  const time = {
+    ...transliterated(TIME),
+    minuteExprs: Object.fromEntries(
+      Object.entries(TIME.minuteExprs).map(([mark, expr]) => [mark, { ...expr, lat: `min/${mark}` }]),
+    ),
+  };
+  const got = renderAsk(
+    { rangeId: "time:x", kind: "time", value: 7, minute: 15, style: "colloquial" },
+    arComposer,
+    LAT,
+    arTimeComposer,
+    time,
+  );
+  assert.ok(got.lat && got.lat.startsWith("hour.word/standalone unit.7/"), got.lat);
+  assert.ok(got.lat.endsWith("-min/15"), got.lat);
+});
+
+/** The golden system with one recording, on one face of one box. */
+const recorded = (/** @type {string} */ slot, /** @type {string} */ key) => ({
+  ...SYS,
+  lexemes: { ...SYS.lexemes, [slot]: { ...SYS.lexemes[slot], audio: { [key]: ["clip0000"] } } },
+});
+
+test("a number recorded whole is heard, and one built out of parts is not", () => {
+  const sys = recorded("unit.7", "standalone");
+  assert.deepEqual(renderAsk(num(7), arComposer, sys).recs, ["clip0000"]);
+  assert.deepEqual(heardWhole(7, renderAsk(num(7), arComposer, sys).tokens, sys), ["clip0000"]);
+  /* Seventeen has its own box and no recording in it; forty-seven has
+     seven in it, and nothing inside a number is ever stitched. */
+  assert.deepEqual(renderAsk(num(17), arComposer, sys).recs, []);
+  assert.deepEqual(renderAsk(num(47), arComposer, sys).recs, []);
+  /* One asked for with a masculine word is the counting one, recorded once. */
+  assert.deepEqual(renderAsk(num(1), arComposer, recorded("unit.1", "standalone")).recs, ["clip0000"]);
+  /* A whole number recorded as such. */
+  const curated = { ...SYS, curatedAudio: { 47: ["clip0047"] } };
+  assert.deepEqual(renderAsk(num(47), arComposer, curated).recs, ["clip0047"]);
+});
+
+test("an asking is recorded only where the whole of it was", () => {
+  const sys = recorded("unit.7", "standalone");
+  assert.equal(recordedWhole(num(7), arComposer, sys), true);
+  assert.equal(recordedWhole(num(47), arComposer, sys), false);
+  assert.equal(recordedWhole(num(7), arComposer, SYS), false);
+  /* A counted phrase has its noun in it, and nobody recorded the two together. */
+  assert.equal(recordedWhole({ ...num(7), nounId: SYS.nouns[0].id }, arComposer, sys), false);
+  assert.equal(recordedWhole(num(7), null, sys), false);
 });

@@ -192,7 +192,9 @@ import { countingOf } from "./numbers/types.ts";
 import {
   confusableTimes,
   confusablesOf,
+  recordedWhole,
   renderAsk,
+  seeded,
 } from "./numbers/range.ts";
 import type { Asking, SystemSet } from "./numbers/generate.ts";
 import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, inOwnFigures, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
@@ -2385,6 +2387,15 @@ function castRange(
     /* The recordings, in order: at most two, the hour and the minutes.
        Nothing inside a number is ever stitched. */
     ...(said.clips && said.clips.length ? { recSeq: said.clips } : null),
+    /* A number's own recording, where it was recorded whole — and none
+       where it was not. The skill carries a marker saying only that
+       *something* in the system was recorded, which is what lets a
+       listening question be dealt; left on the form, it was a player on
+       the answer screen with nothing behind it. */
+    recs: (said.recs || []).map((id) => ({ id, label: "", speed: "" })),
+    /* How it sounds, for the answer screen — only there when every word
+       in it has a transliteration. */
+    lat: said.lat || "",
     /* Which words stood in it, so a right answer credits the cards they
        are written on — the same crediting a sentence does for the words
        that filled its blanks. */
@@ -3561,7 +3572,7 @@ interface KnownNumbers {
   ready: (item: Item) => boolean;
   /** One asking of it on this seed, steered towards `waiting`, or null —
       counting a noun where `counting`, see countingOf. */
-  draw: (item: Item, seed: string, waiting: Set<string>, counting?: boolean) => Ask | null;
+  draw: (item: Item, seed: string, waiting: Set<string>, counting?: boolean, heard?: boolean) => Ask | null;
 }
 
 /* The askings each range can put, kept against the system they were read
@@ -3648,11 +3659,16 @@ function knownNumbers(items: Item[], settings: Settings, sets: SystemSet[]): Kno
   };
   return {
     ready: (item) => knownOf(item).length > 0,
-    draw: (item, seed, waiting, counting = false) => {
+    draw: (item, seed, waiting, counting = false, heard = false) => {
       const set = setOf(item);
       const range = rangeOf(item, counting);
       if (!set || !range) return null;
-      return askKnown(range, seed, set, ids, knows, knownOf(item, counting), waiting);
+      const known = knownOf(item, counting);
+      /* For a question that is listened to, the numbers recorded whole
+         among those the learner can be asked, where there are any. */
+      const recorded = heard ? known.filter((a) => recordedWhole(a.ask, set.composer, set.sys)) : [];
+      if (recorded.length) return recorded[Math.floor(seeded(`${range.id} ${seed} heard`)() * recorded.length)].ask;
+      return askKnown(range, seed, set, ids, knows, known, waiting);
     },
   };
 }
@@ -3732,7 +3748,10 @@ function drawRange(
   /* The counting question counts a noun, from the same stretch — see
      countingOf; every other question on it asks the bare number. */
   const counting = ((specOf(type) && specOf(type).needs) || []).includes("rangeCounted");
-  const ask = numbers.draw(item, `${item.id} ${type} ${turn}`, waiting, counting);
+  /* A listening question asks a number somebody recorded, where the
+     learner can be asked one: a number nobody recorded is nothing to
+     listen to. */
+  const ask = numbers.draw(item, `${item.id} ${type} ${turn}`, waiting, counting, isListening(type));
   if (!ask) return {};
 
   if (EX[type] && EX[type].picks !== "word") return { ask };
@@ -5580,7 +5599,7 @@ function AlsoBox({ children, open, onToggle }: { children?: Node; open?: boolean
         onClick={onToggle}
       >
         Learn more
-        <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={20} />
       </button>
       {open && (
         <div className="at-alsobox" data-el="also">
@@ -10329,6 +10348,9 @@ export default function ArabicTrainer() {
   /* A right answer written off the hint has a line under it saying so, so
      the praise is not the whole of what came back. */
   const verdictAlone = answerRight && !answerRepeated && !toldAnswer;
+  /* Typed in figures and nothing else, on the phone's number pad. Its box
+     is drawn for a few digits rather than a sentence. */
+  const figures = !!exercise && answersInFigures(item, exercise.type);
 
   useEffect(() => {
     if (exercise && inputRef.current && !checked) inputRef.current.focus();
@@ -11883,7 +11905,9 @@ export default function ArabicTrainer() {
                         className={
                           spec.answerMode === "ar"
                             ? `at-inputwrap${qLang.direction === "rtl" ? " rtl" : ""}`
-                            : undefined
+                            : figures
+                              ? "at-figwrap"
+                              : undefined
                         }
                       >
                         {spelling ? (
@@ -11909,16 +11933,19 @@ export default function ArabicTrainer() {
                           lang={spec.answerMode === "ar" ? qLang.id : undefined}
                           dir={spec.answerMode === "ar" ? qLang.direction : undefined}
                           className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
-                            checked ? (checked.ok ? " ok" : " no") : ""
-                          }`}
+                            figures ? " fig" : ""
+                          }${checked ? (checked.ok ? " ok" : " no") : ""}`}
                           data-el="answer-input"
                           /* A number in figures and nothing else: a phone's
                              number pad, not its letters. Not a time — the
-                             pad has no colon. */
-                          inputMode={exercise && answersInFigures(item, exercise.type) ? "numeric" : undefined}
+                             pad has no colon. A number written out in the
+                             language's script is an "ar" answer, not one of
+                             these, and keeps its letters and on-screen keys. */
+                          inputMode={figures ? "numeric" : undefined}
+                          autoComplete={figures ? "off" : undefined}
                           value={typed}
                           readOnly={!!checked}
-                          placeholder={spec.placeholder}
+                          placeholder={figures ? "Type the number" : spec.placeholder}
                           onChange={(e) => setTyped(e.target.value)}
                           /* Only the Check button checks. Enter — and a
                              phone keyboard's Go, which is the same key —
@@ -11931,6 +11958,19 @@ export default function ArabicTrainer() {
                             if (e.key === "Enter") e.preventDefault();
                           }}
                         />
+                        )}
+                        {figures && !checked && !typed && (
+                          /* The number box's prompt, drawn over it rather
+                             than as its placeholder. The field keeps the
+                             digits' large type while empty, so the caret
+                             waiting in it is the height of what will be
+                             typed; a placeholder that small inside type
+                             that large sits on its baseline, low in the
+                             box. The placeholder is still there, unseen,
+                             for whatever reads the field aloud. */
+                          <span className="at-figprompt" aria-hidden="true">
+                            Type the number
+                          </span>
                         )}
                         {!checked && spec.answerMode === "ar" && (
                           /* Keeps the caret where it was: tapping the button
@@ -12154,15 +12194,31 @@ export default function ArabicTrainer() {
                             />
                           </div>
                         )}
+                        {/* A number, in the figures the language writes
+                            it in: 47 is ٤٧ on a price tag. Not where the
+                            question already showed them — asked from
+                            them, or beside the figures English uses. */}
+                        {item.numeral &&
+                          spec.promptField !== "numeral" &&
+                          spec.promptField !== "en" &&
+                          spec.answerField !== "numeral" && (
+                          <div className="at-answeralso" data-el="also-figures">
+                            <p className="at-alsolabel" data-el="also-figures-label">
+                              In {qLang.scriptLabel} figures
+                            </p>
+                            <Field value={item.numeral} field="numeral" name="also-figures-text" />
+                          </div>
+                        )}
                         {/* Was below the notes, which put it three blocks
                             away from its own siblings. It belongs with
-                            them. */}
-                        {spec.promptField !== "audio" && (item.recs || []).length > 0 && (
+                            them. A time is its hour and its minutes, one
+                            after the other — see audibleOf. */}
+                        {spec.promptField !== "audio" && audibleOf(item).length > 0 && (
                           <div className="at-answeralso" data-el="also-audio">
                             <p className="at-alsolabel" data-el="also-audio-label">
                               This is how it sounds
                             </p>
-                            <AudioPrompt recs={item.recs} lead={leadSpeed(item)} />
+                            <AudioPrompt recs={audibleOf(item)} after={chainOf(item)} lead={leadSpeed(item)} />
                           </div>
                         )}
                         {/* Asked here rather than inside RelatedWords: an

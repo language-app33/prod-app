@@ -76,10 +76,9 @@ export interface Lexeme {
    * It goes onto the card this word becomes, beside the script, exactly
    * as a transliteration does on a card somebody typed — so a learner
    * meets the pronunciation, and the exercise that asks for the script
-   * from its transliteration opens. It is **not** joined into a whole
-   * number: where the pieces sit against each other is a fact about the
-   * script that the tokens do not carry, and a joined-up romanisation
-   * would be wrong wherever a one-letter connector attaches. That is on
+   * from its transliteration opens. A whole number's is read along its
+   * rendered text for the answer screen — see `sayAlong` — but it is not
+   * marked against, so no range asks for the script from it. That is on
    * the backlog; a number the teacher wrote out has its own.
    */
   lat?: Partial<Record<FormKey, string>>;

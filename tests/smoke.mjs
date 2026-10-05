@@ -859,6 +859,22 @@ const openPractice = async () => {
   for (const b of [...document.querySelectorAll('.at-drills > button.at-groupfold[aria-expanded="false"]')]) click(b);
   await sleep(150);
 };
+/* Each form in a card's Forms section is folded under its name since
+   0.356, unless something is written in it. The checks below write into
+   forms the way a teacher does, by opening them first — so a fold that
+   appears is opened as it appears, once, and a check about the folding
+   itself turns this off while it looks. */
+let openFormsAsDrawn = true;
+const formFolds = () => [...document.querySelectorAll("button.at-formfold")];
+const openedFolds = new WeakSet();
+new w.MutationObserver(() => {
+  if (!openFormsAsDrawn) return;
+  for (const b of formFolds()) {
+    if (openedFolds.has(b)) continue;
+    openedFolds.add(b);
+    if (b.getAttribute("aria-expanded") === "false") click(b);
+  }
+}).observe(document.body, { childList: true, subtree: true });
 /* A whole-card property is a toggle since 0.322: the group by its axis,
    the button by its value's name. */
 const toggleGroup = (/** @type {string} */ axis) => /** @type {any} */ (
@@ -1231,7 +1247,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!alsoBox && alsoBox.classList.contains("at-alsobox") && !!alsoBox.closest(".at-exercise"),
       alsoBox ? alsoBox.className : "no box");
     const inBox = alsoBox ? [...alsoBox.children].map((e) => e.getAttribute("data-el")) : [];
-    const FAMILY = ["also-context", "also-script", "also-hint", "also-audio", "related-words"];
+    const FAMILY = ["also-context", "also-script", "also-hint", "also-figures", "also-audio", "related-words"];
     check("and everything in it is one of the blocks that were loose on the page",
       inBox.length > 0 && inBox.every((n) => FAMILY.includes(n || "")), inBox.join(" ") || "empty");
     /* It used to sit three blocks below its own siblings, under the notes. */
@@ -4705,10 +4721,37 @@ const openPronounTables = async () => {
   }
 
   await leaveScreen();
+  openFormsAsDrawn = false;
   await newCard();
   await pickCardKind(/^Word or phrase/);
   check("and picking the ordinary kind opens a screen for that one, named for it",
     screenTitle() === "New word or phrase", screenTitle() || "(no editor)");
+  /* A form with nothing written in it is folded under its name, the way a
+     form's attached pronouns are, and says so under the name. */
+  {
+    const fold = formFolds()[0];
+    const tile = fold ? fold.closest(".at-formtile") : null;
+    check("an empty form starts folded under its name, saying nothing is written yet",
+      formFolds().length === 1 && fold.getAttribute("aria-expanded") === "false" &&
+        /^Form 1\s*none yet$/.test((fold.textContent || "").trim()) &&
+        !!tile && !tile.querySelector("input"),
+      fold ? `${(fold.textContent || "").trim()} · ${fold.getAttribute("aria-expanded")}` : "(no fold)");
+    const add = [...document.querySelectorAll("button")].find((b) => /^Add a form$/.test((b.textContent || "").trim()));
+    click(add);
+    await sleep(250);
+    check("while a form added to be written in opens",
+      formFolds().length === 2 && formFolds()[1].getAttribute("aria-expanded") === "true",
+      formFolds().map((b) => b.getAttribute("aria-expanded")).join(" | ") || "(no folds)");
+    click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Remove this form"));
+    await sleep(250);
+    click(formFolds()[0]);
+    await sleep(150);
+    check("and the heading opens the form it names",
+      formFolds().length === 1 && formFolds()[0].getAttribute("aria-expanded") === "true" &&
+        !!(formFolds()[0].closest(".at-formtile") || document).querySelector("input"),
+      formFolds().map((b) => b.getAttribute("aria-expanded")).join(" | ") || "(no folds)");
+  }
+  openFormsAsDrawn = true;
   check("which says what kind of card it is and does not ask again",
     !document.querySelector('[role="group"][aria-label="The kind of card"]') &&
       /The type of card cannot be changed/.test(document.body.textContent || ""),
@@ -6676,8 +6719,14 @@ const openPronounTables = async () => {
     .find((t) => (t.textContent || "").includes("كتاب"));
   click(savedTile);
   await sleep(450);
+  openFormsAsDrawn = false;
   click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
   await sleep(450);
+  check("a form with anything written in it opens already open, its word under its name",
+    formFolds().length > 0 && formFolds()[0].getAttribute("aria-expanded") === "true" &&
+      /كتاب/.test(formFolds()[0].textContent || ""),
+    formFolds().map((b) => `${(b.textContent || "").trim()} · ${b.getAttribute("aria-expanded")}`).join(" | ") || "(no folds)");
+  openFormsAsDrawn = true;
 
   const saved = () => [...document.querySelectorAll(
     '[role="radiogroup"][aria-label="What subtype"] .at-tickrow')];
@@ -6825,6 +6874,21 @@ const openPronounTables = async () => {
       [...document.querySelectorAll(".at-formrole")].some((n) => /Empty — never asked/.test(n.textContent || "")) &&
       !attachedCell("Arabic for form 3 · attached pronouns · me"),
     blockOrder().join(" | "));
+  /* That line is about what to write in the box, so it goes when the box
+     is folded and comes back when it is opened. */
+  {
+    const fold = formFolds().find((b) => /^Dual/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    const tile = fold ? fold.closest(".at-formtile") : null;
+    const said = () => !!tile && !!tile.querySelector(".at-formrole");
+    const before = said();
+    click(fold);
+    await sleep(150);
+    const folded = said();
+    click(fold);
+    await sleep(150);
+    check("and a folded box keeps the line about what to write in it for when it is open",
+      before && !folded && said(), `${before} → ${folded} → ${said()}`);
+  }
   typeIn(attachedCell("Arabic for dual"), "كتابين");
   await sleep(300);
   await openPronounTables();
@@ -7180,7 +7244,9 @@ const openPronounTables = async () => {
     const partsOf = () => {
       const block = [...document.querySelectorAll(".at-formblock")].find((b) =>
         /^Singular$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
-      return block ? [...block.querySelectorAll(".at-part")] : [];
+      /* Not the practice ticks' own panel, which since 0.355 is drawn as
+         a subsection too but is the foot of the one it sits in. */
+      return block ? [...block.querySelectorAll(".at-part:not(.at-drills)")] : [];
     };
     /* A subsection's own heading, and not one inside it: the pronouns'
        panel sits in the word's, and its fold is a heading the word's

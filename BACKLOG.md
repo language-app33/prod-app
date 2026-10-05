@@ -53,10 +53,12 @@ can go, with their recordings kept as clips the system points at.
 
 ## A transliteration a number can be built out of
 
-A word in a system may carry a transliteration per face, and the composer
-does not join them — so a range has no *transliteration → script* question,
-which is the level-3 exercise every ordinary card gets. Wants the same
-answer the script gets, through the same composition.
+A word in a system may carry a transliteration per face. Since 0.354 the
+answer screen shows a whole number's, read along the words it was built
+from (`sayAlong`), but nothing marks against it — so a range has no
+*transliteration → script* question, which is the level-3 exercise every
+ordinary card gets. A counted noun has no box for one either, so a counting
+question shows none.
 
 ## Hebrew's ten thousand
 

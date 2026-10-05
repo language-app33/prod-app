@@ -273,9 +273,9 @@ button {
 .at-answeralso { margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
 .at-alsolabel { font-family: var(--ui); font-size:11px; font-weight:700;
   letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 6px; }
-.at-answeralso .at-arabic { font-size:calc(26px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); margin:4px 0; }
-.at-answeralso .at-en { font-size:calc(16px * var(--lscale, 1)); }
-.at-answeralso .at-latin { font-size:calc(15px * var(--lscale, 1)); }
+.at-answeralso .at-arabic { font-size:calc(30px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); margin:4px 0; }
+.at-answeralso .at-en { font-size:calc(18px * var(--lscale, 1)); }
+.at-answeralso .at-latin { font-size:calc(17px * var(--lscale, 1)); }
 /* Everything under an answer that is not the answer, in one container:
    where it turned up, how it is written, how it is pronounced, how it
    sounds, what shares its root. Inset rather than raised — the same well
@@ -291,7 +291,7 @@ button {
    target says which way the box will go. */
 .at-alsomore { display:flex; align-items:center; justify-content:center; gap:4px;
   margin: 14px auto 0; background:none; border:0; cursor:pointer;
-  font-family: var(--ui); font-size:13px; font-weight:700; color: var(--muted);
+  font-family: var(--ui); font-size:15px; font-weight:700; color: var(--muted);
   padding:6px 10px; }
 .at-alsomore:hover { color: var(--text); }
 .at-alsobox { margin-top:10px; padding:14px; background: var(--well);
@@ -1087,6 +1087,18 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    stacked, and parted from the ticks above it as they are from the
    fields. */
 .at-part > .at-part { margin-top:12px; background: var(--raised); }
+/* The practice ticks folded under each form are such a panel too, the
+   same as the pronouns' beside them — so the strip's rule and padding
+   above give way to the panel's own frame. */
+.at-part.at-drills { padding:12px; border-top:1px solid var(--line); }
+/* A form's name in the Forms section is the heading that opens it — the
+   same fold, at the size a form's name is set. It takes the room the name
+   took, and Duplicate and Remove stay beside it. Folded, the panel is its
+   heading alone, so the rule under the heading goes with what it ruled. */
+.at-formhead > .at-formfold { flex:1 1 auto; width:auto; min-width:0; margin:0; min-height:0; }
+.at-formfold > .at-formnum { color: inherit; }
+.at-screen.cardform .at-formtile .at-part > .at-formhead:has(> .at-formfold[aria-expanded="false"]) {
+  margin-bottom:0; padding-bottom:0; border-bottom:0; }
 /* Except the first one under a heading of its own. The rule is there to
    part the ticks from the fields they are the foot of; the practice
    section has no fields above them, so it drew a line between a heading
@@ -1725,6 +1737,15 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-playbig.quiet .dot { color: var(--muted); }
 .at-playbig.quiet:hover { background: var(--raised); color: var(--text); }
 .at-playbig.quiet:hover .dot { color: var(--brass); }
+/* Inside Learn more the recording is a thing to look up, not the question,
+   so its button steps down a size: the big one there outweighed the words
+   it sat beside. The icon's size is set on the element, so it is
+   overridden here rather than passed in. */
+.at-alsobox .at-playbig { min-width:130px; padding:10px 20px; gap:8px; font-size:15px; }
+.at-alsobox .at-playbig .at-ic { width:26px; height:26px; }
+.at-alsobox .at-playbig.twin { min-width:0; padding-inline:8px; font-size:14px; }
+.at-alsobox .at-playbig.quiet { font-size:13px; }
+.at-alsobox .at-playbig.quiet .at-ic { width:20px; height:20px; }
 .at-group { border:2px solid var(--line); border-radius: var(--r-lg); padding:18px 16px 8px;
   margin-bottom:14px; background: var(--surface); }
 .at-grouphead { display:flex; align-items:baseline; justify-content:space-between; gap:10px;
@@ -1833,7 +1854,7 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 /* The word being asked for, under the phrase it is missing from. */
 .at-ctxmeaning { font-family: var(--ui); font-size:17px; font-weight:700; color: var(--text-soft);
   margin:6px 0 0; text-align:center; }
-.at-answeralso .at-ctxmeaning { font-size:14px; font-weight:600; color: var(--muted); margin-top:2px; }
+.at-answeralso .at-ctxmeaning { font-size:16px; font-weight:600; color: var(--muted); margin-top:2px; }
 /* What a Sort or Filter button opens onto: the groups, wrapping rather than
    scrolling, each staying whole on a phone. The button that opens it lives
    in the toolbar row above and is styled with it. */
@@ -2176,6 +2197,23 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    keeps its own type size; a single-line field centres its text
    vertically, so the height is set outright and the padding goes. */
 .at-answerbox .at-input { height:64px; box-sizing:border-box; padding-top:0; padding-bottom:0; line-height:normal; }
+/* An answer in figures is a few digits long and is typed on the phone's
+   number pad (answersInFigures). A box the width of a sentence left the digits
+   sitting small at one end of it; this one is taller, as narrow as the
+   longest number asked, and puts them in the middle in large type. */
+.at-answerbox .at-input.fig { height:88px; width:100%; max-width:240px; display:block;
+  margin-inline:auto; text-align:center; font-family: var(--mono); font-size:36px;
+  font-variant-numeric: tabular-nums; letter-spacing:.04em; }
+/* The box keeps the digits' size while empty, so the caret in it is the
+   height of what will be typed. Its prompt is drawn over it in smaller
+   type, centred both ways (.at-figprompt); the field's own placeholder is
+   kept for screen readers and hidden, since text that small inside type
+   that large sits on its baseline, low in the box. */
+.at-figwrap { position:relative; max-width:240px; margin-inline:auto; }
+.at-answerbox .at-input.fig::placeholder { color:transparent; }
+.at-figprompt { position:absolute; inset:0; display:flex; align-items:center;
+  justify-content:center; pointer-events:none; font-family: var(--mono);
+  font-size:20px; font-weight:500; color: var(--faint); }
 /*
  * What the learner wrote, once it has been marked, standing where the box
  * they wrote it in stood.
@@ -2837,6 +2875,7 @@ button.at-stat { transition: border-color 140ms ease; }
 .at.kb-open .at-input { padding: 11px 14px; font-size: 17px; }
 .at.kb-open .at-input.ar { font-size:calc(32px * var(--sscale, 1)); }
 .at.kb-open .at-answerbox .at-input { height:52px; }
+.at.kb-open .at-answerbox .at-input.fig { height:72px; font-size:32px; }
 /* What the learner wrote, once marked, is as tall as it needs to be. The
    box it replaces is one line high, and an answer longer than one line —
    a sentence written in 40px script — was clipped top and bottom into

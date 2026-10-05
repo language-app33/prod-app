@@ -364,7 +364,7 @@ export const TEXT_STYLES: [string, TextStyle[]][] = [
     },
     {
       name: ".at-answeralso .at-arabic",
-      size: "calc(26px * var(--sscale, 1))",
+      size: "calc(30px * var(--sscale, 1))",
       what: "The script inside Learn more, which is a thing to notice rather than the answer.",
       example: "كِتَاب",
       cls: "at-arabic",
@@ -373,7 +373,7 @@ export const TEXT_STYLES: [string, TextStyle[]][] = [
     },
     {
       name: ".at-answeralso .at-en",
-      size: "calc(16px * var(--lscale, 1))",
+      size: "calc(18px * var(--lscale, 1))",
       what: "A meaning in there — what a phrase the word turned up in says.",
       example: "the book is big",
       cls: "at-en",
@@ -382,7 +382,7 @@ export const TEXT_STYLES: [string, TextStyle[]][] = [
     },
     {
       name: ".at-answeralso .at-latin",
-      size: "calc(15px * var(--lscale, 1))",
+      size: "calc(17px * var(--lscale, 1))",
       what: "And how a phrase in there reads out, which is the smallest the romanisation gets.",
       example: "al-kitaab kabiir",
       cls: "at-latin",

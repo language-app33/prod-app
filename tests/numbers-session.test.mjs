@@ -50,7 +50,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { buildSession, buildManualSession, buildWeakSession, installIndexes, tokenCards } = await import(path.join(out, "trainer.js"));
+const { buildSession, buildManualSession, buildWeakSession, installIndexes, resolveQuestion, tokenCards } = await import(path.join(out, "trainer.js"));
 const { generate, isRangeSkill } = await import(path.join(here, "..", "src", "numbers", "generate.ts"));
 const { arComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.ts"));
 const { arTimeComposer } = await import(path.join(here, "..", "src", "numbers", "ar-PS.time.ts"));
@@ -706,4 +706,62 @@ test("a counted noun is a building block too: it is counted only once cleared in
   assert.ok(counted.size > 0, "nothing was counted");
   assert.ok(!counted.has("girl"), "a noun not yet cleared was counted");
   assert.ok(counted.has("minute"), `the cleared feminine noun was never counted: ${[...counted].join(", ")}`);
+});
+
+/* ------------------------------------------------------------------
+   What the answer screen has to show
+   ------------------------------------------------------------------ */
+
+/** A number question, cast the way the question screen casts it. */
+const castFor = (/** @type {any} */ sets, /** @type {any} */ ask, type = "num2fig") => {
+  const skill = must(
+    skills().find((/** @type {any} */ s) => s.range.id === ask.rangeId),
+    `the skill for ${ask.rangeId}`,
+  );
+  /* Recorded somewhere, so the skill carries the marker that lets a
+     listening question be dealt — which is not a recording of anything. */
+  const marked = { ...skill, forms: [{ ...skill.forms[0], recs: [{ id: "system", label: "", speed: "" }] }] };
+  return must(
+    resolveQuestion([marked], { id: skill.id, subId: null, type, ask }, false, sets),
+    "a cast question",
+  ).unit;
+};
+
+test("a number question carries no recording it does not have", () => {
+  const unit = castFor(SETS, { rangeId: "numbers:20-99", kind: "numbers", value: 47 });
+  assert.equal(unit.en, "47");
+  /* The marker on the skill says only that something in the system was
+     recorded. Left on the question it was a player with nothing behind
+     it, under "Learn more". */
+  assert.deepEqual(unit.recs, []);
+  assert.equal(unit.lat, "", "and no transliteration nobody wrote");
+});
+
+test("a number recorded whole is played, and its transliteration is shown", () => {
+  const unit7 = SYS.lexemes["unit.7"];
+  const sys = {
+    ...SYS,
+    lexemes: { ...SYS.lexemes, "unit.7": { ...unit7, lat: { standalone: "sab3a" }, audio: { standalone: ["clip0007"] } } },
+  };
+  const unit = castFor([{ numbers: sys, times: TIME }], { rangeId: "numbers:0-9", kind: "numbers", value: 7 });
+  assert.deepEqual(unit.recs.map((/** @type {any} */ r) => r.id), ["clip0007"]);
+  assert.equal(unit.lat, "sab3a");
+});
+
+test("a listening question on a range is dealt a number somebody recorded", () => {
+  const unit7 = SYS.lexemes["unit.7"];
+  const sys = { ...SYS, lexemes: { ...SYS.lexemes, "unit.7": { ...unit7, audio: { standalone: ["clip0007"] } } } };
+  const made = generate({ composer: arComposer, sys, timeComposer: arTimeComposer, timeSys: TIME, now: 1750000000000 });
+  const items = made.items.filter(isRangeSkill).map((/** @type {any} */ it) => ({
+    ...it,
+    forms: [{ ...it.forms[0], s: Object.fromEntries(["num2fig", "time2fig"].map((t) => [t, solid()])) }],
+  }));
+  installIndexes(items, settings);
+  const heard = [];
+  for (let i = 0; i < 12; i += 1) {
+    const got = buildSession({ items, settings, inDeck: () => true, systems: [{ numbers: sys, times: TIME }] });
+    heard.push(...got.exercises.filter((/** @type {any} */ e) => e.type === "rec2fig" && e.ask.rangeId === "numbers:0-9"));
+  }
+  assert.ok(heard.length > 0, "no listening question was dealt on the range with a recording in it");
+  for (const ex of heard) assert.equal(ex.ask.value, 7);
 });

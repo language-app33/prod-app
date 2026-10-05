@@ -8,6 +8,113 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.362 — 5 October 2026
+
+**"Learn more" on a number no longer spells it out in English.**
+
+- The English words for a number ("forty-seven") added in 0.354 are gone
+  from "Learn more". English is not what is being learnt; the Arabic
+  figures, the transliteration and the recording stay.
+
+## 0.361 — 5 October 2026
+
+**A closed form shows only its name.**
+
+- In the Forms section of a card, the line of advice under a form's name —
+  such as "Only for the few nouns whose plural changes after three to ten,
+  like days or months…" or "Empty — never asked." — now shows only while
+  that form is open. A closed form shows its name and what is written in
+  it, and nothing else.
+
+## 0.360 — 5 October 2026
+
+**The cursor in the number box is the size of the numbers.**
+
+- Before you type, the blinking cursor in the number answer box was the
+  height of the small "Type the number" prompt and then jumped to the
+  size of the digits. It is now the height of the digits from the start.
+  The prompt stays small and centred.
+
+## 0.359 — 5 October 2026
+
+**Each form on a card opens and closes under its name.**
+
+- When creating or editing a card, every form in the Forms section — Form 1,
+  Form 2, a noun's singular, plural and dual, an adjective's feminine and
+  plural — now has a heading you tap to open or close it, the same as the
+  attached pronouns and the practice choices.
+- A form starts closed when nothing is written in it, and open when
+  anything at all is: a word, a meaning, a transliteration, a recording, a
+  picture, or any of its attached pronouns.
+- A closed form shows what is written in it under its name, or "none yet",
+  so a card can be read without opening every form.
+- A form you add with "Add a form" opens straight away, ready to write in.
+- The plural after three to ten, which had a fold of its own, now works
+  the same way as every other form.
+
+## 0.358 — 5 October 2026
+
+**Learn more is easier to read.**
+
+- The "Learn more" link under an answer, and the arrow beside it, are a
+  little bigger, so they are easier to spot and to tap.
+- Inside Learn more, the words themselves — the meaning, how it's
+  pronounced, how it's written, the phrase it turned up in — are a size
+  larger.
+- The play button under "This is how it sounds" is smaller there, so it
+  no longer outweighs the words around it. The play button on a listening
+  question is unchanged.
+
+## 0.357 — 5 October 2026
+
+**The number box asks for "the number", centred.**
+
+- The prompt inside the number answer box now says "Type the number"
+  and sits in the middle of the box. It used to sit too low, and on a
+  word whose meaning is a number it said "Type the English".
+
+## 0.356 — 5 October 2026
+
+**A bigger, number-sized box for answers typed on the number pad.**
+
+- On the questions that bring up the phone's number pad — writing a
+  number in figures, and "what does this mean?" on a word whose meaning
+  is a number — the answer box is now taller and narrower, sits in the
+  middle of the screen, and shows the digits in large type.
+- These questions have no button for the on-screen letter keys.
+- Writing a number out in Arabic or Hebrew is unchanged: it keeps the
+  normal answer box, the letter keyboard and the on-screen keys button.
+  Times like 7:15 also keep the normal box and keyboard.
+
+## 0.355 — 5 October 2026
+
+**"How this form can be practiced" opens the same way as "Its attached pronouns".**
+
+- When creating or editing a card, the practice choices under each form
+  now sit in their own panel, folded under a heading you tap to open —
+  exactly like the attached pronouns beside them. The heading still says
+  what is chosen, so there is no need to open it just to check.
+
+## 0.354 — 5 October 2026
+
+**"Learn more" on a number question shows everything worth knowing about the number.**
+
+- After any question about a number — a number card like "seven" or
+  "forty", or a made-up number like 47 — "Learn more" now shows the
+  number in English words ("forty-seven"), and for Arabic the number in
+  Arabic figures (٤٧) unless the question already showed them.
+- It shows how the number is pronounced whenever the teacher wrote a
+  transliteration for each word in it. A built-up number like 47 is put
+  together from the words it is made of, so writing a transliteration for
+  "seven", "forty" and "and" once covers every number that uses them.
+  Times are covered the same way.
+- It plays the recording when the teacher recorded that number, either as
+  a word of its own or as a whole number. Before, a made-up number could
+  show a player with nothing to play.
+- A listening question about numbers now asks a number that was actually
+  recorded, where there is one the learner can be asked.
+- Anything the question already showed is left out, as before.
+
 ## 0.353 — 5 October 2026
 
 **The recording screen says which word it is recording.**

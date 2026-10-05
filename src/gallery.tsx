@@ -225,7 +225,6 @@ const PLACES: Record<string, [string, string]> = {
   ConnectingScreen: [TEACH, "A language's number system · the words between a number's pieces"],
   PartScreen: [TEACH, "A language's number system · one part, on a screen of its own"],
   WordGrid: [TEACH, "A language's number system · the words a part is built out of, a panel per number"],
-  FoldedBox: [TEACH, "Editing a card · a box most nouns leave empty, folded"],
   GrammarToggles: [TEACH, "Editing a card · what is true of the whole word, as toggles"],
   TwoWordsBlock: [TEACH, "A language's number system · choosing one word before a noun where two were written"],
   CountedSection: [TEACH, "A language's number system · the noun cards a part counts with"],
