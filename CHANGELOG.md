@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.358 — 5 October 2026
+## 0.359 — 5 October 2026
 
 **Each form on a card opens and closes under its name.**
 
@@ -24,6 +24,20 @@ and moves once per batch of work you would notice, not once per commit.
 - A form you add with "Add a form" opens straight away, ready to write in.
 - The plural after three to ten, which had a fold of its own, now works
   the same way as every other form.
+
+## 0.358 — 5 October 2026
+
+**Learn more is easier to read.**
+
+- The "Learn more" link under an answer, and the arrow beside it, are a
+  little bigger, so they are easier to spot and to tap.
+- Inside Learn more, the words themselves — the meaning, how it's
+  pronounced, how it's written, the phrase it turned up in — are a size
+  larger.
+- The play button under "This is how it sounds" is smaller there, so it
+  no longer outweighs the words around it. The play button on a listening
+  question is unchanged.
+
 ## 0.357 — 5 October 2026
 
 **The number box asks for "the number", centred.**
