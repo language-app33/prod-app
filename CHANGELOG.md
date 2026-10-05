@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.357 — 5 October 2026
+
+**The number box asks for "the number", centred.**
+
+- The prompt inside the number answer box now says "Type the number"
+  and sits in the middle of the box. It used to sit too low, and on a
+  word whose meaning is a number it said "Type the English".
+
 ## 0.356 — 5 October 2026
 
 **A bigger, number-sized box for answers typed on the number pad.**

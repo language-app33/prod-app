@@ -11959,7 +11959,7 @@ export default function ArabicTrainer() {
                           autoComplete={figures ? "off" : undefined}
                           value={typed}
                           readOnly={!!checked}
-                          placeholder={spec.placeholder}
+                          placeholder={figures ? "Type the number" : spec.placeholder}
                           onChange={(e) => setTyped(e.target.value)}
                           /* Only the Check button checks. Enter — and a
                              phone keyboard's Go, which is the same key —
