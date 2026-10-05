@@ -1404,15 +1404,32 @@ export function RecordingScreen({ title, form, onChange, onClose }: {
       slowClips: key === "slowClips" ? next : form.slowClips || [],
     });
 
-  async function store(blob: Blob, key: "clips" | "slowClips") {
-    setBusy("Saving…");
+  /* Several at once, from a drop or a multiple pick, are saved one after
+     another and added in a single change: adding each as it landed would
+     read the list from before the last one was added, and keep only the
+     final file. Whatever is not audio is left out and said so, rather than
+     uploaded as a recording nobody can play. */
+  async function store(blobs: Blob[], key: "clips" | "slowClips") {
+    const audio = blobs.filter((b) => !b.type || b.type.startsWith("audio/"));
+    const skipped = blobs.length - audio.length;
+    setError(
+      skipped
+        ? `${plural(skipped, "file")} left out — only audio can be a recording`
+        : ""
+    );
+    if (!audio.length) return;
+    const added: string[] = [];
     try {
-      const hash = await hashOf(blob);
-      await API.putClip(hash, await blobToDataUrl(blob));
-      put(key, listOf(key).concat([hash]));
+      for (const blob of audio) {
+        setBusy(audio.length > 1 ? `Saving ${added.length + 1} of ${audio.length}…` : "Saving…");
+        const hash = await hashOf(blob);
+        await API.putClip(hash, await blobToDataUrl(blob));
+        added.push(hash);
+      }
     } catch (e) {
       setError(API.explain(e));
     } finally {
+      if (added.length) put(key, listOf(key).concat(added));
       setBusy("");
     }
   }
@@ -1430,7 +1447,7 @@ export function RecordingScreen({ title, form, onChange, onClose }: {
       mr.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        store(new Blob(chunks, { type: mr.mimeType || "audio/webm" }), key);
+        store([new Blob(chunks, { type: mr.mimeType || "audio/webm" })], key);
       };
       rec.current = mr;
       setElapsed(0);
@@ -1497,29 +1514,87 @@ export function RecordingScreen({ title, form, onChange, onClose }: {
                   {busy || `Record ${kind.short.toLowerCase()}`}
                 </Button>
               )}
-              {/* An upload beside every Record, because a teacher who has
-                  the file already should never have to play it into a
-                  microphone to get it onto the card. */}
-              <label className="at-btn sm ghost">
-                <Icon name="download" />
-                Upload a file
-                <input
-                  type="file"
-                  accept="audio/*"
-                  className="at-hidden"
-                  disabled={!!recording}
-                  onChange={(e) => {
-                    const f = e.target.files && e.target.files[0];
-                    if (f) store(f, kind.key);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
             </div>
+
+            {/* A box to drop files on beside every Record, because a
+                teacher who has the files already should never have to play
+                them into a microphone to get them onto the card. One per
+                speed, so where a file is dropped is which speed it is.
+                Pressed, it opens the file picker, which is how a phone —
+                with nothing to drag — gets the same thing. */}
+            <ClipDrop
+              label={kind.short}
+              disabled={!!busy || !!recording}
+              onFiles={(files) => store(files, kind.key)}
+            />
           </section>
         );
       })}
     </Screen>
+  );
+}
+
+/*
+ * Where recording files are dropped, or picked, for one speed.
+ *
+ * A label around a hidden file input, so a press or Enter opens the picker
+ * with nothing more written for it. Dragging sets a flag only to light the
+ * box up; `depth` counts the enters and leaves, because the browser sends
+ * a leave every time the pointer crosses onto the text inside.
+ */
+function ClipDrop({ label, disabled, onFiles }: {
+  label: string;
+  disabled: boolean;
+  onFiles: (files: File[]) => void;
+}) {
+  const [over, setOver] = useState(false);
+  const depth = useRef(0);
+  const hasFiles = (e: React.DragEvent) =>
+    Array.from(e.dataTransfer.types || []).includes("Files");
+  return (
+    <label
+      className={`at-drop${over ? " over" : ""}${disabled ? " off" : ""}`}
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current += 1;
+        if (!disabled) setOver(true);
+      }}
+      onDragOver={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = disabled ? "none" : "copy";
+      }}
+      onDragLeave={() => {
+        depth.current = Math.max(0, depth.current - 1);
+        if (!depth.current) setOver(false);
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current = 0;
+        setOver(false);
+        if (!disabled) onFiles(Array.from(e.dataTransfer.files || []));
+      }}
+    >
+      <Icon name="download" />
+      <span>
+        <strong>Drop {label.toLowerCase()} recordings here</strong>
+        <span className="at-drop-sub">or press to choose files — several at once is fine</span>
+      </span>
+      <input
+        type="file"
+        accept="audio/*"
+        multiple
+        className="at-hidden"
+        disabled={disabled}
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          if (files.length) onFiles(files);
+          e.target.value = "";
+        }}
+      />
+    </label>
   );
 }
 

@@ -1171,6 +1171,17 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 /* Section headings are headings, not captions. */
 .at-panel > .at-eyebrow:first-child { margin:0 0 4px; font-size:15px; font-weight:800;
   letter-spacing:0; text-transform:none; color: var(--ink); }
+/* Where recording files are dropped: a dashed box under each speed's
+   Record button, lit while files are dragged over it. */
+.at-drop { display:flex; align-items:center; gap:12px; margin-top:12px;
+  padding:16px; border:2px dashed var(--line); border-radius: var(--r);
+  background: var(--well); color: var(--text-soft); cursor:pointer;
+  transition: border-color .12s, background .12s; }
+.at-drop:hover, .at-drop:focus-within { border-color: var(--muted); }
+.at-drop.over { border-color: var(--jade); background: var(--jade-bg); color: var(--text); }
+.at-drop.off { opacity:.55; cursor:default; }
+.at-drop strong { display:block; font-size: var(--fs-md); color: var(--ink); }
+.at-drop-sub { display:block; font-size: var(--fs-sm); color: var(--muted); margin-top:2px; }
 .at-subhead { font-size:13px; font-weight:800; color: var(--muted);
   text-transform:uppercase; letter-spacing:.05em; margin:16px 0 8px; }
 .at-subhead:first-child { margin-top:0; }

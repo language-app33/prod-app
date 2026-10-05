@@ -205,6 +205,7 @@ const PLACES: Record<string, [string, string]> = {
   ScriptInput: [TEACH, "Editing a card · writing in the language"],
   Recordings: [TEACH, "Editing a card · its recordings"],
   RecordingScreen: [TEACH, "Editing a card · making a recording"],
+  ClipDrop: [TEACH, "Editing a card · making a recording · dropping files"],
   ImageScreen: [TEACH, "Editing a card · adding a picture"],
   StoredImage: [TEACH, "Editing a card · a picture on a form"],
   ContextReport: [TEACH, "A deck · how much of it appears in phrases"],

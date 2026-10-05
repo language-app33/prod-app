@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 5 October 2026
+
+**Drop recordings onto a card instead of uploading them one by one.**
+
+- When adding recordings to a card or to a word in a number system, each
+  speed now has its own box to drop files on: one for regular speed and
+  one for slow. Drag in as many audio files as you like at once and they
+  are all added, in the order they were dropped, under the speed whose
+  box they landed in.
+- On a phone, or anywhere without dragging, press the box to choose files
+  instead — you can pick several at once there too.
+- Anything dropped that is not audio is left out, and the screen says how
+  many files were skipped.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**
