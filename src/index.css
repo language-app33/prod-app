@@ -1091,6 +1091,14 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    same as the pronouns' beside them — so the strip's rule and padding
    above give way to the panel's own frame. */
 .at-part.at-drills { padding:12px; border-top:1px solid var(--line); }
+/* A form's name in the Forms section is the heading that opens it — the
+   same fold, at the size a form's name is set. It takes the room the name
+   took, and Duplicate and Remove stay beside it. Folded, the panel is its
+   heading alone, so the rule under the heading goes with what it ruled. */
+.at-formhead > .at-formfold { flex:1 1 auto; width:auto; min-width:0; margin:0; min-height:0; }
+.at-formfold > .at-formnum { color: inherit; }
+.at-screen.cardform .at-formtile .at-part > .at-formhead:has(> .at-formfold[aria-expanded="false"]) {
+  margin-bottom:0; padding-bottom:0; border-bottom:0; }
 /* Except the first one under a heading of its own. The rule is there to
    part the ticks from the fields they are the foot of; the practice
    section has no fields above them, so it drew a line between a heading
