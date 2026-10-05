@@ -1159,39 +1159,43 @@ export function valuesForTurn(
  * seen. There is no answer to that question. It is not a hard question, it
  * is an unanswerable one, and the card it was really about was the frame.
  *
- * So a value has to be as far along as the question is asking. The two
- * kinds of value answer that differently, because only one of them has a
- * ladder of its own:
+ * So a value is a **building block** — a card used inside another card —
+ * and a building block stands in a hole only once the learner has cleared
+ * it. The two kinds of value answer that differently, because only one of
+ * them has a ladder of its own:
  *
  *   * **A value that is drilled** — an ordinary word, which is what fills
- *     `{{word}}` — is read through `reach`: how far up its own ladder it
- *     has climbed. To stand in a question that asks the word to be written
- *     from its meaning, it must be a word the learner can write from its
- *     meaning. That is the same sentence twice, which is the point.
+ *     `{{word}}` — is read through `cleared`: whether it has been up every
+ *     level of its own ladder, in the form that will be shown. One bar
+ *     for every question the sentence asks. It used to be "as far along
+ *     as the question", which let a word answered once, and missed, stand
+ *     in a sentence asking what it means; the sentence then tested the
+ *     word rather than the frame around it.
  *
  *   * **A value that is not drilled** — Raphael, which is in the deck to be
  *     borrowed and is never dealt on its own — has no ladder and never
- *     will. The frame is the only place it is ever met, so what is read
- *     instead is the frame's own record of having met it: a value may stand
- *     one level above the highest it has already been seen at, and no
- *     higher. It enters on the bottom level, where nothing is below it to
- *     have been seen at, and climbs with the card that teaches it.
+ *     will, so it can never be cleared. The frame is the only place it is
+ *     ever met, so what is read instead is the frame's own record of
+ *     having met it: a value may stand one level above the highest it has
+ *     already been seen at, and no higher. It enters on the bottom level,
+ *     where nothing is below it to have been seen at, and climbs with the
+ *     card that teaches it.
  *
- * `reach` comes back null for the second kind, which is how they are told
- * apart — the caller knows what is drilled and this module knows what the
- * rule is.
+ * `cleared` comes back null for the second kind, which is how they are
+ * told apart — the caller knows what is drilled and this module knows what
+ * the rule is.
  */
 export function valuesAt(
   list: Value[],
   slot: string,
   level: number,
-  reach: (value: Value) => number | null,
+  cleared: (value: Value) => boolean | null,
   met?: Record<string, number> | null,
 ): Value[] {
   return (list || []).filter((value) => {
-    const climbed = reach(value);
-    if (climbed === null || climbed === undefined) return metAt(met, slot, value) >= level - 1;
-    return climbed >= level;
+    const done = cleared(value);
+    if (done === null || done === undefined) return metAt(met, slot, value) >= level - 1;
+    return done;
   });
 }
 

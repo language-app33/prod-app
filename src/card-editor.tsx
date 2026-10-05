@@ -69,6 +69,7 @@ import {
   Screen,
   Segmented,
   plural,
+  deckSize,
   useOffline,
   ConfirmModal,
   Overlay,
@@ -270,6 +271,47 @@ function GrammarRadios({ dims, values, onPick, of, bare }: {
               ))}
           </span>
         </div>
+      ))}
+    </div>
+  );
+}
+
+/*
+ * What is true of the whole card, one axis to a toggle.
+ *
+ * The same toggle App preferences sets the theme with: a card has one
+ * answer to each of these and a teacher sets it once, so it is asked the
+ * way a setting is rather than as a row of radios beside each answer's
+ * own grammar. Each axis under its own name; a value's name loses its
+ * article, which reads as a sentence in a list and as clutter on a button
+ * ("a thing" is *Thing*). An axis a language does not insist on starts
+ * with *Not set*, so a value chosen by mistake can be taken back.
+ */
+function GrammarToggles({ dims, values, onPick, bare }: {
+  dims: GrammarDim[];
+  values: Record<string, any>;
+  onPick: (field: string, value: string) => void;
+  /** Without the axis's name, where the caller's own label asks the
+      question. */
+  bare?: boolean;
+}) {
+  const name = (label: string) => {
+    const plain = String(label || "").replace(/^an? /i, "");
+    return plain.charAt(0).toUpperCase() + plain.slice(1);
+  };
+  return (
+    <div>
+      {dims.map((dim) => (
+        <Field key={dim.field} label={bare ? undefined : dim.label}>
+          <Segmented
+            label={dim.label}
+            options={(dim.required ? [] : [{ value: "", label: "Not set" }]).concat(
+              dim.options.map(([v, label]) => ({ value: v, label: name(label) })),
+            )}
+            value={String(values[dim.field] || "")}
+            onChange={(v) => onPick(dim.field, String(v))}
+          />
+        </Field>
       ))}
     </div>
   );
@@ -1410,15 +1452,32 @@ export function RecordingScreen({ name, form, onChange, onClose }: {
       slowClips: key === "slowClips" ? next : form.slowClips || [],
     });
 
-  async function store(blob: Blob, key: "clips" | "slowClips") {
-    setBusy("Saving…");
+  /* Several at once, from a drop or a multiple pick, are saved one after
+     another and added in a single change: adding each as it landed would
+     read the list from before the last one was added, and keep only the
+     final file. Whatever is not audio is left out and said so, rather than
+     uploaded as a recording nobody can play. */
+  async function store(blobs: Blob[], key: "clips" | "slowClips") {
+    const audio = blobs.filter((b) => !b.type || b.type.startsWith("audio/"));
+    const skipped = blobs.length - audio.length;
+    setError(
+      skipped
+        ? `${plural(skipped, "file")} left out — only audio can be a recording`
+        : ""
+    );
+    if (!audio.length) return;
+    const added: string[] = [];
     try {
-      const hash = await hashOf(blob);
-      await API.putClip(hash, await blobToDataUrl(blob));
-      put(key, listOf(key).concat([hash]));
+      for (const blob of audio) {
+        setBusy(audio.length > 1 ? `Saving ${added.length + 1} of ${audio.length}…` : "Saving…");
+        const hash = await hashOf(blob);
+        await API.putClip(hash, await blobToDataUrl(blob));
+        added.push(hash);
+      }
     } catch (e) {
       setError(API.explain(e));
     } finally {
+      if (added.length) put(key, listOf(key).concat(added));
       setBusy("");
     }
   }
@@ -1436,7 +1495,7 @@ export function RecordingScreen({ name, form, onChange, onClose }: {
       mr.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        store(new Blob(chunks, { type: mr.mimeType || "audio/webm" }), key);
+        store([new Blob(chunks, { type: mr.mimeType || "audio/webm" })], key);
       };
       rec.current = mr;
       setElapsed(0);
@@ -1508,29 +1567,87 @@ export function RecordingScreen({ name, form, onChange, onClose }: {
                   {busy || `Record ${kind.short.toLowerCase()}`}
                 </Button>
               )}
-              {/* An upload beside every Record, because a teacher who has
-                  the file already should never have to play it into a
-                  microphone to get it onto the card. */}
-              <label className="at-btn sm ghost">
-                <Icon name="download" />
-                Upload a file
-                <input
-                  type="file"
-                  accept="audio/*"
-                  className="at-hidden"
-                  disabled={!!recording}
-                  onChange={(e) => {
-                    const f = e.target.files && e.target.files[0];
-                    if (f) store(f, kind.key);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
             </div>
+
+            {/* A box to drop files on beside every Record, because a
+                teacher who has the files already should never have to play
+                them into a microphone to get them onto the card. One per
+                speed, so where a file is dropped is which speed it is.
+                Pressed, it opens the file picker, which is how a phone —
+                with nothing to drag — gets the same thing. */}
+            <ClipDrop
+              label={kind.short}
+              disabled={!!busy || !!recording}
+              onFiles={(files) => store(files, kind.key)}
+            />
           </section>
         );
       })}
     </Screen>
+  );
+}
+
+/*
+ * Where recording files are dropped, or picked, for one speed.
+ *
+ * A label around a hidden file input, so a press or Enter opens the picker
+ * with nothing more written for it. Dragging sets a flag only to light the
+ * box up; `depth` counts the enters and leaves, because the browser sends
+ * a leave every time the pointer crosses onto the text inside.
+ */
+function ClipDrop({ label, disabled, onFiles }: {
+  label: string;
+  disabled: boolean;
+  onFiles: (files: File[]) => void;
+}) {
+  const [over, setOver] = useState(false);
+  const depth = useRef(0);
+  const hasFiles = (e: React.DragEvent) =>
+    Array.from(e.dataTransfer.types || []).includes("Files");
+  return (
+    <label
+      className={`at-drop${over ? " over" : ""}${disabled ? " off" : ""}`}
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current += 1;
+        if (!disabled) setOver(true);
+      }}
+      onDragOver={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = disabled ? "none" : "copy";
+      }}
+      onDragLeave={() => {
+        depth.current = Math.max(0, depth.current - 1);
+        if (!depth.current) setOver(false);
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        depth.current = 0;
+        setOver(false);
+        if (!disabled) onFiles(Array.from(e.dataTransfer.files || []));
+      }}
+    >
+      <Icon name="download" />
+      <span>
+        <strong>Drop {label.toLowerCase()} recordings here</strong>
+        <span className="at-drop-sub">or press to choose files — several at once is fine</span>
+      </span>
+      <input
+        type="file"
+        accept="audio/*"
+        multiple
+        className="at-hidden"
+        disabled={disabled}
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          if (files.length) onFiles(files);
+          e.target.value = "";
+        }}
+      />
+    </label>
   );
 }
 
@@ -1958,10 +2075,16 @@ function PickSheet({ title, lede, className = "", onClose, children }: {
  * line long and belongs near the top, beside what kind of card this is:
  * both are facts about the card rather than about its words.
  */
-function DeckSwitch({ decks, chosen, onToggle }: {
-  decks: Deck[];
+export function DeckSwitch({ decks, chosen, onToggle, of = "card" }: {
+  /* Only what is shown of a deck: a card's editor hands over whole decks,
+     and the number screen hands over the decks a part of the numbers can
+     go in. */
+  decks: Pick<Deck, "id" | "title" | "locked" | "cardCount">[];
   chosen: string[];
   onToggle: (id: string, wasOn: boolean) => void;
+  /** What is being put in decks, as the row and the sheet name it — a
+      card, or a part of a language's numbers. */
+  of?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -1988,7 +2111,7 @@ function DeckSwitch({ decks, chosen, onToggle }: {
             ) : (
               <button
                 className="at-deckdrop"
-                aria-label={`Take this card out of ${d.title}`}
+                aria-label={`Take this ${of} out of ${d.title}`}
                 onClick={() => onToggle(d.id, true)}
               >
                 <Icon name="close" size={16} />
@@ -2008,12 +2131,12 @@ function DeckSwitch({ decks, chosen, onToggle }: {
             onClick={() => setOpen(true)}
           >
             <Icon name="add" size={17} />
-            {inThese.length ? "Another deck" : "Add this card to a deck"}
+            {inThese.length ? "Another deck" : `Add this ${of} to a deck`}
           </button>
         )}
 
         {!all.length && (
-          <Help>You have no decks yet. Make one under Decks, then this card can go in it.</Help>
+          <Help>{`You have no decks yet. Make one under Decks, then this ${of} can go in it.`}</Help>
         )}
       </div>
 
@@ -2022,7 +2145,7 @@ function DeckSwitch({ decks, chosen, onToggle }: {
       {open && (
         <PickSheet
           title="Decks"
-          lede="Choose the decks this card belongs to."
+          lede={`Choose the decks this ${of} belongs to.`}
           className="at-decksheet"
           onClose={() => setOpen(false)}
         >
@@ -2039,7 +2162,7 @@ function DeckSwitch({ decks, chosen, onToggle }: {
                 >
                   <span className="at-tickbody">
                     <b>{d.title}</b>
-                    <i>{plural(d.cardCount || 0, "card")}</i>
+                    <i>{deckSize(d)}</i>
                   </span>
                   {/* What tapping it does, rather than a tick saying what
                       is already true: the row is the verb. A locked deck
@@ -2053,7 +2176,7 @@ function DeckSwitch({ decks, chosen, onToggle }: {
               );
             })}
           </div>
-          <Help>A student sees this card only where it is in a deck their course uses.</Help>
+          <Help>{`A student sees this ${of} only where it is in a deck their course uses.`}</Help>
         </PickSheet>
       )}
     </div>
@@ -3102,6 +3225,254 @@ const withoutCardDims = (dims: GrammarDim[]) => (answer: Record<string, any>) =>
   return out;
 };
 
+/* ---- a noun's boxes ----
+
+   A noun is a word and a few shapes of it, and which shapes is the
+   language's to say rather than the teacher's to remember: the singular,
+   the plural and the pair, where the language counts in pairs. So a noun's
+   card is laid out as one box per shape, already marked, rather than as a
+   word and an "Add a form" button whose forms each had to be marked by hand
+   — and a plural nobody marked was a plural no counting question could
+   find.
+
+   Gender is the other axis, and it is two different things depending on
+   the word. A thing has one gender — كتاب is masculine and ساعة feminine,
+   and there is no feminine *book* — so it is asked once, for the whole
+   card. A person or an animal comes in both — معلم and معلمة, قط and قطة —
+   so the card has a side for each, every box of it again.
+
+   Nothing new is stored. A box is read off the number and gender a form
+   already carries, so a card written before the boxes opens with its
+   marked forms in them, and a form that matches no free box is shown under
+   them as it was. What a box adds is written onto the form when the card
+   is saved — see stampNounForms. */
+
+/** How a noun card's forms are laid out: one gender, or two sides. */
+export type NounLayout = "single" | "paired" | "";
+
+/** One box: the shape of the word it holds, and what it is called. */
+export interface NounBox {
+  key: string;
+  number: string;
+  /** The side it is on, where the word has two. Empty where gender is
+      the card's. */
+  gender: string;
+  title: string;
+  /** Said under the box, where its number has something to say. */
+  help?: string;
+  /** Whether a form written into it starts out of practice. */
+  unasked?: boolean;
+}
+
+/**
+ * Whether a card is laid out in boxes, and which way.
+ *
+ * Only a noun, and only in a language whose nouns are asked their number:
+ * Huế marks none, and its nouns stay the word and whatever forms a teacher
+ * writes. A person or an animal has two sides; anything else, one.
+ */
+export function nounLayoutOf(
+  lang: Lang | null | undefined,
+  category: string | null | undefined,
+  human: string | null | undefined,
+): NounLayout {
+  if (category !== "noun") return "";
+  const dims = answerDims(lang, category);
+  if (!dims.some((d) => d.field === "number")) return "";
+  const paired = (human === "person" || human === "animal") && sidesOf(dims).length > 1;
+  return paired ? "paired" : "single";
+}
+
+/* The two sides a person or an animal comes in, from the language's own
+   genders. A neuter is not a side. */
+const sidesOf = (dims: GrammarDim[]): [string, string][] =>
+  ((dims.find((d) => d.field === "gender") || { options: [] }).options as [string, string][])
+    .filter(([v]) => v === "masculine" || v === "feminine");
+
+/**
+ * The boxes, in the order they are drawn: every number the language offers
+ * but "doesn't apply" — on each side, where there are two.
+ */
+export function nounBoxes(lang: Lang | null | undefined, layout: NounLayout): NounBox[] {
+  if (!layout) return [];
+  const dims = answerDims(lang, "noun");
+  const dim = dims.find((d) => d.field === "number");
+  const numbers = ((dim || { options: [] }).options as [string, string][]).filter(([v]) => v !== "na");
+  /* What a value says about its box — Arabic's plural after three to ten
+     has a line under it and is not asked on its own. */
+  const extra = (v: string) => {
+    const rule = (dim && dim.optionRules && dim.optionRules[v]) || {};
+    return { ...(rule.help ? { help: rule.help } : null), ...(rule.unasked ? { unasked: true } : null) };
+  };
+  if (layout === "single") {
+    return numbers.map(([v, label]) => ({ key: v, number: v, gender: "", title: cap(label), ...extra(v) }));
+  }
+  return sidesOf(dims).flatMap(([g, side]) =>
+    numbers.map(([v, label]) => ({
+      key: `${g}:${v}`,
+      number: v,
+      gender: g,
+      title: cap(`${side} ${label}`),
+      ...extra(v),
+    })),
+  );
+}
+
+/**
+ * What one form says it is: its number and gender, where every answer it
+ * accepts says the same. Null where they differ — two answers of one form
+ * marked singular and plural — which is a form no single box describes.
+ */
+export function formSays(form: Record<string, any> | null | undefined): { number: string; gender: string } | null {
+  const f = form || {};
+  const answers = answersOf(f, answerFields());
+  const read = (a: Record<string, any>, k: string) => String(a[k] || f[k] || "").trim();
+  if (!answers.length) return { number: read({}, "number"), gender: read({}, "gender") };
+  const number = read(answers[0], "number");
+  const gender = read(answers[0], "gender");
+  if (answers.some((a) => read(a, "number") !== number || read(a, "gender") !== gender)) return null;
+  return { number, gender };
+}
+
+/**
+ * Which form is in which box, and which forms are in none.
+ *
+ * The card's own word always has a box: where it says no number it is the
+ * singular, which is what a noun's own word is, and where its answers
+ * disagree its first one decides. Any other form goes where its number and
+ * gender say — and a form that says no gender is on the side the word is
+ * on, which is what a plural nobody marked means. The first form to claim
+ * a box has it, a form with words before an empty one; the rest are
+ * `extras`, shown under the boxes as they always were, so nothing a card
+ * carries goes missing. An empty form in no box is not shown at all: it
+ * holds nothing, and the save drops it.
+ */
+export function placeNounForms(
+  forms: Record<string, any>[],
+  boxes: NounBox[],
+  layout: NounLayout,
+): { at: Record<string, number>; extras: number[] } {
+  const at: Record<string, number> = {};
+  const extras: number[] = [];
+  if (!boxes.length || !forms.length) return { at, extras };
+  const keys = new Set(boxes.map((b) => b.key));
+  const lead = forms[0] || {};
+  const leadSays = formSays(lead) || leadFirstAnswer(lead);
+  const side = layout === "paired"
+    ? (boxes.some((b) => b.gender === leadSays.gender) ? leadSays.gender : boxes[0].gender)
+    : "";
+  const keyOf = (i: number): string => {
+    const says = i === 0 ? leadSays : formSays(forms[i]);
+    if (!says) return "";
+    let number = says.number;
+    if (!number || number === "na") {
+      if (i !== 0) return "";
+      number = boxes[0].number;
+    }
+    const key = layout === "paired" ? `${says.gender || side}:${number}` : number;
+    return keys.has(key) ? key : "";
+  };
+  const order = [0]
+    .concat(forms.map((_, i) => i).filter((i) => i > 0 && hasWords(forms[i])))
+    .concat(forms.map((_, i) => i).filter((i) => i > 0 && !hasWords(forms[i])));
+  for (const i of order) {
+    const key = keyOf(i);
+    if (key && !(key in at)) at[key] = i;
+    else if (i > 0 && hasWords(forms[i])) extras.push(i);
+  }
+  return { at, extras: extras.sort((a, b) => a - b) };
+}
+
+/* The card's own word read by its first answer alone, for a word whose
+   answers disagree: it has to be somewhere. */
+const leadFirstAnswer = (form: Record<string, any>): { number: string; gender: string } => {
+  const first = answersOf(form, answerFields())[0] || {};
+  const read = (k: string) => String((first as Record<string, any>)[k] || form[k] || "").trim();
+  return { number: read("number"), gender: read("gender") };
+};
+
+/**
+ * The forms as they will be saved: each in a box marked as that box.
+ *
+ * The number is the box's, and so is the gender on a card with two sides;
+ * on a card with one, the gender is the card's, written onto every box so
+ * the plural agrees with what the singular is. Taken off the answers at
+ * the same time, where they all said the same thing anyway, because an
+ * answer's own grammar wins over its form's and a stale one would win.
+ *
+ * A form whose answers disagree is left exactly as it is, in a box or not:
+ * marking it would be saying one thing about two words.
+ */
+export function stampNounForms(
+  forms: Record<string, any>[],
+  boxes: NounBox[],
+  layout: NounLayout,
+  gender: string,
+): Record<string, any>[] {
+  if (!layout) return forms;
+  const { at } = placeNounForms(forms, boxes, layout);
+  const out = forms.slice();
+  for (const box of boxes) {
+    const i = at[box.key];
+    if (i === undefined || !formSays(out[i])) continue;
+    const form = out[i];
+    out[i] = {
+      ...form,
+      number: box.number,
+      gender: layout === "paired" ? box.gender : gender,
+      ...(Array.isArray(form.answers) ? { answers: form.answers.map(withoutNumberAndGender) } : null),
+    };
+  }
+  return out;
+}
+
+const withoutNumberAndGender = (answer: Record<string, any>) => {
+  const { number: _n, gender: _g, ...rest } = answer || {};
+  return rest;
+};
+
+/** The gender a noun with one gender has: its own word's. */
+export const nounGenderOf = (forms: Record<string, any>[]): string => {
+  const lead = forms[0] || {};
+  return (formSays(lead) || leadFirstAnswer(lead)).gender;
+};
+
+/**
+ * The card's own word, kept on a box with something in it.
+ *
+ * The card's own word is the first form, and it has to be written for the
+ * card to be saved. On a person or an animal either side is enough — a
+ * teacher who knows قطة and not its masculine writes the feminine and
+ * nothing else — so where the first form is empty and a box further down
+ * is not, the two change places. Everything but the name goes with the
+ * words, and the pronouns on the end of each go with it too, so nothing is
+ * lost: the empty one is left behind in the box it was in, and an empty
+ * form is not saved.
+ */
+export function leadFirst(
+  forms: Record<string, any>[],
+  cells: Record<string, any>[],
+  boxed: number[],
+): { forms: Record<string, any>[]; cells: Record<string, any>[] } {
+  if (!forms.length || hasWords(forms[0])) return { forms, cells };
+  const j = boxed.filter((i) => i > 0 && hasWords(forms[i])).sort((a, b) => a - b)[0];
+  if (j === undefined) return { forms, cells };
+  const id = String(forms[j].id || "");
+  const { id: _id, ...moved } = forms[j];
+  const out = forms.slice();
+  out[0] = moved;
+  out[j] = { ...forms[0], id };
+  return {
+    forms: out,
+    cells: cells.map((c) => {
+      const of = String(c.of || "");
+      if (id && of === id) return { ...c, of: "" };
+      if (!of) return { ...c, of: id };
+      return c;
+    }),
+  };
+}
+
 /*
  * The cells a card opens with — every sub-form that sits in a table.
  *
@@ -3584,6 +3955,16 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     worded && !!(categoryOf(lang, category) || { table: "" }).table && !table;
   /* Whether every form carries the table, or the card does. */
   const perForm = !!(shownSpec && shownSpec.perForm);
+  /* Whether this is a noun laid out in boxes, one per shape of the word —
+     and with a side for each gender, where it is a person or an animal.
+     See nounBoxes. Which form is in which box is read off the forms on
+     every render, so a form marked plural is in the plural box the moment
+     it says so. */
+  const nounLayout: NounLayout = worded
+    ? nounLayoutOf(lang, category, String((forms[0] || {}).human || ""))
+    : "";
+  const nounBoxList = useMemo(() => nounBoxes(lang, nounLayout), [lang, nounLayout]);
+  const nounPlaced = placeNounForms(forms, nounBoxList, nounLayout);
   /* What the stored card already carries, which is what the radio may no
      longer take away — see storedFormsOf. */
   const storedForms: CardForms = storedFormsOf(card, lang);
@@ -3969,7 +4350,16 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
      it rather than against a block nobody is filling in. Each of them
      carrying what its blanks ask their verbs for, which is one answer for
      the card and is written where the reader of a blank looks. */
-  const ownForms = withLinks(withRows([lead].concat(forms.slice(1)), blankRows, holes), blankLinks, holes);
+  const ownForms = withLinks(
+    withRows(
+      /* A noun's boxes marked as the boxes they are — see stampNounForms. */
+      stampNounForms([lead].concat(forms.slice(1)), nounBoxList, nounLayout, nounGenderOf(forms)),
+      blankRows,
+      holes,
+    ),
+    blankLinks,
+    holes,
+  );
   /* And the card's own word as it will be saved, which is what everything
      below reads: the holes it leaves, the words behind them, the sentences
      it is met as, and what the save sends. */
@@ -4513,7 +4903,66 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
     [starved, rowsKey, allCards, lang],
   );
-  const setForm: (i: number, next: any) => void = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
+  /* On a noun in boxes, the card's own word is kept on a box with words in
+     it — see leadFirst — so writing only the feminine of a person is a card
+     that can be saved. Read off the forms as they stand, because the move
+     changes the cells as well as the forms and the two have to agree. */
+  const settle = (next: Record<string, any>[]) => {
+    if (!nounLayout) {
+      setForms(next);
+      return;
+    }
+    const placed = placeNounForms(next, nounBoxList, nounLayout);
+    const moved = leadFirst(next, cells, Object.values(placed.at));
+    setForms(moved.forms);
+    if (moved.cells !== cells) setCells(moved.cells);
+  };
+  const setForm: (i: number, next: any) => void = (i, next) =>
+    nounLayout
+      ? settle(forms.map((x, j) => (j === i ? next : x)))
+      : setForms((f) => f.map((x, j) => (j === i ? next : x)));
+  /*
+   * A box nobody has written in, as the form it would be.
+   *
+   * Not kept in the draft until something is typed into it: six empty
+   * forms on every person, each with a table of pronouns under it, would
+   * be six forms for the save to drop and for every list of the card's
+   * parts to step over. The box is drawn from this, and the first thing
+   * typed makes it real — see fillBox.
+   */
+  const emptyBox = (box: NounBox): Record<string, any> => {
+    const form = {
+      ...blankForm(),
+      ...cardGrammar(),
+      number: box.number,
+      gender: nounLayout === "paired" ? box.gender : nounGenderOf(forms),
+    };
+    /* A box whose word is only said inside something bigger — the plural
+       after three to ten, inside a counted phrase — starts out of practice
+       on its own and out of sentences. Its ticks are still there. */
+    return box.unasked ? setPartFlags(form, false, false) : form;
+  };
+  const fillBox = (box: NounBox, next: Record<string, any>) =>
+    settle(forms.concat([{ ...emptyBox(box), ...next, id: formName(forms) }]));
+  /* A thing's gender, which is the card's: on every form in a box, and off
+     their answers, where an older card may have said it one answer at a
+     time. */
+  const setNounGender = (value: string) => {
+    const boxed = new Set(Object.values(nounPlaced.at));
+    setForms((f) =>
+      f.map((form, i) =>
+        boxed.has(i) && formSays(form)
+          ? {
+              ...form,
+              gender: value,
+              ...(Array.isArray(form.answers)
+                ? { answers: form.answers.map(({ gender: _g, ...a }: Record<string, any>) => a) }
+                : null),
+            }
+          : form,
+      ),
+    );
+  };
 
   /*
    * An axis that belongs to the card, answered for all of it at once.
@@ -4717,6 +5166,14 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     removeForm,
     setCardDim,
     cardGrammar,
+    /* A noun's boxes — see nounBoxes — and what is in them. */
+    nounLayout,
+    nounBoxList,
+    nounPlaced,
+    nounGender: nounGenderOf(forms),
+    setNounGender,
+    emptyBox,
+    fillBox,
     drillsTranslit,
     forms,
     setForms,
@@ -5181,9 +5638,38 @@ function WordKind({ word }: { word: WordDraft }) {
  * given would be asking on the strength of the whole pack's list.
  */
 function WordGrammar({ lang, word }: { lang: Lang; word: WordDraft }) {
-  const { category, categoryOffer, cardGrammar, setCardDim } = word;
+  const { category, categoryOffer, cardGrammar, setCardDim, nounLayout, nounGender, setNounGender } = word;
   const dims = cardDims(lang, category);
   if (!dims.length || (categoryOffer.length && !category)) return null;
+  /*
+   * And a thing's gender, beside whether it is one.
+   *
+   * A noun with one gender has it for the whole word — كتاب is masculine,
+   * and so is كتب — so it is asked here, once, rather than of each box. A
+   * person or an animal is not asked it at all: its two sides are its
+   * gender. Never required. A teacher who does not know can leave it, and
+   * the word is kept out of the sentences and counting questions that
+   * would have had to guess.
+   */
+  const genderDim = nounLayout === "single"
+    ? answerDims(lang, category).find((d) => d.field === "gender") || null
+    : null;
+  if (genderDim) {
+    return (
+      <Field label={`${categoryLabel(lang, category) || "Word"} property`} className="at-mt3">
+        <GrammarToggles
+          dims={[...dims, { ...genderDim, required: false }]}
+          values={{ ...cardGrammar(), gender: nounGender }}
+          onPick={(field, value) => (field === "gender" ? setNounGender(value) : setCardDim(field, value))}
+        />
+        <Help>
+          {dims[0] && dims[0].help ? `${dims[0].help} ` : ""}
+          Leave the gender unset if you don&apos;t know it: the word is then left out of
+          sentences and counting questions that need it.
+        </Help>
+      </Field>
+    );
+  }
   /* Named for the kind of word it is about, because that is what decides
      which axes these are — and where there is only one of them, the field's
      own name is the question, so the axis does not say it again over a row
@@ -5195,7 +5681,7 @@ function WordGrammar({ lang, word }: { lang: Lang; word: WordDraft }) {
       lede={only ? only.help : ""}
       className="at-mt3"
     >
-      <GrammarRadios dims={dims} values={cardGrammar()} onPick={setCardDim} bare={!!only} />
+      <GrammarToggles dims={dims} values={cardGrammar()} onPick={setCardDim} bare={!!only} />
       {only ? null : (
         <Help>
           True of the whole card, its other forms included. It is what the
@@ -6281,9 +6767,11 @@ function ReferenceField({ word, lang }: { word: WordDraft; lang: Lang }) {
   );
 }
 
-function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCopy = true, drills = true, blanks, children }: {
+function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCopy = true, drills = true, blanks, dims, onFill, children }: {
   word: WordDraft;
   lang: Lang;
+  /** Where the form sits in the draft — or -1 for a noun's box nobody has
+      written in yet, which `onFill` makes real. */
   index: number;
   form: Record<string, any>;
   title: string;
@@ -6325,6 +6813,12 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
      `strayHoles` — and this is the other half of the same rule, which is
      that a teacher is never offered what they will then be refused. */
   blanks?: BlankWiring;
+  /** The axes each accepted answer is asked about, where the caller knows
+      better than the kind of word: a noun's box is already marked, so its
+      answers are asked nothing. */
+  dims?: GrammarDim[];
+  /** What the first thing typed into an empty box does with it. */
+  onFill?: (next: Record<string, any>) => void;
   children?: Node;
 }) {
   const { drillsTranslit, parts, setForm, duplicateForm, removeForm, dropBlank } = word;
@@ -6351,7 +6845,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
     <FormFields
       lang={lang}
       form={f}
-      dims={answerDims(lang, word.category)}
+      dims={dims || answerDims(lang, word.category)}
       of={of}
       title={title}
       role={role}
@@ -6378,18 +6872,46 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
       drillsTranslit={drillsTranslit}
       blanks={blanks}
       onRemoveBlank={takeOff}
-      onChange={(patch) => setForm(i, { ...f, ...patch })}
+      onChange={(patch) => (i < 0 && onFill ? onFill({ ...f, ...patch }) : setForm(i, { ...f, ...patch }))}
     >
       {/* And whether this form is drilled, at the foot of the fields it is
           about rather than in a list at the bottom of the screen. */}
-      {drills && mine && <DrillChecks word={word} part={mine} />}
+      {drills && mine && <DrillChecks word={word} part={mine} fold />}
+      {/* Whatever else belongs to this form — its table of attached
+          pronouns — inside its panel, under its fields and their ticks. */}
+      {children}
     </FormFields>
 
     {i === 0 && <ReferenceField word={word} lang={lang} />}
-
-    {children}
   </div>
     </>
+  );
+}
+
+/*
+ * A box most cards leave empty, folded under its own name.
+ *
+ * The same heading-that-opens-it a form's attached pronouns use, so it
+ * reads as the same thing: what is in it said under the name, and one tap
+ * to open it. Folded from the start even where it is written, as the
+ * pronouns are: the word in it is on the heading.
+ */
+function FoldedBox({ title, said, children }: { title: string; said: string; children: Node }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="at-part at-foldedbox">
+      <button
+        type="button"
+        className="at-groupline at-groupfold"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{title}</span>
+        <span className="at-groupcount">{said || "none yet"}</span>
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
+      </button>
+      {open && children}
+    </div>
   );
 }
 
@@ -6400,6 +6922,8 @@ function PronounTable({ word, lang, index: i, form: f }: {
   form: Record<string, any>;
 }) {
   const { forms, parts, shownSpec, cells, setCells, mintCell, setRecordingCell } = word;
+  /* Whether the table is open. Folded to start with — see below. */
+  const [open, setOpen] = useState(false);
   if (!shownSpec || !shownSpec.perForm) return null;
   const of = i === 0 ? "" : String(f.id || "");
   /* This table's own line of what is drilled. Absent while the table is
@@ -6407,9 +6931,11 @@ function PronounTable({ word, lang, index: i, form: f }: {
      these wait on that word being known, so there would be nothing for a
      tick to open. See askParts. */
   const mine = parts.find((p) => p.id === `table:${of}`);
-  const written = cellsIn({ subs: cells }, shownSpec, of).some(
+  const filled = cellsIn({ subs: cells }, shownSpec, of).filter(
     (c) => String(c.ar || "").trim() || String(c.en || "").trim(),
-  );
+  ).length;
+  const written = filled > 0;
+  const total = tensesOf(shownSpec).length * personsOf(shownSpec).length;
   /* ---- the pronouns this form takes on its end ----
 
       Part of the form rather than a section beside it, which is
@@ -6428,10 +6954,32 @@ function PronounTable({ word, lang, index: i, form: f }: {
       The same component the verb's table uses, because it is
       the same thing: cells of a table over the card's own
       sub-forms. Inline, so the eye reads it as belonging to the
-      block it is in. */
+      block it is in.
+
+      Inside the form's own panel since 0.319, rather than a panel
+      beside it in the form's tile — the table is the form's, so it
+      sits in the form's subsection, under its fields and ticks. And
+      folded, with the same heading-that-opens-it the filled examples
+      use: a table of eight or more rows under every form made a card
+      with a plural two screens of boxes before anything else on it,
+      and the heading says how much of it is written, which is the
+      thing worth knowing without opening it. */
   return (
     <div className="at-part">
-      <p className="at-groupline">Its {shownSpec.label || "table"}</p>
+      <button
+        type="button"
+        className="at-groupline at-groupfold"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>Its {shownSpec.label || "table"}</span>
+        <span className="at-groupcount">
+          {written ? `${filled} of ${total} written` : "none yet"}
+        </span>
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
+      </button>
+      {open && (
+      <>
       <VerbTable
         inline
         lang={lang}
@@ -6471,6 +7019,8 @@ function PronounTable({ word, lang, index: i, form: f }: {
           that word being known.
         </p>
       ) : null}
+      </>
+      )}
     </div>
   );
 }
@@ -6489,6 +7039,10 @@ function AddFormButton({ word }: { word: WordDraft }) {
         verb may genuinely have a second spelling; but a spelling is
         an accepted answer, written beside the one it is an
         alternative to, and never a form of its own.
+
+        A noun is not offered one since 0.320: its forms are its boxes,
+        one per number and a side per gender — see NounEditor. What is
+        left on the attached editor is a preposition.
 
         A word that takes a pronoun on its end is offered one again.
         0.130 took the offer away, on the grounds that the plural
@@ -6552,9 +7106,15 @@ const drillLede = (of: DrillOf): string =>
    allow it. */
 const LEND_LEDE = "Inside sentence cards lets any sentence use it; each sentence chooses which kinds of form it wants.";
 
-function DrillChecks({ word, part, label = "How this form can be practiced", of = "this form", lede = true }: {
+function DrillChecks({ word, part, label = "How this form can be practiced", of = "this form", lede = true, fold = false }: {
   word: WordDraft;
   part: AskPart;
+  /** Folded under a heading that opens it, the way a form's attached
+      pronouns are — for the ticks under each form, where a pair of them
+      and a paragraph about them under every box made a noun card a screen
+      of the same question. The heading says what is chosen, which is
+      the thing worth knowing without opening it. */
+  fold?: boolean;
   /* What the ticks are about, in the caller's words: one form under its
      own fields, and a table of them under the table. */
   label?: string;
@@ -6565,7 +7125,45 @@ function DrillChecks({ word, part, label = "How this form can be practiced", of 
   lede?: boolean;
 }) {
   const { canLend, setAskPart, setLendPart } = word;
+  const [open, setOpen] = useState(false);
   const chosen = [part.on ? "ask" : "", canLend && part.lends ? "lend" : ""].filter(Boolean);
+  if (fold) {
+    const said = [part.on ? "on its own" : "", canLend && part.lends ? "in sentences" : ""].filter(Boolean);
+    /* The same box the ticks have always been in, with the heading that
+       opens it in place of their name — so the ticks are where they were,
+       one tap further in. */
+    return (
+      <div className="at-drills">
+        <button
+          type="button"
+          className="at-groupline at-groupfold"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span>{label}</span>
+          <span className="at-groupcount">{said.length ? said.join(" · ") : "not practised"}</span>
+          <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
+        </button>
+        {open && lede ? (
+          <p className="at-hint at-drilllede">
+            {drillLede(of)}
+            {canLend ? " " + LEND_LEDE : null}
+          </p>
+        ) : null}
+        {open && (
+          <CheckList
+            options={[
+              { id: "ask", title: "On its own" },
+              ...(canLend ? [{ id: "lend", title: "Inside sentence cards" }] : []),
+            ]}
+            chosen={chosen}
+            onToggle={(id, wasOn) => (id === "ask" ? setAskPart : setLendPart)(part.id, !wasOn)}
+          />
+        )}
+        {open && !part.on && !(canLend && part.lends) && <Help>Kept and shown, and never asked or lent anywhere.</Help>}
+      </div>
+    );
+  }
   return (
     <div className="at-drills">
       {label ? <span className="at-drillhead">{label}</span> : null}
@@ -6879,9 +7477,13 @@ function TagList({ word, rows, maker, full, open, onOpen, onClose }: {
         </div>
       ) : null}
       <div>
-        <Button variant="ghost" size="sm" icon="add" onClick={onOpen}>
+        {/* Drawn as the deck button at the top of the card is — the same
+            dotted outline of something not there yet — because it is the
+            same act: putting this card somewhere it will be found. */}
+        <button type="button" className="at-tagadd" onClick={onOpen}>
+          <Icon name="add" size={17} />
           Add custom tags
-        </Button>
+        </button>
       </div>
       {open && (
         <TagSheet word={word} rows={rows} maker={maker} full={full} onClose={onClose} />
@@ -7583,7 +8185,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               <span className="at-groupcount">
                 {combos ? plural(combos, "example") : "none yet"}
               </span>
-              <Icon name={examplesOpen ? "chevronUp" : "chevronDown"} size={16} />
+              <Icon name={examplesOpen ? "chevronUp" : "chevronDown"} size={24} />
             </button>
             {examplesOpen && (asked.length > 0 ? (
               <>
@@ -8100,6 +8702,97 @@ function AttachedEditor({ word, lang, allCards, selfId }: {
 }
 
 /*
+ * A noun: one box per shape of the word, already marked — the singular,
+ * the plural and the pair — and a side for each gender where it is a
+ * person or an animal. See nounBoxes.
+ *
+ * The attached editor laid out by the language rather than by the teacher.
+ * Each box is a form with its own pronouns on the end, as before; what has
+ * gone is "Add a form", for the reason an adjective has none: the boxes are
+ * the forms, and a second spelling of one of them is a second accepted
+ * answer in its box. An empty box is never asked. A form the card already
+ * carries that fits no free box is still shown, under them, with its
+ * grammar where it can be changed — mark it as a box that is free and it
+ * moves there.
+ */
+function NounEditor({ word, lang, allCards, selfId }: {
+  word: WordDraft;
+  lang: Lang;
+  allCards: Card[];
+  selfId: string;
+}) {
+  const { forms, nounBoxList, nounPlaced, emptyBox, fillBox } = word;
+  return (
+    <>
+      <FormsSection>
+        {nounBoxList.map((box) => {
+          const i = box.key in nounPlaced.at ? nounPlaced.at[box.key] : -1;
+          const f = i >= 0 ? forms[i] : emptyBox(box);
+          const tile = (
+            <FormBlock
+              /* By the box and not by where its form sits: the card's own
+                 word can change places with another box's (see leadFirst),
+                 and the box being typed into must not be drawn afresh under
+                 the teacher's fingers. */
+              key={box.key}
+              word={word}
+              lang={lang}
+              index={i}
+              form={f}
+              title={box.title}
+              role={box.help ? box.help : i < 0 ? "Empty — never asked." : ""}
+              of={box.title.toLowerCase()}
+              canCopy={false}
+              /* Already marked: the box says what it is. A card whose answers
+                 disagree with each other keeps the question, so what it says
+                 can still be read and changed. */
+              dims={i >= 0 && !formSays(f) ? undefined : []}
+              onFill={(next) => fillBox(box, next)}
+            >
+              {/* Not under a box whose word is only said inside a counted
+                  phrase: nobody says "my tiyyām". */}
+              {i >= 0 && !box.unasked && <PronounTable word={word} lang={lang} index={i} form={f} />}
+            </FormBlock>
+          );
+          /* A box nearly every noun leaves empty — the plural after three
+             to ten — folds under its own name, the way a form's pronouns
+             do, and says under it what is written. */
+          return box.unasked ? (
+            <FoldedBox key={box.key} title={box.title} said={String(f.ar || "").trim()}>
+              {tile}
+            </FoldedBox>
+          ) : tile;
+        })}
+        {nounPlaced.extras.map((i, k) => (
+          <FormBlock
+            key={String(forms[i].id || `extra-${i}`)}
+            word={word}
+            lang={lang}
+            index={i}
+            form={forms[i]}
+            title={nounPlaced.extras.length > 1 ? `Other form ${k + 1}` : "Other form"}
+            role={k === 0 ? "In no box: its grammar matches none of them, or a box that is already filled." : ""}
+            canCopy={false}
+          >
+            <PronounTable word={word} lang={lang} index={i} form={forms[i]} />
+          </FormBlock>
+        ))}
+      </FormsSection>
+      <NothingAsked word={word} />
+      <BlanksBlock word={word} lang={lang} />
+      <WordsUsed
+        lang={lang}
+        text={word.main.ar}
+        cards={allCards}
+        selfId={selfId}
+        chosen={word.uses}
+        onChange={word.setUses}
+      />
+    </>
+  );
+}
+
+/*
  * A sentence: what it says, and the blanks other cards fill in it.
  *
  * "{{noun}} is heavy" is a sentence somebody can say about anything heavy,
@@ -8571,21 +9264,24 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   const talk = useSceneDraft({ card, allCards });
   const [chosen, setChosen] = useState(inDecks || []);
   const canSave = scene ? talk.canSave : word.canSave;
-  /* Which of the six editors this card gets: a conversation, a sentence,
-     or a word — plainly, or with a table, and the table says which
-     editor: one every form carries, one whose rows open one at a time,
-     or one the card carries beside the word. */
+  /* Which of the seven editors this card gets: a conversation, a
+     sentence, a noun laid out in its boxes, or a word — plainly, or with a
+     table, and the table says which editor: one every form carries, one
+     whose rows open one at a time, or one the card carries beside the
+     word. */
   const layout = scene
     ? "scene"
     : shape === "sentence"
       ? "sentence"
-      : !word.shownSpec
-        ? "word"
-        : word.perForm
-          ? "attached"
-          : (word.shownSpec.gate || "word") === "rows"
-            ? "verb"
-            : "table";
+      : word.nounLayout
+        ? "noun"
+        : !word.shownSpec
+          ? "word"
+          : word.perForm
+            ? "attached"
+            : (word.shownSpec.gate || "word") === "rows"
+              ? "verb"
+              : "table";
   const selfId = (card && card.id) || "";
   /* Whether there is a connection, for the line above the first field. */
   const offline = useOffline();
@@ -8665,6 +9361,8 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             <SentenceEditor word={word} lang={lang} allCards={allCards} selfId={selfId} />
           ) : layout === "verb" ? (
             <VerbEditor word={word} lang={lang} allCards={allCards} selfId={selfId} />
+          ) : layout === "noun" ? (
+            <NounEditor word={word} lang={lang} allCards={allCards} selfId={selfId} />
           ) : layout === "attached" ? (
             <AttachedEditor word={word} lang={lang} allCards={allCards} selfId={selfId} />
           ) : layout === "table" ? (

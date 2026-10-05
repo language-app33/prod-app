@@ -152,7 +152,14 @@ export function canAsk(
   if (!spec || spec.retired) return false;
   if ((spec.dialog || "word") !== roleOf(on.unit, on.scene)) return false;
   if (!drilledBy(spec, lang, on.unit)) return false;
+  if (askedInstead(spec, on.unit)) return false;
   return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}, on.mates || 0, on.pictured || 0).length === 0;
+}
+
+/* Whether another exercise asks this one's question of this unit — see
+   `unless`. Not a thing the card is missing, so never offered as one. */
+function askedInstead(spec: ExerciseSpec, unit: Form): boolean {
+  return (spec.unless || []).some((f) => !!(unit as Record<string, unknown>)[f]);
 }
 
 /* The two reasons a language rather than a card refuses an exercise. */
@@ -179,6 +186,10 @@ export interface Offer {
   /** What it is waiting for, where it cannot. */
   missing: string[];
 }
+
+/* What a number system's cards and skills carry and no card a teacher
+   writes ever does. */
+const MADE_NOT_WRITTEN = ["numeral", "rangeNumbers", "rangeCounted", "rangeTime", "rangeFigures"];
 
 /* What a scene has to have that a text never does. */
 const NEVER_OF_TEXT = ["line", "reply", "choices", "order", "part"];
@@ -229,6 +240,13 @@ export function offersFor({
       continue;
     }
     if (!drilledBy(spec, lang)) continue;
+    if (fits.every((u) => askedInstead(spec, u.unit))) continue;
+    /* And the questions only a number system's own cards can carry: what
+       they need is made by the app, so a card without it is not waiting for
+       anything a teacher could add. */
+    if (spec.needs.some((n) => MADE_NOT_WRITTEN.includes(n) && !fits.some((u) => (u.unit as Record<string, unknown>)[n]))) {
+      continue;
+    }
 
     /* The unit that can actually be asked, where there is one — a scene
        with three lines is ready for a reply as soon as any one line is —

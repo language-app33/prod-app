@@ -195,6 +195,9 @@ export interface CastInput {
   langFor: (card: Held) => Lang | null | undefined;
   /** The review a line answers to, or null where it is asked as it always was. */
   gateOf?: (line: Held) => Review | null | undefined;
+  /** Whether a word may stand in the form a line puts it in — a building
+      block the learner has cleared. Every word may, where it is left out. */
+  shown?: (value: Value) => boolean;
   /** How many times the question has come round: the same count is the
       same scene. */
   turn?: number;
@@ -293,7 +296,7 @@ export function castFill(input: CastInput): Record<string, Record<string, Value>
     for (const { line, i } of holed) {
       const drawn = slotsOf(line);
       const took = finishTook(line, null, turned.get(i) || {}, drawn, ownerOf, langFor);
-      if (!took) {
+      if (!took || (input.shown && !drawn.every((slot) => !took[slot] || (input.shown as (v: Value) => boolean)(took[slot])))) {
         ok = false;
         break;
       }
