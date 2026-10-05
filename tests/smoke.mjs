@@ -7180,7 +7180,9 @@ const openPronounTables = async () => {
     const partsOf = () => {
       const block = [...document.querySelectorAll(".at-formblock")].find((b) =>
         /^Singular$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
-      return block ? [...block.querySelectorAll(".at-part")] : [];
+      /* Not the practice ticks' own panel, which since 0.355 is drawn as
+         a subsection too but is the foot of the one it sits in. */
+      return block ? [...block.querySelectorAll(".at-part:not(.at-drills)")] : [];
     };
     /* A subsection's own heading, and not one inside it: the pronouns'
        panel sits in the word's, and its fold is a heading the word's

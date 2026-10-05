@@ -7129,11 +7129,13 @@ function DrillChecks({ word, part, label = "How this form can be practiced", of 
   const chosen = [part.on ? "ask" : "", canLend && part.lends ? "lend" : ""].filter(Boolean);
   if (fold) {
     const said = [part.on ? "on its own" : "", canLend && part.lends ? "in sentences" : ""].filter(Boolean);
-    /* The same box the ticks have always been in, with the heading that
-       opens it in place of their name — so the ticks are where they were,
-       one tap further in. */
+    /* The same panel a form's attached pronouns sit in, opened by the
+       same heading — so the two folds under a form look and behave as one
+       kind of thing, with the ticks one tap further in. They were a ruled
+       strip at the foot of the form's fields, which read as part of those
+       fields rather than as a subsection beside the pronouns. */
     return (
-      <div className="at-drills">
+      <div className="at-part at-drills">
         <button
           type="button"
           className="at-groupline at-groupfold"

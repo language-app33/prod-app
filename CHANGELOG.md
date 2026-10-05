@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.355 — 5 October 2026
+
+**"How this form can be practiced" opens the same way as "Its attached pronouns".**
+
+- When creating or editing a card, the practice choices under each form
+  now sit in their own panel, folded under a heading you tap to open —
+  exactly like the attached pronouns beside them. The heading still says
+  what is chosen, so there is no need to open it just to check.
+
 ## 0.354 — 5 October 2026
 
 **"Learn more" on a number question shows everything worth knowing about the number.**

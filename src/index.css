@@ -1087,6 +1087,10 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    stacked, and parted from the ticks above it as they are from the
    fields. */
 .at-part > .at-part { margin-top:12px; background: var(--raised); }
+/* The practice ticks folded under each form are such a panel too, the
+   same as the pronouns' beside them — so the strip's rule and padding
+   above give way to the panel's own frame. */
+.at-part.at-drills { padding:12px; border-top:1px solid var(--line); }
 /* Except the first one under a heading of its own. The rule is there to
    part the ticks from the fields they are the foot of; the practice
    section has no fields above them, so it drew a line between a heading
