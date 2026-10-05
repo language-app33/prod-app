@@ -791,6 +791,7 @@ test("the settings say which level each exercise stands on, and every one has a 
   assert.deepEqual(TYPES.filter((t) => levelOf(t) === 1), [
     "ar2pick", "ar2en", "rec2en", "rec2img", "dlgwhole",
     "num2fig", "rec2fig", "time2fig",
+    "dig2fig",
   ]);
   assert.equal(levelOf("no-such-exercise"), 1, "an unknown type is read as the bottom level, not a crash");
 });

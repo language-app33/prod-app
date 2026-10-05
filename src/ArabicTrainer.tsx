@@ -197,7 +197,7 @@ import {
   seeded,
 } from "./numbers/range.ts";
 import type { Asking, SystemSet } from "./numbers/generate.ts";
-import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, inOwnFigures, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
+import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, inOwnFigures, isNumeralCard, isRangeSkill, numeralId, stretchBefore, systemFor, systemIdOf, systemOfId } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
@@ -322,11 +322,18 @@ export const cardStandings = (
   keys: (unit: Form, settings: Settings) => string[] = laddered,
 ): Standing[] => {
   const rows = standingsOf(it, (u) => keys(u, settings));
-  if (!it.parts || !among || !rows.length) return rows;
-  const held = partsOf(it, among, settings, keys).filter((p) => p.validated === false).length;
+  if (!among || !rows.length) return rows;
+  const words = it.parts ? partsOf(it, among, settings, keys).filter((p) => p.validated === false).length : 0;
+  const figures = numeralsOf(it, among, settings, keys).filter((p) => p.validated === false).length;
+  const held = words + figures;
   if (!held) return rows;
   const top = rows[rows.length - 1];
-  return rows.slice(0, -1).concat([{ ...top, status: top.status === "done" ? "cleared" : top.status, held }]);
+  return rows.slice(0, -1).concat([{
+    ...top,
+    status: top.status === "done" ? "cleared" : top.status,
+    held,
+    ...(figures ? { heldFigures: figures } : null),
+  }]);
 };
 
 /**
@@ -355,6 +362,45 @@ export function towardsLearnt(it: Item, settings: Settings, among: Item[]): { at
   const at = standing(rows);
   if (!at) return null;
   return { at, share: rows.filter((r) => r.status === "done").length / rows.length };
+}
+
+/**
+ * The ten figures a range is written in, as the learner stands on each —
+ * in the shape partsOf gives a word, and read the same way.
+ *
+ * Only for a range of a language with figures of its own, which is what
+ * `rangeFigures` on its form says. A number is learnt only once it can be
+ * read and written in those figures, and every number is written in
+ * these ten, so a range is held at Cleared until they are learnt too —
+ * the way it is held for a word it is built from.
+ */
+export function numeralsOf(
+  it: Item,
+  among: Item[],
+  settings: Settings,
+  keys: (unit: Form, settings: Settings) => string[] = laddered,
+): { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] {
+  if (!isRangeSkill(it) || !(it.forms[0] && it.forms[0].rangeFigures)) return [];
+  return numeralCardsOf(systemIdOf(it), among).map((card) => {
+    const at = standing(standingsOf(card, (u) => keys(u, settings)));
+    return {
+      card,
+      at,
+      validated: at ? at.status === "done" : null,
+      met: unitsOf(card).some(({ unit }) => keys(unit, settings).some((k) => stateOf(unit, k).phase !== "new")),
+    };
+  });
+}
+
+/* The ten figure cards of one system the learner holds, ٠ to ٩. */
+export function numeralCardsOf(system: string, among: Item[]): Item[] {
+  const byId = byIdOf(among);
+  const out: Item[] = [];
+  for (let d = 0; d <= 9; d++) {
+    const card = byId.get(numeralId(system, d));
+    if (card) out.push(card);
+  }
+  return out;
 }
 
 /* Every card in a collection by id, once per collection: a part asks after
@@ -744,7 +790,7 @@ function standingLabel(at: Standing | null): string {
      reviews line would say "0 reviews to go" over a part that is not
      learnt, so it says what it is waiting on instead. */
   if (at.status === "cleared" && at.held && at.passes >= PASSES_TO_LEARN) {
-    return `Cleared · ${plural(at.held, "word")} to learn`;
+    return `Cleared · ${heldWhat(at)} to learn`;
   }
   if (at.status === "cleared") {
     return `Cleared · ${PASSES_TO_LEARN - at.passes} ${
@@ -1448,6 +1494,56 @@ function setQuietUnits(quiet: Set<string>) {
 const isQuiet = (unit: Form): boolean => !!unit && QUIET_UNITS.has(unit.id);
 
 /* ------------------------------------------------------------------
+   The ten figures, known
+
+   Writing ٤٧ — from 47, or from the number in words — is asked only once
+   the learner has cleared the ten figures it is written in: see
+   `afterNumerals` on the exercise. Until then those questions are not on
+   a range's ladder at all, so nothing waits on them; once the ten are
+   cleared they join it, on the third rung.
+
+   Per number system, read off the ten cards that system brought, and
+   afresh with every change, as every gate here is: a figure slipping off
+   cleared takes the questions away again until it is back. A system whose
+   figures the learner holds none of has nothing to wait on.
+
+   Held at module level for the reason the counts below are: what a range
+   can be asked depends on other cards, and availableTypes is handed one
+   form. Setting it throws away what forms can be asked, so it is set
+   before the walks that read that.
+   ------------------------------------------------------------------ */
+
+let NUMERALS_KNOWN: Map<string, boolean> = new Map();
+
+export function setNumeralsKnown(map: Map<string, boolean>) {
+  NUMERALS_KNOWN = map || new Map();
+  forgetTypes();
+}
+
+/* Whether the figures of the system this form belongs to are cleared. */
+const numeralsKnownFor = (unit: Form): boolean => NUMERALS_KNOWN.get(systemOfId(unit && unit.id)) !== false;
+
+/**
+ * Which systems' ten figures the learner has cleared — up every level of
+ * each card's own ladder. A figure they were never handed is not waited
+ * on, and neither is one that cannot be asked anything.
+ */
+export function numeralsKnownOf(items: Item[], settings: Settings): Map<string, boolean> {
+  const out: Map<string, boolean> = new Map();
+  for (const card of items) {
+    if (!isNumeralCard(card) || !isDrillable(card, settings)) continue;
+    const unit = leadOf(card);
+    if (!isAsked(unit)) continue;
+    const types = availableTypes(unit, langOf(settingsFor(settings, card)));
+    if (!types.length) continue;
+    const system = systemIdOf(card);
+    const ok = cleared(types, (t) => statesOf(unit)[t]);
+    out.set(system, (out.get(system) ?? true) && ok);
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------
    The cells a known word is not asked every way about
 
    A word with pronouns on its end carries eight of them per form, and each
@@ -1881,6 +1977,7 @@ export function installIndexes(items: Item[], settings: Settings, systems: Syste
   const lent = items.concat(systems.flatMap((set) => fillerCards(composerFor(set.numbers.languageId), set.numbers)));
   setValueIndex(valueIndexOf(lent, settings));
   setReviewGate(reviewGateOf(items));
+  setNumeralsKnown(numeralsKnownOf(items, settings));
   /*
    * The counts before the three walks that read them, and not after.
    *
@@ -2839,7 +2936,7 @@ function availableTypes(
       { unit: it, scene: at, contexts: contextsFor(it.id), values, mates: matesFor(it), pictured: picturedFor(it) },
       t,
       lang
-    )
+    ) && (!EX[t].afterNumerals || numeralsKnownFor(it))
   );
   if (own) TYPE_CACHE.set(it, { lang: lang.id, types });
   return types;
@@ -7107,6 +7204,59 @@ function Keyboard({ onKey, onBack, onClear, onHide, lang }: {
   );
 }
 
+/*
+ * The ten figures a language writes numbers in, as keys: ٠ to ٩.
+ *
+ * Up whenever an answer is to be written in them, without being asked
+ * for. A laptop keyboard has no ٤ on it and a phone's number pad has only
+ * 4, so for most learners these keys are the only way to write the answer
+ * at all — which is not a thing to hide behind a button. In the order the
+ * figures count, left to right as a number is written, and a colon for a
+ * clock.
+ */
+/* The figures a language writes numbers in, by name and with three of
+   them: "Eastern Arabic numerals (١٢٣)". */
+const ownNamed = (lang: Lang): string => {
+  const name = lang.numeralsLabel || "its own numerals";
+  return lang.numerals ? `${name} (${lang.numerals(123)})` : name;
+};
+
+function NumeralPad({ lang, clock, onKey, onBack, onClear }: {
+  lang: Lang;
+  clock: boolean;
+  onKey: (key: string) => void;
+  onBack: () => void;
+  onClear: () => void;
+}) {
+  const write = lang.numerals;
+  if (!write) return null;
+  const figures = Array.from({ length: 10 }, (_, d) => String(write(d) || "")).filter(Boolean);
+  return (
+    <div className="at-kb at-numpad" data-el="numeral-pad" dir="ltr">
+      <div className="at-kbrow fit">
+        {figures.map((ch) => (
+          <button key={ch} type="button" className="at-key" lang={lang.id} onClick={() => onKey(ch)}>
+            {ch}
+          </button>
+        ))}
+      </div>
+      <div className="at-kbrow">
+        {clock && (
+          <button type="button" className="at-key" onClick={() => onKey(":")} aria-label="Colon">
+            :
+          </button>
+        )}
+        <button type="button" className="at-key util" onClick={onBack} aria-label="Backspace">
+          ⌫
+        </button>
+        <button type="button" className="at-key util" onClick={onClear}>
+          clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function caretInsert(ref: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>, value: string, setValue: (next: string) => void, ch: string) {
   const el = ref.current;
   if (!el) return setValue(value + ch);
@@ -9186,6 +9336,11 @@ export default function ArabicTrainer() {
   const reviewGate = useMemo(() => reviewGateOf(asking), [asking]);
   setReviewGate(reviewGate);
 
+  /* And whether the ten figures each number system writes in are cleared,
+     which is what decides whether a range is asked to write in them. */
+  const numeralsKnown = useMemo(() => numeralsKnownOf(asking, settings), [asking, settings]);
+  setNumeralsKnown(numeralsKnown);
+
   /* And how many words each language has to pair against.
 
      Before the three walks below rather than in among them: each of these
@@ -10351,6 +10506,10 @@ export default function ArabicTrainer() {
   /* Typed in figures and nothing else, on the phone's number pad. Its box
      is drawn for a few digits rather than a sentence. */
   const figures = !!exercise && answersInFigures(item, exercise.type);
+  /* Written in the language's own figures — ٤٧ — on the keys under the
+     box. See NumeralPad. */
+  const ownFigures = !!spec && spec.answerMode === "own";
+  const ownPrompt = "Use the keys below";
 
   useEffect(() => {
     if (exercise && inputRef.current && !checked) inputRef.current.focus();
@@ -10430,6 +10589,18 @@ export default function ArabicTrainer() {
       setTyped("");
       sfx("wrong");
       flash("Almost — one letter out. Try it again.");
+      if (inputRef.current) inputRef.current.focus();
+      return;
+    }
+    /* The right number, in the figures English uses, where the question
+       asked for the language's own: asked again, once, saying which — the
+       question is about the figures, and 47 for ٤٧ is a learner who has
+       not seen what it wants rather than one who could not write it. */
+    if (!result.ok && (result as { western?: boolean }).western && !retried && !skipped && !toldAnswer) {
+      setRetried(true);
+      setTyped("");
+      sfx("wrong");
+      flash(`Right number — now write it in ${ownNamed(qLang)}.`);
       if (inputRef.current) inputRef.current.focus();
       return;
     }
@@ -11732,9 +11903,10 @@ export default function ArabicTrainer() {
                         /* A number met in the figures English uses is met
                            in the language's own beside them, so ٤٧ is
                            known by the time the top of the ladder asks
-                           from it alone. */
+                           from it alone. Not where those are the answer:
+                           47 alone, asked to be written as ٤٧. */
                         value={
-                          spec.promptField === "en" && item.numeral && item.en
+                          spec.promptField === "en" && item.numeral && item.en && spec.answerField !== "numeral"
                             ? `${item.numeral} · ${item.en}`
                             : item[spec.promptField]
                         }
@@ -11905,7 +12077,7 @@ export default function ArabicTrainer() {
                         className={
                           spec.answerMode === "ar"
                             ? `at-inputwrap${qLang.direction === "rtl" ? " rtl" : ""}`
-                            : figures
+                            : figures || ownFigures
                               ? "at-figwrap"
                               : undefined
                         }
@@ -11930,22 +12102,25 @@ export default function ArabicTrainer() {
                              input is declared as that language — not as Arabic,
                              which sent Vietnamese answers through an Arabic
                              spellchecker and read them out as Arabic. */
-                          lang={spec.answerMode === "ar" ? qLang.id : undefined}
-                          dir={spec.answerMode === "ar" ? qLang.direction : undefined}
+                          lang={spec.answerMode === "ar" || ownFigures ? qLang.id : undefined}
+                          dir={spec.answerMode === "ar" ? qLang.direction : ownFigures ? "ltr" : undefined}
                           className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
-                            figures ? " fig" : ""
-                          }${checked ? (checked.ok ? " ok" : " no") : ""}`}
+                            figures || ownFigures ? " fig" : ""
+                          }${ownFigures ? " own" : ""}${checked ? (checked.ok ? " ok" : " no") : ""}`}
                           data-el="answer-input"
                           /* A number in figures and nothing else: a phone's
                              number pad, not its letters. Not a time — the
                              pad has no colon. A number written out in the
                              language's script is an "ar" answer, not one of
                              these, and keeps its letters and on-screen keys. */
-                          inputMode={figures ? "numeric" : undefined}
-                          autoComplete={figures ? "off" : undefined}
+                          /* And in the language's own figures, the keys
+                             under the box are the keyboard: a phone's own
+                             would only offer 4 for ٤, so it stays down. */
+                          inputMode={figures ? "numeric" : ownFigures ? "none" : undefined}
+                          autoComplete={figures || ownFigures ? "off" : undefined}
                           value={typed}
                           readOnly={!!checked}
-                          placeholder={figures ? "Type the number" : spec.placeholder}
+                          placeholder={figures ? "Type the number" : ownFigures ? ownPrompt : spec.placeholder}
                           onChange={(e) => setTyped(e.target.value)}
                           /* Only the Check button checks. Enter — and a
                              phone keyboard's Go, which is the same key —
@@ -11972,6 +12147,11 @@ export default function ArabicTrainer() {
                             Type the number
                           </span>
                         )}
+                        {ownFigures && !checked && !typed && (
+                          <span className="at-figprompt own" aria-hidden="true">
+                            {ownPrompt}
+                          </span>
+                        )}
                         {!checked && spec.answerMode === "ar" && (
                           /* Keeps the caret where it was: tapping the button
                              would otherwise blur the field first, and the
@@ -11984,6 +12164,15 @@ export default function ArabicTrainer() {
                     )}
                   </div>
 
+                  {!checked && ownFigures && (
+                    <NumeralPad
+                      lang={qLang}
+                      clock={String(item[spec.answerField] || "").includes(":")}
+                      onKey={(ch) => caretInsert(inputRef, typed, setTyped, ch)}
+                      onBack={() => caretBackspace(inputRef, typed, setTyped)}
+                      onClear={() => setTyped("")}
+                    />
+                  )}
                   {!checked && spec.answerMode === "ar" && keysOpen && (
                     <Keyboard
                       lang={qLang}
@@ -12204,7 +12393,7 @@ export default function ArabicTrainer() {
                           spec.answerField !== "numeral" && (
                           <div className="at-answeralso" data-el="also-figures">
                             <p className="at-alsolabel" data-el="also-figures-label">
-                              In {qLang.scriptLabel} figures
+                              In {qLang.numeralsLabel || `${qLang.scriptLabel} figures`}
                             </p>
                             <Field value={item.numeral} field="numeral" name="also-figures-text" />
                           </div>
@@ -15666,7 +15855,17 @@ export function nextPassAt(it: Item, settings: Settings): Millis {
    own reviews are made — there is no review left for passLine to name. */
 function heldLine(at: Standing | null): string {
   if (!at || !at.held || at.passes < PASSES_TO_LEARN) return "";
-  return `Waiting on ${plural(at.held, "word")}`;
+  return `Waiting on ${heldWhat(at)}`;
+}
+
+/* What a held part is waiting on, by kind: its words, and the figures it
+   is written in. */
+function heldWhat(at: Standing): string {
+  const figures = at.heldFigures || 0;
+  const words = (at.held || 0) - figures;
+  return [words ? plural(words, "word") : "", figures ? plural(figures, "numeral") : ""]
+    .filter(Boolean)
+    .join(" and ");
 }
 
 /* Which review of the ones that make a card learnt, as a word. There are
@@ -16229,15 +16428,70 @@ function NumberParts({
         .filter((p) => p.words.length),
     [items, settings],
   );
+  /* And the ten figures each system writes its numbers in, first: every
+     part is written in them, and a part is learnt only once they are. */
+  const figureSets = useMemo(() => {
+    const systems = [...new Set(items.filter(isNumeralCard).map((it) => systemIdOf(it)))];
+    return systems
+      .map((system) => {
+        const cards = numeralCardsOf(system, items).filter((card) => isDrillable(card, settings));
+        const words = cards.map((card) => {
+          const at = standing(cardStandings(card, settings, items));
+          return {
+            card,
+            at,
+            validated: at ? at.status === "done" : null,
+            met: unitsOf(card).some(({ unit }) =>
+              laddered(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
+            ),
+          };
+        }).filter((p) => p.validated !== null);
+        const lang = LANGUAGES[(cards[0] && cards[0].lang) as LangId] || langOf(settings);
+        return {
+          id: `numerals:${system}`,
+          name: lang.numeralsLabel || "Numerals",
+          note: lang.numeralsNote || "",
+          words,
+          learnt: words.filter((p) => p.validated).length,
+        };
+      })
+      .filter((f) => f.words.length);
+  }, [items, settings]);
   const [open, setOpen] = useState<string>("");
-  if (!parts.length) return null;
+  if (!parts.length && !figureSets.length) return null;
   const showing = parts.find((p) => p.it.id === open);
+  const figuresShowing = figureSets.find((f) => f.id === open);
   return (
     <Section
       title="Numbers"
       lede="Each part of the numbers you're studying, and how many of the words it is built from you have learnt. A part counts as learnt only once every one of its words is."
     >
       <div className="at-deckprog">
+        {figureSets.map((f) => {
+          const all = f.learnt === f.words.length;
+          const state: WordState = all ? "done" : f.words.some((p) => p.met) ? "going" : "new";
+          return (
+            <button
+              type="button"
+              className={`at-deckstat${all ? " done" : ""}`}
+              key={f.id}
+              aria-haspopup="dialog"
+              onClick={() => setOpen(f.id)}
+            >
+              <span className="at-deckstatname">{f.name}</span>
+              <b>
+                {f.learnt}
+                <i>/{f.words.length}</i>
+              </b>
+              <span className="at-deckbar" aria-hidden="true">
+                <span style={{ width: `${Math.round((f.learnt / f.words.length) * 100)}%` }} />
+              </span>
+              <span className="at-deckstatnote">
+                {plural(f.words.length, "numeral")} · {WORD_STATE_LABEL[state]}
+              </span>
+            </button>
+          );
+        })}
         {parts.map((p) => {
           const at = progressOf.get(p.it.id) || null;
           const all = p.learnt === p.words.length;
@@ -16265,6 +16519,38 @@ function NumberParts({
         })}
       </div>
 
+      {figuresShowing && (
+        <Screen title={figuresShowing.name} onBack={() => setOpen("")}>
+          <Lede>
+            {figuresShowing.learnt === figuresShowing.words.length
+              ? `All ${figuresShowing.words.length} are learnt.`
+              : `${figuresShowing.learnt} of ${figuresShowing.words.length} learnt. Every number is written with these, so each part of the numbers counts as learnt only once they all are.`}
+          </Lede>
+          {figuresShowing.note && <Help>{figuresShowing.note}</Help>}
+          <div className="at-numwords">
+            {figuresShowing.words.map((p) => {
+              const state = wordStateOf(p);
+              const lead = leadOf(p.card);
+              return (
+                <button
+                  type="button"
+                  className={`at-numword ${state}`}
+                  key={p.card.id}
+                  aria-haspopup="dialog"
+                  aria-label={`${p.card.numeral || ""} (${lead.en}): ${WORD_STATE_LABEL[state]}`}
+                  onClick={() => onCard(p.card)}
+                >
+                  <span className="at-numwordfig">{p.card.numeral}</span>
+                  <span className="at-numwordsaid" dir="ltr">
+                    {lead.en}
+                  </span>
+                  <span className="at-numwordstate">{WORD_STATE_LABEL[state]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Screen>
+      )}
       {showing && (
         <Screen title={showing.name} onBack={() => setOpen("")}>
           <Lede>

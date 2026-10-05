@@ -701,9 +701,9 @@ export const CARD_FACTS: FieldRule[] = [
   {
     key: "numeral",
     on: "card",
-    label: "In figures",
+    label: "In its own numerals",
     what:
-      "The number a card out of a number system stands for, written in its language's own figures — three as Arabic writes it, say. " +
+      "The number a card out of a number system stands for, written in its language's own figures — three as Arabic writes it, in Eastern Arabic numerals, say. " +
       "Only on a language whose pack says it has figures of its own, and only on a card that is one number.",
     reader: "both",
     shown: asIs,

@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.363 — 5 October 2026
+
+**Learn to read and write numbers in Eastern Arabic numerals (١٢٣).**
+
+- The ten Eastern Arabic numerals, ٠ to ٩, now come with your numbers as
+  ten cards of their own. Each is asked two ways: see ٤ and write 4, then
+  see 4 and write ٤.
+- Once you have all ten, every range of numbers and the clock ask two
+  more questions: write 47 as ٤٧, and read the number in Arabic words and
+  write it as ٤٧ (or ٠٧:١٥ for a time).
+- Those questions come with an on-screen pad of the ten numerals, so you
+  don't need a keyboard that has them. Typing the right number in Arabic
+  numerals (47) gives you a second go, with a reminder of which numerals
+  are wanted.
+- A range of numbers now counts as learnt only once all ten numerals are
+  learnt too. Progress shows the ten as their own tile in Numbers, and a
+  range that is waiting on them says how many numerals are left.
+- The first time all ten are done, the ranges take a short step back to
+  pick up the two new questions before moving on.
+- The app now uses the proper names throughout: Eastern Arabic numerals
+  for ١٢٣, and Arabic numerals for 123. The numeral cards also mention
+  that Arabic speakers often call ١٢٣ "Indian numerals" (أرقام هندية).
+- Hebrew and Huế Vietnamese use Arabic numerals, so nothing changes there.
+
 ## 0.362 — 5 October 2026
 
 **"Learn more" on a number no longer spells it out in English.**

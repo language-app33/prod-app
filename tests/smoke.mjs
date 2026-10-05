@@ -8391,8 +8391,8 @@ const openPronounTables = async () => {
   check("there is a screen for checking a number",
     !!screenNamed("Check a number"),
     ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
-  const tryBox = boxNamed("A number to try, in figures");
-  check("with one box, for figures", !!tryBox);
+  const tryBox = boxNamed("A number to try, in Arabic numerals");
+  check("with one box, for Arabic numerals", !!tryBox);
   if (tryBox) {
     typeIn(tryBox, "7");
     await sleep(200);
@@ -8413,7 +8413,7 @@ const openPronounTables = async () => {
      Save, not carried back to the main screen, which has none. */
   click(buttonIn(/^Check a number$/));
   await sleep(250);
-  const tryAgain = boxNamed("A number to try, in figures");
+  const tryAgain = boxNamed("A number to try, in Arabic numerals");
   if (tryAgain) {
     typeIn(tryAgain, "8");
     await sleep(200);
@@ -8578,8 +8578,8 @@ const openPronounTables = async () => {
     || host4.querySelector(".at-answerbox .at-chips button");
   const beforeNum = schedules();
   const numPad = !!numInput && numInput.getAttribute("inputmode") === "numeric";
-  const numFigures = /figures/i.test((numAsk && numAsk.textContent) || "");
-  if (numFigures) check("a question asking for figures brings up the number pad", numPad);
+  const numFigures = /Arabic numerals \(123\)/.test((numAsk && numAsk.textContent) || "");
+  if (numFigures) check("a question asking for Arabic numerals brings up the number pad", numPad);
   if (numInput) {
     const setter = must(
       Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
@@ -9037,7 +9037,19 @@ const openPronounTables = async () => {
     }
     r.unmount();
     host.remove();
-    await sleep(200);
+    /* Until the app put away has finished writing. Its last save lands
+       after the unmount, and a fixed fifth of a second was only sometimes
+       long enough: when it was not, that save landed on top of the next
+       walk's document and the words went into it with this walk's
+       answers instead of the levels it set. */
+    const KEY = "arabic-trainer:arabic-trainer-v3";
+    let was = localStorage.getItem(KEY);
+    for (let t = 0, still = 0; t < 40 && still < 4; t++) {
+      await sleep(100);
+      const now = localStorage.getItem(KEY);
+      still = now === was ? still + 1 : 0;
+      was = now;
+    }
     return met;
   };
 
@@ -9389,6 +9401,134 @@ const openPronounTables = async () => {
     !prompts.some((t) => /^[0-9,:]+$/.test(t)), prompts.join(" | "));
   root5.unmount();
   host5.remove();
+  materialSystems = [];
+  materialDecks = [];
+  materialQuiet = false;
+}
+
+/* ---- writing in Eastern Arabic numerals ----
+
+   The ten figures as cards, each read already and not yet written: so the
+   question that comes up for them is 4 → ٤, answered on the keys under
+   the box. The right number typed in Arabic numerals is asked again
+   rather than marked, and written on the keys it is right.
+
+   After the walk above and for the same reason: it draws from the shared
+   sequence, and anywhere earlier it would change what the rest are dealt. */
+{
+  const { readFileSync: readGolden } = await import("node:fs");
+  const goldenNumbers = JSON.parse(readGolden(path.resolve("tests/golden/ar-PS.numbers.json"), "utf8")).system;
+  const goldenTimes = JSON.parse(readGolden(path.resolve("tests/golden/ar-PS.times.json"), "utf8")).system;
+  const { generate, isRangeSkill, isNumeralCard } = await import(path.resolve("src/numbers/generate.ts"));
+  const { arComposer } = await import(path.resolve("src/numbers/ar-PS.ts"));
+  const { arTimeComposer } = await import(path.resolve("src/numbers/ar-PS.time.ts"));
+  const { LANGUAGES: packs, TYPES: allTypes } = await import(path.resolve("src/languages.ts"));
+  const { freshState: fresh } = await import(path.resolve("src/scheduler.ts"));
+  const made = generate({
+    composer: arComposer, sys: goldenNumbers, timeComposer: arTimeComposer,
+    timeSys: goldenTimes, now: Date.now(), numerals: packs["ar-PS"].numerals,
+  }).items;
+  const parts = made.filter(isRangeSkill).map((/** @type {any} */ it) => it.range.id);
+  materialSystems = [goldenNumbers, goldenTimes];
+  materialDecks = [{
+    id: "dn", title: "Numbers deck", lang: "ar-PS", owner: "t-1", cardIds: [], cardCount: 0,
+    courseId: "c1", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 1, parts,
+  }];
+  materialQuiet = true;
+  localStorage.setItem("arabic-trainer:material", JSON.stringify({
+    handle: account.handle, courses: [], decks: materialDecks, systems: materialSystems,
+    version: "v-numbers-numerals", at: Date.now(),
+  }));
+  const keptOn = (/** @type {string[]} */ types) => Object.fromEntries(types.map((t) => [t, {
+    ...fresh(), phase: "review", interval: 30, due: Date.now() + 30 * 86400000,
+    reps: 4, right: 4, hist: [1, 1, 1, 1], passes: 2, updated: Date.now() - 86400000,
+  }]));
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, account,
+    items: made.map((/** @type {any} */ it) => ({
+      ...it,
+      tags: ["Numbers deck"],
+      /* Everything else kept and not due, so the figures are what is asked. */
+      forms: it.forms.map((/** @type {any} */ f) => ({
+        ...f,
+        s: isNumeralCard(it) ? keptOn(["dig2fig"]) : keptOn(allTypes),
+      })),
+    })),
+  }));
+  remoteDocs.clear();
+
+  const host6 = document.createElement("div");
+  document.body.appendChild(host6);
+  const root6 = createRoot(host6);
+  root6.render(React.createElement(App));
+  await sleep(1500);
+  click([...host6.querySelectorAll("button")].find((b) => /^Start session$/.test((b.textContent || "").trim())));
+  await sleep(700);
+
+  const own = packs["ar-PS"].numerals;
+  const met = { pad: 0, keys: 0, askedAgain: 0, rightOnKeys: 0, named: 0 };
+  let stopped = "after 20 questions";
+  const checkBtn = () => [...host6.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim()));
+  for (let i = 0; i < 20; i += 1) {
+    const prompt = host6.querySelector('[data-el="question-prompt-text"]');
+    const pad = host6.querySelector('[data-el="numeral-pad"]');
+    const input = host6.querySelector(".at-answerbox input");
+    if (!prompt || !input) {
+      stopped = `no question to type into: ${(host6.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+      break;
+    }
+    const setter = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "value").set;
+    if (pad) {
+      met.pad += 1;
+      if (/Eastern Arabic numerals/.test(host6.textContent || "")) met.named += 1;
+      const keys = [...pad.querySelectorAll("button")].filter((b) => /^[٠-٩]$/.test((b.textContent || "").trim()));
+      met.keys = Math.max(met.keys, keys.length);
+      const said = (prompt.textContent || "").trim();
+      /* The right number, in the figures English uses. */
+      must(setter, "value setter").call(input, said);
+      input.dispatchEvent(new w.Event("input", { bubbles: true }));
+      await sleep(50);
+      click(checkBtn());
+      await sleep(150);
+      const box = host6.querySelector(".at-answerbox input");
+      if (!host6.querySelector('[data-el="verdict"]') && box && /** @type {any} */ (box).value === "") met.askedAgain += 1;
+      /* And on the keys, figure by figure. */
+      for (const ch of said) {
+        if (/[0-9]/.test(ch)) click(keys.find((b) => (b.textContent || "").trim() === own(Number(ch))));
+        else if (ch === ":") click([...pad.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === ":"));
+        await sleep(30);
+      }
+      click(checkBtn());
+      await sleep(150);
+      if (host6.querySelector(".at-shout.ok")) met.rightOnKeys += 1;
+    } else {
+      must(setter, "value setter").call(input, "7");
+      input.dispatchEvent(new w.Event("input", { bubbles: true }));
+      await sleep(50);
+      click(checkBtn());
+      await sleep(150);
+      if (checkBtn() && host6.querySelector(".at-answerbox input")) {
+        click(checkBtn());
+        await sleep(150);
+      }
+    }
+    const next = [...host6.querySelectorAll("button")].find((b) => /Continue|Next/.test((b.textContent || "").trim()));
+    if (!next) {
+      stopped = `no way on: ${(host6.textContent || "").slice(0, 160).replace(/\s+/g, " ")}`;
+      break;
+    }
+    click(next);
+    await sleep(250);
+  }
+  check("a figure read already is asked to be written in Eastern Arabic numerals, on a pad of the ten",
+    met.pad > 0 && met.keys === 10, `${JSON.stringify(met)} — stopped ${stopped}`);
+  check("and the question names them", met.named > 0, JSON.stringify(met));
+  check("the right number in Arabic numerals is asked again rather than marked",
+    met.pad > 0 && met.askedAgain === met.pad, JSON.stringify(met));
+  check("and written on the keys it is right",
+    met.pad > 0 && met.rightOnKeys === met.pad, JSON.stringify(met));
+  root6.unmount();
+  host6.remove();
   materialSystems = [];
   materialDecks = [];
   materialQuiet = false;
