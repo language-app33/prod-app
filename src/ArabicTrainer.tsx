@@ -4780,7 +4780,7 @@ function AlsoBox({ children, open, onToggle }: { children?: Node; open?: boolean
         onClick={onToggle}
       >
         Learn more
-        <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={20} />
       </button>
       {open && (
         <div className="at-alsobox" data-el="also">

@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 5 October 2026
+
+**Learn more is easier to read.**
+
+- The "Learn more" link under an answer, and the arrow beside it, are a
+  little bigger, so they are easier to spot and to tap.
+- Inside Learn more, the words themselves — the meaning, how it's
+  pronounced, how it's written, the phrase it turned up in — are a size
+  larger.
+- The play button under "This is how it sounds" is smaller there, so it
+  no longer outweighs the words around it. The play button on a listening
+  question is unchanged.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**
