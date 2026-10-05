@@ -1287,6 +1287,13 @@ export interface Standing {
    */
   passes: number;
   /**
+   * How many words a number part is still waiting on, where it is one and
+   * its words are not all learnt — on the top row only, and set by the
+   * app, which holds the collection this is read against. A part that is
+   * held is cleared at best, however its own reviews have gone.
+   */
+  held?: number;
+  /**
    * How many of the exercises that must hold for the next level to open
    * are there yet, and how many there are. That is everything on this
    * level *and under it*, because that is what openTypes asks: the

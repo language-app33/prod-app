@@ -92,6 +92,22 @@ export const NUMBER_EQUIVALENT: Record<string, string> = {
   fig2time: "en2ar",
   clock2time: "en2ar",
   rec2dial: "rec2en",
+  /* Written out from the language's own figures: what a number card's own
+     question asks, where the card is one number. A word that is not one —
+     *hundred*, *and*, *quarter past* — has no figures to be asked from and
+     is credited the way it always was; see NUMBER_FALLBACK. */
+  own2num: "own2ar",
+  own2time: "own2ar",
+};
+
+/**
+ * Where a component card cannot be credited under its equivalent, the key
+ * it is credited under instead. Only ever towards a question that shows
+ * less: a word with no figures of its own climbs *English → script*, and
+ * reading it inside ٤٧ is evidence for that.
+ */
+export const NUMBER_FALLBACK: Record<string, string> = {
+  own2ar: "en2ar",
 };
 
 export const TYPES = [
@@ -102,7 +118,7 @@ export const TYPES = [
   /* 3: write it from a cue */
   "tr2ar", "rec2ar", "rec2attr",
   /* 4: write it from its meaning */
-  "en2ar", "img2ar", "ctx2ar", "rec2ctx",
+  "en2ar", "own2ar", "img2ar", "ctx2ar", "rec2ctx",
   /* and a conversation, on its own levels: 1, 3, 3 */
   "dlgwhole", "dlgpick", "dlgorder",
   /* and a range of numbers or of times, which is a skill and climbs the
@@ -110,8 +126,8 @@ export const TYPES = [
      range is never dealt an exercise above because it has no word of its
      own to be asked about, and a word is never dealt one of these because
      it is not a range — both fall out of what each `needs`. */
-  "num2fig", "fig2pick", "rec2fig", "fig2num", "count2phrase",
-  "time2fig", "time2dial", "rec2dial", "fig2time", "clock2time",
+  "num2fig", "fig2pick", "rec2fig", "fig2num", "own2num", "count2phrase",
+  "time2fig", "time2dial", "rec2dial", "fig2time", "own2time", "clock2time",
 ];
 
 export const EX: Record<string, ExerciseSpec> = {
@@ -282,6 +298,9 @@ export const EX: Record<string, ExerciseSpec> = {
     label: "English → {script}",
     short: "E→{S}",
     needs: ["en", "ar"],
+    /* A number in a language with figures of its own is asked from those
+       figures instead — own2ar, below. */
+    unless: ["numeral"],
     question: "Write this in {script}",
     placeholder: "",
     promptField: "en",
@@ -293,6 +312,29 @@ export const EX: Record<string, ExerciseSpec> = {
        read it and all that is left is to spell out what it says, which is
        the level below this one. So it is not opened for you, and taking it
        costs the answer its good mark. */
+    hintTells: true,
+    answerMode: "ar",
+  },
+  /* English → {script} for a number card, from the figures the language
+     writes numbers in: ٣, and the word for three. A number is not learnt
+     until it can be read the way it is met on a price or a bus, so the
+     top of its ladder — where a card's passes are made — shows the
+     language's figures alone. A key of its own rather than en2ar with a
+     different prompt, so a card learnt from 3 before this existed is
+     asked again from ٣ rather than counted as having been. */
+  own2ar: {
+    level: 4,
+    instruction: "Write this number in {script}",
+    label: "{Script} figures → {script}",
+    short: "#→{S}",
+    needs: ["numeral", "ar"],
+    question: "Write this in {script}",
+    placeholder: "",
+    promptField: "numeral",
+    answerField: "ar",
+    hintField: "lat",
+    hintLabel: "Show {translit}",
+    hintHideLabel: "Hide {translit}",
     hintTells: true,
     answerMode: "ar",
   },
@@ -487,9 +529,25 @@ export const EX: Record<string, ExerciseSpec> = {
     label: "Figures → {script}",
     short: "#→{S}",
     needs: ["rangeNumbers"],
+    unless: ["rangeFigures"],
     question: "Write this number out",
     placeholder: "",
     promptField: "en",
+    answerField: "ar",
+    answerMode: "ar",
+  },
+  /* The same, from the language's own figures — ٤٧ rather than 47 — where
+     it has them, and in place of the one above. See own2ar for why it is
+     a key of its own. */
+  own2num: {
+    level: 4,
+    instruction: "Write this number in {script}",
+    label: "{Script} figures → {script}",
+    short: "#→{S}",
+    needs: ["rangeNumbers", "rangeFigures"],
+    question: "Write this number out",
+    placeholder: "",
+    promptField: "numeral",
     answerField: "ar",
     answerMode: "ar",
   },
@@ -552,9 +610,23 @@ export const EX: Record<string, ExerciseSpec> = {
     label: "Clock → {script}",
     short: "⏱→{S}",
     needs: ["rangeTime"],
+    unless: ["rangeFigures"],
     question: "How would you say this time?",
     placeholder: "",
     promptField: "en",
+    answerField: "ar",
+    answerMode: "ar",
+  },
+  /* And from the clock in the language's own figures, ٧:١٥, in its place. */
+  own2time: {
+    level: 4,
+    instruction: "Say this time in {script}",
+    label: "{Script} figures → {script}",
+    short: "⏱→{S}",
+    needs: ["rangeTime", "rangeFigures"],
+    question: "How would you say this time?",
+    placeholder: "",
+    promptField: "numeral",
     answerField: "ar",
     answerMode: "ar",
   },
@@ -1670,10 +1742,22 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        line. The same abbreviations the card list uses, except that "na"
        has one here: a tag saying nothing is right, and a radio button
        labelled nothing is not. */
-    brief: { singular: "sg.", plural: "pl.", dual: "du.", na: "N/A" },
+    brief: { singular: "sg.", plural: "pl.", dual: "du.", counted: "pl. 3–10", na: "N/A" },
     /* And on a tag, a number that does not apply names nothing — not the
        letters "N/A". */
     short: { na: "" },
+    /* The plural a few nouns take after three to ten and nowhere else —
+       Palestinian *tiyyām* beside *ayyām*, days. Only a pack that lists
+       it offers it, only on a noun, and only as the box it is: a form of
+       it is not a word anybody is asked on its own. See ar-PS's options
+       and CountedNoun.plCounted. */
+    optionRules: {
+      counted: {
+        onlyOn: ["noun"],
+        help: "Only for the few nouns whose plural changes after three to ten, like days or months. Leave it empty for every other noun: the plural is used.",
+        unasked: true,
+      },
+    },
   },
   gender: {
     label: "Gender",
@@ -1686,30 +1770,35 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     ],
     brief: { masculine: "m.", feminine: "f.", neutral: "n." },
   },
-  /* Whether a noun is a person or a thing. Not a way of telling its forms
-     apart — nothing is ever asked "the person one" — but the fact that
-     decides what agrees with it: in Arabic a plural of things takes the
-     feminine singular adjective (كتب كبيرة) and a plural of people the
-     plural (معلمين كبار). Animals count as things. Silent on every tag,
-     which `short` says; starts as a thing, because most nouns are. */
+  /* Whether a noun is a person, an animal or a thing. Not a way of telling
+     its forms apart — nothing is ever asked "the person one" — but two
+     facts follow from it. What agrees with it: in Arabic a plural of things
+     takes the feminine singular adjective (كتب كبيرة) and a plural of
+     people the plural (معلمين كبار), and an animal agrees as a thing does.
+     And how its forms are laid out: a person or an animal comes in a
+     masculine and a feminine — معلم and معلمة, قط and قطة — so its card has
+     a side for each, where a thing has one gender for the whole word. See
+     nounBoxes in card-editor.tsx. Silent on every tag, which `short` says;
+     starts as a thing, because most nouns are. */
   human: {
-    label: "Person or thing",
+    label: "Person, animal or thing",
     field: "human",
     required: true,
-    help: "Specify here what kind of noun this is, so adjectives in sentence cards can use the correct form.",
+    help: "People and animals get a masculine and a feminine side. A thing has one gender for the whole word.",
     options: [
       ["thing", "a thing"],
       ["person", "a person"],
+      ["animal", "an animal"],
     ],
     default: "thing",
     /* A fact about the word and not about one of its spellings: كتاب and
        its plural كتب are both things, and so is either way of spelling
        either of them. Asked once beside the kind of word — see perCard. */
     perCard: true,
-    short: { thing: "", person: "" },
+    short: { thing: "", person: "", animal: "" },
     /* Silent on a tag and never silent in the picker — the article is what
        goes, not the word. */
-    brief: { thing: "thing", person: "person" },
+    brief: { thing: "thing", person: "person", animal: "animal" },
   },
   /* Who a form is said to: a greeting or a thank-you that changes with
      whether the listener is younger, a peer or an elder.
@@ -1775,7 +1864,18 @@ export const dimsFor = (
   if (!lang) return [];
   const kind = categoryOf(lang, category);
   const own = kind && kind.grammar;
-  return own ? dimsOf(lang).filter((d) => own.includes(d.field)) : dimsOf(lang);
+  const dims = own ? dimsOf(lang).filter((d) => own.includes(d.field)) : dimsOf(lang);
+  /* And within an axis, the values that belong to one kind of word only —
+     the plural after three to ten is a noun's. */
+  return dims.map((d) => {
+    const rules = d.optionRules;
+    if (!rules) return d;
+    const options = d.options.filter(([v]) => {
+      const only = rules[v] && rules[v].onlyOn;
+      return !only || (!!category && only.includes(category));
+    });
+    return options.length === d.options.length ? d : { ...d, options };
+  });
 };
 
 /**
@@ -1994,6 +2094,10 @@ const AR_AGREEMENT: VerbSpec = {
       picks: [
         { number: "singular", gender: "feminine" },
         { number: "plural", human: "thing" },
+        /* And a plural of animals, which agrees as a plural of things
+           does — قطط كبيرة. An animal is told apart from a thing only so
+           that its card can have a feminine side. */
+        { number: "plural", human: "animal" },
       ],
     },
     { id: "plural", label: "plural", picks: { number: "plural", human: "person" } },
@@ -2213,6 +2317,12 @@ export const categoryLabel = (
   id: string | null | undefined,
 ): string => (categoryOf(lang, id) || { label: "" }).label;
 
+/* Kept per pack: this is asked several times for every word a blank could
+   take, and a pack's tables are declared once, in this file, and never
+   written to afterwards. Every caller reads what it is handed and none of
+   them changes it, which is what makes handing the same one back safe. */
+const TABLES_OF: WeakMap<object, Record<string, VerbSpec>> = new WeakMap();
+
 /**
  * The tables this language lays a word's forms out in, by name, in the
  * order the pack declares them — which is the order a card carrying more
@@ -2220,10 +2330,14 @@ export const categoryLabel = (
  * nothing on either axis lays out nothing, and nobody should have to ask.
  */
 export const tablesOf = (lang: Lang | null | undefined): Record<string, VerbSpec> => {
+  const tables = lang && lang.tables;
+  const held = tables ? TABLES_OF.get(tables) : null;
+  if (held) return held;
   const out: Record<string, VerbSpec> = {};
-  for (const [name, spec] of Object.entries((lang && lang.tables) || {})) {
+  for (const [name, spec] of Object.entries(tables || {})) {
     if (spec && spec.tenses.length > 0 && spec.persons.length > 0) out[name] = spec;
   }
+  if (tables) TABLES_OF.set(tables, out);
   return out;
 };
 
@@ -2858,17 +2972,6 @@ function numberTableOf(id: LangId): VerbSpec {
   );
 }
 
-/**
- * Figures, written in the language's own digits — or nothing, where it
- * has none of its own and the figures already on the screen are the ones
- * it writes. Anything that is not a digit is left as it stands.
- */
-export function ownFigures(lang: Lang | null | undefined, figures: string): string {
-  const digits = lang && lang.digits;
-  if (!digits || digits.length !== 10 || !/\d/.test(figures)) return "";
-  return figures.replace(/[0-9]/g, (d) => digits[Number(d)]);
-}
-
 export const LANGUAGES: Record<LangId, Lang> = {
   "ar-PS": {
     id: "ar-PS",
@@ -2898,17 +3001,22 @@ export const LANGUAGES: Record<LangId, Lang> = {
       { ar: "واحِد", en: "one", lat: "" },
     ],
     translitLabel: "Transliteration",
-    /* The Eastern Arabic digits, which are what a number is written in on
-       a sign, a price or a bus in the places this dialect is spoken. */
-    digits: "٠١٢٣٤٥٦٧٨٩",
     /* And whether a noun is a person or a thing, which is what an
        adjective beside a plural reads — see GRAMMAR.human. */
     grammar: ["number", "gender", "human"],
     /* Two genders and a dual: there is no neuter to offer. */
     grammarOptions: {
-      number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
+      /* And the plural a few nouns take only after three to ten — تيام
+         beside أيام — which is a box on a noun card, under the plural. */
+      number: [
+        ["singular", "singular"],
+        ["plural", "plural"],
+        ["counted", "plural after 3 to 10"],
+        ["dual", "dual"],
+        ["na", "N/A"],
+      ],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
-      human: [["thing", "a thing"], ["person", "a person"]],
+      human: [["thing", "a thing"], ["person", "a person"], ["animal", "an animal"]],
     },
     /* A verb is marked for who is doing it and when, so its forms are laid
        out on those two axes. The tenses are in the order they are taught,
@@ -2947,6 +3055,16 @@ export const LANGUAGES: Record<LangId, Lang> = {
        src/numbers/ar-PS.ts, which holds the rule and not one word of it. */
     composer: composerFor("ar-PS"),
     times: timeComposerFor("ar-PS"),
+    /* Arabic's own figures, ٠ to ٩, which are what a learner meets on a
+       price or a bus: the digit for the digit, and the Arabic thousands
+       mark where English writes a comma. */
+    numerals: (n) =>
+      Number.isInteger(n) && n >= 0
+        ? n
+            .toString()
+            .replace(/\B(?=(\d{3})+$)/g, "٬")
+            .replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)])
+        : "",
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
     verdicts: {
@@ -3186,12 +3304,16 @@ export const LANGUAGES: Record<LangId, Lang> = {
     ],
     translitLabel: "Transliteration",
     /* Nouns carry number and gender, and adjectives agree with both —
-       the same two axes Arabic declares. */
-    grammar: ["number", "gender"],
+       the same two axes Arabic declares. And whether a noun is a person,
+       an animal or a thing: nothing in Hebrew agrees with that, but it is
+       what gives a noun's card a masculine and a feminine side — תלמיד and
+       תלמידה — so it is asked here too. */
+    grammar: ["number", "gender", "human"],
     /* Two genders, and a dual for the nouns that have one — שעתיים. */
     grammarOptions: {
       number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
+      human: [["thing", "a thing"], ["person", "a person"], ["animal", "an animal"]],
     },
     /* Marked for twelve persons, every one with a gender of its own —
        see HE_SUBJECT_PERSONS. The rows are its own:
@@ -3722,6 +3844,58 @@ export function checkAr(given: string, expected: string, settings: Settings) {
   return worst;
 }
 
+/* A number as typed, with the notation taken off: the digits an Arabic or
+   Persian keyboard writes, folded to the ones the card is stored with;
+   thousands separators in the several shapes they are written — spaces of
+   every width, commas, full stops, apostrophes, the Arabic thousands mark;
+   and a stray plus, since no number here carries a sign. */
+function figures(s: unknown): string {
+  return String(s == null ? "" : s)
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[\s,._'\u00A0\u2009\u202F\u066C]/g, "")
+    .replace(/^\+/, "");
+}
+
+/* Digits alone, or digits grouped in threes. Strict on purpose: "1, 2" is
+   not twelve, and a meaning that only might be a number is a word. */
+const NUMERAL = /^\d+$|^\d{1,3}(?:[,. '\u00A0\u2009\u202F\u066C]\d{3})+$/;
+
+/**
+ * The numbers a meaning accepts, where every answer it accepts is a number
+ * written in figures — the word for 40, for 1,000, a number a teacher
+ * wrote out by hand — and null where any of them is a word. "five / 5" is
+ * a word: it can be answered with letters.
+ *
+ * Split on a slash or a semicolon and never a comma, which in a number is
+ * grouping rather than a second answer.
+ */
+export function numeralMeanings(expected: unknown): string[] | null {
+  const parts = String(expected == null ? "" : expected)
+    .split(/[/;]/)
+    .map((s) =>
+      s
+        .trim()
+        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0)),
+    )
+    .filter(Boolean);
+  return parts.length && parts.every((p) => NUMERAL.test(p)) ? parts : null;
+}
+
+/**
+ * Whether this question's answer is typed in figures and nothing else, so
+ * the answer box asks a phone for its number pad. The questions that ask
+ * for figures always are; one asking for the meaning is when every meaning
+ * the card accepts is a number. A time is not — a number pad has no colon.
+ */
+export function answersInFigures(item: Record<string, any> | null | undefined, key: string): boolean {
+  const spec = EX[typeOf(key)];
+  if (!spec || !item) return false;
+  if (spec.answerMode === "fig") return true;
+  return spec.answerMode === "en" && !!numeralMeanings(item[spec.answerField]);
+}
+
 export function checkAnswer(typed: string, item: Record<string, any>, key: string, settings: Settings) {
   const spec = EX[typeOf(key)];
   const mode = spec.answerMode;
@@ -3818,24 +3992,20 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
    * the digits their own keyboard makes should not be told they are
    * wrong.
    */
-  if (mode === "fig") {
-    const figures = (s: unknown) =>
-      String(s == null ? "" : s)
-        /* Arabic-Indic and Extended Arabic-Indic digits, folded to the
-           ones the card is stored with. */
-        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-        /* Thousands separators, in the several shapes they are written:
-           spaces of every width, commas, full stops, apostrophes, and the
-           Arabic thousands mark. */
-        .replace(/[\s,._'\u00A0\u2009\u202F\u066C]/g, "")
-        /* A number written with no sign on it, so a stray plus is not the
-           difference between right and wrong. */
-        .replace(/^\+/, "");
+  /*
+   * And a meaning that is a number is marked the same way. The word for
+   * 2,000 asked in English went through the English marking, which read
+   * its comma as two answers — so 1 was right for 1,000 — and called 3000
+   * a typo of 2000. See `numeralMeanings`.
+   */
+  const numerals = mode === "en" ? numeralMeanings(expected) : null;
+  if (mode === "fig" || numerals) {
     const got = figures(typed);
     if (!got || !/^\d+$/.test(got)) return { ok: false, reason: "wrong" };
     /* Leading zeros are notation too: 047 is 47 written out of habit. */
-    const same = String(Number(got)) === String(Number(figures(expected)));
+    const same = (numerals || [String(expected == null ? "" : expected)]).some(
+      (want) => String(Number(got)) === String(Number(figures(want))),
+    );
     return same ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
   }
   /*

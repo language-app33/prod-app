@@ -249,7 +249,9 @@ test("a composer is reached through the registry, never by its language's name",
     }
     const bad = [...source.matchAll(/from\s*["']\.\/numbers\/([\w.-]+)\.tsx?["']/g)]
       .map((m) => m[1])
-      .filter((mod) => mod !== "index" && mod !== "types" && mod !== "schema" && mod !== "range" && mod !== "generate");
+      /* `nouns` reads a teacher's noun cards for the counting questions:
+         word-free, and no composer in it. */
+      .filter((mod) => !["index", "types", "schema", "range", "generate", "nouns"].includes(mod));
     assert.deepEqual(
       bad,
       [],

@@ -51,7 +51,8 @@ export interface NumberCard {
  * own words in both Semitic packs — *a thousand* and *two thousand* are
  * not *one* and *two* with a word after them — so they have boxes; three
  * hundred and three thousand are built, or written out where the dialect
- * fuses them. Anything else with a value is a number the teacher wrote in
+ * fuses them and has no box for them. Palestinian three to nine hundred
+ * have boxes of their own. Anything else with a value is a number the teacher wrote in
  * full, which is exactly what a correction is.
  */
 export function slotForValue(value: number): string | null {
@@ -67,6 +68,10 @@ export function slotForValue(value: number): string | null {
     if (value === unit) return `${name}.1`;
     if (value === unit * 2) return `${name}.2`;
   }
+  /* Three hundred to nine hundred, where a language has a box for each —
+     Palestinian Arabic, which says each as one word. Anywhere else the
+     box is not wanted and the card is written out, as before. */
+  if (value >= 300 && value <= 900 && value % 100 === 0) return `hundred.${value / 100}`;
   return null;
 }
 

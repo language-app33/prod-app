@@ -63,9 +63,12 @@ test("a value maps onto the box it is, or onto nothing at all", () => {
   assert.equal(slotForValue(2000), "thousand.2");
   assert.equal(slotForValue(1000000), "million.1");
   assert.equal(slotForValue(2000000), "million.2");
+  /* Three to nine hundred have boxes where a language asks for them. */
+  assert.equal(slotForValue(300), "hundred.3");
+  assert.equal(slotForValue(900), "hundred.9");
   /* And everything else is a number somebody wrote out in full, which is
-     exactly what a correction is — the fused hundreds among them. */
-  for (const v of [21, 47, 300, 900, 3000, 9000, 3000000, 1525]) {
+     exactly what a correction is — the fused thousands among them. */
+  for (const v of [21, 47, 350, 1000 * 3, 9000, 3000000, 1525]) {
     assert.equal(slotForValue(v), null, String(v));
   }
   for (const v of [-1, 1.5, 10000000, NaN]) assert.equal(slotForValue(v), null, String(v));
@@ -94,11 +97,15 @@ test("the boxes a teacher filled come across, and the rest become corrections", 
     arComposer,
     base("ar-PS"),
   );
-  assert.equal(got.filled, 4);
-  assert.equal(got.written, 2);
-  assert.deepEqual(Object.keys(got.system.lexemes).sort(), ["ten.20", "unit.0", "unit.1", "hundred.1"].sort());
-  assert.deepEqual(Object.keys(got.system.overrides).sort(), ["300", "3000"]);
-  assert.equal(got.system.overrides["300"].text, "tultmiyye");
+  assert.equal(got.filled, 5);
+  assert.equal(got.written, 1);
+  assert.deepEqual(
+    Object.keys(got.system.lexemes).sort(),
+    ["ten.20", "unit.0", "unit.1", "hundred.1", "hundred.3"].sort(),
+  );
+  assert.deepEqual(Object.keys(got.system.overrides).sort(), ["3000"]);
+  /* Three hundred has a box in this language, so it goes there. */
+  assert.equal(got.system.lexemes["hundred.3"].forms.standalone, "tultmiyye");
   /* And the one that had a cell brought it across as a face. */
   assert.equal(got.system.lexemes["unit.1"].forms.standalone, "wahad");
   assert.equal(got.system.lexemes["unit.1"].forms.f, "wahde");
@@ -163,7 +170,7 @@ test("every box says which card it came from", () => {
   );
   const from = must(got.system.migratedFrom, "migratedFrom");
   assert.equal(from["unit.7"], "k7");
-  assert.equal(from["override:300"], "k300");
+  assert.equal(from["hundred.3"], "k300");
   assert.deepEqual(got.fromCards.sort(), ["k300", "k7"]);
 });
 

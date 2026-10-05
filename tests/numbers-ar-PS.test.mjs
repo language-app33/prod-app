@@ -20,7 +20,8 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 
 import { must } from "./helpers.mjs";
-import { AR_SLOTS, arComposer, renderAr } from "../src/numbers/ar-PS.ts";
+import { AR_SLOTS, arComposer, keepOneWord, renderAr, tidyBeforeNoun, tidyHundreds, twoWordsBeforeNoun } from "../src/numbers/ar-PS.ts";
+import { homesOf, overrideId } from "../src/numbers/generate.ts";
 import { NUMBER_CEILING } from "../src/numbers/types.ts";
 
 const golden = JSON.parse(
@@ -201,6 +202,129 @@ test("a noun with no dual is counted anyway, and the gap is named", () => {
   assert.deepEqual(got.warnings, [{ code: "missing-noun-form", detail: "x.dual" }]);
 });
 
+/* ---- one word before a noun ---- */
+
+/* The words below are the golden system's own, moved between boxes: a
+   test file holds no word of the language that the table does not. */
+const W = (/** @type {string} */ slot, /** @type {string} */ face) => must(SYS.lexemes[slot].forms[face], `${slot} ${face}`);
+
+test("three to nineteen say one word before a noun, whatever the noun's gender", () => {
+  for (let n = 3; n <= 19; n += 1) {
+    const book = renderAr(n, SYS, { noun: nounOf("book") });
+    const girl = renderAr(n, SYS, { noun: nounOf("girl") });
+    assert.equal(book.text.split(" ")[0], girl.text.split(" ")[0], `${n}`);
+  }
+  /* And no box asks for a word before a feminine noun any more. */
+  for (const slot of AR_SLOTS) {
+    assert.ok(!slot.formKeys.includes("construct.f"), `${slot.slot} still asks for two words`);
+  }
+  /* The one box says what it is: before a noun, not before a masculine one. */
+  const five = must(AR_SLOTS.find((s) => s.slot === "unit.5"), "unit.5");
+  assert.deepEqual(five.formKeys, ["standalone", "construct.m"]);
+  assert.equal(five.faceLabels && five.faceLabels["construct.m"], "before a noun");
+});
+
+/** The golden system with three's boxes as a teacher left them. */
+const withThree = (/** @type {Record<string, string>} */ forms, /** @type {any} */ extra = {}) => ({
+  ...SYS,
+  lexemes: { ...SYS.lexemes, "unit.3": { slot: "unit.3", forms: { standalone: W("unit.3", "standalone"), ...forms }, ...extra } },
+});
+
+test("a word written only in the old box before a feminine noun is the word", () => {
+  const sys = withThree({ "construct.f": W("unit.3", "construct.m") });
+  for (const noun of ["book", "girl"]) {
+    const got = renderAr(3, sys, { noun: nounOf(noun) });
+    assert.equal(got.text, renderAr(3, SYS, { noun: nounOf(noun) }).text, noun);
+    assert.deepEqual(got.warnings, [], noun);
+  }
+  assert.deepEqual(twoWordsBeforeNoun(sys), [], "one word is not a question");
+});
+
+test("two different words are kept as they were until the teacher picks one", () => {
+  /* The teacher wrote the counting form before a masculine noun and the
+     short form before a feminine one — the written language's rule. */
+  const long = W("unit.3", "standalone");
+  const short = W("unit.3", "construct.m");
+  const sys = withThree(
+    { "construct.m": long, "construct.f": short },
+    { lat: { "construct.m": "long", "construct.f": "short" }, audio: { "construct.m": ["a"], "construct.f": ["b"] } },
+  );
+  /* Nothing changes for their students yet. */
+  assert.ok(renderAr(3, sys, { noun: nounOf("book") }).text.startsWith(`${long} `));
+  assert.ok(renderAr(3, sys, { noun: nounOf("girl") }).text.startsWith(`${short} `));
+  /* And they are asked. */
+  const asked = twoWordsBeforeNoun(sys);
+  assert.deepEqual(asked, [{ n: 3, kind: "box", key: "unit.3", masculine: long, feminine: short }]);
+
+  /* Keeping the feminine one moves it into the box, with its own sound. */
+  const kept = keepOneWord(sys, asked[0], "feminine");
+  assert.deepEqual(kept.lexemes["unit.3"].forms, { standalone: long, "construct.m": short });
+  assert.deepEqual(kept.lexemes["unit.3"].lat, { "construct.m": "short" });
+  assert.deepEqual(kept.lexemes["unit.3"].audio, { "construct.m": ["b"] });
+  for (const noun of ["book", "girl"]) {
+    assert.ok(renderAr(3, kept, { noun: nounOf(noun) }).text.startsWith(`${short} `), noun);
+  }
+  assert.deepEqual(twoWordsBeforeNoun(kept), []);
+
+  /* Keeping the masculine one leaves it, and nothing of the other. */
+  const other = keepOneWord(sys, asked[0], "masculine");
+  assert.deepEqual(other.lexemes["unit.3"].forms, { standalone: long, "construct.m": long });
+  assert.deepEqual(other.lexemes["unit.3"].lat, { "construct.m": "long" });
+  assert.ok(renderAr(3, other, { noun: nounOf("girl") }).text.startsWith(`${long} `));
+});
+
+test("what is not a question is folded into the one box when the screen opens", () => {
+  const short = W("unit.3", "construct.m");
+  /* The same word twice: the copy goes, so changing the box later does not
+     turn the old copy into a question. */
+  const twice = tidyBeforeNoun(withThree({ "construct.m": short, "construct.f": short }));
+  assert.deepEqual(twice.lexemes["unit.3"].forms, { standalone: W("unit.3", "standalone"), "construct.m": short });
+  /* A word in the old feminine box only: it is the box's word, shown. */
+  const lone = tidyBeforeNoun(withThree({ "construct.f": short }, { lat: { "construct.f": "s" } }));
+  assert.deepEqual(lone.lexemes["unit.3"].forms, { standalone: W("unit.3", "standalone"), "construct.m": short });
+  assert.deepEqual(lone.lexemes["unit.3"].lat, { "construct.m": "s" });
+  /* Two different words are left for the teacher. */
+  const two = withThree({ "construct.m": W("unit.3", "standalone"), "construct.f": short });
+  assert.equal(tidyBeforeNoun(two).lexemes["unit.3"].forms["construct.f"], short);
+  /* And a system with nothing to fold comes back as itself. */
+  assert.equal(tidyBeforeNoun(SYS), SYS);
+});
+
+test("a correction written for a feminine noun is asked about too", () => {
+  const short = W("unit.3", "construct.m");
+  const mine = { ...SYS, overrides: { ...SYS.overrides, "3|construct.f": { text: "X" } } };
+  const asked = twoWordsBeforeNoun(mine);
+  assert.deepEqual(asked, [{ n: 3, kind: "correction", key: "3|construct.f", masculine: short, feminine: "X" }]);
+  /* Kept, it is the correction before every noun. */
+  const kept = keepOneWord(mine, asked[0], "feminine");
+  assert.equal(kept.overrides["3|construct.f"], undefined);
+  assert.deepEqual(kept.overrides["3|construct.m"], { text: "X" });
+  assert.ok(renderAr(3, kept, { noun: nounOf("book") }).text.startsWith("X "));
+  /* Let go, it is gone and the app's own word is back. */
+  const gone = keepOneWord(mine, asked[0], "masculine");
+  assert.equal(gone.overrides["3|construct.f"], undefined);
+  assert.equal(renderAr(3, gone, { noun: nounOf("girl") }).text, renderAr(3, SYS, { noun: nounOf("girl") }).text);
+});
+
+test("a noun with a plural of its own after three to ten says it there and nowhere else", () => {
+  /* The golden book, given a made-up plural for after a number: what is
+     tested is where it is used, not what it is. */
+  const book = { ...nounOf("book"), plCounted: "P" };
+  for (let n = 3; n <= 10; n += 1) {
+    const got = renderAr(n, SYS, { noun: book });
+    assert.ok(got.text.endsWith(" P"), `${n}: ${got.text}`);
+    assert.equal(got.nounForm, "pl", `${n}`);
+    assert.deepEqual(got.warnings, [], `${n}`);
+    assert.ok(got.tokens.some((/** @type {any} */ t) => t.noun === "book" && t.text === "P"), `${n} credits the noun`);
+  }
+  /* Not after one, two or eleven, which take the singular and the dual. */
+  for (const n of [1, 2, 11, 20, 25]) {
+    assert.ok(!renderAr(n, SYS, { noun: book }).text.includes("P"), `${n}`);
+  }
+  /* And a noun without one is counted with its plural, as before. */
+  assert.equal(renderAr(5, SYS, { noun: nounOf("book") }).text.split(" ")[1], nounOf("book").pl);
+});
+
 test("the noun's gender is what the numeral agrees with", () => {
   assert.equal(renderAr(1, SYS, { noun: nounOf("book") }).text, "كتاب واحد");
   assert.equal(renderAr(1, SYS, { noun: nounOf("girl") }).text, "بنت واحدة");
@@ -237,19 +361,15 @@ test("the composer names itself and its ranges", () => {
   const ranges = arComposer.ranges();
   assert.deepEqual(
     ranges.map((r) => r.id),
-    ["numbers:0-10", "numbers:11-99", "numbers:100-999", "numbers:1000+", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
+    ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+"],
   );
   for (const r of ranges) {
     assert.ok(r.from <= r.to, `${r.id} is back to front`);
     assert.ok(r.to <= NUMBER_CEILING, `${r.id} reaches past the ceiling`);
     assert.ok(r.label, `${r.id} has no name`);
-  }
-  /* The one range that is not a stretch of the number line says so. */
-  /* Counting things in the three parts the counted word changes at. */
-  for (const [id, from, to] of [["numbers:count-1-2", 1, 2], ["numbers:count-3-10", 3, 10], ["numbers:count-11-20", 11, 20]]) {
-    const r = must(ranges.find((x) => x.id === id), String(id));
-    assert.equal(r.counted, true, `${id} counts things`);
-    assert.deepEqual([r.from, r.to], [from, to], `${id} covers ${from} to ${to}`);
+    /* Every stretch is counted with too: counting things is one of its
+       questions rather than a part of its own. */
+    assert.equal(r.counts, true, `${r.id} counts things`);
   }
 });
 
@@ -277,4 +397,60 @@ test("the table of forms is a table the app already knows how to draw", () => {
      be filling in a box nothing reads. */
   const faces = new Set(AR_SLOTS.flatMap((s) => s.formKeys));
   for (const p of table.persons) assert.ok(faces.has(/** @type {any} */ (p.id)), `${p.id} is nobody's box`);
+});
+
+/* ---- three hundred to nine hundred have boxes ---- */
+
+test("three hundred to nine hundred each have a box beside a hundred and two hundred", () => {
+  const hundreds = AR_SLOTS.filter((s) => s.group === "hundreds").map((s) => s.label);
+  assert.deepEqual(hundreds, ["100", "200", "300", "400", "500", "600", "700", "800", "900", "hundred"]);
+  const homes = homesOf(arComposer);
+  for (const slot of ["hundred.3", "hundred.9", "hundred.n"]) assert.equal(homes.get(slot), "numbers:100-999", slot);
+});
+
+test("a hundred's own box is what is said, and the bare word only builds where it is empty", () => {
+  const overrides = { ...SYS.overrides };
+  delete overrides["300"];
+  const boxed = { ...SYS, overrides, lexemes: { ...SYS.lexemes, "hundred.3": { slot: "hundred.3", forms: { standalone: "تلتمية" } } } };
+  assert.equal(renderAr(300, boxed).text, "تلتمية");
+  assert.deepEqual(renderAr(300, boxed).tokens, [{ text: "تلتمية", slot: "hundred.3", formKey: "standalone" }]);
+  assert.ok(renderAr(1325, boxed).text.includes("تلتمية"));
+  /* Neither written: the box is what is asked for. */
+  const bare = { ...SYS, overrides };
+  assert.deepEqual(renderAr(300, bare).warnings, [{ code: "missing-slot", slot: "hundred.3", formKey: "standalone" }]);
+  /* A dialect that builds it, with the bare word and no box. */
+  const built = { ...bare, lexemes: { ...SYS.lexemes, "hundred.n": { slot: "hundred.n", forms: { standalone: "مية" } } } };
+  assert.deepEqual(renderAr(300, built).warnings, []);
+  assert.ok(renderAr(300, built).text.endsWith(" مية"));
+  /* Both: the word of its own wins. */
+  const both = { ...built, lexemes: { ...built.lexemes, "hundred.3": boxed.lexemes["hundred.3"] } };
+  assert.equal(renderAr(300, both).text, "تلتمية");
+});
+
+test("the hundreds a teacher wrote out move into their boxes, and the learning goes with them", () => {
+  const mine = {
+    ...SYS,
+    overrides: { ...SYS.overrides, 300: { text: "تلتمية", lat: "tultmiyye", audio: ["a"] } },
+    curatedAudio: { 400: ["b"] },
+  };
+  const got = tidyHundreds(mine);
+  for (let k = 3; k <= 9; k += 1) assert.equal(got.overrides[String(k * 100)], undefined, String(k * 100));
+  assert.deepEqual(got.lexemes["hundred.3"], {
+    slot: "hundred.3",
+    forms: { standalone: "تلتمية" },
+    lat: { standalone: "tultmiyye" },
+    audio: { standalone: ["a"] },
+  });
+  assert.deepEqual(got.lexemes["hundred.4"].audio, { standalone: ["b"] });
+  assert.deepEqual(got.curatedAudio, {});
+  assert.equal(must(got.migratedFrom, "migratedFrom")["hundred.3"], overrideId(SYS.id, "300"));
+  /* Said exactly as before. */
+  for (const v of [300, 400, 999, 1300, 900900]) assert.equal(renderAr(v, got).text, renderAr(v, mine).text, String(v));
+  for (const v of [300, 999]) assert.deepEqual(renderAr(v, got).warnings, []);
+  /* A box with a word in it keeps it, and the written-out word stays. */
+  const filled = { ...mine, lexemes: { ...SYS.lexemes, "hundred.3": { slot: "hundred.3", forms: { standalone: "X" } } } };
+  assert.equal(tidyHundreds(filled).overrides["300"].text, "تلتمية");
+  /* And nothing to move is the same object. */
+  assert.equal(tidyHundreds(got), got);
+  assert.equal(must(arComposer.tidy, "tidy")(got), got);
 });
