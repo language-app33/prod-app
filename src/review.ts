@@ -397,10 +397,13 @@ export function reviewPool(
   const values: Record<string, Value[]> = {};
   for (const slot of drawn) values[slot] = [];
   const owner: Map<string, Owner> = new Map();
+  /* Read once: whether a blank has a partner is asked of every word in
+     the pool. */
+  const partSlots = slotsOf(part);
   const admits = blankAdmits(
     lang,
     (slot) => slotRows(part, slot),
-    (slot) => !!partnerOf(part, slotsOf(part), slot),
+    (slot) => !!partnerOf(part, partSlots, slot),
   );
   const langId = lang ? lang.id : "";
   const byAge = [...(pool || [])].sort(

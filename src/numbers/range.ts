@@ -2,7 +2,8 @@
  * Which ranges can be asked, and what to ask in one.
  *
  * A range is a skill rather than a stretch of the number line: *numbers up
- * to ten*, *counting things*, *telling the hour*. It is scheduled like a
+ * to nine*, *telling the hour* — and a stretch of numbers counts things
+ * too, see `countingOf`. It is scheduled like a
  * card and it holds a schedule like a card — and what it does *not* hold
  * is any of the numbers it is about. They are made up when the queue is
  * built and thrown away with the sitting, which has been the rule since
@@ -26,6 +27,7 @@ import type {
   Ask,
   Composer,
   CountedNoun,
+  FormKey,
   NounForm,
   NumberSystem,
   Range,
@@ -36,7 +38,7 @@ import type {
   Warning,
   WarningCode,
 } from "./types.ts";
-import { NUMBER_CEILING } from "./types.ts";
+import { NUMBER_CEILING, countingOf } from "./types.ts";
 import { hash } from "../chance.ts";
 
 /* ---- what stops a range ---- */
@@ -77,17 +79,21 @@ export const blocking = (warnings: Warning[]): Warning[] =>
 export function probeOf(range: Range): number[] {
   const { from, to } = range;
   /*
-   * Counting is probed by shape rather than by spread.
+   * Counting is probed by shape as well as by spread.
    *
    * What varies when a noun is counted is not how big the number is but
    * which shape it puts the phrase in — one, two, the three-to-ten run,
    * the teens, and everything above twenty. A spread across the range
    * would land on four of those and miss the fifth, and the fifth is
-   * where the gap would be.
+   * where the gap would be. The spread is kept beside them because a
+   * counting question asks from the whole of its stretch, and a number
+   * before a noun can reach for a face of a word the bare number never
+   * does — the feminine seven inside forty-seven, in Hebrew.
    */
   if (range.counted) {
-    const shapes = [1, 2, 3, 4, 9, 10, 11, 12, 19, 20, 21, 100];
-    return shapes.filter((v) => v >= from && v <= to);
+    const shapes = [1, 2, 3, 4, 9, 10, 11, 12, 19, 20, 21, 100, 1000];
+    const spread = probeOf({ ...range, counted: false });
+    return [...new Set(shapes.filter((v) => v >= from && v <= to).concat(spread))].sort((a, b) => a - b);
   }
   const out: number[] = [from, to];
   const span = to - from;
@@ -102,12 +108,23 @@ export function probeOf(range: Range): number[] {
     if (first + 1 <= to) out.push(first + 1);
     if (unit >= 100 && first + unit / 10 <= to) out.push(first + unit / 10);
   }
+  /* Every round hundred and every round thousand up to ten of them. A
+     spread lands on 369 and 459 and never on 300 or 400, and those are
+     the numbers a language most often says as one word of its own:
+     Palestinian 300 to 900 and 3,000 to 10,000 are. The thousands have
+     no box, so a teacher writes each out from this list. Leaving them out
+     hid them from the teacher and from the check that a part is ready. */
+  for (const unit of [100, 1000]) {
+    for (let k = 1; k <= 10; k += 1) out.push(k * unit);
+  }
   const seen = new Set<number>();
-  return out.filter((v) => {
-    if (v < from || v > to || seen.has(v)) return false;
-    seen.add(v);
-    return true;
-  });
+  return out
+    .filter((v) => {
+      if (v < from || v > to || seen.has(v)) return false;
+      seen.add(v);
+      return true;
+    })
+    .sort((a, b) => a - b);
 }
 
 /** The times a clock range is tested with: every hour, every mark it
@@ -119,6 +136,76 @@ export function timeProbeOf(range: Range): { h: number; m: number }[] {
   return out;
 }
 
+/* ---- what can be counted ---- */
+
+/*
+ * Remembered per system, because a system is the same object for as long
+ * as nothing in it changes and the answer is asked on every draw: every
+ * noun rendered at every shape of every counting part.
+ */
+const COUNTABLE: WeakMap<NumberSystem, Map<string, CountedNoun[]>> = new WeakMap();
+
+/**
+ * The nouns a stretch can be counted with: the ones it can say at every
+ * number it probes — handed the stretch's counting view, see countingOf.
+ *
+ * A noun card without a dual is a noun the language's *two* cannot count,
+ * and one without a plural is no use from three to ten — but either is a
+ * perfectly good noun for the other stretches. So a noun is judged per
+ * stretch, by rendering it, and the counting question opens on any noun
+ * the stretch can say whole. Before
+ * the nouns came off the cards, one noun short of a face held the whole
+ * part back; with every noun in the collection in play, that would have
+ * held back every part for good.
+ */
+export function countable(range: Range, composer: Composer | null, sys: NumberSystem): CountedNoun[] {
+  if (!range.counted || !composer) return sys.nouns || [];
+  let held = COUNTABLE.get(sys);
+  if (!held) {
+    held = new Map();
+    COUNTABLE.set(sys, held);
+  }
+  const key = `${range.id}|${range.from}`;
+  const had = held.get(key);
+  if (had) return had;
+  const out = (sys.nouns || []).filter((noun) => !blocking(countingWarnings(range, composer, sys, noun)).length);
+  held.set(key, out);
+  return out;
+}
+
+/*
+ * What can stop a noun being counted is which of its faces are written
+ * and which gender it is — the gender picks the numeral's face, and a
+ * missing face is a missing word. Never the words themselves. So nouns
+ * alike in those are alike in what they can be counted with, and are
+ * rendered once between them: a teacher with two hundred noun cards has
+ * a handful of kinds of noun, and a stretch's probe is forty numbers.
+ */
+const kindOf = (noun: CountedNoun): string =>
+  [noun.gender, ...(["sg", "dual", "pl", "plCounted"] as const).map((k) => (String(noun[k] || "").trim() ? 1 : 0))].join("");
+
+const KINDS: WeakMap<NumberSystem, Map<string, Warning[]>> = new WeakMap();
+
+/**
+ * Everything counting this noun across a stretch's probe warns about —
+ * worked out once per kind of noun, see kindOf, and remembered per system.
+ * A warning that names a noun names the first of its kind, which is the
+ * one rendered.
+ */
+export function countingWarnings(range: Range, composer: Composer, sys: NumberSystem, noun: CountedNoun): Warning[] {
+  let held = KINDS.get(sys);
+  if (!held) {
+    held = new Map();
+    KINDS.set(sys, held);
+  }
+  const key = `${range.id}|${range.from}|${kindOf(noun)}`;
+  const had = held.get(key);
+  if (had) return had;
+  const out = merged(probeOf(range).map((n) => composer.render(n, sys, { noun }).warnings));
+  held.set(key, out);
+  return out;
+}
+
 /* ---- can it be asked ---- */
 
 export interface RangeCheck {
@@ -126,6 +213,14 @@ export interface RangeCheck {
   open: boolean;
   /** What is in the way, where anything is. */
   warnings: Warning[];
+  /**
+   * Whether the stretch can be counted with as well, and what is in the
+   * way of that — on a stretch that counts, and nowhere else. Apart from
+   * `open` on purpose: a stretch is asked on its numbers alone, and the
+   * counting question joins it once a noun card can be counted across
+   * all of it. Never open on a stretch that is not.
+   */
+  counting?: { open: boolean; warnings: Warning[] };
 }
 
 const warnKey = (w: Warning) => `${w.code}:${w.slot || ""}:${w.formKey || ""}:${w.detail || ""}`;
@@ -144,6 +239,27 @@ const merged = (lists: Warning[][]): Warning[] => {
 };
 
 /**
+ * Whether a stretch can be counted with: some noun it can say whole at
+ * every number it probes. Where there is none, every noun's gaps are
+ * reported, which is what tells the teacher which card to finish; and
+ * where there are no nouns at all, that is said in its own terms — it is
+ * a teacher who has not written a noun card yet, not a gap in the words.
+ */
+export function countingCheck(
+  range: Range,
+  composer: Composer,
+  sys: NumberSystem,
+): { open: boolean; warnings: Warning[] } {
+  if (!sys.nouns || !sys.nouns.length) {
+    return { open: false, warnings: [{ code: "missing-noun-form", detail: "no nouns to count" }] };
+  }
+  const view = countingOf(range);
+  const able = countable(view, composer, sys);
+  const warnings = merged((able.length ? able : sys.nouns).map((noun) => countingWarnings(view, composer, sys, noun)));
+  return { open: able.length > 0 && !blocking(warnings).length, warnings };
+}
+
+/**
  * Every range this language has, with whether it can be asked and what is
  * in the way of the ones that cannot.
  *
@@ -152,9 +268,9 @@ const merged = (lists: Warning[][]): Warning[] => {
  * a hole in it rather than a learner ready for thousands, and stopping at
  * the first gap is what makes the reach a teacher is shown honest. The
  * clock ranges are a prefix among themselves for the same reason —
- * nobody wants the exact minute before the hour. Counting things is
- * neither, because it is not harder than any of them; it is a different
- * thing to know, and it opens on its own merits.
+ * nobody wants the exact minute before the hour. Counting is neither: it
+ * is a question a stretch asks once the stretch is open and a noun can be
+ * counted across it, and it never holds the stretch back.
  */
 export function rangeChecks(
   composer: Composer | null,
@@ -168,27 +284,16 @@ export function rangeChecks(
   let broken = false;
   for (const range of composer.ranges()) {
     const lists: Warning[][] = [];
-    if (range.counted) {
-      /* Nothing to count is not a gap in the lexicon; it is a teacher who
-         has not said what to count yet, and it is said in its own terms. */
-      if (!sys.nouns.length) {
-        out.push({
-          range,
-          open: false,
-          warnings: [{ code: "missing-noun-form", detail: "no nouns to count" }],
-        });
-        continue;
-      }
-      for (const noun of sys.nouns) {
-        for (const n of probeOf(range)) lists.push(composer.render(n, sys, { noun }).warnings);
-      }
-    } else {
-      for (const n of probeOf(range)) lists.push(composer.render(n, sys).warnings);
-    }
+    for (const n of probeOf(range)) lists.push(composer.render(n, sys).warnings);
     const warnings = merged(lists);
-    const open = !blocking(warnings).length && !(broken && !range.counted);
-    if (!range.counted && blocking(warnings).length) broken = true;
-    out.push({ range, open, warnings });
+    const open = !blocking(warnings).length && !broken;
+    if (blocking(warnings).length) broken = true;
+    if (!range.counts) {
+      out.push({ range, open, warnings });
+      continue;
+    }
+    const counting = countingCheck(range, composer, sys);
+    out.push({ range, open, warnings, counting: { ...counting, open: open && counting.open } });
   }
 
   if (timeComposer && timeSys) {
@@ -252,7 +357,7 @@ export function seeded(seed: string): () => number {
  * caller varies is the count of right answers, which is what makes a
  * missed question come back unchanged and a right one move on.
  */
-export function askFor(range: Range, seed: string, sys: NumberSystem): Ask {
+export function askFor(range: Range, seed: string, sys: NumberSystem, composer?: Composer | null): Ask {
   const rnd = seeded(`${range.id} ${seed}`);
   if (range.kind === "time") {
     const h = Math.floor(rnd() * 24);
@@ -270,7 +375,9 @@ export function askFor(range: Range, seed: string, sys: NumberSystem): Ask {
   const span = Math.max(0, Math.min(range.to, NUMBER_CEILING) - range.from);
   const value = range.from + Math.floor(rnd() * (span + 1));
   if (!range.counted) return { rangeId: range.id, kind: "numbers", value };
-  const nouns = sys.nouns || [];
+  /* Only the nouns this part can say whole, where the composer is to hand
+     to say which — see countable. */
+  const nouns = composer ? countable(range, composer, sys) : sys.nouns || [];
   const noun = nouns.length ? nouns[Math.floor(rnd() * nouns.length)] : null;
   return { rangeId: range.id, kind: "numbers", value, nounId: noun ? noun.id : undefined };
 }
@@ -290,6 +397,13 @@ export interface Asked {
   hour?: number;
   minute?: number;
   clips?: string[][];
+  /** How it sounds, put together from what the teacher wrote beside each
+      word — empty unless every word in it has one. See `sayAlong`. */
+  lat?: string;
+  /** A recording of the whole number, where one exists. See `heardWhole`. */
+  recs?: string[];
+  /** The number in English words, with what it counts beside it. */
+  words?: string;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -333,20 +447,198 @@ export function renderAsk(
       hour: shownHour,
       minute: shownMinute,
       clips: got.clips,
+      lat: sayAlong(got.text, got.tokens, [timeSys, sys]),
     };
   }
 
   const noun = ask.nounId ? (sys.nouns || []).find((n) => n.id === ask.nounId) : undefined;
   const got: Rendering = composer.render(ask.value, sys, noun ? { noun } : {});
+  const counted = noun ? englishFor(noun, got.nounForm) : "";
   return {
     ask,
     text: got.text,
     digits: String(ask.value),
-    en: noun ? `${ask.value} ${englishFor(noun, got.nounForm)}` : String(ask.value),
+    en: noun ? `${ask.value} ${counted}` : String(ask.value),
     tokens: got.tokens,
     warnings: got.warnings,
     nounForm: got.nounForm,
+    lat: sayAlong(got.text, got.tokens, [sys]),
+    recs: noun ? [] : heardWhole(ask.value, got.tokens, sys),
+    words: [inEnglish(ask.value), counted].filter(Boolean).join(" "),
   };
+}
+
+/* ---- what else a learner is shown about it ---- */
+
+const trimmed = (s: unknown) => String(s == null ? "" : s).trim();
+
+/**
+ * The faces of one slot that are written the way this token was.
+ *
+ * A token names the face it was looked up under, but what the teacher
+ * recorded or transliterated may sit under another face with the same
+ * word in it — *one* asked for with a masculine word is the counting
+ * *one*, and the recording was made once, in the first box.
+ */
+function facesLike(sys: NumberSystem | TimeSystem, t: Token): FormKey[] {
+  const lex = t.slot ? (sys.lexemes || {})[t.slot] : undefined;
+  if (!lex) return [];
+  const keys = Object.keys(lex.forms || {}) as FormKey[];
+  const same = keys.filter((k) => trimmed(lex.forms[k]) === t.text);
+  return t.formKey && same.includes(t.formKey) ? [t.formKey, ...same.filter((k) => k !== t.formKey)] : same;
+}
+
+/** How one token is said, where the teacher wrote it — or nothing. */
+function latOfToken(t: Token, systems: (NumberSystem | TimeSystem | null | undefined)[]): string {
+  for (const sys of systems) {
+    if (!sys) continue;
+    if (t.override) {
+      const over = (sys.overrides || {})[t.override];
+      if (over && trimmed(over.text) === t.text) return trimmed(over.lat);
+      continue;
+    }
+    if (!t.slot) continue;
+    for (const k of facesLike(sys, t)) {
+      const lat = trimmed(((sys.lexemes[t.slot] || {}).lat || {})[k]);
+      if (lat) return lat;
+    }
+    const time = sys as TimeSystem;
+    if (t.slot.startsWith("minute.") && time.minuteExprs) {
+      const expr = time.minuteExprs[t.slot.slice("minute.".length)];
+      if (expr && trimmed(expr.text) === t.text && trimmed(expr.lat)) return trimmed(expr.lat);
+    }
+    if (t.slot.startsWith("period.") && time.periods) {
+      const period = time.periods.find((p) => `period.${p.slot}` === t.slot && trimmed(p.text) === t.text);
+      if (period && trimmed(period.lat)) return trimmed(period.lat);
+    }
+  }
+  return "";
+}
+
+/**
+ * How a whole number sounds, out of how each of its words does.
+ *
+ * The words come from the rendering itself, read left to right against
+ * the pieces it was made of: the composer knows the order and the join,
+ * and the text it hands back already carries both, so nothing about any
+ * language is decided here. A piece that runs straight into the next one
+ * with no space — a connector attached to the word after it — is joined
+ * to it with a hyphen, which is how a transliteration usually writes a
+ * prefix and the one way of writing it that cannot be mistaken for two
+ * words.
+ *
+ * All or nothing: a number with one word nobody transliterated has no
+ * transliteration, rather than one with a hole in it a learner would read
+ * as the whole.
+ */
+export function sayAlong(
+  text: string,
+  tokens: Token[],
+  systems: (NumberSystem | TimeSystem | null | undefined)[],
+): string {
+  const said = trimmed(text);
+  if (!said) return "";
+  const pieces = new Map<string, string>();
+  for (const t of tokens) {
+    const word = trimmed(t.text);
+    if (!word || pieces.has(word)) continue;
+    const lat = latOfToken({ ...t, text: word }, systems);
+    if (!lat) return "";
+    pieces.set(word, lat);
+  }
+  /* Longest first, so a word is never read as a shorter word that
+     happens to start it. Backtracks where that guess was wrong. */
+  const words = [...pieces.keys()].sort((a, b) => b.length - a.length);
+  const walk = (at: number): string | null => {
+    if (at >= said.length) return "";
+    for (const w of words) {
+      if (!said.startsWith(w, at)) continue;
+      let next = at + w.length;
+      const lat = pieces.get(w) || "";
+      if (next >= said.length) return lat;
+      let spaced = false;
+      while (next < said.length && /\s/.test(said[next])) {
+        next += 1;
+        spaced = true;
+      }
+      const rest = walk(next);
+      if (rest === null) continue;
+      if (spaced) return `${lat} ${rest}`;
+      return /-$/.test(lat) ? `${lat}${rest}` : `${lat}-${rest}`;
+    }
+    return null;
+  };
+  return walk(0) || "";
+}
+
+/**
+ * A recording of the whole number, where there is one.
+ *
+ * Nothing inside a number is ever stitched, so this is a number the
+ * teacher recorded whole — written out by hand, or one word in a box —
+ * and nothing else. Forty-seven built out of *seven* and *forty* has no
+ * recording, and is not given two.
+ */
+export function heardWhole(value: number, tokens: Token[], sys: NumberSystem): string[] {
+  const curated = (sys.curatedAudio || {})[String(value)];
+  if (curated && curated.length) return curated;
+  if (tokens.length !== 1) return [];
+  const t = tokens[0];
+  if (t.override) {
+    const over = (sys.overrides || {})[t.override];
+    return (over && over.audio && over.audio.length ? over.audio : (sys.curatedAudio || {})[t.override]) || [];
+  }
+  const audio = ((t.slot && sys.lexemes[t.slot]) || { audio: {} }).audio || {};
+  for (const k of facesLike(sys, t)) {
+    const clips = audio[k];
+    if (clips && clips.length) return clips;
+  }
+  return [];
+}
+
+/**
+ * Whether an asking has a recording to play — which a listening question
+ * needs to be a question at all. A counted phrase never has: its noun is
+ * said with the number and nobody recorded the two together.
+ */
+export function recordedWhole(ask: Ask, composer: Composer | null, sys: NumberSystem): boolean {
+  if (ask.kind !== "numbers" || ask.nounId || !composer) return false;
+  const got = composer.render(ask.value, sys, {});
+  return !!got.text && heardWhole(ask.value, got.tokens, sys).length > 0;
+}
+
+const ONES = [
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+];
+const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+/**
+ * A number in English words: *forty-seven*, *three hundred and five*.
+ *
+ * English, because that is the language the app speaks to a learner in,
+ * and a number in the language being learnt is the composer's business and
+ * never this. Said the way it is said aloud, with the *and* before the
+ * last part.
+ */
+export function inEnglish(n: number): string {
+  if (!Number.isInteger(n) || n < 0 || n > NUMBER_CEILING) return "";
+  if (n < 20) return ONES[n];
+  const tens = (v: number) => (v < 20 ? ONES[v] : TENS[Math.floor(v / 10)] + (v % 10 ? `-${ONES[v % 10]}` : ""));
+  const hundreds = (v: number) => {
+    const h = Math.floor(v / 100);
+    const r = v % 100;
+    return [h ? `${ONES[h]} hundred` : "", r ? tens(r) : ""].filter(Boolean).join(" and ");
+  };
+  const millions = Math.floor(n / 1000000);
+  const thousands = Math.floor((n % 1000000) / 1000);
+  const rest = n % 1000;
+  const parts = [
+    millions ? `${hundreds(millions)} million` : "",
+    thousands ? `${hundreds(thousands)} thousand` : "",
+  ].filter(Boolean);
+  if (rest) parts.push(parts.length && rest < 100 ? `and ${tens(rest)}` : hundreds(rest));
+  return parts.join(" ");
 }
 
 /** Which hour the clock shows once a colloquial rounding has carried. */
@@ -360,6 +652,8 @@ function englishFor(noun: CountedNoun, form: NounForm | undefined): string {
   const word = String(noun.en || noun.id || "").trim();
   if (!word) return "";
   if (form === "sg") return word;
+  /* The card's own plural, where it says one — *children*, *mice*. */
+  if (noun.enPl) return noun.enPl;
   /* English has one plural and no dual, so the two that are not singular
      are both said the same way. An irregular plural is the teacher's to
      write; this is a cue, not a lesson in English. */

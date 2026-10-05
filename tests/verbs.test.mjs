@@ -763,6 +763,27 @@ test("the form that agrees: the cell a column picks, the word where none does, n
   assert.equal(agreedValue(big, arabic, own, beside({ number: "singular", gender: "feminine" })), own);
 });
 
+test("a noun whose gender nobody said is not paired with a guess", () => {
+  /* A singular could be either: كتاب wants كبير and ساعة wants كبيرة, and
+     taking the word itself was guessing the masculine. The sentence waits
+     for the gender instead, as a verb beside such a noun already did. */
+  assert.equal(agreedValue(big, arAgree, own, beside({ number: "singular", human: "thing" })), null);
+  /* Where the gender would change nothing, nothing waits on it. */
+  assert.deepEqual(agreedValue(big, arAgree, own, beside({ number: "plural", human: "thing" })),
+    { id: "big-f", ar: "كبيرة", en: "big", lat: "kbiire" }, "a plural of things takes the feminine whatever it is");
+  assert.deepEqual(agreedValue(big, arAgree, own, beside({ number: "dual", human: "thing" })),
+    { id: "big-du", ar: "كبيرين", en: "big", lat: "kbiirein" }, "and a pair the pair");
+  assert.equal(agreedValue(big, arAgree, own, beside({})), own, "a word that says nothing at all is not waited on");
+});
+
+test("an animal agrees as a thing does", () => {
+  assert.deepEqual(agreedValue(big, arAgree, own, beside({ number: "plural", gender: "masculine", human: "animal" })),
+    { id: "big-f", ar: "كبيرة", en: "big", lat: "kbiire" }, "a plural of animals takes the feminine singular");
+  assert.deepEqual(agreedValue(big, arAgree, own, beside({ number: "singular", gender: "feminine", human: "animal" })),
+    { id: "big-f", ar: "كبيرة", en: "big", lat: "kbiire" });
+  assert.equal(agreedValue(big, arAgree, own, beside({ number: "singular", gender: "masculine", human: "animal" })), own);
+});
+
 test("a column that picks on gender alone is chosen by gender alone", () => {
   /* A one-cell table whose column names a gender and says nothing about
      number: whatever number the word beside it is, the cell is chosen on

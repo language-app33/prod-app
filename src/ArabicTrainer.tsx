@@ -123,6 +123,7 @@ import {
   TYPES,
   activeLang,
   checkAnswer,
+  answersInFigures,
   answerFields,
   derivedValue,
   dimValues,
@@ -154,7 +155,6 @@ import {
   keysFor,
   answerOf,
   levelOf,
-  TOP_LEVEL,
   typeOf,
   tablesOf,
   verbOf,
@@ -162,6 +162,7 @@ import {
   lendsForm,
   lendsInto,
   NUMBER_EQUIVALENT,
+  NUMBER_FALLBACK,
   normEn,
 } from "./languages.ts";
 import {
@@ -186,15 +187,19 @@ import type { LangChoice } from "./lang-choice.ts";
    language-shaped is: through a registry keyed by language, never by
    naming one. See src/numbers/. */
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
-import type { Ask } from "./numbers/types.ts";
+import type { Ask, Token } from "./numbers/types.ts";
+import { countingOf } from "./numbers/types.ts";
 import {
-  askFor,
   confusableTimes,
   confusablesOf,
+  inEnglish,
+  recordedWhole,
   renderAsk,
+  seeded,
 } from "./numbers/range.ts";
-import type { SystemSet } from "./numbers/generate.ts";
-import { componentId, isRangeSkill, overrideId, systemFor } from "./numbers/generate.ts";
+import type { Asking, SystemSet } from "./numbers/generate.ts";
+import { askingsKnown, askKnown, cardsOfToken, fillerCards, figureOf as figureOfLabel, homeStretch, isFromSystem, inOwnFigures, isRangeSkill, stretchBefore, systemFor } from "./numbers/generate.ts";
+import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
   cleared,
@@ -298,8 +303,110 @@ const itemDifficulty = (it: Item, settings: Settings): string =>
    climbs — see `laddered`. Everything that puts progress on a screen reads
    this, so what a learner is told and what the scheduler does are the one
    answer said twice rather than two answers that can drift. */
-const cardStandings = (it: Item, settings: Settings): Standing[] =>
-  standingsOf(it, (u) => laddered(u, settings));
+/*
+ * A number part is learnt only once the words it is made of are.
+ *
+ * Its own ladder says the learner is getting numbers right, which a run of
+ * easy ones can say about 11 to 99 while *ninety* has never been kept. So
+ * where the collection is to hand, a part whose top is done but whose words
+ * are not is held at Cleared, with how many words it is waiting on. A
+ * caller that cannot see the collection — one card's own line — reads the
+ * part on its own ladder, which is all it ever did.
+ *
+ * `keys` is laddered everywhere but towardsLearnt, which reads a number
+ * still waiting on its stretch as it will stand once the stretch opens.
+ */
+export const cardStandings = (
+  it: Item,
+  settings: Settings,
+  among?: Item[],
+  keys: (unit: Form, settings: Settings) => string[] = laddered,
+): Standing[] => {
+  const rows = standingsOf(it, (u) => keys(u, settings));
+  if (!it.parts || !among || !rows.length) return rows;
+  const held = partsOf(it, among, settings, keys).filter((p) => p.validated === false).length;
+  if (!held) return rows;
+  const top = rows[rows.length - 1];
+  return rows.slice(0, -1).concat([{ ...top, status: top.status === "done" ? "cleared" : top.status, held }]);
+};
+
+/**
+ * How far one card is towards learnt, as every percentage counts it: where
+ * it stands, and its share — the levels it has finished over the levels it
+ * has material for. Null for a card that can never be asked anything,
+ * which no practice would bring closer and so is no part of the sum.
+ *
+ * A number waiting for its stretch is not one of those. Its words wait
+ * with their stretch and a stretch waits on the one below — see
+ * quietUnits — so until then it has nothing to ask and stands on no level.
+ * The percentages used to leave it out for that, and a deck of every
+ * number read 90% to a learner who knew the words for 0 to 9, then fell to
+ * 50% once 0 to 9 was learnt and 10 to 19 opened: progress drawn going
+ * backwards because it had been made. It is in the deck and not yet
+ * learnt, so it counts — read as it will be asked once its stretch opens:
+ * fresh, or with whatever it had earned before a slip below shut it again.
+ *
+ * The home screen's ring, a saved session's tile, the prep's and the
+ * Progress tab's decks all read this, so none of them can count a waiting
+ * number differently from the others.
+ */
+export function towardsLearnt(it: Item, settings: Settings, among: Item[]): { at: Standing; share: number } | null {
+  let rows = cardStandings(it, settings, among);
+  if (!rows.length) rows = cardStandings(it, settings, among, ladderedOnceOpen);
+  const at = standing(rows);
+  if (!at) return null;
+  return { at, share: rows.filter((r) => r.status === "done").length / rows.length };
+}
+
+/* Every card in a collection by id, once per collection: a part asks after
+   thirty words, and a screen asks after every part. */
+const BY_ID: WeakMap<Item[], Map<string, Item>> = new WeakMap();
+function byIdOf(items: Item[]): Map<string, Item> {
+  const had = BY_ID.get(items);
+  if (had) return had;
+  const made = new Map(items.map((it) => [it.id, it]));
+  BY_ID.set(items, made);
+  return made;
+}
+
+/**
+ * The words a number part is made of, as the learner stands on each.
+ *
+ * `validated` is the app's own standard for a card — learnt, its ladder
+ * cleared and its passes made — and null for a word that cannot be asked
+ * at all, which nothing could ever validate and so holds nothing back. A
+ * word in no card this learner holds is left out for the same reason.
+ * `met` is whether any question on it has been answered, which is what
+ * tells a word under way from one not started.
+ *
+ * `keys` as in cardStandings: a part read through the quiet gate reads its
+ * words through it too, or a waiting part would count words that had
+ * slipped out of reach as holding nothing back.
+ */
+export function partsOf(
+  it: Item,
+  among: Item[],
+  settings: Settings,
+  keys: (unit: Form, settings: Settings) => string[] = laddered,
+): { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] {
+  const byId = byIdOf(among);
+  const out: { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] = [];
+  for (const id of it.parts || []) {
+    const card = byId.get(id);
+    if (!card) continue;
+    const rows = standingsOf(card, (u) => keys(u, settings));
+    const at = standing(rows);
+    out.push({
+      card,
+      at,
+      validated: at ? at.status === "done" : null,
+      met: unitsOf(card).some(({ unit }) =>
+        keys(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
+      ),
+    });
+  }
+  return out;
+}
 
 /* ------------------------------------------------------------------
    What one answer moved
@@ -341,8 +448,8 @@ export function movesAmong(
     const has = now.get(id);
     if (!had || !has) continue;
     const move = movedTo(
-      standing(cardStandings(had, settings)),
-      standing(cardStandings(has, settings)),
+      standing(cardStandings(had, settings, before)),
+      standing(cardStandings(has, settings, after)),
     );
     if (move) out.push({ id, move });
   }
@@ -634,6 +741,12 @@ const STATUS_RUNS = [
 function standingLabel(at: Standing | null): string {
   if (!at) return "Can't practice yet";
   if (at.status === "done") return "Learnt";
+  /* A number part whose own reviews are made and whose words are not: the
+     reviews line would say "0 reviews to go" over a part that is not
+     learnt, so it says what it is waiting on instead. */
+  if (at.status === "cleared" && at.held && at.passes >= PASSES_TO_LEARN) {
+    return `Cleared · ${plural(at.held, "word")} to learn`;
+  }
   if (at.status === "cleared") {
     return `Cleared · ${PASSES_TO_LEARN - at.passes} ${
       PASSES_TO_LEARN - at.passes === 1 ? "review" : "reviews"
@@ -915,12 +1028,27 @@ let TYPE_CACHE: WeakMap<Form, { lang: LangId; types: string[] }> = new WeakMap()
    types, because it reads the same indexes they do. */
 let SCENE_FILLS: WeakMap<Item, Map<string, Record<string, Record<string, Value>> | null>> = new WeakMap();
 
+/*
+ * And which of a blank's words each sentence admits — see askedIn — kept
+ * for as long as the indexes it reads hold, and thrown away with them.
+ *
+ * Asked once per question type, per count the home screen keeps, per
+ * sentence, after every answer; and since 0.262 the answer walks every word
+ * that could fill the blank, so it is worth working out once. Kept against
+ * the sentence's form and the list it was filtered from, and against the
+ * language a card with none of its own is read in — the same reason
+ * TYPE_CACHE keeps one: the question on screen moves that language in the
+ * middle of a render, without any of the setters below being called.
+ */
+let ASKED_IN: WeakMap<Form, Map<string, { list: Value[]; lang: LangId; out: Value[] }>> = new WeakMap();
+
 /* Thrown away whole rather than picked over: the setters below run
    together, in a handful of lines, and what each of them changes reaches
    most of the answers in here. */
 function forgetTypes() {
   TYPE_CACHE = new WeakMap();
   SCENE_FILLS = new WeakMap();
+  ASKED_IN = new WeakMap();
 }
 
 /* Exported, with the key it is filed under, so a test can say "these words
@@ -935,22 +1063,35 @@ export function setValueIndex(map: Map<string, Value[]>) {
 export const valueKey = (langId: LangId, slot: string) => `${langId}\u0000${slot}`;
 
 /*
- * And how far the learner has got with each of them.
+ * And whether the learner has cleared each of them.
  *
- * A number is how far up its own ladder a value has climbed; null is a
- * value that has no ladder — one the teacher marked as not practised on
- * its own, which is never dealt and so can never climb anything. Which of
- * the two it is decides how a hole is gated; the rule itself is valuesAt,
- * in variables.ts, and this is only where the answer is looked up.
+ * True or false is whether a value has been up every level of its own
+ * ladder; null is a value that has no ladder — one the teacher marked as
+ * not practised on its own, which is never dealt and so can never clear
+ * anything. Which of the two it is decides how a hole is gated; the rule
+ * itself is valuesAt, in variables.ts, and this is only where the answer
+ * is looked up.
  *
  * Beside the index rather than inside the Value, because a Value is the
  * words a card lends and travels into the question itself — how far the
  * learner has got with it is a fact about them, not about the sentence.
  */
-let VALUE_REACH: Map<string, number | null> = new Map();
+let VALUE_REACH: Map<string, boolean | null> = new Map();
 
-function setValueReach(map: Map<string, number | null>) {
+/*
+ * And the same answer for every other form of a card that fills anything,
+ * which is what a sentence puts up where it goes back to the card for the
+ * form that agrees — the feminine of an adjective, the person of a verb.
+ * A building block is cleared in the form that is shown, so that form is
+ * asked too. Kept apart from VALUE_REACH because that map also says which
+ * values a frame keeps a record of having met, and a cell nothing lends
+ * is not one of those.
+ */
+let FORM_CLEARED: Map<string, boolean | null> = new Map();
+
+function setValueReach(map: Map<string, boolean | null>, forms?: Map<string, boolean | null>) {
   VALUE_REACH = map || new Map();
+  FORM_CLEARED = forms || new Map();
   /* A scene's casting reads what each word has climbed. */
   SCENE_FILLS = new WeakMap();
 }
@@ -996,14 +1137,33 @@ let VALUE_OWNER: Map<string, { card: Item; form: Form }> = new Map();
 function setValueOwner(map: Map<string, { card: Item; form: Form }>) {
   VALUE_OWNER = map || new Map();
   SCENE_FILLS = new WeakMap();
+  /* Which words a blank admits is read off the cards they came from. */
+  ASKED_IN = new WeakMap();
 }
 
-/* What a value has climbed, for valuesAt. A value nothing knows about
-   reads as unmet rather than as met: the whole point of the gate is that a
-   word nobody has answered is not one to put in front of somebody. */
-const reachOfValue = (value: Value): number | null => {
+/* Whether a value is cleared, for valuesAt. A value nothing knows about
+   reads as not cleared: the whole point of the gate is that a word the
+   learner has not got is not one to put in front of somebody. */
+const clearedOfValue = (value: Value): boolean | null => {
   const ref = refOf(value);
-  return VALUE_REACH.has(ref) ? (VALUE_REACH.get(ref) as number | null) : 0;
+  return VALUE_REACH.has(ref) ? (VALUE_REACH.get(ref) as boolean | null) : false;
+};
+
+/*
+ * Whether a word may stand where a sentence put it, in the form it was
+ * put there in.
+ *
+ * The pool already holds only cleared values, but an agreeing card lends
+ * its own word and the sentence then puts up another form of it — كبيرة
+ * beside a feminine noun where كبير was lent. That form is a building
+ * block in its own right, with a ladder of its own, and it is the one the
+ * learner reads or writes. A form with no ladder — a card or a form not
+ * practised on its own — is introduced by the sentence, as a name is.
+ */
+const standsAsShown = (value: Value): boolean => {
+  const ref = refOf(value);
+  if (VALUE_REACH.has(ref)) return VALUE_REACH.get(ref) !== false;
+  return FORM_CLEARED.has(ref) ? FORM_CLEARED.get(ref) !== false : true;
 };
 
 /* Whether a frame has to keep a record of having met a value — only the
@@ -1144,13 +1304,24 @@ function askedIn(unit: Form, slot: string, list: Value[]): Value[] {
      stands in it once per tense, since the subject picks the person. */
   const agrees = !!partnerOf(unit, slotsOf(unit), slot);
   if (!rows.length && !agrees) return list;
+  /* Worked out once while the indexes hold — see ASKED_IN. */
+  const fallback = activeLang().id;
+  let mine = ASKED_IN.get(unit);
+  const held = mine && mine.get(slot);
+  if (held && held.list === list && held.lang === fallback) return held.out;
   const admits = (lang: Lang) => blankAdmits(lang, () => rows, () => agrees);
-  return list.filter((value) => {
+  const out = list.filter((value) => {
     const owner = VALUE_OWNER.get(refOf(value));
     if (!owner) return true;
     const lang = LANGUAGES[String(owner.card.lang || "")] || activeLang();
     return admits(lang)(owner.card, owner.form, slot);
   });
+  if (!mine) {
+    mine = new Map();
+    ASKED_IN.set(unit, mine);
+  }
+  mine.set(slot, { list, lang: fallback, out });
+  return out;
 }
 
 /*
@@ -1167,7 +1338,7 @@ function fillsAt(unit: Form, key: string, langId?: LangId): Record<string, Value
   const level = levelOf(key);
   const out: Record<string, Value[]> = {};
   for (const [slot, list] of Object.entries(fillsFor(unit, langId))) {
-    out[slot] = valuesAt(list, slot, level, reachOfValue, unit && unit.met);
+    out[slot] = valuesAt(list, slot, level, clearedOfValue, unit && unit.met);
   }
   return out;
 }
@@ -1378,6 +1549,18 @@ export function easedUnits(items: Item[], settings: Settings): Set<string> {
   return out;
 }
 
+/* Whether a stretch of the number line has every stretch under it cleared.
+   On its numbers alone: counting a thing is a question a stretch asks too,
+   and it never holds anything back — not the stretch, and not the one
+   above it. See countingOf. */
+function stretchOpen(card: Item, items: Item[], lang: Lang): boolean {
+  const below = stretchBefore(card, items);
+  if (!below) return true;
+  const unit = below.forms[0];
+  const plain = availableTypes(unit, lang).filter((t) => !((specOf(t) && specOf(t).needs) || []).includes("rangeCounted"));
+  return !!unit && cleared(plain, (t) => statesOf(unit)[t]) && stretchOpen(below, items, lang);
+}
+
 /* What a table's cells wait on, where it says nothing: the word, which is
    the rule every one-row table has followed since there was one. */
 const waitsOnWord = (spec: VerbSpec): boolean => (spec.gate || "word") === "word";
@@ -1392,8 +1575,43 @@ const waitsOnWord = (spec: VerbSpec): boolean => (spec.gate || "word") === "word
  */
 export function quietUnits(items: Item[], settings: Settings): Set<string> {
   const out: Set<string> = new Set();
+  const byId = byIdOf(items);
+  /* Whether each stretch is open, worked out once however many of its
+     words ask. */
+  const opened: Map<string, boolean> = new Map();
+  const isOpen = (stretch: Item, lang: Lang) => {
+    if (!opened.has(stretch.id)) opened.set(stretch.id, stretchOpen(stretch, items, lang));
+    return opened.get(stretch.id) as boolean;
+  };
   for (const card of items) {
     const lang = langOf(settingsFor(settings, card));
+    /*
+     * A number's word waits with its stretch — see homeStretch. The word
+     * for ninety is not met before 20 to 99 opens, nor *a million* on the
+     * first day. Quiet rather than missing, as the stretch is, so it keeps
+     * whatever the learner had on it and opens with the stretch.
+     */
+    const home = homeStretch(card, (id) => byId.get(id), composerFor(card.lang));
+    if (home && !isOpen(home, lang)) {
+      for (const { unit } of unitsOf(card)) out.add(unit.id);
+      continue;
+    }
+    /*
+     * A stretch of the number line that waits on the one below it.
+     *
+     * 10 to 19 is said out of the words 0 to 9 teaches, so it is not
+     * asked until 0 to 9 is cleared — the ladder's own word, read off the
+     * same keys. Quiet rather than missing, so it keeps its place in the
+     * collection and opens the moment the stretch below clears; and read
+     * afresh, so a stretch that slips back off cleared shuts the one above
+     * until it is recovered, the way a missed level shuts the levels over
+     * it. And all the way down: a learner who cleared 10 to 19 before this
+     * rule existed, and not 0 to 9, waits on 0 to 9 for 20 to 99 too.
+     */
+    if (stretchBefore(card, items)) {
+      if (!stretchOpen(card, items, lang)) for (const { unit } of unitsOf(card)) out.add(unit.id);
+      continue;
+    }
     /* Every table the language declares, each gated by the rule it names
        for itself. Two rules, and which applies used to be decided by which
        accessor a table came from; a third table would have been a third
@@ -1572,26 +1790,38 @@ export function valueIndexOf(items: Item[], settings: Settings): Map<string, Val
 }
 
 /**
- * And how far the learner has got with each of them, with the form each
+ * And whether the learner has cleared each of them, with the form each
  * was lent by.
  *
  * Only the cards that fill something, so this is a walk over the values
- * rather than over the deck. A value that is drilled on its own carries a
- * number — the highest level it has climbed to, by the same test the ladder
- * makes — and a value that is not carries null, because it is never dealt
- * and has no ladder to read. What each of those means for a hole is
- * valuesAt's business, not this one's.
+ * rather than over the deck. A value that is drilled on its own carries
+ * whether it is cleared — up every level of its own ladder, by the same
+ * test the progress screen makes — and a value that is not carries null,
+ * because it is never dealt and has no ladder to read. What each of those
+ * means for a hole is valuesAt's business, not this one's.
  *
  * Read off the form itself, which is the word a hole borrows: a plural the
- * learner can already write stands in a sentence that asks for writing,
- * whatever the singular beside it has done.
+ * learner has cleared stands in a sentence whatever the singular beside it
+ * has done. A form lent and not asked on its own, on a card that is
+ * otherwise practised — a plural kept for sentences — has no ladder either,
+ * and is read as a name is. It used to read as never met, and so never
+ * stood anywhere.
  */
 export function valueReachOf(
   items: Item[],
   settings: Settings,
-): { map: Map<string, number | null>; owner: Map<string, { card: Item; form: Form }> } {
-  const map: Map<string, number | null> = new Map();
+): {
+  map: Map<string, boolean | null>;
+  forms: Map<string, boolean | null>;
+  owner: Map<string, { card: Item; form: Form }>;
+} {
+  const map: Map<string, boolean | null> = new Map();
+  const forms: Map<string, boolean | null> = new Map();
   const owner: Map<string, { card: Item; form: Form }> = new Map();
+  const clearedOf = (form: Form, drilled: boolean): boolean | null => {
+    if (!drilled || !isAsked(form)) return null;
+    return cleared(laddered(form, settings), (key: string) => statesOf(form)[key]);
+  };
   for (const it of items) {
     const langId = langIdOf(it, settings);
     const lang = LANGUAGES[langId] || langOf(settings);
@@ -1601,22 +1831,7 @@ export function valueReachOf(
       const ref = refOf(value);
       if (!ref) continue;
       owner.set(ref, { card: it, form: form as Form });
-      if (!drilled) {
-        map.set(ref, null);
-        continue;
-      }
-      /* Highest first, so the answer is the furthest it has got rather than
-         the first level that happens to be clear. */
-      const keys = laddered(form as Form, settings);
-      const stateAt = (key: string) => statesOf(form as Form)[key];
-      let climbed = 0;
-      for (let level = TOP_LEVEL; level >= 1; level--) {
-        if (reachedLevel(keys, stateAt, level)) {
-          climbed = level;
-          break;
-        }
-      }
-      map.set(ref, climbed);
+      map.set(ref, clearedOf(form as Form, drilled));
     }
     /*
      * And every other form of the card, for the owner index alone.
@@ -1628,17 +1843,20 @@ export function valueReachOf(
      * blank is a cell nothing lent. Answering such a sentence is answering
      * about that cell, so it has to be findable — see fillersIn.
      *
-     * The reach map is left exactly as it was: which values a hole may
-     * take is read off the pool, and the pool is what a card lends. A
-     * further key here would be an answer nobody asks for.
+     * And whether it is cleared, since it is the form the learner reads —
+     * see standsAsShown. The reach map is left to the lent values: which
+     * values a hole may take is read off the pool, and which of them a
+     * frame records having met is read off the same map.
      */
     for (const form of formsOf(it)) {
       const ref = form.id === it.id ? it.id : form.id;
-      if (!ref || owner.has(ref)) continue;
+      if (!ref) continue;
+      if (!forms.has(ref)) forms.set(ref, clearedOf(form, drilled));
+      if (owner.has(ref)) continue;
       owner.set(ref, { card: it, form });
     }
   }
-  return { map, owner };
+  return { map, forms, owner };
 }
 
 /**
@@ -1656,11 +1874,13 @@ export function valueReachOf(
  * untestable: `buildSession` is a plain function of its arguments and
  * always was, and this is the rest of what it reads.
  */
-export function installIndexes(items: Item[], settings: Settings): void {
+export function installIndexes(items: Item[], settings: Settings, systems: SystemSet[] = []): void {
   setActiveLang(settings.language || DEFAULT_LANGUAGE);
   setContextIndex(contextIndexOf(items, settings));
   setDialogIndex(buildDialogIndex(items));
-  setValueIndex(valueIndexOf(items, settings));
+  /* And the numbers the parts lend to sentences, as the app adds them. */
+  const lent = items.concat(systems.flatMap((set) => fillerCards(composerFor(set.numbers.languageId), set.numbers)));
+  setValueIndex(valueIndexOf(lent, settings));
   setReviewGate(reviewGateOf(items));
   /*
    * The counts before the three walks that read them, and not after.
@@ -1674,8 +1894,8 @@ export function installIndexes(items: Item[], settings: Settings): void {
    */
   setMateCounts(countMates(items, settings));
   setPicturedCounts(countPictured(items, settings));
-  const reach = valueReachOf(items, settings);
-  setValueReach(reach.map);
+  const reach = valueReachOf(lent, settings);
+  setValueReach(reach.map, reach.forms);
   setValueOwner(reach.owner);
   setQuietUnits(quietUnits(items, settings));
   setEasedUnits(easedUnits(items, settings));
@@ -1792,6 +2012,14 @@ function wordPool(items: Item[], settings: Settings, langId: LangId, answer: For
     }
   }
   return out;
+}
+
+/* What a question may draw its company from — the wrong answers, the
+   other tiles. Everything the learner holds, unless the session is
+   numbers alone: then the other number words, so a number is told apart
+   from numbers. See `within` on the question. Exported for the tests. */
+export function companyOf(items: Item[], exercise: Question | null | undefined): Item[] {
+  return exercise && exercise.within === "numbers" ? items.filter((it) => isFromSystem(it)) : items;
 }
 
 /* Every line of every dialog, for the exercise that offers three wrong
@@ -1921,12 +2149,41 @@ function fillFor(
    */
   const gate = preview ? null : REVIEW_GATE.get(unit.id) || null;
   if (gate) return gatedFill(unit, gate, drawn, pool, seen);
-  const turned = valuesForTurn(drawn, pool, seen);
-  if (!turned) return null;
-  /* An agreeing card lent its own word; the form that agrees with the
-     slot beside it goes in its place. Nothing to put there — a cell the
-     teacher left blank — is no question: there is nothing to ask and
-     nothing to invent, so the whole combination comes back empty. */
+  /*
+   * Forward from the turn to the first combination that makes a sentence
+   * the learner can be put — the same walk a reviewed card takes.
+   *
+   * A combination can fail after the pool has passed it: an agreeing word
+   * whose cell for this partner is blank, or one whose cell is a form the
+   * learner has not cleared yet (see standsAsShown). Waiting on it held
+   * the whole frame, since the turn moves only on a right answer and a
+   * frame that cannot be asked is never answered. So the walk moves on,
+   * and the same count still lands on the same sentence.
+   */
+  const combos = drawn.reduce((n, slot) => n * (pool[slot] || []).length, 1);
+  const walk = drawn.length ? Math.min(combos, SCAN_LIMIT) : 1;
+  for (let i = 0; i < walk; i++) {
+    const turned = valuesForTurn(drawn, pool, seen + i);
+    if (!turned) return null;
+    const took = tookFor(unit, card, turned, slots, drawn, own);
+    if (!took) continue;
+    if (preview || drawn.every((slot) => standsAsShown(took[slot]))) return took;
+  }
+  return null;
+}
+
+/* One combination of values, agreed — the form that agrees with the blank
+   beside it put in place of the word an agreeing card lent — and the
+   verb's own place filled from its table. Null where any of it has
+   nothing to put there: a cell the teacher left blank is no question. */
+function tookFor(
+  unit: Form,
+  card: Item | null,
+  turned: Record<string, Value>,
+  slots: string[],
+  drawn: string[],
+  own: string | null,
+): Record<string, Value> | null {
   const took = agreeTook(
     turned,
     drawn,
@@ -1935,7 +2192,7 @@ function fillFor(
     slotLinks(unit),
   );
   if (!took) return null;
-  if (card && slots.length !== drawn.length) {
+  if (card && own && slots.length !== drawn.length) {
     const agreed = verbValue({ unit, parent: card }, took, leadsOf(
       turned,
       slots,
@@ -1971,6 +2228,8 @@ function gatedFill(
     if (!turned) return null;
     const took = finishTook(unit, gate.card, turned, drawn, ownerOf, langFor);
     if (!took) continue;
+    /* And every word in the form it is shown in cleared — see fillFor. */
+    if (!drawn.every((slot) => standsAsShown(took[slot]))) continue;
     if (passes(gate.review, sentenceKey(fillForm(unit, took, false)))) return took;
   }
   return null;
@@ -2002,13 +2261,12 @@ export function castQuestion(items: Item[], ex: Question, preview = false): Form
    and then asks for a reply in it must not introduce Sami and answer Rami.
    It moves on when the learner has read it through again.
 
-   Filled at the bottom level whatever is being asked. Every question a
-   scene asks is reading — reading it through, choosing a reply, putting it
-   in order — and none asks the learner to write a word that stands in a
-   blank, so a word they have met is a word they can read here. Holding a
-   choice question on the third level to words the learner can already
-   write left names, which have no ladder of their own, out of every turn
-   for ever.
+   Filled at the bottom level whatever is being asked, which matters only
+   to the words with no ladder of their own — names, introduced by the
+   scene itself and read off its record of having met them. Every other
+   word is a building block and stands only once it is cleared, as in a
+   sentence. Holding a choice question on the third level to names already
+   met there left them out of every turn for ever.
    ------------------------------------------------------------------ */
 
 const SCENE_KEY = "dlgwhole";
@@ -2026,6 +2284,9 @@ function sceneFill(scene: Item, preview: boolean): Record<string, Record<string,
     /* A teacher trying their own scene out sees it whatever its review,
        as they do a sentence. */
     gateOf: preview ? undefined : (line) => lineGate(scene, line),
+    /* And every word in the form a line puts it in cleared, as in a
+       sentence — see standsAsShown. */
+    shown: preview ? undefined : standsAsShown,
     turn,
   });
   const map = held || new Map();
@@ -2075,6 +2336,24 @@ function castFill(
 }
 
 /**
+ * A number question's number in English words: the one a range drew, said
+ * when it was drawn, or the one a number card stands for — *forty* on the
+ * card for forty. Nothing for a card that is not one number: *hundred*,
+ * *and*, *a quarter past*.
+ */
+export function numberInWords(unit: Form | null | undefined, parent: Item | null | undefined): string {
+  if (!unit) return "";
+  if (unit.words) return String(unit.words);
+  if (!parent || !isFromSystem(parent) || isRangeSkill(parent)) return "";
+  const n = figureOfLabel(String(unit.en || ""));
+  return n == null ? "" : inEnglish(n);
+}
+
+/** Figures as a language writes them — see inOwnFigures. */
+export const ownFigures = (lang: Lang | undefined, digits: string): string =>
+  inOwnFigures(digits, lang && lang.numerals);
+
+/**
  * A skill, cast as the question it was dealt.
  *
  * A range carries no words: it is a schedule and a marker. What it is
@@ -2104,10 +2383,14 @@ function castRange(
     set.times,
   );
   if (!said.text) return resolved;
+  const figures = ownFigures(LANGUAGES[set.numbers.languageId], said.digits);
   const unit: Form = {
     ...resolved.unit,
     ar: said.text,
     en: said.digits,
+    /* And the same in the language's own figures, where it has them — ٤٧,
+       ٠٧:١٥ — which the top of the skill is asked from. */
+    ...(figures ? { numeral: figures } : null),
     /* What it means in words, where a counted phrase has anything to say
        beyond the figures. */
     ...(said.en && said.en !== said.digits ? { gloss: said.en } : null),
@@ -2119,6 +2402,16 @@ function castRange(
     /* The recordings, in order: at most two, the hour and the minutes.
        Nothing inside a number is ever stitched. */
     ...(said.clips && said.clips.length ? { recSeq: said.clips } : null),
+    /* A number's own recording, where it was recorded whole — and none
+       where it was not. The skill carries a marker saying only that
+       *something* in the system was recorded, which is what lets a
+       listening question be dealt; left on the form, it was a player on
+       the answer screen with nothing behind it. */
+    recs: (said.recs || []).map((id) => ({ id, label: "", speed: "" })),
+    /* How it sounds and what it is in English, for the answer screen. The
+       transliteration is only there when every word in it has one. */
+    lat: said.lat || "",
+    ...(said.words ? { words: said.words } : null),
     /* Which words stood in it, so a right answer credits the cards they
        are written on — the same crediting a sentence does for the words
        that filled its blanks. */
@@ -2484,7 +2777,11 @@ export function requeueUnaskable(exercises: Question[], from: number, items: Ite
        exercise: sound is much the commonest reason a question is withdrawn
        mid-session, and swapping one for another of the same kind would be a
        substitute that is about to go the same way. */
-    const options = open.filter((t) => !isListening(t) && t !== "match");
+    /* And nothing standing the word in a sentence from another deck, in a
+       session kept to the numbers. */
+    const options = open.filter(
+      (t) => !isListening(t) && t !== "match" && !(ex.within === "numbers" && borrowsPhrase(t))
+    );
     if (!options.length) continue;
     const seen = used.get(keyOf(ex)) || new Set();
     const pick = options.find((t) => !seen.has(t)) || options[0];
@@ -2622,6 +2919,19 @@ const specOf = (key: string) => EX[typeOf(key)];
    a question was filled in from. */
 export function laddered(it: Form, settings: Settings): string[] {
   if (isQuiet(it)) return [];
+  return ladderedOnceOpen(it, settings);
+}
+
+/*
+ * The same, through the quiet gate: what a form will climb with once the
+ * row or the stretch it waits on opens.
+ *
+ * For the percentages alone — see towardsLearnt — which count a number
+ * waiting on its stretch as a card not yet learnt rather than as no card
+ * at all. Everything that deals a question or says where a card stands
+ * reads laddered, and a quiet form is still nothing to any of them.
+ */
+function ladderedOnceOpen(it: Form, settings: Settings): string[] {
   /* And nothing at all for a form the teacher keeps without asking about
      it. Said here, where the quiet ones are said, so that a form left on a
      card for a student to read is absent from every count the same way a
@@ -2706,7 +3016,7 @@ function openTypes(it: Form, settings: Settings): string[] {
  * Exported for the pace simulation, which reports what a course costs a
  * learner in days and is the only honest way to choose the two caps.
  */
-export function handCounts(items: Item[], settings: Settings) {
+export function handCounts(items: Item[], settings: Settings, numbers?: KnownNumbers) {
   let front = 0;
   let inHand = 0;
   for (const it of items) {
@@ -2714,6 +3024,13 @@ export function handCounts(items: Item[], settings: Settings) {
     const stage = familyMaturity(it, (u: Form) => reachedTypes(u, settings));
     /* Never met: outside both pools. */
     if (stage === "new") continue;
+    /* Met, and waiting for its building blocks — a sentence whose words the
+       learner has not cleared yet, which can be asked nothing until they
+       are. It holds no place: the places are how those words come in. */
+    if (waitsOnBlocks(it, settings)) continue;
+    /* And a number part waiting on its words the same way — see
+       knownNumbers — where the caller can say. */
+    if (numbers && isRangeSkill(it) && !numbers.ready(it)) continue;
     if (stage !== "mature") inHand += 1;
     /* Over the whole ladder, not the levels reached: cleared is read up
        all of it, which is what the learner is shown. */
@@ -2723,6 +3040,21 @@ export function handCounts(items: Item[], settings: Settings) {
     if (!through) front += 1;
   }
   return { front, inHand };
+}
+
+/*
+ * Whether a card is waiting on its building blocks and nothing else: it
+ * leaves blanks, it has levels open, and not one of them can be filled
+ * with words the learner has cleared. Only a card with blanks is asked,
+ * since every other card has nothing it could be waiting on.
+ */
+function waitsOnBlocks(it: Item, settings: Settings): boolean {
+  const units = drillableUnits(it, settings);
+  if (!units.some(({ unit }) => slotsOf(unit).length > 0)) return false;
+  return units.every(({ unit }) => {
+    const open = openTypes(unit, settings);
+    return open.length > 0 && !open.some((t) => fillableAt(unit, t, settings));
+  });
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -2971,6 +3303,25 @@ const KEEN_DAY = 2 * SESSION_SIZE;
  */
 const MAX_UNITS_PER_FAMILY = 2;
 
+/*
+ * The most times one form is asked in one session, when the session has
+ * nothing else to ask — see buildSession. Two is the rule (PER_UNIT); four
+ * is a beginner with only their ten new words to practise, asked each of
+ * them a second round rather than handed a session half the length they
+ * chose.
+ */
+const MAX_ASKS_PER_UNIT = 4;
+
+/*
+ * Where a queue reaches a session's length, which is counted in screens:
+ * a grid is one screen however many words are in it, so a session of
+ * twenty shows twenty on its counter. The owner's choice over counting the
+ * words in a grid, which made a session of twenty read "1 / 16".
+ */
+function cutAtLength(queue: unknown[], length: number): number {
+  return Math.min(queue.length, length);
+}
+
 /* And of a conversation, in one sitting. Deliberate rather than
    discovered: without it a six-line scene is the whole session, and the
    first thing anyone would have written is a scene with six lines. */
@@ -3213,6 +3564,160 @@ interface Session {
   due?: number;
 }
 
+/*
+ * Which numbers a learner can be asked: the ones whose words they have.
+ *
+ * Each word of a number is a building block — a card used inside another
+ * card — and a building block stands in a number only once the learner has
+ * cleared it: been up every level of it, the writing included. In the form
+ * it is said in, since that is what the learner reads: the face *seven*
+ * wears inside a bigger number, the plural *books* takes after three. It
+ * used to be enough to recognise the word — its meaning right twice
+ * running — which put 47 to somebody who could not yet write *forty*, and
+ * made the number the place *forty* was learnt rather than a use of it.
+ *
+ * A word that cannot be climbed does not hold anything back: one the
+ * teacher marked as not practised on its own, one with nothing to ask, or
+ * one this learner does not hold at all. Waiting on a card that can never
+ * be cleared would shut the range for good. A face still behind its
+ * table's gate is not one of those: it opens once the word itself is under
+ * way, and is waited for.
+ */
+interface KnownNumbers {
+  /** Whether anything of this range can be asked yet. */
+  ready: (item: Item) => boolean;
+  /** One asking of it on this seed, steered towards `waiting`, or null —
+      counting a noun where `counting`, see countingOf. */
+  draw: (item: Item, seed: string, waiting: Set<string>, counting?: boolean, heard?: boolean) => Ask | null;
+}
+
+/* The askings each range can put, kept against the system they were read
+   from — a teacher's edit arrives as a new system and starts afresh — and
+   against the clock and which forms the learner held and had cleared when
+   they were read. Reading them walks every asking of every range, which is
+   tens of milliseconds; what is cleared changes a few times a day. */
+const KNOWN_ASKINGS: WeakMap<object, Map<string, Asking[]>> = new WeakMap();
+
+/* The form of a card a word of a number was said in — the face it wore,
+   or for a counted noun the form whose words it was — falling back to the
+   card's own word. The same reading tokenCards makes for the credit. */
+function formOfToken(card: Item, t: Token): Form {
+  if (t.noun) return formsOf(card).find((f) => String(f.ar || "").trim() === t.text.trim()) || leadOf(card);
+  const face = t.formKey ? formsOf(card).find((f) => f.id === `${card.id}-f~${t.formKey}`) : null;
+  return face || leadOf(card);
+}
+
+function knownNumbers(items: Item[], settings: Settings, sets: SystemSet[]): KnownNumbers {
+  const byId = byIdOf(items);
+  const ids = new Set(items.filter((it) => isFromSystem(it) && !isRangeSkill(it)).map((it) => it.id));
+  const done = new Map<string, boolean>();
+  const formDone = (card: Item, form: Form): boolean => {
+    const at = `${card.id}\u0000${form.id}`;
+    const held = done.get(at);
+    if (held !== undefined) return held;
+    let ok: boolean;
+    if (!isAsked(form)) ok = true;
+    else {
+      const keys = laddered(form, settings);
+      ok = keys.length ? cleared(keys, (t) => statesOf(form)[t]) : !isQuiet(form);
+    }
+    done.set(at, ok);
+    return ok;
+  };
+  const knows = (id: string, token?: Token): boolean => {
+    const card = byId.get(id);
+    if (!card || !isDrillable(card, settings)) return true;
+    return formDone(card, token ? formOfToken(card, token) : leadOf(card));
+  };
+  /* What the learner holds and which of it they know, as one string. Both
+     halves, since a word not held counts as known and one held does not
+     until it is. */
+  let knowing: string | null = null;
+  const knowingNow = () =>
+    (knowing ??= [...ids]
+      .sort()
+      .map((id) => {
+        const card = byId.get(id) as Item;
+        if (!isDrillable(card, settings)) return id;
+        return formsOf(card).map((f) => (formDone(card, f) ? `${f.id}+` : f.id)).join(",");
+      })
+      .join(" "));
+  const setOf = (item: Item) => {
+    const set = systemFor(item, sets);
+    if (!set) return null;
+    return {
+      composer: composerFor(set.numbers.languageId),
+      sys: set.numbers,
+      timeComposer: timeComposerFor(set.numbers.languageId),
+      timeSys: set.times,
+    };
+  };
+  /* A stretch's counting question asks from the same stretch with a noun
+     beside each number — its own askings, kept under a key of their own. */
+  const rangeOf = (item: Item, counting: boolean) =>
+    item.range && counting ? countingOf(item.range) : item.range;
+  const knownOf = (item: Item, counting = false) => {
+    const set = setOf(item);
+    const range = rangeOf(item, counting);
+    if (!set || !range) return [];
+    let bySystem = KNOWN_ASKINGS.get(set.sys);
+    if (!bySystem) KNOWN_ASKINGS.set(set.sys, (bySystem = new Map()));
+    const clock = set.timeSys ? `${set.timeSys.id}@${set.timeSys.rev}` : "";
+    const id = `${item.id}${counting ? "#count" : ""}`;
+    const key = `${id}\u0000${clock}\u0000${knowingNow()}`;
+    const held = bySystem.get(key);
+    if (held) return held;
+    const list = askingsKnown(range, set, ids, knows);
+    /* Only the latest per range is worth keeping. */
+    for (const k of bySystem.keys()) if (k.startsWith(`${id}\u0000`)) bySystem.delete(k);
+    bySystem.set(key, list);
+    return list;
+  };
+  return {
+    ready: (item) => knownOf(item).length > 0,
+    draw: (item, seed, waiting, counting = false, heard = false) => {
+      const set = setOf(item);
+      const range = rangeOf(item, counting);
+      if (!set || !range) return null;
+      const known = knownOf(item, counting);
+      /* For a question that is listened to, the numbers recorded whole
+         among those the learner can be asked, where there are any. */
+      const recorded = heard ? known.filter((a) => recordedWhole(a.ask, set.composer, set.sys)) : [];
+      if (recorded.length) return recorded[Math.floor(seeded(`${range.id} ${seed} heard`)() * recorded.length)].ask;
+      return askKnown(range, seed, set, ids, knows, known, waiting);
+    },
+  };
+}
+
+/* An exercise that stands the word in a phrase from somewhere else — fill
+   the gap, choose the missing word, the phrase heard. A session of numbers
+   alone leaves these out: the phrase is a sentence from another deck. */
+const borrowsPhrase = (t: string) => {
+  const needs = (specOf(t) && specOf(t).needs) || [];
+  return needs.includes("contexts") || needs.includes("contextAudio");
+};
+
+/*
+ * A session of numbers and nothing else keeps to them: a deck of number
+ * parts, or one put together from number words. Every card in it from a
+ * number system, and then no question stands a word in a phrase — neither
+ * an exercise that needs one nor the phrase any other is shown in, which
+ * would be a sentence from another deck — and each carries `within`, so
+ * its wrong answers and the company in its grid are other number words.
+ * buildSession makes the same moves in line as it deals.
+ */
+function keptToNumbers(plans: Question[]): Question[] {
+  if (!plans.length || !plans.every((q) => isFromSystem(q))) return plans;
+  return plans
+    .filter((q) => !borrowsPhrase(q.type))
+    .map(({ ctx: _phrase, ...q }) => ({ ...q, within: "numbers" as const }));
+}
+
+/* The cards a session's grids may be filled from: number words alone in a
+   session kept to the numbers. */
+const gridCompany = (plans: Question[], items: Item[]): Item[] =>
+  plans.some((q) => q.within === "numbers") ? items.filter((it) => isFromSystem(it)) : items;
+
 /**
  * The number or the time one asking of a range is about, drawn.
  *
@@ -3231,6 +3736,11 @@ function drawRange(
   unit: Form,
   type: string,
   sets: SystemSet[],
+  items: Item[],
+  settings: Settings,
+  /* What the learner can be asked — see knownNumbers. Made once by a
+     caller drawing many, since it reads every word they hold. */
+  numbers: KnownNumbers = knownNumbers(items, settings, sets),
 ): { ask?: Ask; options?: string[] } {
   const range = item && item.range;
   if (!range) return {};
@@ -3241,7 +3751,24 @@ function drawRange(
   if (!composer) return {};
 
   const turn = turnOf(statesOf(unit)[type]);
-  const ask = askFor(range, `${item.id} ${type} ${turn}`, set.numbers);
+  /* Only a number whose words are recognised — see knownNumbers — and
+     among those, towards a word of the part the learner has not kept yet,
+     while there is one (see steeredAsk), and anywhere once every word is
+     learnt. Nothing, for a range none of whose numbers can be said in
+     words the learner knows: the caller leaves the question out. */
+  const waiting = new Set(
+    partsOf(item, items, settings)
+      .filter((p) => p.validated === false)
+      .map((p) => p.card.id),
+  );
+  /* The counting question counts a noun, from the same stretch — see
+     countingOf; every other question on it asks the bare number. */
+  const counting = ((specOf(type) && specOf(type).needs) || []).includes("rangeCounted");
+  /* A listening question asks a number somebody recorded, where the
+     learner can be asked one: a number nobody recorded is nothing to
+     listen to. */
+  const ask = numbers.draw(item, `${item.id} ${type} ${turn}`, waiting, counting, isListening(type));
+  if (!ask) return {};
 
   if (EX[type] && EX[type].picks !== "word") return { ask };
   /*
@@ -3270,6 +3797,30 @@ function drawRange(
   return options.length >= PICK_OPTIONS - 1 ? { ask, options } : { ask };
 }
 
+/**
+ * The same drawing, over a queue somebody else built.
+ *
+ * buildSession draws as it deals; the session built by hand and the
+ * weak-skills sitting plan their questions their own way and come through
+ * here afterwards, so a range they ask is never put on screen with nothing
+ * to read. One that cannot be drawn — no composer for its language — is
+ * left out rather than asked bare.
+ */
+function drawRanges(exercises: Question[], items: Item[], sets: SystemSet[], settings: Settings): Question[] {
+  const numbers = knownNumbers(items, settings, sets);
+  const out: Question[] = [];
+  for (const ex of exercises) {
+    const item = byIdOf(items).get(ex.id);
+    if (!item || !item.range || ex.ask) {
+      out.push(ex);
+      continue;
+    }
+    const drawn = drawRange(item, item.forms[0], ex.type, sets, items, settings, numbers);
+    if (drawn.ask) out.push({ ...ex, ...drawn });
+  }
+  return out;
+}
+
 export function buildSession({
   items,
   settings,
@@ -3279,6 +3830,7 @@ export function buildSession({
   budget: budgetIn,
   perDay,
   systems,
+  newWithin,
 }: {
   items: Item[];
   settings: Settings;
@@ -3286,6 +3838,18 @@ export function buildSession({
   practice?: boolean;
   includeAll?: boolean;
   budget?: number;
+  /**
+   * Count the new words already in hand among the chosen cards only.
+   *
+   * The limit on new words is the learner's, across everything they hold,
+   * and on the home screen it should be: it is what keeps new words from
+   * piling up. A practice somebody builds on particular decks is them
+   * asking for those decks, and a deck nobody has started then came up
+   * empty because of words in some other deck — "nothing new to bring in"
+   * over a deck that is all new. So there the limit is read over the
+   * chosen cards: the deck's own new words still come in a few at a time.
+   */
+  newWithin?: boolean;
   /**
    * Questions this learner answers on a typical day — `typicalDay` over
    * the activity log. It sizes how many words may be in hand at once (see
@@ -3304,14 +3868,20 @@ export function buildSession({
   systems?: SystemSet[];
 }): Session {
   const sets = systems || [];
+  const numbers = knownNumbers(items, settings, sets);
   const pool = items
     .filter((it) => inDeck(it) && isDrillable(it, settings))
     /* A skill whose system this device no longer holds — a course left,
        a teacher's language dropped — is a schedule with nothing behind
        it. Left in the collection, so the work comes back if the material
-       does, and simply not dealt. */
-    .filter((it) => !isRangeSkill(it) || systemFor(it, sets));
+       does, and simply not dealt. And one none of whose numbers can be
+       asked yet, because the words they are built of are not recognised:
+       the words are in the deck beside it and come first. */
+    .filter((it) => !isRangeSkill(it) || (systemFor(it, sets) && numbers.ready(it)));
   if (!pool.length) return { exercises: [], reason: "none-drillable" };
+
+  /* Numbers and nothing else — see keptToNumbers. */
+  const onlyNumbers = pool.every((it) => isFromSystem(it));
 
   const budget = Math.max(4, budgetIn || SESSION_SIZE);
 
@@ -3360,7 +3930,15 @@ export function buildSession({
       !isNew &&
       units.some(({ unit }) => !throughDoor(laddered(unit, settings), (t: string) => stateOf(unit, t)));
     return { it, units, soonest, isNew, urgent, lastSeen, resting, climbing };
-  });
+  })
+    /* And a card with nothing it can be asked yet is not a candidate at
+       all: a word waiting with a stretch that has not opened (see
+       homeStretch), or one whose every form is resting. It has no units,
+       so it read as new — every() over nothing — and took a place in the
+       room for new cards that it could never use. A beginner's numbers
+       session was two or four questions, the rest of its places spent on
+       the words for ninety and a million. */
+    .filter((c) => c.units.length > 0);
 
   /* Ordered before anything is filtered, because the filter below keeps
      the first few new cards and "the first few" is decided here. Anything
@@ -3482,7 +4060,11 @@ export function buildSession({
      * words hold their place and nothing new arrives, which is the same
      * protection without a rule of its own to keep in step.
      */
-    const room = roomForNew(handCounts(items, settings), inHandFor(perDay), frontDoorFor(perDay));
+    const room = roomForNew(
+      handCounts(newWithin ? items.filter(inDeck) : items, settings, numbers),
+      inHandFor(perDay),
+      frontDoorFor(perDay),
+    );
     /* Which ones, mixed by kind against what is already in the front door
        — see byVariety. Picked in the order they will be reached, so a
        session with room for only some of them still takes a mix. */
@@ -3527,57 +4109,33 @@ export function buildSession({
   if (!candidates.length) return { exercises: [], reason: "nothing-due" };
 
   /*
-   * How many cards the budget buys, and which ones.
+   * Which cards, and how many: as many as it takes to fill the session.
    *
-   * A card brings as many forms as it lays out, capped, and each form is
-   * asked PER_UNIT ways — so the number of cards is the budget divided by
-   * what a card costs. They are taken straight off the front of the due
-   * list: the most overdue first, and chance between everything the due
-   * list calls equal.
+   * Taken straight off the front of the due list — the most overdue first,
+   * and chance between everything the due list calls equal — one card at a
+   * time until the questions they bring reach the budget. A card brings as
+   * many forms as it lays out, capped, and each form is asked PER_UNIT ways
+   * where it has that many open.
    *
-   * This used to reach three to six times further down that list and then
+   * This used to work out a number of cards up front, from the budget and
+   * the average card, and take that many. A card with fewer questions open
+   * than the average — a word on its first level, a skill with one
+   * exercise climbed — left the session short, two or three questions in
+   * every twenty, and nothing went back for more. Counting what each card
+   * actually brings is the same order and the same cards, until the
+   * session is full.
+   *
+   * It used to reach three to six times further down that list and then
    * pick, out of the reach, whatever was most like the cards already
-   * chosen — a shared root, a shared tag, the same afternoon's entry. It
-   * read well and it was the wrong trade. A session of near-identical
-   * words is a session that feels like one word, which is the complaint
-   * this whole change came from, and the cost was paid in scheduling: the
-   * card the reach passed over was one that was actually due.
-   */
-  const avgUnits =
-    candidates.reduce((n, c) => n + Math.min(c.units.length, MAX_UNITS_PER_FAMILY), 0) /
-    candidates.length;
-  /*
-   * And never fewer than were asked for.
-   *
-   * The arithmetic above is about how many cards a session of this length
-   * holds, which is the right question for the cards the app picks and the
-   * wrong one for the cards the learner did. A deck of ordinary two-form
-   * cards buys five places — so somebody who had marked eight cards was
-   * handed five of them, a different five each sitting, by a screen that
-   * had told them each one was in their next session. They already rank
-   * ahead of everything else, so taking at least as many as there are of
-   * them is the whole of it: the session grows to hold what was asked for
-   * rather than turning the rest away.
+   * chosen. A session of near-identical words is a session that feels like
+   * one word, and the card the reach passed over was one actually due.
    */
   const askedFor = candidates.filter((c) => c.urgent).length;
-  const wanted = Math.max(
-    1,
-    askedFor,
-    Math.round(budget / (PER_UNIT * Math.max(1, avgUnits)))
-  );
-  const chosen = candidates.slice(0, Math.min(candidates.length, wanted));
-
-  /* Easiest first, and cards of the same difficulty in no particular
-     order — which is most of them, since a card nobody has been wrong
-     about yet is unrated. A card the learner asked for opens the session
-     ahead of all of it: they went and marked it, and a warm-up that buried
-     it behind eight other words would be the app quietly declining. */
-  const warmed = inOrder(chosen, (c) => (c.urgent ? -1 : DIFF_RANK[itemDifficulty(c.it, settings)]));
 
   /* --- rules 2 and 6: every unit gets several exercise types, and a
          family's sub-items come along in the same session --- */
-  const plans = [];
-  for (const c of warmed) {
+  type Plan = { id: string; subId: string | null; unit: Form; types: string[]; more: string[]; range: boolean };
+  const planOf = (c: (typeof candidates)[number]): Plan[] => {
     // Parent first, then whichever sub-items are most overdue.
     const parent = c.units.filter((u) => !u.isSub);
     const subs = inOrder(
@@ -3593,52 +4151,158 @@ export function buildSession({
     const take = isDialog(c.it)
       ? parent.concat(subs.slice(0, MAX_DIALOG_LINES))
       : parent.concat(subs).slice(0, MAX_UNITS_PER_FAMILY);
-
-    for (const { unit, isSub } of take) {
-      const ordered = pickableTypes(unit, settings);
+    return take.map(({ unit, isSub }) => {
+      const ordered = pickableTypes(unit, settings).filter((t) => !onlyNumbers || !borrowsPhrase(t));
       const picked = ordered.slice(0, Math.min(PER_UNIT, ordered.length));
       /* Asked in the table's own order, which runs from recognition to
          production: which exercises a unit gets is a matter of chance,
          the order they come in is not. */
       picked.sort((x, y) => TYPES.indexOf(typeOf(x)) - TYPES.indexOf(typeOf(y)));
-      plans.push({ id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked });
-    }
-  }
+      return {
+        id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked,
+        /* What else is open, for a session the cards in it cannot fill —
+           see the filling below. */
+        more: ordered.filter((t) => !picked.includes(t)),
+        range: !!c.it.range,
+      };
+    });
+  };
+  const planned = new Map<string, Plan[]>();
+  const plansOfCard = (c: (typeof candidates)[number]) => {
+    if (!planned.has(c.it.id)) planned.set(c.it.id, planOf(c));
+    return planned.get(c.it.id) as Plan[];
+  };
+  const asks = (list: Plan[]) => list.reduce((n, p) => n + p.types.length, 0);
 
   /* --- interleave, so a unit recurs with a gap rather than back to back --- */
-  const exercises = [];
-  const depth = Math.max(...plans.map((p) => p.types.length));
-  for (let round = 0; round < depth; round++) {
-    for (const p of plans) {
-      if (p.types[round]) {
-        const type = p.types[round];
-        /* Which phrase, decided when the queue is built rather than at the
-           moment of asking, so the question does not change under the
-           learner if the cards are refreshed mid-session. */
-        const ctx = p.unit ? pickContext(p.unit, type) : null;
-        /* And which number or time, for the same reason and by the same
-           rule: drawn once, here, from a seed that moves on a right
-           answer so a missed question comes back unchanged. */
-        const drawn = drawRange(items.find((i) => i.id === p.id), p.unit, type, sets);
-        exercises.push({
-          id: p.id,
-          subId: p.subId,
-          type,
-          ...(ctx ? { ctx: ctx.id } : null),
-          ...drawn,
-        });
+  const deal = (plans: Plan[]) => {
+    const out = [];
+    const depth = Math.max(0, ...plans.map((p) => p.types.length));
+    for (let round = 0; round < depth; round++) {
+      for (const p of plans) {
+        if (p.types[round]) {
+          const type = p.types[round];
+          /* Which phrase, decided when the queue is built rather than at the
+             moment of asking, so the question does not change under the
+             learner if the cards are refreshed mid-session. */
+          const ctx = p.unit && !onlyNumbers ? pickContext(p.unit, type) : null;
+          /* And which number or time, for the same reason and by the same
+             rule: drawn once, here, from a seed that moves on a right
+             answer so a missed question comes back unchanged. */
+          const item = byIdOf(items).get(p.id);
+          const drawn = drawRange(item, p.unit, type, sets, items, settings, numbers);
+          /* A range none of whose numbers its words can say yet. The pool
+             has already left those out; this is a seed that found none. */
+          if (item && item.range && !drawn.ask) continue;
+          out.push({
+            id: p.id,
+            subId: p.subId,
+            type,
+            ...(ctx ? { ctx: ctx.id } : null),
+            ...drawn,
+            ...(onlyNumbers ? { within: "numbers" as const } : null),
+          });
+        }
       }
     }
-  }
+    return out;
+  };
+
+  /* Card by card until the questions reach the target — and never fewer
+     cards than the learner asked for. The cards they marked already rank
+     ahead of everything else, so taking at least as many as there are of
+     them is the whole of it: the session grows to hold what was asked for
+     rather than turning the rest away. */
+  let taken = 0;
+  let count = 0;
+  /* Easiest first, and cards of the same difficulty in no particular
+     order — which is most of them, since a card nobody has been wrong
+     about yet is unrated. A card the learner asked for opens the session
+     ahead of all of it: they went and marked it, and a warm-up that buried
+     it behind eight other words would be the app quietly declining. */
+  const ordered = (n: number) =>
+    inOrder(candidates.slice(0, n), (c) => (c.urgent ? -1 : DIFF_RANK[itemDifficulty(c.it, settings)]));
+  let warmed = ordered(0);
+  let plans: Plan[] = [];
+  let exercises: ReturnType<typeof deal> = [];
+  /* Filled to `target` questions, carrying on from wherever the last call
+     left off, so a session found short after its grids are dealt can be
+     filled further without being started again. */
+  const fill = (target: number) => {
+    while (taken < candidates.length && (taken < Math.max(1, askedFor) || count < target)) {
+      count += asks(plansOfCard(candidates[taken]));
+      taken += 1;
+    }
+    warmed = ordered(taken);
+    plans = warmed.flatMap(plansOfCard);
+    exercises = deal(plans);
+    /* A question can still fall out as it is dealt — a number nobody can
+       be asked yet — so a session short of its target takes the next card
+       while there is one. */
+    while (exercises.length < target && taken < candidates.length) {
+      count += asks(plansOfCard(candidates[taken]));
+      taken += 1;
+      warmed = ordered(taken);
+      plans = warmed.flatMap(plansOfCard);
+      exercises = deal(plans);
+    }
+    /*
+     * And when every card it may take is taken and it is still short — a
+     * beginner, whose new words come ten at a time — each word is asked
+     * more: first whatever else it has open, then the same questions
+     * again, up to MAX_ASKS_PER_UNIT, a round at a time so a word asked
+     * twice has the session between the two. Two right answers running is
+     * what opens a word's next level, so the second asking is not idle. A
+     * skill is never asked the same exercise twice: its number is drawn
+     * once, and the second asking would be the same number.
+     */
+    let grown = true;
+    while (exercises.length < target && grown) {
+      grown = false;
+      for (const p of plans) {
+        if (p.types.length >= MAX_ASKS_PER_UNIT) continue;
+        const next = p.more.length
+          ? (p.more.shift() as string)
+          : p.range
+          ? null
+          : p.types[p.types.length % Math.max(1, Math.min(p.types.length, PER_UNIT))] || null;
+        if (!next) continue;
+        p.types.push(next);
+        grown = true;
+      }
+      exercises = deal(plans);
+    }
+  };
 
   /* The grids, dealt: every word the plans mean to ask as a pair is put in
      one, and a word whose grid could not be filled is asked its next
      exercise instead. */
-  const varied = varyTypes(
-    withGrids(exercises, items, settings, (unit, queued) =>
-      pickableTypes(unit, settings).find((t) => t !== "match" && !queued.has(t)) || null
-    )
-  );
+  const gridded = () =>
+    varyTypes(
+      withGrids(exercises, gridCompany(exercises, items), settings, (unit, queued) =>
+        pickableTypes(unit, settings).find(
+          (t) => t !== "match" && !queued.has(t) && (!onlyNumbers || !borrowsPhrase(t))
+        ) || null
+      )
+    );
+  /*
+   * The length is in screens: a session of twenty is twenty things on
+   * screen, the way its counter reads, and a grid is one of them however
+   * many words are in it. A grid takes several questions into one screen,
+   * so a session filled to its length in questions comes out short in
+   * screens; it is filled further by what the grids took, until the
+   * screens reach the length or there is nothing more to add.
+   */
+  let target = budget;
+  fill(target);
+  let varied = gridded();
+  for (let round = 0; round < 8 && varied.length < budget; round += 1) {
+    const had = exercises.length;
+    target = had + (budget - varied.length);
+    fill(target);
+    if (exercises.length === had) break;
+    varied = gridded();
+  }
   /* Rule 1, judged on the material: a session is refused for want of
      variety when the cards in it support only one exercise between them,
      not when the ladder has opened only one so far. A deck of new scenes
@@ -3672,8 +4336,8 @@ export function buildSession({
    * asked once before any card is asked twice and the reach is a handful
    * of questions rather than a session of a different size.
    */
+  let cut = cutAtLength(varied, budget);
   const askedIds = new Set(warmed.filter((c) => c.urgent).map((c) => c.it.id));
-  let cut = budget;
   for (const id of askedIds) {
     const at = varied.findIndex((e) => e.id === id);
     if (at >= 0) cut = Math.max(cut, at + 1);
@@ -3915,7 +4579,9 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
    */
   if (mode === "regular") {
     const budget = count && count < 999 ? count : minutes ? minutes * TIMED_PER_MINUTE : SESSION_SIZE;
-    const built = buildSession({ items, settings, inDeck: (it) => chosen.has(it.id), budget, perDay, systems });
+    const built = buildSession({
+      items, settings, inDeck: (it) => chosen.has(it.id), budget, perDay, systems, newWithin: true,
+    });
     return { ...built, manual: true, mode, learnt: [] as Item[] };
   }
   const allowed = new Set(typesForMode(mode));
@@ -3932,7 +4598,10 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
      not a question — which a dealt session has always honoured, through
      isDrillable, and this one never did: picking the deck a frame lives in
      drilled its names as cards in their own right. */
-  const pool = items.filter((i) => chosen.has(i.id) && i.drill !== false);
+  const sets = systems || [];
+  const pool = items.filter(
+    (i) => chosen.has(i.id) && i.drill !== false && (!isRangeSkill(i) || systemFor(i, sets)),
+  );
   const plans: Question[] = [];
   const learnt = [];
   /* What the mode allows of what the form supports, and of that, the
@@ -3961,6 +4630,9 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
   /* Every exercise the chosen forms support between them, for the
      variety rule below. */
   const offered: Set<string> = new Set();
+  /* What each form was asked and what else it has open, for a session the
+     forms cannot fill at PER_UNIT apiece — see the filling below. */
+  const asked: { id: string; subId: string | null; unit: Form; taken: string[]; more: string[]; skill: boolean }[] = [];
 
   for (const it of pool) {
     let anyUsable = false;
@@ -3990,6 +4662,10 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
         const ctx = pickContext(unit, t);
         plans.push({ id: it.id, subId: isSub ? unit.id : null, type: t, ...(ctx ? { ctx: ctx.id } : null) });
       }
+      asked.push({
+        id: it.id, subId: isSub ? unit.id : null, unit, taken: take.slice(),
+        more: usable.filter((t) => !take.includes(t)), skill: isRangeSkill(it),
+      });
     }
 
     if (!anyUsable && anyLearnt) learnt.push(it);
@@ -4009,15 +4685,74 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
     };
   }
 
+  /*
+   * A session with a length that the forms chosen cannot fill at PER_UNIT
+   * apiece: each is asked more — first whatever else it has open, then the
+   * same again — a round at a time, up to MAX_ASKS_PER_UNIT. The same rule
+   * a dealt session follows (see buildSession), so twenty questions on
+   * five words is twenty questions, not ten. Added after the rest and
+   * shuffled among themselves, so a word's second asking comes in the
+   * later part of the session rather than beside its first. A skill is
+   * never asked the same exercise twice.
+   */
+  const length = count && count < 999 && !everyTypeMode(mode) ? count : 0;
+  const extra: Question[] = [];
+  /* Asked more, until the questions reach `target`, carrying on from where
+     the last call left off. */
+  const growTo = (target: number) => {
+    let grown = true;
+    while (plans.length + extra.length < target && grown) {
+      grown = false;
+      for (const a of asked) {
+        if (a.taken.length >= MAX_ASKS_PER_UNIT || plans.length + extra.length >= target) continue;
+        const t = a.more.length
+          ? (a.more.shift() as string)
+          : a.skill
+          ? null
+          : a.taken[a.taken.length % Math.min(a.taken.length, PER_UNIT)];
+        if (!t) continue;
+        a.taken.push(t);
+        const ctx = pickContext(a.unit, t);
+        extra.push({ id: a.id, subId: a.subId, type: t, ...(ctx ? { ctx: ctx.id } : null) });
+        grown = true;
+      }
+    }
+  };
+  if (length) growTo(length);
+
   /* Shuffle first, so the queue doesn't track the order of your card list,
      then space the types out. Ultimate ignores the length: it runs until
-     everything has gone right at least once. */
-  const ordered = varyTypes(
-    withGrids(shuffle(plans), items, settings, (unit, queued) =>
-      shuffle(usableFor(unit)).find((t) => t !== "match" && !queued.has(t)) || null
-    )
-  );
-  const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, Math.max(4, count || 0));
+     everything has gone right at least once. The extra askings go after
+     the rest, shuffled among themselves. */
+  const keptFirst = keptToNumbers(plans);
+  const numbersOnly = keptFirst !== plans;
+  const queue = () => {
+    const keptMore = numbersOnly ? keptToNumbers(extra) : extra;
+    const kept = keptFirst.concat(keptMore);
+    return varyTypes(
+      drawRanges(
+        withGrids(shuffle(keptFirst).concat(shuffle(keptMore)), gridCompany(kept, items), settings, (unit, queued) =>
+          shuffle(usableFor(unit)).find(
+            (t) => t !== "match" && !queued.has(t) && !(numbersOnly && borrowsPhrase(t))
+          ) || null
+        ),
+        items,
+        sets,
+        settings,
+      )
+    );
+  };
+  let ordered = queue();
+  /* The length is in screens, and a grid is one screen for several
+     questions — see cutAtLength — so what the grids took is asked again
+     until the screens reach the length or nothing more can be added. */
+  for (let round = 0; length && round < 8 && ordered.length < length; round += 1) {
+    const had = extra.length;
+    growTo(plans.length + extra.length + (length - ordered.length));
+    if (extra.length === had) break;
+    ordered = queue();
+  }
+  const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, cutAtLength(ordered, Math.max(4, count || 0)));
 
   /* The same minimum again, and the one easily missed: when every card chosen
      supports a single gentle type the whole session is that one type, so
@@ -4033,7 +4768,7 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
     mode,
     learnt,
     items: new Set(exercises.map((e) => e.id)).size,
-    units: plans.length,
+    units: plans.length + extra.length,
   };
 }
 
@@ -4114,7 +4849,7 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
        mark expecting two would call every right answer wrong. */
     if (r && r.unit.ar && r.unit.en) answers.push(oneOf(r.unit, exercise.type));
   }
-  const pool = wordPool(asking, settings, qLang.id, item)
+  const pool = wordPool(companyOf(asking, exercise), settings, qLang.id, item)
     .filter((u) => u.ar && u.en)
     .map((u) => oneOf(u, exercise.type));
   const reps = (statesOf(item)[exercise.type] || {}).reps || 0;
@@ -4251,36 +4986,78 @@ export function marksForAnswer({
    */
   if (item.tokens) {
     const set = systemFor(parentItem, systems);
-    const under = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
-    const from = set ? set.numbers.id : "";
-    const said = new Set(
-      ((item.tokens as { slot?: string; override?: string }[]) || [])
-        .map((t) => (t.override ? overrideId(from, t.override) : t.slot ? componentId(from, t.slot) : ""))
-        .filter(Boolean),
-    );
+    const equivalent = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
+    /* Per word, because a word with no figures of its own — *hundred*,
+       *and* — does not climb the key a number is asked from in figures. */
+    const underOf: Map<string, string> = new Map();
+    const fillers = tokenCards(
+      (item.tokens as Token[]) || [],
+      set ? set.numbers.id : "",
+      set && set.times ? set.times.id : "",
+      asking,
+    ).map(({ card, form }) => {
+      const keys = laddered(form, settings);
+      const fallback = NUMBER_FALLBACK[equivalent];
+      const under = !keys.includes(equivalent) && fallback && keys.includes(fallback) ? fallback : equivalent;
+      const subId = form.id === leadOf(card).id ? null : form.id;
+      underOf.set(`${card.id} ${subId || ""}`, under);
+      return {
+        id: card.id,
+        subId,
+        asked: keys.includes(under),
+        ready: (() => {
+          const st = statesOf(form)[under];
+          return !!st && st.phase !== "new" && stateReady(st);
+        })(),
+      };
+    });
     marks.push(
-      ...fillerMarks(
-        [...said]
-          .map((id) => asking.find((i) => i.id === id))
-          .filter(Boolean)
-          .map((card) => {
-            const form = leadOf(card);
-            return {
-              id: (card as Item).id,
-              subId: null,
-              asked: laddered(form, settings).includes(under),
-              ready: (() => {
-                const st = statesOf(form)[under];
-                return !!st && st.phase !== "new" && stateReady(st);
-              })(),
-            };
-          }),
-        { correct: !!correct },
-        practice,
-      ).map((mark) => ({ ...mark, under })),
+      ...fillerMarks(fillers, { correct: !!correct }, practice).map((mark) => ({
+        ...mark,
+        under: underOf.get(`${mark.id} ${mark.subId || ""}`) || equivalent,
+      })),
     );
   }
   return marks;
+}
+
+/**
+ * The cards, and the form on each, that the words of a rendered number
+ * or time were written on.
+ *
+ * Three things a slot alone did not say. A time is said partly in the
+ * clock's words, which are the time system's cards and not the numbers'
+ * — looked up under the numbers alone, *quarter past* and *in the
+ * evening* were never credited however often they were read. A numeral
+ * wears a face — *wahde* with a feminine word, the one word before a
+ * noun — and the face is a form of its own with its own schedule, so the
+ * face that was said is the one credited. And a counted noun is the
+ * teacher's own noun card, credited on the form the number called for:
+ * *three books* is the plural read.
+ */
+export function tokenCards(
+  tokens: Token[],
+  numbersId: string,
+  timeId: string,
+  asking: Item[],
+): { card: Item; form: Form }[] {
+  const out: { card: Item; form: Form }[] = [];
+  for (const t of tokens) {
+    if (t.noun) {
+      const card = asking.find((i) => i.id === t.noun);
+      if (!card) continue;
+      const form = formsOf(card).find((f) => String(f.ar || "").trim() === t.text.trim()) || leadOf(card);
+      out.push({ card, form });
+      continue;
+    }
+    for (const id of cardsOfToken(t, numbersId, timeId)) {
+      const card = asking.find((i) => i.id === id);
+      if (!card) continue;
+      const face = t.formKey ? formsOf(card).find((f) => f.id === `${card.id}-f~${t.formKey}`) : null;
+      out.push({ card, form: face || leadOf(card) });
+    }
+  }
+  return out;
 }
 
 /**
@@ -4344,6 +5121,15 @@ export function gradingFor(exercise: Question, settings: Settings) {
 export const LEARN_DAYS = 4;
 
 /*
+ * The fewest days the words a sentence is built from take to be cleared,
+ * where they are not yet: a sentence can be asked nothing until they are
+ * (see valuesAt), so its own four days start after them. The pace
+ * simulation measured a word clearing in about a day and a half at fifteen
+ * sittings a day, which is as fast as anybody goes; rounded up.
+ */
+export const CLEAR_DAYS = 2;
+
+/*
  * How much of a session moves the chosen cards forward. The rest is
  * questions asked ahead of time, retests and reviews of what is already
  * known. About half, from the pace simulation's measurements before it was
@@ -4394,7 +5180,7 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
   let unseen = 0;
   let floor = 0;
   for (const it of cards) {
-    const where = standing(cardStandings(it, settings));
+    const where = standing(cardStandings(it, settings, cards));
     if (!where || where.status === "done") continue;
     left += 1;
     let fresh = true;
@@ -4419,6 +5205,8 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
       const next = nextPassAt(it, settings);
       const wait = next > at ? Math.ceil((dayOf(next) - dayOf(at)) / 86400000) : 0;
       floor = Math.max(floor, wait + (passesLeft - 1) * 2);
+    } else if (blocksAhead(it, settings)) {
+      floor = Math.max(floor, CLEAR_DAYS + LEARN_DAYS);
     } else {
       floor = Math.max(floor, LEARN_DAYS);
     }
@@ -4430,6 +5218,17 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
     sessions: questions / (SESSION_SIZE * PROGRESS_SHARE),
     earliestDays: left ? floor : 0,
   };
+}
+
+/* A card with blanks that cannot be asked anything yet, because the words
+   that would fill them are not cleared — its building blocks are still
+   ahead of it. */
+function blocksAhead(it: Item, settings: Settings): boolean {
+  const units = drillableUnits(it, settings);
+  return (
+    units.some(({ unit }) => slotsOf(unit).length > 0) &&
+    units.every(({ unit }) => askableTypes(unit, settings).length === 0)
+  );
 }
 
 /** Days from `at` to the start of the day `days` days on. */
@@ -4494,13 +5293,18 @@ export function isWeak(it: Item, settings: Settings): boolean {
   );
 }
 
-export function buildWeakSession({ items, settings, inDeck, budget: budgetIn }: {
+export function buildWeakSession({ items, settings, inDeck, budget: budgetIn, systems }: {
   items: Item[];
   settings: Settings;
   inDeck: (it: Item) => boolean;
   budget?: number;
+  /** As buildSession takes them: a range is asked about a number drawn here. */
+  systems?: SystemSet[];
 }) {
-  const pool = items.filter((it) => inDeck(it) && isDrillable(it, settings));
+  const sets = systems || [];
+  const pool = items.filter(
+    (it) => inDeck(it) && isDrillable(it, settings) && (!isRangeSkill(it) || systemFor(it, sets)),
+  );
   if (!pool.length) return { exercises: [], reason: "none-drillable" };
 
   const budget = Math.max(4, budgetIn || SESSION_SIZE);
@@ -4545,23 +5349,54 @@ export function buildWeakSession({ items, settings, inDeck, budget: budgetIn }: 
      failing gets one question each and the worst of them first. */
   const plans: Question[] = [];
   const depth = Math.max(...order.map((u) => u.keys.length));
-  for (let round = 0; round < depth && plans.length < budget; round++) {
-    for (const u of order) {
-      const type = u.keys[round];
-      if (!type) continue;
-      const ctx = pickContext(u.unit, type);
-      plans.push({ id: u.id, subId: u.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+  /* And past the last failing question, round again — up to
+     MAX_ASKS_PER_UNIT a form — while the session is short of its length:
+     the same thing a dealt session does with a beginner's ten words. A
+     skill is not asked the same exercise twice, since its number is drawn
+     once and the second asking would be the same number. */
+  const isSkill = new Set(pool.filter((it) => isRangeSkill(it)).map((it) => it.id));
+  const rounds = Math.max(depth, MAX_ASKS_PER_UNIT);
+  let round = 0;
+  /* Round by round until the questions reach `target`, carrying on from
+     the last round dealt. */
+  const dealTo = (target: number) => {
+    for (; round < rounds && plans.length < target; round++) {
+      for (const u of order) {
+        const type = round < u.keys.length ? u.keys[round] : isSkill.has(u.id) ? undefined : u.keys[round % u.keys.length];
+        if (!type) continue;
+        const ctx = pickContext(u.unit, type);
+        plans.push({ id: u.id, subId: u.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+      }
     }
-  }
+  };
+  dealTo(budget);
 
   /* The grids, dealt, and the same card kept from being asked twice
      running — both exactly as a dealt session does them. */
-  const varied = varyTypes(
-    withGrids(plans, items, settings, (unit, queued) =>
-      pickableTypes(unit, settings).find((t) => t !== "match" && !queued.has(t)) || null
-    )
-  );
-  const exercises = withReadThroughs(varied.slice(0, budget), items, settings);
+  const queue = () => {
+    const kept = keptToNumbers(plans);
+    return varyTypes(
+      drawRanges(
+        withGrids(kept, gridCompany(kept, items), settings, (unit, queued) =>
+          pickableTypes(unit, settings).find(
+            (t) => t !== "match" && !queued.has(t) && !(kept !== plans && borrowsPhrase(t))
+          ) || null
+        ),
+        items,
+        sets,
+        settings,
+      )
+    );
+  };
+  let varied = queue();
+  /* The length is in screens, and a grid is one screen for several
+     questions — see cutAtLength — so a session the grids left short goes
+     round again while there is a round left. */
+  while (varied.length < budget && round < rounds) {
+    dealTo(plans.length + (budget - varied.length));
+    varied = queue();
+  }
+  const exercises = withReadThroughs(varied.slice(0, cutAtLength(varied, budget)), items, settings);
   const dealt = new Set(exercises.map((e) => e.id));
 
   /* How many of them were actually waiting, for the line at the end. A
@@ -6661,6 +7496,14 @@ function Field({ value, field, kind, lang, name }: {
         {value}
       </p>
     );
+  /* A number in the language's own figures, which read left to right
+     whatever the script around them does. */
+  if (field === "numeral")
+    return (
+      <p className="at-en" dir="ltr" data-el={name}>
+        {value}
+      </p>
+    );
   return (
     <p className="at-en" data-el={name}>
       {value}
@@ -7582,7 +8425,7 @@ export default function ArabicTrainer() {
   /* The teachers' numbers, read back through the same narrowing the wire
      goes through — what was kept is a copy of what arrived, and an older
      build's copy is not this build's shape. */
-  const [systems, setSystems] = useState<SystemSet[]>(() =>
+  const [heldSystems, setSystems] = useState<SystemSet[]>(() =>
     pairSystems(heldMaterial ? heldMaterial.systems : []),
   );
   const [courseDecks, setCourseDecks] = useState<Deck[]>(
@@ -7595,6 +8438,7 @@ export default function ArabicTrainer() {
      material request answers it, so it is no longer asked twice. */
   const [building, setBuilding] = useState(false);
   const [showingSaved, setShowingSaved] = useState(false);
+  const [editingSaved, setEditingSaved] = useState<SavedSession | null>(null);
   /* Which language the session on screen is drawn from: a language id, ""
      for all of them at once, or null for never asked — which is what keeps
      the picker from opening with an answer already marked. It stays on the
@@ -8292,6 +9136,28 @@ export default function ArabicTrainer() {
     () => (preview.length ? items.concat(preview) : items),
     [items, preview]
   );
+  /*
+   * The teachers' numbers with the things they count: the noun cards the
+   * learner's courses hold — see nouns.ts. Held as a string first, so the
+   * systems only change when a noun does and not on every answer, which
+   * would rebuild every question built on them.
+   */
+  const countedKey = useMemo(
+    () => JSON.stringify(nounsByLanguage(heldSystems, items.filter((it) => !!fromDeck(it)) as unknown as Record<string, unknown>[])),
+    [heldSystems, items],
+  );
+  const systems = useMemo(() => setsGiven(heldSystems, JSON.parse(countedKey)), [heldSystems, countedKey]);
+  /* And the numbers each part puts into the sentences that ask for it,
+     which are borrowed by a sentence and never asked — see fillerCards.
+     Only the value index reads them. */
+  const numberFillers = useMemo(
+    () => systems.flatMap((set) => fillerCards(composerFor(set.numbers.languageId), set.numbers)),
+    [systems],
+  );
+  const valueCards = useMemo(
+    () => (numberFillers.length ? asking.concat(numberFillers) : asking),
+    [asking, numberFillers],
+  );
   const settings = data.settings;
   /* The on-screen keys, opened from the button inside the answer field.
      Below `settings`, which it reads, and above every early return, which
@@ -8325,9 +9191,9 @@ export default function ArabicTrainer() {
      rotation walks this list, and a list that reordered itself on a sync
      would hand somebody a different name for the same count. */
   const valueIndex = useMemo(
-    () => valueIndexOf(asking, settings),
+    () => valueIndexOf(valueCards, settings),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-    [asking, settings.language],
+    [valueCards, settings.language],
   );
   setValueIndex(valueIndex);
 
@@ -8349,17 +9215,16 @@ export default function ArabicTrainer() {
   setPicturedCounts(picturedCounts);
 
   /*
-   * And how far the learner has got with each of them.
+   * And whether the learner has cleared each of them.
    *
    * Only the cards that fill something, so this is a walk over the values
-   * rather than over the deck. A value that is drilled on its own carries a
-   * number — the highest level it has climbed to, by the same test the
-   * ladder makes — and a value that is not carries null, because it is
-   * never dealt and has no ladder to read. What each of those means for a
-   * hole is valuesAt's business, not this one's.
+   * rather than over the deck. A value that is drilled on its own carries
+   * whether it is cleared, and a value that is not carries null, because
+   * it is never dealt and has no ladder to read. What each of those means
+   * for a hole is valuesAt's business, not this one's.
    */
-  const valueReach = useMemo(() => valueReachOf(asking, settings), [asking, settings]);
-  setValueReach(valueReach.map);
+  const valueReach = useMemo(() => valueReachOf(valueCards, settings), [valueCards, settings]);
+  setValueReach(valueReach.map, valueReach.forms);
   setValueOwner(valueReach.owner);
 
   /* And which cells of a verb's table are still behind their row's gate.
@@ -8430,7 +9295,11 @@ export default function ArabicTrainer() {
    * never appear because the count it was gated on was never zero.
    */
   const countReady: (pool: Item[]) => number = useCallback(
-    (pool) => {
+    (all) => {
+      /* Not a range waiting on its words: a session would not deal it, so
+         it is not ready — see knownNumbers. */
+      const numbers = knownNumbers(items, settings, systems);
+      const pool = all.filter((it) => !isRangeSkill(it) || numbers.ready(it));
       const waiting = (it: Item, includeNew: boolean) =>
         /* A card the learner asked for is waiting by their say-so — see
            isUrgent. */
@@ -8448,9 +9317,9 @@ export default function ArabicTrainer() {
          of them — the same reckoning buildSession does, so the two cannot
          come to disagree. */
       const fresh = pool.filter((it) => !waiting(it, false) && waiting(it, true)).length;
-      return met + Math.min(fresh, roomForNew(handCounts(items, settings), inHandFor(perDay), frontDoorFor(perDay)));
+      return met + Math.min(fresh, roomForNew(handCounts(items, settings, numbers), inHandFor(perDay), frontDoorFor(perDay)));
     },
-    [settings, items, perDay]
+    [settings, items, perDay, systems]
   );
 
   /*
@@ -8634,6 +9503,17 @@ export default function ArabicTrainer() {
 
   function dropSession(id: string) {
     setSetting("savedSessions", savedSessions.filter((x) => x.id !== id));
+  }
+
+  /* Kept under the same id and date, so it stays where it was in the list
+     and a tile on the home screen is the same tile with new contents. */
+  function changeSession(id: string, changed: Omit<SavedSession, "id" | "created">) {
+    setSetting("savedSessions", savedSessions.map((x) => (x.id === id ? { ...x, ...changed } : x)));
+    flash(`Saved changes to ${changed.name}`);
+  }
+
+  function startSaved(s: SavedSession) {
+    beginManual({ ids: s.ids, mode: s.mode, count: s.count, minutes: s.minutes });
   }
 
   /* A session assembled by hand on the Build screen. */
@@ -8925,7 +9805,7 @@ export default function ArabicTrainer() {
    * in a language you have switched off is not what you came to fix.
    */
   function beginWeak() {
-    const built = buildWeakSession({ items: shown, settings, inDeck });
+    const built = buildWeakSession({ items: shown, settings, inDeck, systems });
     if (!built.exercises.length) {
       flash(
         built.reason === "nothing-weak"
@@ -9290,7 +10170,7 @@ export default function ArabicTrainer() {
       const reps = (statesOf(item)[(exercise && exercise.type) || ""] || {}).reps || 0;
       return optionsFor({
         answer: item,
-        pool: wordPool(asking, settings, qLang.id, item).filter(
+        pool: wordPool(companyOf(asking, exercise), settings, qLang.id, item).filter(
           (u) => Array.isArray(u.images) && u.images.length && canSeeHere(u),
         ),
         wanted: PICK_OPTIONS,
@@ -9306,7 +10186,7 @@ export default function ArabicTrainer() {
       const reps = (statesOf(item)[(exercise && exercise.type) || ""] || {}).reps || 0;
       return optionsFor({
         answer: item,
-        pool: wordPool(asking, settings, qLang.id, item)
+        pool: wordPool(companyOf(asking, exercise), settings, qLang.id, item)
           .filter((u) => u.en && !twins.some((t) => t.id === u.id))
           .map((u) => oneOf(u, exercise ? exercise.type : "")),
         wanted: PICK_OPTIONS,
@@ -9319,7 +10199,7 @@ export default function ArabicTrainer() {
       /* One spelling a tile, like the answer's own: a card accepting two
          would otherwise put both on one tile, and the long one among three
          short ones is the answer given away by its shape. */
-      pool: wordPool(asking, settings, qLang.id, item)
+      pool: wordPool(companyOf(asking, exercise), settings, qLang.id, item)
         .filter((u) => !twins.some((t) => t.id === u.id))
         .map((u) => oneOf(u, exercise ? exercise.type : "")),
       wanted: PICK_OPTIONS,
@@ -9484,6 +10364,9 @@ export default function ArabicTrainer() {
   /* A right answer written off the hint has a line under it saying so, so
      the praise is not the whole of what came back. */
   const verdictAlone = answerRight && !answerRepeated && !toldAnswer;
+  /* Typed in figures and nothing else, on the phone's number pad. Its box
+     is drawn for a few digits rather than a sentence. */
+  const figures = !!exercise && answersInFigures(item, exercise.type);
 
   useEffect(() => {
     if (exercise && inputRef.current && !checked) inputRef.current.focus();
@@ -10616,11 +11499,19 @@ export default function ArabicTrainer() {
                       the way to find this is to save one, which the Build
                       screen offers where the session is finished. */}
                   {savedSessions.length > 0 && (
-                    <div className="at-row at-mt3">
-                      <Button variant="ghost" onClick={() => setShowingSaved(true)}>
-                        Saved sessions
-                      </Button>
-                    </div>
+                    <>
+                      <div className="at-row at-mt3">
+                        <Button variant="ghost" onClick={() => setShowingSaved(true)}>
+                          Saved sessions
+                        </Button>
+                      </div>
+                      <SavedTiles
+                        sessions={savedSessions}
+                        items={items}
+                        settings={settings}
+                        onStart={startSaved}
+                      />
+                    </>
                   )}
 
                   {!readyCount && drillable.length > 0 && (
@@ -10854,7 +11745,15 @@ export default function ArabicTrainer() {
                       />
                     ) : (
                       <Field
-                        value={item[spec.promptField]}
+                        /* A number met in the figures English uses is met
+                           in the language's own beside them, so ٤٧ is
+                           known by the time the top of the ladder asks
+                           from it alone. */
+                        value={
+                          spec.promptField === "en" && item.numeral && item.en
+                            ? `${item.numeral} · ${item.en}`
+                            : item[spec.promptField]
+                        }
                         field={spec.promptField}
                         kind={item.kind}
                         name="question-prompt-text"
@@ -11048,12 +11947,19 @@ export default function ArabicTrainer() {
                           lang={spec.answerMode === "ar" ? qLang.id : undefined}
                           dir={spec.answerMode === "ar" ? qLang.direction : undefined}
                           className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
-                            checked ? (checked.ok ? " ok" : " no") : ""
-                          }`}
+                            figures ? " fig" : ""
+                          }${checked ? (checked.ok ? " ok" : " no") : ""}`}
                           data-el="answer-input"
+                          /* A number in figures and nothing else: a phone's
+                             number pad, not its letters. Not a time — the
+                             pad has no colon. A number written out in the
+                             language's script is an "ar" answer, not one of
+                             these, and keeps its letters and on-screen keys. */
+                          inputMode={figures ? "numeric" : undefined}
+                          autoComplete={figures ? "off" : undefined}
                           value={typed}
                           readOnly={!!checked}
-                          placeholder={spec.placeholder}
+                          placeholder={figures ? "Type the number" : spec.placeholder}
                           onChange={(e) => setTyped(e.target.value)}
                           /* Only the Check button checks. Enter — and a
                              phone keyboard's Go, which is the same key —
@@ -11289,15 +12195,46 @@ export default function ArabicTrainer() {
                             />
                           </div>
                         )}
+                        {/* A number, in the figures the language writes
+                            it in: 47 is ٤٧ on a price tag. Not where the
+                            question already showed them — asked from
+                            them, or beside the figures English uses. */}
+                        {item.numeral &&
+                          spec.promptField !== "numeral" &&
+                          spec.promptField !== "en" &&
+                          spec.answerField !== "numeral" && (
+                          <div className="at-answeralso" data-el="also-figures">
+                            <p className="at-alsolabel" data-el="also-figures-label">
+                              In {qLang.scriptLabel} figures
+                            </p>
+                            <Field value={item.numeral} field="numeral" name="also-figures-text" />
+                          </div>
+                        )}
+                        {/* And in English words. Nothing on a number
+                            question says it — the prompt and the answer
+                            are the figures and the language's words — and
+                            it is the one a learner checks their reading
+                            against. */}
+                        {numberInWords(item, parentItem) && (
+                          <div className="at-answeralso" data-el="also-words">
+                            <p className="at-alsolabel" data-el="also-words-label">
+                              In English
+                            </p>
+                            <p className="at-ctxmeaning" data-el="also-words-text">
+                              {numberInWords(item, parentItem)}
+                            </p>
+                          </div>
+                        )}
                         {/* Was below the notes, which put it three blocks
                             away from its own siblings. It belongs with
-                            them. */}
-                        {spec.promptField !== "audio" && (item.recs || []).length > 0 && (
+                            them. A time is its hour and its minutes, one
+                            after the other — see audibleOf. */}
+                        {spec.promptField !== "audio" && audibleOf(item).length > 0 && (
                           <div className="at-answeralso" data-el="also-audio">
                             <p className="at-alsolabel" data-el="also-audio-label">
                               This is how it sounds
                             </p>
-                            <AudioPrompt recs={item.recs} lead={leadSpeed(item)} />
+                            <AudioPrompt recs={audibleOf(item)} after={chainOf(item)} lead={leadSpeed(item)} />
                           </div>
                         )}
                         {/* Asked here rather than inside RelatedWords: an
@@ -11494,16 +12431,34 @@ export default function ArabicTrainer() {
           />
         )}
 
-        {showingSaved && (
+        {showingSaved && !editingSaved && (
           <SavedSessionsSheet
             sessions={savedSessions}
             items={items}
             onStart={(s) => {
               setShowingSaved(false);
-              beginManual({ ids: s.ids, mode: s.mode, count: s.count, minutes: s.minutes });
+              startSaved(s);
             }}
+            onEdit={setEditingSaved}
             onDelete={dropSession}
             onClose={() => setShowingSaved(false)}
+          />
+        )}
+
+        {/* The Build screen again, opened on what was kept. Saving goes
+            back to the list, which is where it was opened from. */}
+        {editingSaved && (
+          <ManualSessionSheet
+            items={shown}
+            allTags={allTags}
+            settings={settings}
+            editing={editingSaved}
+            onStart={beginManual}
+            onSave={(changed) => {
+              changeSession(editingSaved.id, changed);
+              setEditingSaved(null);
+            }}
+            onClose={() => setEditingSaved(null)}
           />
         )}
 
@@ -11753,31 +12708,43 @@ export default function ArabicTrainer() {
  * of a job, and the whole point of the card it sits on is the button
  * underneath.
  */
+/*
+ * How much of some cards is learnt: the ring's numbers, for any set of them.
+ *
+ * `cards` are the ones being measured and `all` the collection they sit in,
+ * which a card's standing needs to read what it waits on. The home screen's
+ * ring passes the same list twice; a saved session's tile passes its own
+ * cards, so the two percentages are worked out the one way.
+ *
+ * Exported for the tests, which hold a deck of numbers to it.
+ */
+export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
+  /* The four levels, then the cards with nothing above them left to open
+     — the same five buckets the tiles in Progress count. */
+  const spread = [0, 0, 0, 0, 0];
+  let n = 0;
+  let learnt = 0;
+  let got = 0;
+  for (const it of cards) {
+    /* A card that can never be asked is not progress to be short of, and
+       a number waiting on its stretch is a card not learnt yet — both as
+       towardsLearnt has it, which the Progress tab's decks read too. A
+       waiting number is not started, so it is drawn on the bottom level
+       with the other cards nobody has begun. */
+    const toward = towardsLearnt(it, settings, all);
+    if (!toward) continue;
+    n++;
+    got += toward.share;
+    if (toward.at.status === "done") {
+      learnt++;
+      spread[4]++;
+    } else spread[toward.at.level - 1]++;
+  }
+  return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
+}
+
 function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
-  const climb = useMemo(() => {
-    /* The four levels, then the cards with nothing above them left to open
-       — the same five buckets the tiles in Progress count. */
-    const spread = [0, 0, 0, 0, 0];
-    let n = 0;
-    let learnt = 0;
-    let got = 0;
-    for (const it of items) {
-      const rows = cardStandings(it, settings);
-      const at = standing(rows);
-      /* A card with nothing it can be asked yet is on no level, so it is
-         not progress to be short of — the exclusion Progress makes too. */
-      if (!at) continue;
-      n++;
-      /* A level a card has no material for is not a level it is short of,
-         so the denominator is the levels it actually has. */
-      got += rows.filter((r) => r.status === "done").length / rows.length;
-      if (at.status === "done") {
-        learnt++;
-        spread[4]++;
-      } else spread[at.level - 1]++;
-    }
-    return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
-  }, [items, settings]);
+  const climb = useMemo(() => climbOf(items, settings, items), [items, settings]);
 
   /* Nothing practisable, nothing to draw. The card below still offers what
      it can, and the reason there is nothing is the Cards tab's to give. */
@@ -11828,6 +12795,61 @@ function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
           )}
         </span>
       </div>
+    </div>
+  );
+}
+
+/*
+ * The sessions somebody kept, as tiles under the button that lists them.
+ *
+ * A tile and not a row: these sit on the home screen's own card, between
+ * buttons, and a full-width row each would push Start session's neighbours
+ * off the screen after three or four of them. Small enough to sit two or
+ * three abreast, which is a glance at all of them.
+ *
+ * Each carries how much of its own cards is learnt, worked out the way the
+ * ring above it is, so "Thursday's verbs · 40%" and the ring cannot be
+ * counting different things. Pressing one starts it, which is what Start
+ * does on the list; changing or forgetting one is the list's to do.
+ */
+function SavedTiles({ sessions, items, settings, onStart }: {
+  sessions: SavedSession[];
+  items: Item[];
+  settings: Settings;
+  onStart: (session: SavedSession) => void;
+}) {
+  const tiles = useMemo(() => {
+    const byId = new Map(items.map((it) => [it.id, it]));
+    /* Newest first, as the list has them. */
+    return [...sessions]
+      .sort((a, b) => (b.created || 0) - (a.created || 0))
+      .map((s) => {
+        const cards = s.ids.map((id) => byId.get(id)).filter((it): it is Item => !!it);
+        return { s, alive: cards.length, pct: climbOf(cards, settings, items).pct };
+      });
+  }, [sessions, items, settings]);
+
+  if (!tiles.length) return null;
+  return (
+    <div className="at-savedtiles">
+      {tiles.map(({ s, alive, pct }) => (
+        <button
+          key={s.id}
+          className="at-savedtile"
+          disabled={!alive}
+          aria-label={`Start ${s.name}, ${pct}% learnt`}
+          onClick={() => onStart(s)}
+        >
+          <span className="nm">{s.name}</span>
+          <span className="pc" aria-hidden="true">
+            {pct}
+            <i>%</i>
+          </span>
+          <span className="bar" aria-hidden="true">
+            {pct > 0 && <i style={{ width: `${pct}%` }} />}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -11887,7 +12909,7 @@ function WhatMoved({
            somebody they had done the very thing they are about to be
            asked. A card with no standing has nothing to report and is
            dropped rather than given a number. */
-        const at = standing(cardStandings(card, settings));
+        const at = standing(cardStandings(card, settings, items));
         const level = at && LEVEL_REACHED[at.level];
         return level ? { id, name, said: `up to ${level}` } : null;
       })
@@ -11931,8 +12953,8 @@ function WhatMoved({
  * may have nothing on the third. The ladder passes those straight through,
  * so listing them would be listing work that does not exist.
  */
-function CardLadder({ card, settings }: { card: Item; settings: Settings }) {
-  const levels = cardStandings(card, settings);
+function CardLadder({ card, items, settings }: { card: Item; items?: Item[]; settings: Settings }) {
+  const levels = cardStandings(card, settings, items);
   const at = standing(levels);
   if (!levels.length || !at) return null;
   return (
@@ -12003,7 +13025,7 @@ function CardScreen({ card, items, settings, onPriority, onBack, action }: {
         reader="both"
       />
 
-      <CardLadder card={live} settings={settings} />
+      <CardLadder card={live} items={items} settings={settings} />
 
       {onPriority && (
         <div className="at-card at-mt4">
@@ -13437,10 +14459,11 @@ const TIME_CHOICES = [2, 5, 10, 15, 30];
    ground, practised again, with everything edited since included.
    ------------------------------------------------------------------ */
 
-function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
+function SavedSessionsSheet({ sessions, items, onStart, onEdit, onDelete, onClose }: {
   sessions: SavedSession[];
   items: Item[];
   onStart: (session: SavedSession) => void;
+  onEdit: (session: SavedSession) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }) {
@@ -13497,6 +14520,11 @@ function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
                 Start
               </Button>
               <IconButton
+                icon="edit"
+                label={`Edit ${s.name}`}
+                onClick={() => onEdit(s)}
+              />
+              <IconButton
                 icon="delete"
                 label={`Forget ${s.name}`}
                 danger
@@ -13517,33 +14545,59 @@ function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
   );
 }
 
-function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose }: {
+/*
+ * `editing` opens it on a session already kept, to change it rather than
+ * start one: every step is filled in with what was kept, and the last one
+ * saves over it instead of starting. The answers being there already is the
+ * one case where a lit choice is not a guess on the learner's behalf.
+ */
+function ManualSessionSheet({ items, allTags, settings, editing, onStart, onSave, onClose }: {
   items: Item[];
   allTags: string[];
   settings: Settings;
+  editing?: SavedSession;
   onStart: (plan: any) => void;
   onSave: (session: { name: string; ids: string[]; mode: string; count: number; minutes: number }) => void;
   onClose: () => void;
 }) {
+  const eligible = useMemo(
+    () => items.filter((i) => availableTypes(leadOf(i)).length >= 2 || subFormsOf(i).length),
+    [items]
+  );
+
   const [step, setStep] = useState(0);
   /* No mode until one is chosen. A pre-selected card looks like an answer
      already given, so the first screen gets read as "confirm this" rather
      than "pick one" — and Ultimate, which is the longest session on offer,
      is the last one to hand somebody by default. */
-  const [mode, setMode] = useState("");
-  const [picked, setPicked] = useState(() => new Set());
+  const [mode, setMode] = useState(editing ? editing.mode : "");
+  const [picked, setPicked] = useState(() => {
+    if (!editing) return new Set();
+    const here = new Set(eligible.map((i) => i.id));
+    return new Set(editing.ids.filter((id) => here.has(id)));
+  });
+  /* The kept cards this screen cannot show — another language's, under the
+     switch, or one that has gone — carried through a save untouched, so
+     changing the length of a session does not quietly take cards out of it. */
+  const [elsewhere] = useState(() => {
+    if (!editing) return [] as string[];
+    const here = new Set(eligible.map((i) => i.id));
+    return editing.ids.filter((id) => !here.has(id));
+  });
   const [openTag, setOpenTag] = useState<string | null>(null);
   /* "" until one of the two is chosen — the same reason the mode starts
      unset. It used to open on 20 questions already lit, which is a length
      nobody asked for sitting where the answer goes. */
-  const [limitKind, setLimitKind] = useState(""); // "" | count | time
-  const [count, setCount] = useState(20);
-  const [minutes, setMinutes] = useState(5);
+  const [limitKind, setLimitKind] = useState( // "" | count | time
+    !editing ? "" : editing.minutes ? "time" : editing.count && editing.count < 999 ? "count" : ""
+  );
+  const [count, setCount] = useState(editing && editing.count && editing.count < 999 ? editing.count : 20);
+  const [minutes, setMinutes] = useState(editing && editing.minutes ? editing.minutes : 5);
   /* What it would be called, and what was last kept under that name. Held
      as the description rather than as a flag, so changing the length or
      the cards after saving offers the button again — what is on screen is
      no longer what was kept. */
-  const [name, setName] = useState("");
+  const [name, setName] = useState(editing ? editing.name : "");
   const [savedSpec, setSavedSpec] = useState("");
   const [q, setQ] = useState("");
 
@@ -13557,11 +14611,6 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
       document.body.style.overflow = prev;
     };
   }, [onClose]);
-
-  const eligible = useMemo(
-    () => items.filter((i) => availableTypes(leadOf(i)).length >= 2 || subFormsOf(i).length),
-    [items]
-  );
 
   /* Tags first: picking one selects everything under it. */
   const tagGroups = useMemo(() => {
@@ -13684,9 +14733,19 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
     });
   }
 
+  function keep() {
+    onSave({
+      name: name.trim() || (editing && editing.name) || suggestion,
+      ids: [...picked, ...elsewhere] as string[],
+      mode,
+      count: limitKind === "count" ? count : 999,
+      minutes: limitKind === "time" && needsLength ? minutes : 0,
+    });
+  }
+
   return (
     <Screen
-      title={steps[step]}
+      title={editing ? `Edit · ${steps[step]}` : steps[step]}
       onBack={() => (step === 0 ? onClose() : setStep(step - 1))}
       action={
         <span className="at-sheetnote">
@@ -13708,8 +14767,8 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
                   {onButton(stepProblem) || "Next"}
                 </Button>
               ) : (
-                <Button variant="primary" disabled={!!problem} onClick={start}>
-                  {onButton(problem) || "Start"}
+                <Button variant="primary" disabled={!!problem} onClick={editing ? keep : start}>
+                  {onButton(problem) || (editing ? "Save changes" : "Start")}
                 </Button>
               )}
         </>
@@ -13895,7 +14954,21 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
         * An extra rather than the way on: Start is still the button, and a
         * session nobody saves behaves exactly as it did.
         */}
-      {step === 2 && (
+      {/* Editing, the name is all there is to this: the footer saves. */}
+      {step === 2 && editing && (
+        <div className="at-formblock at-mt5">
+          <FormField label="Name">
+            <input
+              className="at-input"
+              placeholder={editing.name || suggestion}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FormField>
+        </div>
+      )}
+
+      {step === 2 && !editing && (
         <div className="at-formblock at-mt5">
           <FormField
             label="Keep this session"
@@ -13914,13 +14987,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
               icon={saved ? "check" : "save"}
               disabled={!!problem || saved}
               onClick={() => {
-                onSave({
-                  name: name.trim() || suggestion,
-                  ids: [...picked] as string[],
-                  mode,
-                  count: limitKind === "count" ? count : 999,
-                  minutes: limitKind === "time" && needsLength ? minutes : 0,
-                });
+                keep();
                 setSavedSpec(spec);
               }}
             >
@@ -14611,6 +15678,13 @@ export function nextPassAt(it: Item, settings: Settings): Millis {
   return soonest;
 }
 
+/* The small print on a number part held at Cleared by its words, once its
+   own reviews are made — there is no review left for passLine to name. */
+function heldLine(at: Standing | null): string {
+  if (!at || !at.held || at.passes < PASSES_TO_LEARN) return "";
+  return `Waiting on ${plural(at.held, "word")}`;
+}
+
 /* Which review of the ones that make a card learnt, as a word. There are
    two today; the rest are here so that raising PASSES_TO_LEARN changes a
    number and not a sentence. */
@@ -14796,7 +15870,7 @@ export function prepStatus(
   at: Millis = now(),
 ): "active" | "past" | "done" | "empty" {
   if (at >= prepStart(prep.date)) return "past";
-  const cards = items.filter(prepDeckOf(prep.decks)).filter((it) => standing(cardStandings(it, settings)));
+  const cards = items.filter(prepDeckOf(prep.decks)).filter((it) => standing(cardStandings(it, settings, items)));
   if (!cards.length) return "empty";
   return workloadOf(cards, settings, at).left ? "active" : "done";
 }
@@ -15110,6 +16184,139 @@ export function forecastWords(at: Millis | null, from: Millis = now()): string {
   return `${date} (${off})`;
 }
 
+/*
+ * Numbers, word by word.
+ *
+ * A number part is one skill on the ladder, and the ladder can say it is
+ * going well while one of its words has never been kept: a learner can be
+ * right about 11 to 99 a dozen times without meeting *ninety*. So each part
+ * is shown here with every word it is built from — each unit, ten and
+ * hundred, and the word that joins them — and whether that word is
+ * validated, which is the app's standard for any card: learnt. The part
+ * itself is learnt only once all of them are (see `cardStandings`), and its
+ * questions are steered towards the ones that are not (see `drawRange`), so
+ * this is the same answer the scheduler is acting on, drawn.
+ */
+type WordState = "done" | "going" | "new";
+const WORD_STATE_LABEL: Record<WordState, string> = {
+  done: "Learnt",
+  going: "Learning",
+  new: "Not started",
+};
+
+/* Where a word stands, in the three states the page draws. */
+const wordStateOf = (p: { validated: boolean | null; met: boolean }): WordState =>
+  p.validated ? "done" : p.met ? "going" : "new";
+
+/* The figure a word stands for, for ordering: one before ten before a
+   hundred, and the words that are not a number — *and*, *hundred* — after
+   them all. */
+const figureOf = (card: Item): number => {
+  const n = Number(String(leadOf(card).en || "").replace(/,/g, ""));
+  return Number.isFinite(n) && String(leadOf(card).en || "").trim() !== "" ? n : Infinity;
+};
+
+function NumberParts({
+  items,
+  settings,
+  progressOf,
+  onCard,
+}: {
+  items: Item[];
+  settings: Settings;
+  progressOf: Map<string, Standing | null>;
+  onCard: (it: Item) => void;
+}) {
+  const parts = useMemo(
+    () =>
+      items
+        .filter((it) => isRangeSkill(it) && (it.parts || []).length)
+        .map((it) => {
+          const words = partsOf(it, items, settings)
+            .filter((p) => p.validated !== null)
+            .sort((a, b) => figureOf(a.card) - figureOf(b.card));
+          return {
+            it,
+            name: String(it.name || (it.range && it.range.label) || ""),
+            words,
+            learnt: words.filter((p) => p.validated).length,
+          };
+        })
+        .filter((p) => p.words.length),
+    [items, settings],
+  );
+  const [open, setOpen] = useState<string>("");
+  if (!parts.length) return null;
+  const showing = parts.find((p) => p.it.id === open);
+  return (
+    <Section
+      title="Numbers"
+      lede="Each part of the numbers you're studying, and how many of the words it is built from you have learnt. A part counts as learnt only once every one of its words is."
+    >
+      <div className="at-deckprog">
+        {parts.map((p) => {
+          const at = progressOf.get(p.it.id) || null;
+          const all = p.learnt === p.words.length;
+          return (
+            <button
+              type="button"
+              className={`at-deckstat${all && at && at.status === "done" ? " done" : ""}`}
+              key={p.it.id}
+              aria-haspopup="dialog"
+              onClick={() => setOpen(p.it.id)}
+            >
+              <span className="at-deckstatname">{p.name}</span>
+              <b>
+                {p.learnt}
+                <i>/{p.words.length}</i>
+              </b>
+              <span className="at-deckbar" aria-hidden="true">
+                <span style={{ width: `${Math.round((p.learnt / p.words.length) * 100)}%` }} />
+              </span>
+              <span className="at-deckstatnote">
+                {plural(p.words.length, "word")} · {standingLabel(at)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {showing && (
+        <Screen title={showing.name} onBack={() => setOpen("")}>
+          <Lede>
+            {showing.learnt === showing.words.length
+              ? `Every word in ${showing.name} is learnt.`
+              : `${showing.learnt} of ${plural(showing.words.length, "word")} learnt. The numbers you are asked here lean towards the ones still to learn.`}
+          </Lede>
+          <Help>Where the part itself stands: {standingLabel(progressOf.get(showing.it.id) || null)}.</Help>
+          <div className="at-numwords">
+            {showing.words.map((p) => {
+              const state = wordStateOf(p);
+              const lead = leadOf(p.card);
+              return (
+                <button
+                  type="button"
+                  className={`at-numword ${state}`}
+                  key={p.card.id}
+                  aria-haspopup="dialog"
+                  aria-label={`${lead.en || lead.ar}: ${WORD_STATE_LABEL[state]}`}
+                  onClick={() => onCard(p.card)}
+                >
+                  <span className="at-numwordfig">{p.card.numeral || lead.en}</span>
+                  <span className="at-numwordsaid" dir="auto">
+                    {lead.ar}
+                  </span>
+                  <span className="at-numwordstate">{WORD_STATE_LABEL[state]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Screen>
+      )}
+    </Section>
+  );
+}
+
 function DeckScreen({
   name,
   cards,
@@ -15243,7 +16450,9 @@ function ProgressTab({
    */
   const progress = useMemo(() => {
     const at: Map<string, Standing | null> = new Map();
-    const share: Map<string, number> = new Map();
+    /* How far each card is towards learnt, which is what a deck's
+       percentage adds up — see towardsLearnt. */
+    const toward: Map<string, { at: Standing; share: number } | null> = new Map();
     /* And, for the cards at the top of the ladder, when each next comes
        round. Only for those two: it is another walk of the card's keys,
        the tiles below it show a bar instead, and a card still climbing is
@@ -15253,17 +16462,23 @@ function ProgressTab({
        `nextPassAt` — and its line names that review. */
     const next: Map<string, Millis> = new Map();
     for (const it of items) {
-      const rows = cardStandings(it, settings);
+      const rows = cardStandings(it, settings, items);
       const one = standing(rows);
       at.set(it.id, one);
       /* A level a card has no material for is not a level it is short of —
          openTypes passes those straight through, and standings leaves them
-         out — so the denominator is the levels it actually has. */
-      share.set(it.id, rows.length ? rows.filter((r) => r.status === "done").length / rows.length : 0);
+         out — so the denominator is the levels it actually has. The rows
+         just read are towardsLearnt's own first reading, so a card on a
+         level is not walked twice; one on no level is asked whether it is
+         a number waiting on its stretch, which still counts. */
+      toward.set(
+        it.id,
+        one ? { at: one, share: rows.filter((r) => r.status === "done").length / rows.length } : towardsLearnt(it, settings, items),
+      );
       if (one && one.status === "cleared") next.set(it.id, nextPassAt(it, settings));
       else if (one && one.status === "done") next.set(it.id, nextReviewAt(it, settings));
     }
-    return { at, share, next };
+    return { at, toward, next };
   }, [items, settings]);
   const progressOf = progress.at;
 
@@ -15321,21 +16536,25 @@ function ProgressTab({
    * only honest answer to "how far along is this deck".
    *
    * Learnt, rather than any of the four levels, because that is the one
-   * that means finished: nothing left to open. It is the same set of cards
-   * the Learnt tile above counts, cut by deck.
+   * that means finished: nothing left to open.
+   *
+   * Every card of the deck that can be asked counts, numbers still waiting
+   * on their stretch among them — see towardsLearnt, which the home
+   * screen's ring and a saved session's tile read too. The level tiles
+   * above count only the cards on a level, so a deck of numbers can hold
+   * more cards here than those tiles show.
    */
   const deckRows = useMemo(() => {
     const held: Map<string, { n: number; learnt: number; got: number }> = new Map();
     for (const it of items) {
-      const at = progressOf.get(it.id);
-      /* The same exclusion the tiles make: a card with nothing it can be
-         asked is on no level, so it is not progress to be short of. */
-      if (!at) continue;
+      const toward = progress.toward.get(it.id);
+      /* A card that can never be asked is not progress to be short of. */
+      if (!toward) continue;
       for (const deck of it.tags || []) {
         const row = held.get(deck) || { n: 0, learnt: 0, got: 0 };
         row.n++;
-        row.got += progress.share.get(it.id) || 0;
-        if (at.status === "done") row.learnt++;
+        row.got += toward.share;
+        if (toward.at.status === "done") row.learnt++;
         held.set(deck, row);
       }
     }
@@ -15347,7 +16566,7 @@ function ProgressTab({
         pct: deckPercent({ n, learnt, got }),
       }))
       .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
-  }, [items, progressOf, progress]);
+  }, [items, progress]);
 
   /* Where the prep stands, for the line beside the button. */
   const prepNow = prep ? prepStatus(prep, items, settings) : null;
@@ -15487,7 +16706,8 @@ function ProgressTab({
                 showing === "all"
                   ? standingShort(progressOf.get(it.id) || null)
                   : showing === "cleared"
-                  ? passLine(progress.next.get(it.id) || 0, progressOf.get(it.id)?.passes || 0)
+                  ? heldLine(progressOf.get(it.id) || null) ||
+                    passLine(progress.next.get(it.id) || 0, progressOf.get(it.id)?.passes || 0)
                   : onTop
                   ? reviewLine(progress.next.get(it.id) || 0)
                   : undefined
@@ -15514,6 +16734,8 @@ function ProgressTab({
         </Screen>
       )}
       </Section>
+
+      <NumberParts items={items} settings={settings} progressOf={progressOf} onCard={(it) => setViewing(it)} />
 
       {/* ---- the decks, as how far each one is from finished ----
 

@@ -41,6 +41,7 @@ const {
   earliestOf,
   readyFor,
   LEARN_DAYS,
+  CLEAR_DAYS,
   PROGRESS_SHARE,
   installIndexes,
   setOfflineNow,
@@ -304,4 +305,19 @@ test("the home screen counts today's sessions against what today needs", () => {
   /* No rate to keep to: just what was done. */
   assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 0).goal, null);
   assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 18).done, 1);
+});
+
+test("a sentence whose words are not cleared yet starts after them", () => {
+  /* A sentence can be asked nothing until the words in its blanks are
+     cleared, so its own days to learn start once they are. */
+  const frame = {
+    id: "f1", tags: ["deck"], created: 1, lang: "ar-PS", kind: "word",
+    forms: [{ id: "f1", ar: "{{noun}} كبير", en: "a big {{noun}}", lat: "", lang: "ar-PS", s: {} }],
+  };
+  const noun = { ...word(99, "deck"), category: "noun" };
+  installIndexes([frame, noun], settings);
+  assert.equal(workloadOf([frame], settings, FROM).earliestDays, CLEAR_DAYS + LEARN_DAYS);
+  const cleared = withStates(noun, { ...learntState, passes: 0, hist: [1, 1] });
+  installIndexes([frame, cleared], settings);
+  assert.equal(workloadOf([frame], settings, FROM).earliestDays, LEARN_DAYS, "and no later once they are");
 });

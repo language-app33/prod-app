@@ -632,27 +632,26 @@ test("a hole is named the way every other reader of it names it", () => {
  */
 const val = (/** @type {string} */ id) => ({ id, ar: id, en: id, lat: id });
 
-test("a value stands in a hole only as far up as it has climbed itself", () => {
-  const list = [val("new"), val("met"), val("known"), val("written")];
-  /** @type {Record<string, number>} */
-  const climbed = { new: 0, met: 1, known: 2, written: 4 };
-  const reach = (/** @type {any} */ v) => climbed[v.id];
+test("a value stands in a hole only once it is cleared, whatever the question asks", () => {
+  /* A building block — a card used inside another card — stands in a
+     sentence only once the learner has been up every level of it. One bar
+     for every level the sentence is asked at: a word answered once, or
+     one that has not yet been written from its meaning, is the question
+     rather than something the sentence can lean on. */
+  const list = [val("new"), val("met"), val("climbing"), val("cleared")];
+  /** @type {Record<string, boolean>} */
+  const done = { new: false, met: false, climbing: false, cleared: true };
+  const cleared = (/** @type {any} */ v) => done[v.id];
   const at = (/** @type {number} */ level) =>
-    valuesAt(list, "word", level, reach).map((/** @type {any} */ v) => v.id);
+    valuesAt(list, "word", level, cleared).map((/** @type {any} */ v) => v.id);
 
-  /* Level one asks what a word means, and a word nobody has answered is
-     not one to read a sentence off. */
-  assert.deepEqual(at(1), ["met", "known", "written"]);
-  assert.deepEqual(at(2), ["known", "written"]);
-  /* Writing it from its meaning, which is the top: only a word the learner
-     can already write from its meaning. */
-  assert.deepEqual(at(4), ["written"]);
+  for (const level of [1, 2, 3, 4]) assert.deepEqual(at(level), ["cleared"], `level ${level}`);
 });
 
 test("and a value with no ladder is read off the frame that teaches it", () => {
   /* Raphael is never drilled on its own — "what does Raphael mean" is not a
-     question — so it has no progress of its own, ever. reach comes back
-     null for those, and what is read instead is how far this frame has
+     question — so it has no progress of its own, ever. `cleared` comes
+     back null for those, and what is read instead is how far this frame has
      already been asked with it. */
   const list = [val("raphael"), val("sarah")];
   const reach = () => null;

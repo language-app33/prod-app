@@ -41,7 +41,7 @@ await build({
 });
 const { lentTags, varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
   fillersIn, buildWeakSession, weakness, isWeak, movesAmong, mergeMoves,
-  saidMoves, sumMoves } = await import(path.join(out, "trainer.js"));
+  saidMoves, sumMoves, laddered, castQuestion, handCounts } = await import(path.join(out, "trainer.js"));
 const langs = await import(path.join(here, "..", "src", "languages.ts"));
 const { TYPES } = langs;
 const { FRONT_DOOR_CAP, FRONT_DOOR_MAX } = await import(path.join(here, "..", "src", "scheduler.ts"));
@@ -756,15 +756,19 @@ test("a weak session asks the exercises that went wrong, and nothing else", () =
 test("the one thing you keep failing is a session on its own", () => {
   /* Every other session is refused for want of variety, because one
      exercise repeated is a poor way to meet new material. It is exactly
-     the right way to fix the thing you keep getting wrong. */
+     the right way to fix the thing you keep getting wrong — asked as many
+     times as a session asks anything (four), since the session is short
+     of its length and there is nothing else it should be about. */
   const got = weak([slipping("s1", [0, 0])].concat(deckOf(3)));
   assert.equal(got.reason, null, got.reason || "");
-  assert.equal(got.exercises.length, 1);
+  assert.equal(got.exercises.length, 4);
+  assert.ok(got.exercises.every((/** @type {any} */ e) => e.id === "s1" && e.type === "ar2en"));
 });
 
 test("wrong twice running is asked before a single slip", () => {
   const got = weak([slipping("once", [1, 0]), slipping("twice", [0, 0])].concat(deckOf(4)));
-  assert.equal(got.exercises.length, 2, "both are in it");
+  assert.deepEqual([...new Set(got.exercises.map((/** @type {any} */ e) => e.id))].sort(), ["once", "twice"], "both are in it");
+  assert.equal(got.exercises.length, 8, "each asked four times, with nothing else going wrong to fill it");
   assert.equal(got.exercises[0].id, "twice", "and the gap leads the slip");
 });
 
@@ -809,13 +813,16 @@ test("no one card is the whole of a weak session", () => {
 test("every form with something wrong on it is asked before any is asked twice", () => {
   /* Dealt a round at a time, like the session the app deals itself: a
      learner with twenty cards slipping gets twenty first questions, not
-     six cards drilled to death. */
+     six cards drilled to death. Twelve slipping and a session of eighteen
+     is all twelve once, then six of them again. */
   const items = Array.from({ length: 12 }, (_, i) => slipping(`s${i + 1}`, [0, 0]));
   const got = weak(items);
   const perCard = new Map();
   for (const ex of got.exercises) perCard.set(ex.id, (perCard.get(ex.id) || 0) + 1);
-  assert.ok(perCard.size >= 10, `${perCard.size} cards in the session`);
-  for (const [id, n] of perCard) assert.equal(n, 1, `${id} was asked ${n} times`);
+  assert.equal(perCard.size, 12, `${perCard.size} cards in the session`);
+  for (const [id, n] of perCard) assert.ok(n <= 2, `${id} was asked ${n} times`);
+  const twice = [...perCard.values()].filter((n) => n === 2).length;
+  assert.equal(twice, got.exercises.length - 12, "only after every card had been asked once");
 });
 
 test("the count beside the button and the session it opens are the same test", () => {
@@ -1044,9 +1051,16 @@ test("and the session says how much of it was actually waiting", () => {
 /* Which cards a session took. The order questions are *asked* in is the
    interleave's business — it spaces a card's own exercises apart and
    shuffles what the due list calls equal — so what is asserted here is
-   which cards got in, which is what being due decides. */
+   which cards got in, which is what being due decides.
+
+   A matching grid is a question about every word in it, and it names the
+   words besides its own in `mates`. Reading `id` alone missed a card dealt
+   into a grid — the overdue card below, about one run in two hundred, so
+   the test failed now and then on a session that was right. */
 const dealtCards = (/** @type {any} */ got) =>
-  new Set(got.exercises.map((/** @type {any} */ x) => x.id));
+  new Set(
+    got.exercises.flatMap((/** @type {any} */ x) => [x.id, ...(x.mates || []).map((/** @type {any} */ m) => m.id)]),
+  );
 
 test("an overdue card is taken ahead of cards that are not due", () => {
   /* More cards than a session holds, so getting in is a choice rather than
@@ -1588,6 +1602,52 @@ test("and only the cards picked are dealt", () => {
   assert.equal(got.manual, true, "and it is still a session built by hand");
 });
 
+test("built by hand on decks, the new words already in hand elsewhere do not count", () => {
+  /* Ten words midway through learning in one deck, none due, and a deck
+     nobody has started. Built by hand on the new deck, it used to come up
+     empty — "nothing new to bring in" over a deck that was all new —
+     because the limit was read over the words in the other deck. */
+  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+  const fresh = deckOf(20);
+  const items = held.concat(fresh);
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: fresh.map((i) => i.id), mode: "regular", count: 20,
+  });
+  assert.equal(got.reason, null, `refused: ${got.reason}`);
+  const dealt = dealtCards(got);
+  assert.ok(dealt.size > 0 && [...dealt].every((id) => fresh.some((f) => f.id === id)), [...dealt].join(" "));
+  /* Still a few at a time: the deck's own words are rationed as before. */
+  assert.ok(dealt.size <= FRONT_DOOR_CAP, `${dealt.size} new words in one session`);
+});
+
+test("but the everyday session still counts every deck, and a full door keeps new words out", () => {
+  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+  const fresh = deckOf(20);
+  const items = held.concat(fresh);
+  installIndexes(items, settings);
+  const onlyFresh = (/** @type {any} */ it) => fresh.some((f) => f.id === it.id);
+  const got = buildSession({ items, settings, inDeck: onlyFresh });
+  assert.equal(got.exercises.length, 0, "new words came in past a full door");
+  assert.equal(got.reason, "nothing-due");
+});
+
+test("built by hand, a deck whose own new words fill the door practises those", () => {
+  /* The limit read over the chosen decks still holds new words back, and
+     the deck's words in progress are what is asked instead — so the
+     session is not empty. */
+  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+  const fresh = deckOf(5);
+  const items = held.concat(fresh);
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((i) => i.id), mode: "regular", count: 20,
+  });
+  assert.equal(got.reason, null, `refused: ${got.reason}`);
+  const dealt = [...dealtCards(got)];
+  assert.ok(dealt.length > 0 && dealt.every((id) => String(id).startsWith("h")), dealt.join(" "));
+});
+
 /* ------------------------------------------------------------------
    Not seen lately: anything still climbing that has not been practised
    for a few days, new or not — and nothing already cleared
@@ -1626,4 +1686,148 @@ test("and with nothing left alone among them, it says so", () => {
     items, settings, ids: items.map((i) => i.id), mode: "unseen", count: 20,
   });
   assert.equal(got.reason, "no-unseen");
+});
+
+/* ------------------------------------------------------------------
+   A building block is cleared before anything is built from it
+
+   A word standing in a sentence's blank is a building block: the sentence
+   leans on it, so the learner has to have been up every level of it —
+   cleared — before the sentence is put to them, in the form it is shown
+   in. It used to be enough to be as far along as the question, so a word
+   answered once, and missed, stood in a sentence asking what it meant.
+   ------------------------------------------------------------------ */
+
+/** Right twice running and due, which is what clears a key. */
+const upTwice = () => ({
+  phase: "review", step: 0, ease: 2.5, interval: 1, due: Date.now() - 86400000,
+  reps: 2, lapses: 0, right: 2, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1, 1], updated: 1,
+});
+/** Answered once, and missed. */
+const missedOnce = () => ({
+  phase: "learning", step: 0, ease: 2.3, interval: 0, due: Date.now() - 60000,
+  reps: 1, lapses: 0, right: 0, wrong: 1, skips: 0, near: 0, hints: 0, hist: [0], updated: 1,
+});
+/** A form with the given keys of its own ladder right twice running. */
+const upOn = (/** @type {any} */ form, /** @type {(level: number) => boolean} */ which) => {
+  installIndexes([{ id: "probe", lang: "ar-PS", kind: "word", tags: [], forms: [form] }], settings);
+  return Object.fromEntries(
+    laddered(form, settings)
+      .filter((/** @type {string} */ k) => which(langs.levelOf(k)))
+      .map((/** @type {string} */ k) => [k, upTwice()]),
+  );
+};
+/** Which sentences a frame was put as, over a few deals. */
+const framesShown = (/** @type {any[]} */ items, /** @type {string} */ id = "f1") => {
+  const shown = new Set();
+  for (let i = 0; i < 12; i++) {
+    installIndexes(items, settings);
+    for (const ex of buildSession({ items, settings, inDeck: anyDeck }).exercises) {
+      if (ex.id !== id) continue;
+      const cast = castQuestion(items, ex);
+      if (cast) shown.add(cast.ar);
+    }
+  }
+  return [...shown];
+};
+
+test("a word answered once, and missed, does not stand in a sentence", () => {
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  noun.forms[0].s = { ar2en: missedOnce() };
+  assert.deepEqual(framesShown([frame, noun]), [], "the sentence waits for its word");
+});
+
+test("nor does one up every level but the top", () => {
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  frame.forms[0].s = upOn(frame.forms[0], (l) => l < 4);
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  noun.forms[0].s = upOn(noun.forms[0], (l) => l < 4);
+  assert.deepEqual(framesShown([frame, noun]), [],
+    "a word not yet written from its meaning is not cleared, at any level of the sentence");
+});
+
+test("a cleared word stands in every question the sentence asks", () => {
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  noun.forms[0].s = upOn(noun.forms[0], () => true);
+  assert.deepEqual(framesShown([frame, noun]), ["كِتاب كبير"]);
+  /* And at the top of the sentence's own ladder too. */
+  frame.forms[0].s = upOn(frame.forms[0], (l) => l < 4);
+  assert.deepEqual(framesShown([frame, noun]), ["كِتاب كبير"]);
+});
+
+test("an agreeing word stands only in a form the learner has cleared", () => {
+  /* كبير is lent; beside a feminine noun the sentence puts up كبيرة, which
+     is a form with a ladder of its own. Until that form is cleared the
+     sentence moves on to a combination it can make — the masculine noun —
+     rather than waiting on the one it cannot. */
+  const frame = word("f1", "{{noun}} {{adjective}}", "a {{adjective}} {{noun}}");
+  const adj = {
+    id: "a1", tags: [], created: 2, lang: "ar-PS", kind: "word", category: "adjective",
+    forms: [
+      { id: "a1", ar: "كبير", en: "big", lat: "kabiir", lang: "ar-PS", s: {} },
+      { id: "a-fem", ar: "كبيرة", en: "big (f)", lat: "kabiira", lang: "ar-PS",
+        row: "agreement", col: "feminine", s: {} },
+    ],
+  };
+  const car = word("n1", "سيّارة", "car", { category: "noun", gender: "feminine", number: "singular" });
+  car.forms[0].gender = "feminine";
+  car.forms[0].number = "singular";
+  const book = word("n2", "كتاب", "book", { category: "noun", gender: "masculine", number: "singular" });
+  book.forms[0].gender = "masculine";
+  book.forms[0].number = "singular";
+  for (const n of [car, book]) n.forms[0].s = upOn(n.forms[0], () => true);
+  adj.forms[0].s = upOn(adj.forms[0], () => true);
+  const items = [frame, adj, car, book];
+  const shown = framesShown(items);
+  assert.ok(shown.includes("كتاب كبير"), `the masculine is asked: ${shown.join(" | ")}`);
+  assert.ok(!shown.includes("سيّارة كبيرة"), "the feminine waits for its own form");
+
+  /* Cleared, and the feminine comes in. */
+  installIndexes(items, settings);
+  adj.forms[1].s = upOn(adj.forms[1], () => true);
+  let found = false;
+  for (let i = 0; i < 30 && !found; i++) {
+    const turned = { ...frame, forms: [{ ...frame.forms[0], s: Object.fromEntries(
+      ["ar2en", "ar2pick", "match", "en2pick"].map((k) => [k, { ...upTwice(), right: i }])) }] };
+    found = framesShown([turned, adj, car, book]).includes("سيّارة كبيرة");
+  }
+  assert.ok(found, "the feminine is asked once its own form is cleared");
+});
+
+test("a form lent to sentences and not asked on its own is introduced by the sentence", () => {
+  /* A plural kept for sentences, on a noun that is otherwise practised. It
+     has no ladder, so it can never be cleared — and it used to read as
+     never met, so it never stood anywhere at all. It is read as a name is
+     now: met through the sentence. */
+  const frame = word("f1", "{{noun}} كبار", "big {{noun}}");
+  const noun = {
+    id: "n1", tags: [], created: 2, lang: "ar-PS", kind: "word", category: "noun",
+    forms: [
+      { id: "n1", ar: "كِتاب", en: "book", lat: "kitaab", lang: "ar-PS", s: {} },
+      { id: "n1-pl", ar: "كُتُب", en: "books", lat: "kutub", lang: "ar-PS", s: {}, ask: false, lend: true },
+    ],
+  };
+  noun.forms[0].s = upOn(noun.forms[0], () => true);
+  /* The sentence turns on a right answer, so it is asked a turn on. */
+  const shown = [0, 1].flatMap((right) =>
+    framesShown([{ ...frame, forms: [{ ...frame.forms[0], s: { ar2en: { ...upTwice(), right } } }] }, noun]));
+  assert.ok(shown.includes("كُتُب كبار"), `the plural stands in it: ${shown.join(" | ")}`);
+});
+
+test("a sentence met already and waiting for its words holds no new-card place", () => {
+  /* A learner part-way through a course met this sentence under the old
+     rule, with its word answered once. It now waits for that word to be
+     cleared, and a place it held would be one fewer for the words it is
+     waiting on. */
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  frame.forms[0].s = { ar2en: missedOnce() };
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  noun.forms[0].s = { ar2en: missedOnce() };
+  installIndexes([frame, noun], settings);
+  assert.deepEqual(handCounts([frame, noun], settings), { front: 1, inHand: 1 }, "the word alone");
+  noun.forms[0].s = upOn(noun.forms[0], () => true);
+  installIndexes([frame, noun], settings);
+  assert.equal(handCounts([frame, noun], settings).front, 1, "and the sentence, once it can be asked");
 });
