@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 5 October 2026
+
+**The recording screen says which word it is recording.**
+
+- The bar across the top of the recording screen now reads "Recording
+  for" and the word itself — "Recording for شمس" — instead of a general
+  "Recordings". The same holds wherever a recording is made: a card's
+  answers, a line of a scene, a box in a verb or pronoun table, the
+  pronouns list and the number system. Where the word has not been
+  written yet, it names the place instead, as before.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**

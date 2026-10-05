@@ -1379,9 +1379,15 @@ function Recordings({ form, onOpen }: {
  * be two microphones, two quota checks and two ideas of what a recording
  * is. What it is handed is a thing with `clips` on it, which a card's
  * form and a system's lexeme both are.
+ *
+ * Its bar reads "Recording for" and the word being recorded, so a teacher
+ * who has opened it from a card can see whose recordings these are without
+ * going back to look. Named by the caller, which is the one that knows what
+ * the word is: an accepted answer, a line of a scene, a cell of a table.
  */
-export function RecordingScreen({ title, form, onChange, onClose }: {
-  title: string;
+export function RecordingScreen({ name, form, onChange, onClose }: {
+  /** The word these recordings are of, as written on the card. */
+  name: string;
   form: { clips?: string[], slowClips?: string[] };
   onChange: (next: { clips: string[], slowClips: string[] }) => void;
   onClose: () => void;
@@ -1457,7 +1463,12 @@ export function RecordingScreen({ title, form, onChange, onClose }: {
   }
 
   return (
-    <Screen title={title} onBack={onClose} rise backLabel="Back to the card">
+    <Screen
+      title={name.trim() ? `Recording for ${name.trim()}` : "Recording"}
+      onBack={onClose}
+      rise
+      backLabel="Back to the card"
+    >
       <Help>
         You can make one at regular speed, a slow one, or both — or neither:
         a card with no recording is still a card, it just cannot be
@@ -6183,7 +6194,7 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
     </div>
     {heard !== null && rows[heard] && (
       <RecordingScreen
-        title={rows.length > 1 ? `Recordings · accepted answer ${heard + 1}` : "Recordings"}
+        name={String(rows[heard].text || "")}
         form={rows[heard] as { clips?: string[]; slowClips?: string[] }}
         onChange={(next) => edit(heard, next)}
         onClose={() => setHeard(null)}
@@ -7726,7 +7737,7 @@ function RecordingOverlays({ word, talk }: { word: WordDraft; talk: SceneDraft }
         form back exactly as it was left, scroll position included. */}
     {recordingLine !== null && lines[recordingLine] && (
       <RecordingScreen
-        title={`Recording · line ${recordingLine + 1}`}
+        name={String(lines[recordingLine].ar || "") || `line ${recordingLine + 1}`}
         form={lines[recordingLine]}
         onChange={(next) => setLine(recordingLine, { ...lines[recordingLine], ...next })}
         onClose={() => setRecordingLine(null)}
@@ -7738,13 +7749,13 @@ function RecordingOverlays({ word, talk }: { word: WordDraft; talk: SceneDraft }
         into the card would be overwritten by the next keystroke. */}
     {recordingCell && cellHere && (
       <RecordingScreen
-        /* Named out of whichever table is on screen. It used to be named
-           out of the verb's whatever the card was, so the recording
-           screen over a pronoun table was titled with the row and column
-           ids the pack happens to use rather than its words for them. */
-        title={`Recordings · ${[recordingCell.ofLabel, cellLabel(shownSpec, recordingCell)]
-          .filter(Boolean)
-          .join(" · ")}`}
+        /* Named by the word in the cell — the button that opens this is
+           off until there is one. The cell's name in the table stands in
+           only if that word has since been cleared. */
+        name={
+          String(cellHere.ar || "") ||
+          [recordingCell.ofLabel, cellLabel(shownSpec, recordingCell)].filter(Boolean).join(" · ")
+        }
         form={cellHere}
         onChange={(next) =>
           setCells((x) =>

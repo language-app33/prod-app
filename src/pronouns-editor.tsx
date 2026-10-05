@@ -192,7 +192,7 @@ export function PronounsEditor({ lang, cards, busy, onSave, onClose }: {
     const row = rows[recording] || EMPTY;
     return (
       <RecordingScreen
-        title={`Recordings · ${p ? p.label : ""}`}
+        name={row.ar || (p ? p.label : "")}
         form={row}
         onChange={(next) => set(recording, next)}
         onClose={() => setRecording(null)}
