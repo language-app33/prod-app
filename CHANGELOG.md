@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.358 — 5 October 2026
+## 0.359 — 5 October 2026
 
 **The cursor in the number box is the size of the numbers.**
 
@@ -16,6 +16,19 @@ and moves once per batch of work you would notice, not once per commit.
   height of the small "Type the number" prompt and then jumped to the
   size of the digits. It is now the height of the digits from the start.
   The prompt stays small and centred.
+
+## 0.358 — 5 October 2026
+
+**Learn more is easier to read.**
+
+- The "Learn more" link under an answer, and the arrow beside it, are a
+  little bigger, so they are easier to spot and to tap.
+- Inside Learn more, the words themselves — the meaning, how it's
+  pronounced, how it's written, the phrase it turned up in — are a size
+  larger.
+- The play button under "This is how it sounds" is smaller there, so it
+  no longer outweighs the words around it. The play button on a listening
+  question is unchanged.
 
 ## 0.357 — 5 October 2026
 

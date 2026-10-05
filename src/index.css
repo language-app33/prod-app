@@ -273,9 +273,9 @@ button {
 .at-answeralso { margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
 .at-alsolabel { font-family: var(--ui); font-size:11px; font-weight:700;
   letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 6px; }
-.at-answeralso .at-arabic { font-size:calc(26px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); margin:4px 0; }
-.at-answeralso .at-en { font-size:calc(16px * var(--lscale, 1)); }
-.at-answeralso .at-latin { font-size:calc(15px * var(--lscale, 1)); }
+.at-answeralso .at-arabic { font-size:calc(30px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); margin:4px 0; }
+.at-answeralso .at-en { font-size:calc(18px * var(--lscale, 1)); }
+.at-answeralso .at-latin { font-size:calc(17px * var(--lscale, 1)); }
 /* Everything under an answer that is not the answer, in one container:
    where it turned up, how it is written, how it is pronounced, how it
    sounds, what shares its root. Inset rather than raised — the same well
@@ -291,7 +291,7 @@ button {
    target says which way the box will go. */
 .at-alsomore { display:flex; align-items:center; justify-content:center; gap:4px;
   margin: 14px auto 0; background:none; border:0; cursor:pointer;
-  font-family: var(--ui); font-size:13px; font-weight:700; color: var(--muted);
+  font-family: var(--ui); font-size:15px; font-weight:700; color: var(--muted);
   padding:6px 10px; }
 .at-alsomore:hover { color: var(--text); }
 .at-alsobox { margin-top:10px; padding:14px; background: var(--well);
@@ -1729,6 +1729,15 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-playbig.quiet .dot { color: var(--muted); }
 .at-playbig.quiet:hover { background: var(--raised); color: var(--text); }
 .at-playbig.quiet:hover .dot { color: var(--brass); }
+/* Inside Learn more the recording is a thing to look up, not the question,
+   so its button steps down a size: the big one there outweighed the words
+   it sat beside. The icon's size is set on the element, so it is
+   overridden here rather than passed in. */
+.at-alsobox .at-playbig { min-width:130px; padding:10px 20px; gap:8px; font-size:15px; }
+.at-alsobox .at-playbig .at-ic { width:26px; height:26px; }
+.at-alsobox .at-playbig.twin { min-width:0; padding-inline:8px; font-size:14px; }
+.at-alsobox .at-playbig.quiet { font-size:13px; }
+.at-alsobox .at-playbig.quiet .at-ic { width:20px; height:20px; }
 .at-group { border:2px solid var(--line); border-radius: var(--r-lg); padding:18px 16px 8px;
   margin-bottom:14px; background: var(--surface); }
 .at-grouphead { display:flex; align-items:baseline; justify-content:space-between; gap:10px;
@@ -1837,7 +1846,7 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 /* The word being asked for, under the phrase it is missing from. */
 .at-ctxmeaning { font-family: var(--ui); font-size:17px; font-weight:700; color: var(--text-soft);
   margin:6px 0 0; text-align:center; }
-.at-answeralso .at-ctxmeaning { font-size:14px; font-weight:600; color: var(--muted); margin-top:2px; }
+.at-answeralso .at-ctxmeaning { font-size:16px; font-weight:600; color: var(--muted); margin-top:2px; }
 /* What a Sort or Filter button opens onto: the groups, wrapping rather than
    scrolling, each staying whole on a phone. The button that opens it lives
    in the toolbar row above and is styled with it. */
