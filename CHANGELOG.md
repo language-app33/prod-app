@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.361 — 5 October 2026
+
+**A closed form shows only its name.**
+
+- In the Forms section of a card, the line of advice under a form's name —
+  such as "Only for the few nouns whose plural changes after three to ten,
+  like days or months…" or "Empty — never asked." — now shows only while
+  that form is open. A closed form shows its name and what is written in
+  it, and nothing else.
+
 ## 0.360 — 5 October 2026
 
 **The cursor in the number box is the size of the numbers.**

@@ -6616,8 +6616,10 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
         )}
         {/* Only where there is something to say. A panel whose heading is
             the language's own word for the form needs no sentence under
-            it telling a teacher what they can read. */}
-        {role ? <span className="at-formrole">{role}</span> : null}
+            it telling a teacher what they can read. And only while the form
+            is open: it is about what to write in the fields, so a folded
+            form is its name and what is written in it, and nothing else. */}
+        {role && open ? <span className="at-formrole">{role}</span> : null}
         {/* Kept together so the pair stays whole and the role text beside
             them shortens instead of collapsing into a column. */}
         {acts ? <span className="at-formacts">{acts}</span> : null}

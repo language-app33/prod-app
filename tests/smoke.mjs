@@ -6874,6 +6874,21 @@ const openPronounTables = async () => {
       [...document.querySelectorAll(".at-formrole")].some((n) => /Empty — never asked/.test(n.textContent || "")) &&
       !attachedCell("Arabic for form 3 · attached pronouns · me"),
     blockOrder().join(" | "));
+  /* That line is about what to write in the box, so it goes when the box
+     is folded and comes back when it is opened. */
+  {
+    const fold = formFolds().find((b) => /^Dual/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    const tile = fold ? fold.closest(".at-formtile") : null;
+    const said = () => !!tile && !!tile.querySelector(".at-formrole");
+    const before = said();
+    click(fold);
+    await sleep(150);
+    const folded = said();
+    click(fold);
+    await sleep(150);
+    check("and a folded box keeps the line about what to write in it for when it is open",
+      before && !folded && said(), `${before} → ${folded} → ${said()}`);
+  }
   typeIn(attachedCell("Arabic for dual"), "كتابين");
   await sleep(300);
   await openPronounTables();
