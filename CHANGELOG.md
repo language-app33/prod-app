@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.356 — 5 October 2026
+
+**Each form on a card opens and closes under its name.**
+
+- When creating or editing a card, every form in the Forms section — Form 1,
+  Form 2, a noun's singular, plural and dual, an adjective's feminine and
+  plural — now has a heading you tap to open or close it, the same as the
+  attached pronouns and the practice choices.
+- A form starts closed when nothing is written in it, and open when
+  anything at all is: a word, a meaning, a transliteration, a recording, a
+  picture, or any of its attached pronouns.
+- A closed form shows what is written in it under its name, or "none yet",
+  so a card can be read without opening every form.
+- A form you add with "Add a form" opens straight away, ready to write in.
+- The plural after three to ten, which had a fold of its own, now works
+  the same way as every other form.
+
 ## 0.355 — 5 October 2026
 
 **"How this form can be practiced" opens the same way as "Its attached pronouns".**

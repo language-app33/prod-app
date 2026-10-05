@@ -10,7 +10,7 @@
  *
  * The stored card stays one thing; this file only decides how it is edited.
  */
-import React, { useState, useEffect, useId, useMemo, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useId, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Deck, GrammarDim, Lang, VerbSpec, VerbTense } from "./types.ts";
 import { cellsIn, citationOf, citedWord, framesOf, isCell, isFrame, linkLoops, NO_PARTNER, partnerOf, personsOf, rowIdsOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
@@ -6509,7 +6509,7 @@ export const baseName = (spec: VerbSpec | null): string =>
  * there is a single answer to record, and beside the word it is of once
  * there are two. Whoever draws the heading has to know the count.
  */
-function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, drillsTranslit, blanks, onRemoveBlank, onChange, children }: {
+function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, drillsTranslit, blanks, onRemoveBlank, onChange, more = false, children }: {
   lang: Lang;
   form: Record<string, any>;
   /** The axes each accepted answer is asked about — see answerDims. */
@@ -6530,9 +6530,20 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
   onRemoveBlank?: (name: string) => void;
   /** What changed, to be merged into whatever holds this form. */
   onChange: (patch: Record<string, any>) => void;
+  /** Whether something written under the fields — the pronouns on the
+      form's end — counts as the form having been written in, for whether
+      it opens folded. See FoldsForms. */
+  more?: boolean;
   children?: Node;
 }) {
   const fields = answerFields();
+  /* Folded under its name inside the Forms section, unless anything at all
+     is written in it — see FoldsForms. Decided once, when the screen opens:
+     a form opened to be written in stays open while it is, and one emptied
+     out does not shut under the teacher's fingers. */
+  const drawn = useContext(FoldsForms);
+  const folds = !!drawn;
+  const [open, setOpen] = useState(() => !drawn || drawn.current || more || formWritten(f));
   const [rows, setRows] = useState(() => answerRows(f, fields));
   /* Which answer's recordings are being made, where any are. The screen is
      rendered from here rather than beside the editor's other two, because
@@ -6583,7 +6594,26 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
        the forms, and the section heading above them says so once. */}
     <div className={`at-part${blanks ? "" : " evenfields"}`}>
       <div className="at-formhead">
-        <span className="at-formnum">{title}</span>
+        {folds ? (
+          /* The name is the heading that opens it, the way a form's
+             attached pronouns are opened, with what is written in it said
+             under the name — so a card of folded forms still reads as the
+             words it holds. */
+          <button
+            type="button"
+            className="at-groupfold at-formfold"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <span className="at-formnum">{title}</span>
+            <span className="at-groupcount">
+              {String(f.ar || "").trim() || String(f.en || "").trim() || (more || formWritten(f) ? "written" : "none yet")}
+            </span>
+            <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
+          </button>
+        ) : (
+          <span className="at-formnum">{title}</span>
+        )}
         {/* Only where there is something to say. A panel whose heading is
             the language's own word for the form needs no sentence under
             it telling a teacher what they can read. */}
@@ -6592,6 +6622,8 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
             them shortens instead of collapsing into a column. */}
         {acts ? <span className="at-formacts">{acts}</span> : null}
       </div>
+      {open && (
+      <>
       {/* An accepted answer, how it is said and how it sounds are written
           together, because one transliteration under two spellings belongs
           to one of them and lies about the other, and so does one
@@ -6677,6 +6709,8 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
           beside the word it is of. */}
 
       {children}
+      </>
+      )}
     </div>
     {heard !== null && rows[heard] && (
       <RecordingScreen
@@ -6710,7 +6744,36 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
  * The panels are the forms now, close together with nothing between them,
  * and this says once what they all are.
  */
+/*
+ * Whether the forms drawn here fold under their names.
+ *
+ * Inside the Forms section they do, and start folded unless anything at all
+ * is written in them: a noun's six boxes, or a word's four forms, were
+ * screens of empty fields before anything the card actually says, and the
+ * name with what is written under it is the thing worth seeing. Anywhere
+ * else — a sentence's own words — a form is the whole of the screen and
+ * stays open.
+ */
+/* Null outside the section. Inside, whether the section has been drawn
+   once already: a form that arrives after that — "Add a form" — opens,
+   since it was asked for to be written in. */
+const FoldsForms = createContext<{ current: boolean } | null>(null);
+
+/* Whether anything at all is written in a form: a word in any of its
+   boxes, an accepted answer, a recording or a picture. */
+function formWritten(f: Record<string, any>): boolean {
+  const said = (v: unknown) => String(v || "").trim() !== "";
+  const some = (v: unknown) => Array.isArray(v) && v.length > 0;
+  return said(f.ar) || said(f.lat) || said(f.en) ||
+    some(f.clips) || some(f.slowClips) || some(f.images) ||
+    (Array.isArray(f.answers) && f.answers.some((a: any) => a && (said(a.text) || said(a.lat))));
+}
+
 function FormsSection({ children }: { children?: Node }) {
+  const drawn = useRef(false);
+  useEffect(() => {
+    drawn.current = true;
+  }, []);
   return (
     <div className="at-formblock">
       {/* What a form is, said once over all of them. Each panel used to say
@@ -6724,7 +6787,7 @@ function FormsSection({ children }: { children?: Node }) {
           feminine.
         </span>
       </div>
-      {children}
+      <FoldsForms.Provider value={drawn}>{children}</FoldsForms.Provider>
     </div>
   );
 }
@@ -6821,7 +6884,12 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
   onFill?: (next: Record<string, any>) => void;
   children?: Node;
 }) {
-  const { drillsTranslit, parts, setForm, duplicateForm, removeForm, dropBlank } = word;
+  const { drillsTranslit, parts, setForm, duplicateForm, removeForm, dropBlank, shownSpec, cells } = word;
+  /* Whether any of the pronouns on this form's end are written, which is
+     the form written in too — see FormFields' fold. */
+  const pronouns = !!(i >= 0 && shownSpec && shownSpec.perForm) &&
+    cellsIn({ subs: cells }, shownSpec, i === 0 ? "" : String(f.id || ""))
+      .some((c) => String(c.ar || "").trim() || String(c.en || "").trim());
   /* This form's own two answers — see askParts, which lists one line per
      form whether or not anything is written in it yet: the answer is
      about the form, and a card being written from scratch should be able
@@ -6872,6 +6940,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
       drillsTranslit={drillsTranslit}
       blanks={blanks}
       onRemoveBlank={takeOff}
+      more={pronouns}
       onChange={(patch) => (i < 0 && onFill ? onFill({ ...f, ...patch }) : setForm(i, { ...f, ...patch }))}
     >
       {/* And whether this form is drilled, at the foot of the fields it is
@@ -6885,33 +6954,6 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
     {i === 0 && <ReferenceField word={word} lang={lang} />}
   </div>
     </>
-  );
-}
-
-/*
- * A box most cards leave empty, folded under its own name.
- *
- * The same heading-that-opens-it a form's attached pronouns use, so it
- * reads as the same thing: what is in it said under the name, and one tap
- * to open it. Folded from the start even where it is written, as the
- * pronouns are: the word in it is on the heading.
- */
-function FoldedBox({ title, said, children }: { title: string; said: string; children: Node }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="at-part at-foldedbox">
-      <button
-        type="button"
-        className="at-groupline at-groupfold"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span>{title}</span>
-        <span className="at-groupcount">{said || "none yet"}</span>
-        <Icon name={open ? "chevronUp" : "chevronDown"} size={24} />
-      </button>
-      {open && children}
-    </div>
   );
 }
 
@@ -8730,7 +8772,7 @@ function NounEditor({ word, lang, allCards, selfId }: {
         {nounBoxList.map((box) => {
           const i = box.key in nounPlaced.at ? nounPlaced.at[box.key] : -1;
           const f = i >= 0 ? forms[i] : emptyBox(box);
-          const tile = (
+          return (
             <FormBlock
               /* By the box and not by where its form sits: the card's own
                  word can change places with another box's (see leadFirst),
@@ -8757,13 +8799,9 @@ function NounEditor({ word, lang, allCards, selfId }: {
             </FormBlock>
           );
           /* A box nearly every noun leaves empty — the plural after three
-             to ten — folds under its own name, the way a form's pronouns
-             do, and says under it what is written. */
-          return box.unasked ? (
-            <FoldedBox key={box.key} title={box.title} said={String(f.ar || "").trim()}>
-              {tile}
-            </FoldedBox>
-          ) : tile;
+             to ten — had a fold of its own wrapped round it. Every box
+             folds under its name now, and opens where it is written in, so
+             it is one more of them. */
         })}
         {nounPlaced.extras.map((i, k) => (
           <FormBlock
