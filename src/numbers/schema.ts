@@ -214,20 +214,6 @@ export function readNoun(v: unknown): CountedNoun | null {
   };
 }
 
-const readNouns = (v: unknown): CountedNoun[] => {
-  if (!Array.isArray(v)) return [];
-  const seen = new Set<string>();
-  const out: CountedNoun[] = [];
-  for (const raw of v) {
-    if (out.length >= LIMITS.nouns) break;
-    const noun = readNoun(raw);
-    if (!noun || seen.has(noun.id)) continue;
-    seen.add(noun.id);
-    out.push(noun);
-  }
-  return out;
-};
-
 /* ---- the two documents ---- */
 
 const readPolicy = (v: unknown): AudioPolicy => (v === "components" ? "components" : "components");
@@ -267,7 +253,11 @@ export function readNumberSystem(v: unknown): NumberSystem | null {
     composerVersion: num(v.composerVersion, 0),
     lexemes: readLexemes(v.lexemes),
     overrides: readOverrides(v.overrides, (k) => OVERRIDE_KEY.test(k)),
-    nouns: readNouns(v.nouns),
+    /* The list of things to count a system used to carry is not read:
+       counting reads the teacher's noun cards since 0.316, and a list
+       nobody can see or edit any more is not kept alive by being echoed
+       back on every save. See nouns.ts. */
+    nouns: [],
     audioPolicy: readPolicy(v.audioPolicy),
     ...(readCurated(v.curatedAudio, (k) => OVERRIDE_KEY.test(k))
       ? { curatedAudio: readCurated(v.curatedAudio, (k) => OVERRIDE_KEY.test(k)) }

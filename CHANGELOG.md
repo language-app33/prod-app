@@ -8,19 +8,748 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.315 — 5 October 2026
+## 0.356 — 5 October 2026
 
-**A bigger, number-sized box for answers in figures.**
+**A bigger, number-sized box for answers typed on the number pad.**
 
-- Questions answered with a number in figures, or with a time, now have a
-  taller, narrower answer box in the middle of the screen, with the digits
-  in large type.
-- On a phone, those questions now bring up the number pad instead of the
-  full keyboard. For a time, the pad's full stop is accepted in place of
-  the colon, as it already was. There is no button for the on-screen
-  letter keys on these questions.
+- On the questions that bring up the phone's number pad — writing a
+  number in figures, and "what does this mean?" on a word whose meaning
+  is a number — the answer box is now taller and narrower, sits in the
+  middle of the screen, and shows the digits in large type.
+- These questions have no button for the on-screen letter keys.
 - Writing a number out in Arabic or Hebrew is unchanged: it keeps the
   normal answer box, the letter keyboard and the on-screen keys button.
+  Times like 7:15 also keep the normal box and keyboard.
+
+## 0.355 — 5 October 2026
+
+**"How this form can be practiced" opens the same way as "Its attached pronouns".**
+
+- When creating or editing a card, the practice choices under each form
+  now sit in their own panel, folded under a heading you tap to open —
+  exactly like the attached pronouns beside them. The heading still says
+  what is chosen, so there is no need to open it just to check.
+
+## 0.354 — 5 October 2026
+
+**"Learn more" on a number question shows everything worth knowing about the number.**
+
+- After any question about a number — a number card like "seven" or
+  "forty", or a made-up number like 47 — "Learn more" now shows the
+  number in English words ("forty-seven"), and for Arabic the number in
+  Arabic figures (٤٧) unless the question already showed them.
+- It shows how the number is pronounced whenever the teacher wrote a
+  transliteration for each word in it. A built-up number like 47 is put
+  together from the words it is made of, so writing a transliteration for
+  "seven", "forty" and "and" once covers every number that uses them.
+  Times are covered the same way.
+- It plays the recording when the teacher recorded that number, either as
+  a word of its own or as a whole number. Before, a made-up number could
+  show a player with nothing to play.
+- A listening question about numbers now asks a number that was actually
+  recorded, where there is one the learner can be asked.
+- Anything the question already showed is left out, as before.
+
+## 0.353 — 5 October 2026
+
+**The recording screen says which word it is recording.**
+
+- The bar across the top of the recording screen now reads "Recording
+  for" and the word itself — "Recording for شمس" — instead of a general
+  "Recordings". The same holds wherever a recording is made: a card's
+  answers, a line of a scene, a box in a verb or pronoun table, the
+  pronouns list and the number system. Where the word has not been
+  written yet, it names the place instead, as before.
+
+## 0.352 — 5 October 2026
+
+**Drop recordings onto a card instead of uploading them one by one.**
+
+- When adding recordings to a card or to a word in a number system, each
+  speed now has its own box to drop files on: one for regular speed and
+  one for slow. Drag in as many audio files as you like at once and they
+  are all added, in the order they were dropped, under the speed whose
+  box they landed in.
+- On a phone, or anywhere without dragging, press the box to choose files
+  instead — you can pick several at once there too.
+- Anything dropped that is not audio is left out, and the screen says how
+  many files were skipped.
+
+## 0.351 — 5 October 2026
+
+**A word goes inside a sentence or a number only once you've cleared it.**
+
+- A "building block" is any card used inside another card: a word that
+  fills a blank in a sentence or a conversation, the words a number or a
+  time is made of, and the noun a number counts.
+- A building block now has to be cleared (every level of it done) before
+  it appears inside anything. Before, a word answered once, even wrongly,
+  could appear in a sentence, and a number like 47 could be asked once
+  *forty* and *seven* were only recognised.
+- It must be cleared in the form that is shown: the feminine of an
+  adjective, the right person of a verb, the form a number word takes
+  inside a bigger number, the plural after three.
+- Where one combination isn't ready yet, a sentence uses the next one
+  that is, rather than waiting.
+- Names, and anything else never asked on its own, are still introduced
+  by the sentence itself.
+- Fixed: a form ticked "inside sentence cards" but not "on its own", on a
+  card that is otherwise practised, never appeared in any sentence. It
+  now does.
+- Sentences and number practice that are waiting for their words don't
+  take up places for new words.
+- Sentences and numbers built on new words now come a little later: about
+  a day for someone who practises several times a day, a few days for
+  once a day. A deck's earliest possible date allows for this on
+  sentences.
+- If you were already being asked sentences or numbers whose words aren't
+  cleared yet, they pause until the words catch up. Nothing is lost.
+
+## 0.350 — 5 October 2026
+
+**Progress on numbers counts every number, not just the ones reached so
+far.**
+
+- Fixed: a percentage on a deck of numbers counted only the parts a
+  learner had reached. Someone who knew the words for 0 to 9 saw 90% on a
+  deck of all the numbers, when they had learnt 10 of its 49 cards. The
+  figure then dropped to 50% once they finished 0 to 9 and 10 to 19
+  opened, so learning more made the number go down.
+- Numbers still waiting for their part now count as not learnt yet, so
+  that learner sees 20%, and the percentage only goes up as they learn.
+  This applies everywhere a percentage is shown: the ring on the home
+  screen, the saved-session tiles, the prep tile and the decks on the
+  Progress tab.
+- If a part slips back, the numbers above it wait again but keep what
+  they had learnt, so the percentage dips by the part that slipped and no
+  more.
+
+## 0.349 — 4 October 2026
+
+**Backups keep your numbers, and a deck says when its number parts are
+empty.**
+
+- Fixed: a backup left out every teacher's numbers and clock, even with
+  everything ticked, and restoring "Cards" didn't put them back. They are
+  now part of "Cards", both when a backup is made and when one is
+  restored. A backup made before this version has no numbers in it, so
+  make a new backup to keep them.
+- A deck that holds number parts now says when students get nothing from
+  them: "5 number parts · none ready yet", or "3 not ready yet" when only
+  some are. A part is ready once every word it needs is written on the
+  Numbers screen. Until then students get nothing from it, not even the
+  words already written, and a missing word in one part also holds back
+  the parts after it.
+
+## 0.348 — 4 October 2026
+
+**Numbers saved before Save started publishing now reach students.**
+
+- Fixed: a course whose deck holds only numbers could leave its students
+  with "Nothing to practice yet". This happened when the teacher's numbers
+  were last saved before 0.325, when students only got numbers after the
+  Publish button was pressed. If they were never published, students
+  got nothing. The Publish button is gone, so nothing on the teacher's
+  screen showed this and there was no way to send them.
+- Students now always get the numbers as the teacher last saved them,
+  whenever that was. Numbers that were published and then changed and
+  saved before 0.325 now reach students as changed too.
+
+## 0.347 — 4 October 2026
+
+**A course's page shows the decks its students actually get.**
+
+- Fixed: a course could show one deck on the teacher's page while its
+  students were given seven. This happened when changes to the same
+  course landed together, for example several decks being added or taken
+  out at once, or someone joining the course while a deck was taken out.
+  One change could quietly undo another, so the course and its decks
+  stopped agreeing. Every change now applies on top of what is already
+  saved, so nothing undoes anything else.
+- Everywhere that lists a course's decks now reads the list the students
+  are sent: the course page, Manage decks, a deck's settings, the Decks
+  tab and the administrator's deck list. A course that had already got
+  mixed up now shows every deck its students have, and Manage decks can
+  take out the ones that shouldn't be there. Removing a deck now works
+  for the students too.
+- A co-teacher can now work on every deck their course gives students,
+  including one that had lost track of the course.
+
+## 0.346 — 4 October 2026
+
+**A session of 20 is 20 screens again.**
+
+- A session's length is counted the way its counter reads: a matching
+  grid is one screen, however many words are in it. A session of 20 with
+  a grid in it shows "1 / 20", not "1 / 16".
+- It still fills to the length chosen. Where grids take several words
+  onto one screen, more is added until there are 20 screens, so a session
+  with grids in it asks a few more words than one without.
+- The automatic check on session lengths now counts screens, and still
+  fails on any short session that isn't agreed.
+
+## 0.345 — 4 October 2026
+
+**A number is learnt only once you know it in Arabic figures.**
+
+- The last question on every number now shows the number in Arabic
+  figures alone: ٣ to write the word for three, ٤٧ to write forty-seven
+  out, ٠٧:١٥ to say the time. A number only counts as learnt once you
+  have got that question right on later visits, as with every card.
+- Earlier questions that show a number in figures now show both, ٤٧ · 47,
+  so the Arabic figures are learnt on the way up.
+- Numbers you had already learnt need proving again on the Arabic
+  figures. Until you have, their last step shows as not started, and
+  getting back to learnt takes a few days. Nothing else you had earned on
+  them is lost.
+- Times written out by hand, like noon, are asked from the Arabic clock
+  figures too.
+- Hebrew and Huế Vietnamese write numbers with the same figures as
+  English, so nothing changes there.
+
+## 0.344 — 4 October 2026
+
+**Every practice session is the length you chose.**
+
+- Everyday sessions and custom Regular sessions were often a few
+  questions short, such as 8 of 10 or 17 of 20, even with plenty to
+  practise. They now fill to the length chosen.
+- A beginner with only their 10 new words is no longer handed half a
+  session. Each word is asked more ways, and then a second time later in
+  the session, up to four times per word. Answering right twice in a row
+  is what opens a word's next level, so the repeats move it along.
+- Get started, Not seen lately, Fix mistakes and Weak skills fill to their
+  length the same way, from the words that belong in them. Fix mistakes
+  and Weak skills still only ask what is going wrong.
+- A session's length counted a matching grid as the five words in it, so
+  a session of 20 with a grid showed fewer than 20 on its counter. (Changed
+  in 0.346: a grid now counts as one.)
+- A session is still shorter than chosen when there aren't enough words
+  for it, every word asked four times: a deck of 3 words gives 12
+  questions. That is the one agreed exception, and a new automatic check
+  now runs every kind of session to make sure nothing else comes out
+  short.
+
+## 0.343 — 4 October 2026
+
+**A number is typed on the number pad, and marked as a number.**
+
+- When the answer is a number in figures, tapping the answer box brings
+  up the phone's number pad instead of the full keyboard. That is the
+  "write the number in figures" questions, and "what does this mean?" on
+  a word whose meaning is a number — the word for 5, 40 or 1,000, or a
+  number a teacher wrote out by hand.
+- A word that can also be answered in letters ("five / 5") keeps the
+  full keyboard, and so do times like 7:15, since a number pad has no
+  colon.
+- Those "what does this mean?" questions were marking a number as if it
+  were an English word. Typing 1 was right for the word for 1,000, one
+  figure out on a long number counted as a typo and was marked right
+  (3000 for 2,000), and 7 for 8 was "very close". Now a number there is
+  right or wrong, as it already was when writing a number in figures —
+  with commas, spaces and Arabic digits still not held against you.
+
+## 0.342 — 4 October 2026
+
+**Your saved sessions are on the home screen, and can be changed.**
+
+- Under the Saved sessions button, each session you kept is now a small
+  tile, two or three to a row. Tap one to start it.
+- Each tile shows how much of its cards you have learnt, as a percentage
+  with a bar under it, counted the same way as the ring at the top.
+- In Saved sessions, each one has an Edit button. It opens the Build
+  screen with everything already filled in — the mode, the cards, the
+  length and the name — and the last step saves your changes in place of
+  starting.
+- Changing a session keeps any of its cards you can't see right now,
+  such as cards in another language while the switch is on one.
+
+## 0.341 — 4 October 2026
+
+**A session of numbers is full again for a beginner.**
+
+- Since 0.340, a beginner's session of numbers could be just 2 or 4
+  questions on one or two words, in a custom session or an everyday one.
+  The words still waiting for their part (the teens, the tens, the
+  hundreds and up) were taking up the places for new words, then had
+  nothing to ask.
+- They no longer take a place, so a session is the length you chose,
+  made of the words you can be asked now (0 to 9 at the start).
+
+## 0.340 — 4 October 2026
+
+**The words of the numbers come in bottom up, like the numbers.**
+
+- A beginner is no longer handed words from every part of the numbers at
+  once. The words for 10 to 19 wait until 0 to 9 is cleared, the tens
+  and "and" until 10 to 19 is, and the hundreds, thousands and millions
+  after that, in the same order the numbers themselves already opened.
+  Before, words like 900, two thousand and a million turned up in a
+  first session, in custom sessions and everyday ones alike.
+- Numbers you wrote out by hand, like 300, wait with their part too.
+- The clock's words are unchanged and come in from the start.
+- If a deck has a part without the parts below it, that part's words come
+  straight away, as the part itself does.
+- Nothing is lost: words a student had already started pause until their
+  part opens, and pick up where they were.
+
+## 0.339 — 4 October 2026
+
+**Counting things is part of each stretch of numbers, and each number has its own panel.**
+
+- The three "Counting things" parts are gone. Each part of the numbers —
+  0 to 9, 10 to 19, 20 to 99, 100 to 999, 1,000 and over — now also asks
+  "How would you say this? · 3 books" with its own numbers, in Palestinian
+  Arabic and Hebrew. Counting now goes past 20.
+- Students get counting questions in a part once they can read and choose
+  its numbers, next to writing the number out. Counting never holds back
+  the next part: 10 to 19 opens once 0 to 9 is cleared on its numbers,
+  whether or not its counting is.
+- A part's other questions never wait for noun cards. Its counting
+  questions start once one of your noun cards can be counted across the
+  whole part. In Palestinian Arabic, 0 to 9 needs a noun card with its
+  singular, plural and pair form written; 10 to 19 its singular and
+  plural; from 20 up, only its singular.
+- Students keep what they learnt on counting: progress on "3 to 10" (or
+  "1 and 2") moves to 0 to 9, and on "11 to 20" to 10 to 19.
+- A deck that held a counting part now holds the part of the numbers it
+  went into — 0 to 9, or 10 to 19 — which brings that part's plain number
+  questions too.
+- Sentences: each part also fills `{{count-0-9}}`, `{{count-10-19}}` and so
+  on, and `{{count}}` can now be any number of things. Sentences written
+  with `{{count-1-2}}`, `{{count-3-10}}` or `{{count-11-20}}` are still
+  filled.
+- On a part's screen, each number is now a panel of its own, laid out like
+  the panels on the card editor, with the number across the top and its
+  boxes under it. At the foot of each is how that number counts a thing,
+  like "تلات كتب · 3 books" — read only, made from the boxes above and your
+  noun cards.
+- A part's screen has a "Counting things" section listing which noun cards
+  it counts and what the others are missing. On the main number screen,
+  each part says where its counting stands.
+
+## 0.338 — 4 October 2026
+
+**Numbers are learnt from the bottom up.**
+
+- Each stretch of numbers now waits for the one before it: 10 to 19 is
+  not asked until 0 to 9 is cleared, 20 to 99 not until 10 to 19 is,
+  and so on up to the thousands. Bigger numbers are built out of the
+  smaller ones, so they now arrive once those are in hand rather than
+  all on the first day.
+- If a stretch you had cleared slips back, the ones above it pause until
+  it is recovered. Nothing earned on them is lost; it is waiting when
+  they open again.
+- A stretch only waits on one you actually have. If your course teaches
+  10 to 19 without 0 to 9, it is asked straight away. Counting things
+  and telling the time are unchanged.
+
+## 0.337 — 4 October 2026
+
+**Numbers are found under your teacher's decks, and nowhere else.**
+
+- Students no longer see a deck called "Palestinian Arabic numbers" (or
+  the same for any other language). It was a leftover from when numbers
+  went to every student outside any deck. Since 0.305 numbers come only
+  through a deck your teacher puts them in, so that extra entry only
+  listed the same cards a second time, and lumped every part together
+  whatever week the teacher had put it in.
+- The number and time cards are where they already were, under the decks
+  your teacher put them in, and keep every bit of progress you had on
+  them.
+- If you had chosen that entry to practise or to prep for, choose your
+  teacher's deck instead. A prep that named only that entry will say it
+  has nothing left in it.
+
+## 0.336 — 4 October 2026
+
+**A deck with numbers in it no longer says "0 cards".**
+
+- In Teaching, a deck's size now counts its number parts as well as its
+  cards: "5 cards · 2 number parts", or just "2 number parts" for a deck
+  that holds only numbers. Before, number parts were left out, so a deck
+  you had just filled with numbers still said "0 cards".
+- The same count shows wherever a deck is listed: the deck list, an open
+  deck, the deck choices when adding cards or filtering them, and Admin.
+- Nothing changes for students: their decks already counted numbers.
+
+## 0.335 — 4 October 2026
+
+**Saving in the number system sticks.**
+
+- After pressing Save on a part of the numbers, leaving it no longer asks
+  whether to save your changes. It did whenever a word had a space after
+  it, or a box had been filled in and emptied again, and for anyone whose
+  *Telling the time* had never been saved it did after every save.
+- The main number system screen no longer says "Some changes are not
+  saved yet. Open the part you changed and press Save."
+- If a save does not go through — no connection, say — you stay on the
+  screen you were on, with its Save button, and it says why. Before, you
+  were taken back to the main screen with the changes still unsaved.
+- A number written out from *Check a number* now takes you to *Correct
+  how a number is said*, where it can be saved, instead of back to the
+  main screen, which has no Save.
+
+## 0.334 — 4 October 2026
+
+**300 to 900 have word boxes of their own.**
+
+- On the *Numbers 100 to 999* screen for Palestinian Arabic, 300, 400 and
+  so on up to 900 now each have a box under *Words*, beside 100 and 200,
+  with room for how it sounds and a recording. Before, the only place to
+  give them was by tapping each one under *How the app says them*.
+- Anything you had already written for them there is moved into their
+  boxes the next time you open the screen, with its recording. Students
+  keep the progress they had on those words.
+- The "hundred" box is now only for a dialect that says three hundred as
+  two words. If yours says each as one word, fill in the boxes above it
+  and leave it empty.
+
+## 0.333 — 4 October 2026
+
+**The app is quick again.**
+
+- Moving on to the next question, starting a session, opening the app
+  and opening Progress are about three times quicker. They had slowed
+  down since 0.262, when a verb in a sentence began agreeing with the
+  word beside it, and they slowed down more the more verbs and sentences
+  a collection held. They are now as quick as they were before that, or
+  a little quicker.
+- The lists of the sentences a card makes, in the card editor and in
+  Review sentences, are quicker too.
+- Nothing about what is asked, how an answer is marked or how progress is
+  saved has changed.
+## 0.332 — 4 October 2026
+
+**No more "Not asked yet" on the number system's parts.**
+
+- A part of a number system that is not ready no longer opens with a
+  "Not asked yet — waiting on …" line, or the button under it to another
+  part. It confused more than it helped. A ready part still says so.
+
+## 0.331 — 4 October 2026
+
+**Every round hundred can be written out, and a part is not ready without them.**
+
+- On the *Numbers 100 to 999* screen, *How the app says them* now lists
+  100, 200, 300 and so on up to 900. Before, it showed numbers spread
+  across the range and skipped 300 to 800, so there was nothing to tap to
+  write them out. In Palestinian Arabic each is one word with no box of
+  its own, so this list is where you give them. *Numbers over a thousand*
+  likewise lists every thousand from 1,000 to 10,000.
+- A part only shows as ready once the app can say all of those. Until
+  now, *Numbers 100 to 999* could show ready with 300 to 800 still blank.
+- The notes beside the "hundred" and "thousands" boxes now say where to
+  write those numbers out.
+
+## 0.330 — 4 October 2026
+
+**Numbers are learnt word by word, and a numbers deck asks only numbers.**
+
+- A number made of several words, like 47, is asked only once you
+  recognise each word in it (*forty* and *seven*). Recognising a word
+  means getting its meaning right twice in a row. Until then a numbers
+  session asks the words on their own. Each combination opens on its own:
+  47 can come up as soon as *forty* and *seven* are known, even if
+  *ninety* is still new. Times work the same way.
+- Among the numbers that can be asked, practice still leans towards ones
+  containing a word you have not fully learnt yet.
+- If you were already practising combinations whose words you have not
+  learnt yet, those combinations pause until you catch up on the words.
+  Nothing you earned on them is lost.
+- A session of numbers alone, whether a numbers deck or one you put
+  together yourself, now keeps to numbers. The wrong answers to choose
+  from and the words in a matching grid are other number words, so you
+  tell *forty* from *fourteen* rather than from *house*. No sentence from
+  another deck is shown. Decks that mix numbers with other words are
+  unchanged.
+- The count of cards ready on the home screen no longer includes number
+  practice that is waiting on its words.
+
+## 0.329 — 4 October 2026
+
+**The words that join a number have a screen of their own.**
+
+- On a language's number system, the small words that go between the
+  pieces of a number — "and" in Palestinian Arabic and in Hebrew — are now
+  under their own **Connecting words** button beside the parts, instead
+  of sitting among the tens on Numbers 20 to 99.
+- The screen shows a few numbers that use the word, so you can see what it
+  does as soon as it is typed, and tap one to correct it.
+- A part that cannot be asked until the word is written says so and
+  offers the way to it.
+- Vietnamese has no such word, so it has no such screen.
+
+## 0.328 — 4 October 2026
+
+**Custom practice on numbers and times shows the number again.**
+
+- A practice session built by hand — every mode except Regular — and the
+  session of what is going wrong could ask "Read the number, then write
+  it in figures" with nothing to read underneath: the number was never
+  picked. Every number and time question in those sessions now has one,
+  just as in an everyday session, and a question that cannot be given one
+  is left out rather than shown empty.
+
+## 0.327 — 4 October 2026
+
+**A custom practice on a deck you haven't started now starts.**
+
+- When you build a custom practice on particular decks in the everyday
+  style, the limit on new words now looks only at the cards in those
+  decks. Before, a deck where everything was new could come up empty with
+  "Nothing new to bring in yet" because you were already learning new
+  words from other decks.
+- New cards from those decks still come in a few at a time.
+- The session from the home screen is unchanged: it still counts new
+  words across all your decks.
+
+## 0.326 — 4 October 2026
+
+**Every word in a number or a time now counts towards a student's
+progress.**
+
+- Answering a time question now counts as practice for the clock's own
+  words: "hour", "past" and "to", "quarter past", "half past" and the rest,
+  and the parts of the day like "in the evening". Before, only the numbers
+  inside a time were counted, so these words never moved however often a
+  student read them.
+- Where a number takes a different form, such as the feminine "one" in
+  "one o'clock" or the word used before a noun, the practice now goes to
+  that form. Before, it always went to the plain counting form.
+- Counting things now counts as practice for the noun as well, on the form
+  the number used: "three books" counts towards the plural of "book".
+- A time you have written out by hand, like noon, is now something
+  students learn and are tracked on, as a number written out by hand
+  already was.
+
+## 0.325 — 4 October 2026
+
+**Smaller number parts, one Save, and nothing to save on the main number
+screen.**
+
+- Numbers now come in five parts: 0 to 9, 10 to 19, 20 to 99, 100 to 999,
+  and 1,000 and over. Students keep their progress: what they had on 0 to
+  10 carries into 0 to 9, and what they had on 11 to 99 carries into both
+  10 to 19 and 20 to 99. A deck that held one of the old parts now holds
+  the parts it was split into, and sentences with a {{0-10}} or {{11-99}}
+  blank still work.
+- The Publish button is gone. Saving now sends your numbers to students
+  straight away.
+- The list called "What a student will be asked" is now its own screen,
+  "Correct how a number is said". It shows the numbers you have written out
+  yourself, then a spread of numbers as the app says them. Tap one that is
+  wrong to write it the way it should be said.
+- Telling the time has moved from a tab to its own screen.
+- The main number screen now only lists the parts, the time and
+  corrections, so it has no Save button. Each of those screens has Save in
+  the top right. If you leave one without saving, the app asks whether to
+  save your changes.
+
+## 0.324 — 4 October 2026
+
+**Progress on numbers, word by word.**
+
+- Progress has a new Numbers section. Each stretch of numbers a student is
+  studying (0 to 10, 11 to 99 and so on) shows how many of the words it is
+  built from they have learnt. Tapping a stretch shows every word in it
+  (each unit, teen, ten and hundred, and the word for "and") marked
+  Learnt, Learning or Not started. Tapping a word opens that word's card.
+- A stretch now counts as learnt only once every one of its words is
+  learnt. Until then it stays at Cleared and says how many words it is
+  waiting on.
+- The numbers a student is asked now lean towards the words they have not
+  learnt yet. Someone who has never been asked a number in the seventies
+  will get one, instead of waiting for it to come up by chance. Once every
+  word in a stretch is learnt, numbers are picked at random again.
+
+## 0.323 — 4 October 2026
+
+**Save is in the top corner on the number screens.**
+
+- On the number system screen, and on the screen for each stretch of
+  numbers, Save now sits in the top right of the bar, where it is on a
+  card, instead of at the bottom of a long page. It
+  shows "Saving…" while it works and is greyed out when there is nothing
+  new to save.
+- On the screen where one number is written out by hand, "Keep it" (or
+  "Put it back") has moved to the same corner.
+
+## 0.322 — 3 October 2026
+
+**Noun properties are toggles, and more of a card folds away.**
+
+- On a noun card, "Person, animal or thing" and "Gender" are now the same
+  toggle used for the theme in App preferences, instead of rows of round
+  buttons. Gender still starts with "Not set", so it can be left blank.
+- "How this form can be practiced" under each form now starts folded,
+  like "Its attached pronouns". Its heading says what is on — "on its
+  own · in sentences", or "not practised" — and tapping it opens the
+  ticks.
+- The "Plural after 3 to 10" box on Arabic noun cards is folded the same
+  way, since almost every noun leaves it empty. Its heading shows the word
+  written in it, or "none yet".
+- Every folded heading in the app now shows its summary ("none yet",
+  "3 of 8 written", "12 examples") on a line under its name, with a larger
+  arrow beside them.
+- "Add custom tags" on a card now looks exactly like "Add this card to a
+  deck": the same dotted outline, size and lettering.
+
+## 0.321 — 3 October 2026
+
+**Palestinian numbers from three to nineteen have one word before a noun,
+and nouns like "days" have a box for the plural they take after a number.**
+
+- In Palestinian Arabic, three to nineteen say the same word before a
+  masculine and a feminine noun: five boys and five girls both start with
+  خمس. The number screen used to ask for two words, one for each gender,
+  and picked between them. It now asks for one, labelled "before a noun".
+  One and two still have a masculine and a feminine box, because they do
+  change.
+- If you wrote two different words for a number before, the number screen
+  tells you, shows both, and lets you tap the one you say. Until you do,
+  your students are asked exactly what they were asked before. If you
+  wrote the same word twice, or only filled one box, nothing changes and
+  you are not asked.
+- Arabic noun cards have a new box under the plural: "Plural after 3 to
+  10". It is for the few nouns whose plural changes after three to ten,
+  like days (تيام rather than أيام) or months. Leave it empty for every
+  other noun. When it is filled, counting from three to ten uses it, so
+  five days comes out as خمس تيام. Eleven and up are unaffected.
+- What you write in that box is not asked on its own or used in sentences,
+  only in counting. You can switch that on with its ticks if you want.
+- The "Counting things: 3 to 10" screen mentions the new box, and the
+  hint on the thousands box now says to write it the way it is said after
+  three to ten.
+- A counting question still expects the first spelling written in a box.
+  A second spelling you add is not yet accepted in counting questions.
+
+## 0.320 — 3 October 2026
+
+**Noun cards come with a box for each form, and people and animals have a
+masculine and a feminine side.**
+
+- A noun card now asks whether the word is a person, an animal or a
+  thing. Hebrew nouns are asked this too; before, only Arabic ones were.
+- A thing (book, hour) has a box for the word, one for its plural and one
+  for its pair form. Its gender is chosen once, for the whole word.
+- A person or an animal (teacher, cat) has the same three boxes twice:
+  once masculine and once feminine. Either side alone is enough to save
+  the card, so a word you only know in the feminine can be written on
+  its own.
+- The boxes are already marked, so there is no need to mark each form
+  as plural or pair by hand any more. An empty box is never asked.
+- "Add a form" is gone from noun cards. A second spelling of the same
+  form goes in that form's box as another accepted answer.
+- Cards you already have open with their forms in the right boxes. A
+  form that fits no empty box is still shown underneath, and nothing is
+  lost.
+- In sentences, animals agree the way things do.
+- A thing's gender can be left unset when you don't know it. Sentences
+  and counting questions that would need it then leave the word out
+  until it is set. Before, an adjective next to such a word was always
+  given its masculine form, which was wrong for feminine words. The same
+  now applies to a person's name with no gender set.
+- Counting uses the plural and pair form from the same side as the word
+  it counts, so a card holding both masculine and feminine plurals is
+  counted correctly.
+
+## 0.319 — 3 October 2026
+
+**On a noun card, each form's attached pronouns now sit inside that form's
+panel and fold away.**
+
+- The table of pronouns on the end of a word (my book, your book …) used
+  to stand as a separate panel under each form. It is now inside the
+  form's own panel, under its fields and its practice ticks, so it reads as
+  part of that form.
+- The table starts folded. Its heading says how many of its boxes are
+  written, for example "3 of 8 written", or "none yet". Tap the heading to
+  open it and again to fold it.
+
+## 0.318 — 3 October 2026
+
+**"Sign off" is now "Publish".**
+
+- On the number screen, the button that sends your numbers to students is
+  called Publish. Save keeps your changes for you; Publish is what
+  students get. Once published, the button reads "Published".
+- When students don't have your latest numbers yet, a line under the
+  button says so: "Unpublished changes", or "Not published yet" for
+  numbers that have never been published. If you have changes that aren't
+  saved yet, the line tells you to save them first.
+
+## 0.317 — 3 October 2026
+
+**A part's screen looks and works like a card's, and every part has
+ready-made blank tags.**
+
+- On each part of the number screen, Decks is now the first section, and
+  it works exactly as it does on a card: the decks holding the part are
+  pills, and "Add this part to a deck" opens the same list of decks. It
+  still saves straight away and stays in step with the deck's own screen.
+- The sections on a part's screen are headed the way a card's are.
+- Each part now has fixed tags for blanks in sentence cards, shown under
+  "Filling blanks" the way a card's default tags are: {{0-10}},
+  {{11-99}}, {{100-999}} and {{1000-plus}}, plus {{number}} for a number
+  from any of them. The counting parts have {{count-1-2}}, {{count-3-10}}
+  and {{count-11-20}}, plus {{count}} for any of them; these fill the blank
+  with a number and a noun together, in the right form and order. The tags
+  can't be changed, and nothing needs setting up: write one into a sentence
+  card and it works. The names you could type in yourself in 0.316 are
+  gone.
+
+## 0.316 — 3 October 2026
+
+**The number screen is organised by part, counting uses your noun cards,
+and numbers can fill blanks in sentences.**
+
+- The number screen now opens on one button per part: Numbers 0 to 10,
+  11 to 99, 100 to 999, over a thousand, and the three counting parts.
+  Each button says whether that part is ready or what it is still waiting
+  for. When the gap is a word from an earlier part, it names that part, for
+  example "waiting on Numbers 0 to 10: 7".
+- Tapping a part opens its own screen with only the words it is the first
+  to need: one to ten under 0 to 10, the teens, the tens and "and" under
+  11 to 99, and so on. The screen also shows what a student will be asked
+  in that part and the numbers you wrote out by hand within it. In Huế
+  Vietnamese, 11 to 99 has nothing new to write, and its screen says so.
+- Each part's screen lists the decks in that language with a tick for the
+  ones that hold the part. This is the same setting as the deck's own
+  Numbers and pronouns screen: tick it in either place and the other shows
+  it. It saves straight away.
+- Each part can name blanks it fills. A sentence card with that blank, for
+  example "I am {{age}}", is then asked with a number from that part
+  written out. A counting part fills its blank with a number and a noun
+  that agree, such as "I have 3 books", and an adjective after it agrees
+  too. Students get this once you save and sign off the numbers. Numbers
+  in sentences are met the way names are: first in the easiest questions,
+  then further up as the sentence is learnt.
+- "Try a number" is now "Check a number". It sits on the main number
+  screen, just above "What a student will be asked", which stays at the
+  bottom.
+- The "Things to count" list is gone. Counting now uses your noun cards:
+  any noun with its singular, plural and gender, plus its pair form in
+  Arabic for the number two. A student is only asked to count nouns from
+  their own courses. Each counting part lists the nouns it will count, and
+  says what the others are missing, such as "no plural" or "no pair form".
+  Nouns that were only on the old list are no longer counted.
+
+## 0.315 — 3 October 2026
+
+**Number cards show the number in the language's own figures.**
+
+- A card for a number out of a teacher's number system now also shows
+  that number the way the language writes it in figures. In Palestinian
+  Arabic the card for three shows ٣, forty shows ٤٠, and a thousand
+  shows ١٬٠٠٠. It is listed as "In figures" when you open the card, for
+  teachers and students alike.
+- The number system screen shows the same figure under each number a
+  teacher fills in.
+- Which figures a language uses is part of that language's settings, so
+  a language added later can have its own. Huế Vietnamese and Hebrew
+  write numbers with the same figures as English, so their cards are
+  unchanged.
 
 ## 0.314 — 2 October 2026
 

@@ -27,13 +27,12 @@ import type { LangId, Millis, VerbSpec } from "../types.ts";
 /**
  * Which face of a word is wanted.
  *
- * Named for **what the word stands with**, not for what it looks like.
- * That matters in Arabic, where the numeral that goes before a masculine
- * noun is the one that looks feminine: a teacher filling a box labelled
- * "before a masculine noun" writes the right word without anyone having
- * to agree about what to call it, and the reversed polarity of three to
- * ten is written down rather than known — the same bargain the `counted`
- * table struck before this.
+ * Named for **what the word stands with**, not for what it looks like, so
+ * a box says where its word goes and nobody has to agree about what to
+ * call the shape of it. Which faces a slot offers, and what each box is
+ * labelled, is each language's own: Hebrew's three to ten change with the
+ * noun's gender, Palestinian Arabic's do not, and `construct.m` is the one
+ * word before any noun there — see `SlotSpec.faceLabels`.
  */
 export type FormKey = "standalone" | "m" | "f" | "construct.m" | "construct.f" | "company";
 
@@ -77,10 +76,9 @@ export interface Lexeme {
    * It goes onto the card this word becomes, beside the script, exactly
    * as a transliteration does on a card somebody typed — so a learner
    * meets the pronunciation, and the exercise that asks for the script
-   * from its transliteration opens. It is **not** joined into a whole
-   * number: where the pieces sit against each other is a fact about the
-   * script that the tokens do not carry, and a joined-up romanisation
-   * would be wrong wherever a one-letter connector attaches. That is on
+   * from its transliteration opens. A whole number's is read along its
+   * rendered text for the answer screen — see `sayAlong` — but it is not
+   * marked against, so no range asks for the script from it. That is on
    * the backlog; a number the teacher wrote out has its own.
    */
   lat?: Partial<Record<FormKey, string>>;
@@ -91,11 +89,12 @@ export interface Lexeme {
 /**
  * A noun the agreement exercise counts.
  *
- * Here rather than read off the teacher's noun cards because no card
- * carries a dual: the grammar axis this app declares is singular, plural
- * or neither. Reading real cards waits on that axis gaining a dual, which
- * is append-only work and on the backlog; until then the handful of nouns
- * an exercise needs are written where the numbers are.
+ * Read off the teacher's own noun cards — see nouns.ts — since 0.316: a
+ * noun's answers can say singular, plural and dual, which was the one
+ * thing that kept them out. The list a system used to carry of its own is
+ * gone, and a system's `nouns` is filled in from the cards wherever it is
+ * rendered rather than stored. The clock's word for *minute* is still one
+ * of these, written on the clock, because it is not a card anybody keeps.
  */
 export interface CountedNoun {
   id: string;
@@ -104,6 +103,22 @@ export interface CountedNoun {
   pl: string;
   gender: "m" | "f";
   en: string;
+  /** The English of the plural, where the card says it — *children*,
+      which no rule makes out of *child*. */
+  enPl?: string;
+  /**
+   * The plural as it is said after three to ten, where that is not the
+   * plural itself.
+   *
+   * A handful of Palestinian nouns — days, months — take a *t* there that
+   * they have nowhere else: *khams tiyyām*, five days, beside *ayyām*.
+   * It belongs to the noun, so it is written on the noun's own card, and
+   * a noun without one is counted with its plural as every other noun is.
+   */
+  plCounted?: string;
+  /** Whether it is a person or a thing, as the card says, so what stands
+      beside a counted phrase in a sentence agrees with it. */
+  human?: string;
 }
 
 /** What a teacher may hand-correct: one number, or one number in one
@@ -288,6 +303,10 @@ export interface SlotSpec {
   formKeys: FormKey[];
   label: string;
   hint?: string;
+  /** What a box is called where this language calls it something other
+      than the shared name — Arabic's one word before a noun, which is
+      stored as `construct.m` and is not about masculine nouns at all. */
+  faceLabels?: Partial<Record<FormKey, string>>;
   group: string;
   /** A slot the composer can compose around — `hundred.n` where every
       hundred is written out as an override. Its absence is not a gap. */
@@ -298,9 +317,10 @@ export interface SlotSpec {
  * A stretch of what can be asked, and the unit the scheduler deals.
  *
  * A range is not a classification of numbers; it is a thing a learner
- * gets better at. Which is why *counting nouns* and *telling the time to
- * the exact minute* are ranges beside *0 to 10*: each is a skill with its
- * own schedule, opened only once everything it needs can be rendered.
+ * gets better at. Which is why *telling the time to the exact minute* is
+ * a range beside *0 to 9*: each is a skill with its own schedule, opened
+ * only once everything it needs can be rendered. Counting a noun is a
+ * question a stretch asks, not a range — see `counts`.
  */
 export interface Range {
   id: string;
@@ -309,12 +329,22 @@ export interface Range {
   /** For numbers, the ends of the stretch. For a time range, the hours. */
   from: number;
   to: number;
-  /** Whether its questions count a noun. */
+  /** Whether its questions count a noun. Set on the view of a stretch
+      the counting question is asked from — see `countingOf` — and on
+      nothing that is stored. */
   counted?: boolean;
+  /** Whether a stretch is counted with too: *3 books* as well as *3*.
+      Each language says so, because a language with nothing to agree has
+      nothing to ask. */
+  counts?: boolean;
   /** For a time range: which minute marks it draws from. */
   marks?: number[];
   style?: TimeStyle;
   period?: boolean;
+  /** The part this one was split out of, where it was: what carries a
+      learner's progress, a deck's choice of parts and a sentence's blank
+      across the split. See `partsNow`, `partTags` and `handOnSplit`. */
+  was?: string;
 }
 
 /**
@@ -339,10 +369,40 @@ export interface OldCard {
   cells: Record<string, string>;
 }
 
+/**
+ * A box that used to be two, where its teacher wrote a different word in
+ * each and has not yet said which of them is theirs.
+ *
+ * Arabic's three to nineteen had a word before a masculine noun and
+ * another before a feminine one until 0.321, when they became one word.
+ * `kind` says whether the two are a box's words or a correction written
+ * for one of the genders.
+ */
+export interface TwoWords {
+  n: number;
+  kind: "box" | "correction";
+  /** The slot, or the correction's key, the question is about. */
+  key: string;
+  /** What is said before a masculine noun now — the word kept if nobody
+      says otherwise. */
+  masculine: string;
+  /** What was written for a feminine noun. */
+  feminine: string;
+}
+
 export interface Composer {
   id: LangId;
   version: number;
   requiredSlots(): SlotSpec[];
+  /** Where a system written before this composer's boxes were merged holds
+      two words for one box — see TwoWords. Absent where none ever were. */
+  twoWords?(sys: NumberSystem): TwoWords[];
+  /** The answer to one of them, as the system it leaves. */
+  keepOne?(sys: NumberSystem, q: TwoWords, keep: "masculine" | "feminine"): NumberSystem;
+  /** The system with whatever is not a question folded into the boxes it
+      has now — what the editor opens on. The same object where nothing
+      needed folding. */
+  tidy?(sys: NumberSystem): NumberSystem;
   /** What one of those becomes, in this language. */
   liftCard(old: OldCard): Partial<Record<FormKey, string>>;
   /** How a lexeme's forms sit as cells of a component card's table. */
@@ -418,26 +478,76 @@ export interface Ask {
 export const NUMBER_CEILING = 9999999;
 
 /*
- * Counting things, as three parts rather than one.
+ * The stretches of the number line, the same in every language.
  *
- * The lines are where the counted word changes shape — in Arabic the
- * singular after one, the dual for two, the plural from three to ten, the
- * singular again from eleven — and they are the lines a teacher teaches
- * along, so each is a part a deck can hold on its own. It was one range,
- * 1 to 20, which also meant a teacher who had not yet written a plural
- * held back the whole of it: a range opens only once all of it can be
- * said. Hebrew changes at the same places, so both languages share these.
+ * They were four — 0 to 10, 11 to 99, 100 to 999 and over a thousand —
+ * and the first two are now three: a learner's first sitting is the
+ * digits, the teens are a pattern of their own in every language here,
+ * and 20 to 99 is the tens and the joining word. Ten went with the teens
+ * because it is the first number with two figures, and where a language
+ * builds its teens on it (Hebrew, Vietnamese) it is where they start. The
+ * two old parts are named in `was`, so nothing anybody had on them is lost.
  */
-export const COUNTING_RANGES: Range[] = [
-  { id: "numbers:count-1-2", kind: "numbers", label: "Counting things: 1 and 2", from: 1, to: 2, counted: true },
-  { id: "numbers:count-3-10", kind: "numbers", label: "Counting things: 3 to 10", from: 3, to: 10, counted: true },
-  { id: "numbers:count-11-20", kind: "numbers", label: "Counting things: 11 to 20", from: 11, to: 20, counted: true },
+export const NUMBER_RANGES: Range[] = [
+  { id: "numbers:0-9", kind: "numbers", label: "Numbers 0 to 9", from: 0, to: 9, was: "numbers:0-10" },
+  { id: "numbers:10-19", kind: "numbers", label: "Numbers 10 to 19", from: 10, to: 19, was: "numbers:11-99" },
+  { id: "numbers:20-99", kind: "numbers", label: "Numbers 20 to 99", from: 20, to: 99, was: "numbers:11-99" },
+  { id: "numbers:100-999", kind: "numbers", label: "Numbers 100 to 999", from: 100, to: 999 },
+  { id: "numbers:1000+", kind: "numbers", label: "Numbers 1,000 and over", from: 1000, to: NUMBER_CEILING },
 ];
 
-/**
- * Which range a part was split out of, so a learner's progress on the
- * one they had carries into each of the parts — see `handOnSplit`.
+/*
+ * Counting things, inside the stretches rather than beside them.
+ *
+ * It was three parts of its own — 1 and 2, 3 to 10, 11 to 20 — drawn
+ * where the counted word changes shape. A teacher thinks of numbers in
+ * stretches and of counting as one more thing to know about each number,
+ * so a stretch is counted with now, and the counting question is one of
+ * its questions: at the top of its ladder, beside writing the number out,
+ * and only once the teacher's noun cards can be counted across all of it.
+ * See DECISIONS.md, "Counting is a question a stretch asks".
  */
-export const SPLIT_FROM: Record<string, string> = Object.fromEntries(
-  COUNTING_RANGES.map((r) => [r.id, "numbers:agreement"]),
-);
+export const COUNTING_STRETCHES: Range[] = NUMBER_RANGES.map((r) => ({ ...r, counts: true }));
+
+/**
+ * The view of a stretch a counting question is asked from: the same
+ * stretch, from one rather than nought — nobody counts nought books — and
+ * marked as counting, which is what every draw, probe and filler reads.
+ */
+export const countingOf = (range: Range): Range => ({ ...range, from: Math.max(1, range.from), counted: true });
+
+/** The three counting parts there used to be, and the stretch each one
+    went into: the one that holds most of its numbers. */
+export const MERGED_INTO: Record<string, string> = {
+  "numbers:count-1-2": "numbers:0-9",
+  "numbers:count-3-10": "numbers:0-9",
+  "numbers:count-11-20": "numbers:10-19",
+};
+
+/**
+ * Where a stretch's counting question finds what a learner had earned on
+ * the counting parts it replaced, best first: the part holding most of
+ * its numbers, then the one counting range there was before those.
+ */
+export const COUNTING_WAS: Record<string, string[]> = {
+  "numbers:0-9": ["numbers:count-3-10", "numbers:count-1-2", "numbers:agreement"],
+  "numbers:10-19": ["numbers:count-11-20", "numbers:agreement"],
+};
+
+/**
+ * A deck's parts as the parts there are now.
+ *
+ * A deck stores the parts it holds by id, and a deck that held 11 to 99
+ * before the split holds an id no part has any more. Read through this,
+ * it holds every part that came out of it — 10 to 19 and 20 to 99 —
+ * which is what the teacher chose. A counting part reads as the stretch
+ * it went into; anything else is left as it is.
+ */
+export function partsNow(parts: string[]): string[] {
+  const out: string[] = [];
+  for (const id of parts) {
+    const into = MERGED_INTO[id] ? [MERGED_INTO[id]] : NUMBER_RANGES.filter((r) => r.was === id).map((r) => r.id);
+    for (const now of into.length ? into : [id]) if (!out.includes(now)) out.push(now);
+  }
+  return out;
+}

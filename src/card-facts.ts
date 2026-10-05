@@ -360,6 +360,8 @@ export function fillersFor(
   pool: Held[],
   lang: Lang | null | undefined,
 ): Record<string, Value[]> {
+  /* Read once: whether a blank has a partner is asked of every word. */
+  const formSlots = slotsOf(form);
   return valuesFor(
     form,
     pool || [],
@@ -373,7 +375,7 @@ export function fillersFor(
     blankAdmits(
       lang,
       (slot) => slotRows(form, slot),
-      (slot) => !!partnerOf(form, slotsOf(form), slot),
+      (slot) => !!partnerOf(form, formSlots, slot),
     ),
     /* And an adjective said about a person, once per form — see
        aboutPersons. */
@@ -695,6 +697,16 @@ export const CARD_FACTS: FieldRule[] = [
       const range = value as { label?: string } | null;
       return range && range.label ? [range.label] : [];
     },
+  },
+  {
+    key: "numeral",
+    on: "card",
+    label: "In figures",
+    what:
+      "The number a card out of a number system stands for, written in its language's own figures — three as Arabic writes it, say. " +
+      "Only on a language whose pack says it has figures of its own, and only on a card that is one number.",
+    reader: "both",
+    shown: asIs,
   },
   {
     key: "derived",
@@ -1346,10 +1358,12 @@ export function whyStarved(
   pool: Held[],
   lang: Lang | null | undefined,
 ): "" | "nothing" | "kept-out" | "no-such-form" {
+  /* Read once, as in fillersFor. */
+  const formSlots = slotsOf(form);
   const admits = blankAdmits(
     lang,
     (s) => slotRows(form, s),
-    (s) => !!partnerOf(form, slotsOf(form), s),
+    (s) => !!partnerOf(form, formSlots, s),
   );
   let fills = false;
   let kept = false;

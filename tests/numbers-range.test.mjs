@@ -27,13 +27,16 @@ import {
   blocking,
   confusableTimes,
   confusablesOf,
+  heardWhole,
+  inEnglish,
   openRanges,
   probeOf,
   rangeChecks,
+  recordedWhole,
   renderAsk,
   seeded,
 } from "../src/numbers/range.ts";
-import { NUMBER_CEILING } from "../src/numbers/types.ts";
+import { NUMBER_CEILING, countingOf } from "../src/numbers/types.ts";
 
 const load = (/** @type {string} */ name) =>
   JSON.parse(readFileSync(new URL(`./golden/${name}`, import.meta.url), "utf8"));
@@ -49,13 +52,11 @@ const ids = (/** @type {any[]} */ ranges) => ranges.map((r) => r.id);
 test("a complete system opens every range it has", () => {
   const open = openRanges(arComposer, SYS, arTimeComposer, TIME);
   assert.deepEqual(ids(open), [
-    "numbers:0-10",
-    "numbers:11-99",
+    "numbers:0-9",
+    "numbers:10-19",
+    "numbers:20-99",
     "numbers:100-999",
     "numbers:1000+",
-    "numbers:count-1-2",
-    "numbers:count-3-10",
-    "numbers:count-11-20",
     "time:hours",
     "time:quarters-halves",
     "time:fives",
@@ -66,14 +67,17 @@ test("a complete system opens every range it has", () => {
 
 test("a system with no clock opens its numbers and nothing else", () => {
   assert.deepEqual(ids(openRanges(arComposer, SYS)), [
-    "numbers:0-10",
-    "numbers:11-99",
+    "numbers:0-9",
+    "numbers:10-19",
+    "numbers:20-99",
     "numbers:100-999",
     "numbers:1000+",
-    "numbers:count-1-2",
-    "numbers:count-3-10",
-    "numbers:count-11-20",
   ]);
+  /* And every stretch is counted with: the system's nouns can be said
+     at every number of each of them. */
+  for (const check of rangeChecks(arComposer, SYS)) {
+    assert.equal(check.counting && check.counting.open, true, `${check.range.id} counts`);
+  }
   assert.deepEqual(openRanges(null, SYS), []);
   assert.deepEqual(openRanges(arComposer, null), []);
 });
@@ -86,32 +90,44 @@ test("the stretches of the number line stop at the first hole", () => {
   const checks = rangeChecks(arComposer, holed);
   assert.deepEqual(
     checks.filter((c) => c.open).map((c) => c.range.id),
-    ["numbers:0-10", "numbers:count-1-2", "numbers:count-3-10", "numbers:count-11-20"],
+    ["numbers:0-9", "numbers:10-19"],
+  );
+  /* Counting goes with them: open where the stretch is, and never on a
+     stretch that is shut. */
+  assert.deepEqual(
+    checks.filter((c) => c.counting && c.counting.open).map((c) => c.range.id),
+    ["numbers:0-9", "numbers:10-19"],
   );
   /* And says what is in the way of the one that shut. */
-  const shut = must(checks.find((c) => c.range.id === "numbers:11-99"), "11-99");
+  const shut = must(checks.find((c) => c.range.id === "numbers:20-99"), "20-99");
   assert.deepEqual(
     blocking(shut.warnings).map((w) => w.slot),
     ["ten.70"],
   );
 });
 
-test("counting things is its own skill and does not wait on the number line", () => {
-  /* It is not harder than saying a number, it is a different thing to
-     know — so it opens on its own merits even where the big numbers do
-     not. The test above is the other half of this one. */
-  const small = { ...SYS, lexemes: { ...SYS.lexemes } };
-  delete small.lexemes["ten.70"];
-  assert.ok(openRanges(arComposer, small).some((r) => r.counted));
-  /* What does shut it is having nothing to count, which is said in its
-     own terms rather than as a missing box. */
+test("counting is a question a stretch asks, and never holds the stretch back", () => {
+  /* There are no counting parts: every stretch is counted with, and
+     nothing else is a range. */
+  assert.ok(arComposer.ranges().every((r) => !r.counted));
+  assert.ok(arComposer.ranges().filter((r) => r.kind === "numbers").every((r) => r.counts));
+  /* Having nothing to count shuts the counting and nothing else, and is
+     said in its own terms rather than as a missing box. */
   const noNouns = { ...SYS, nouns: [] };
-  const check = must(
-    rangeChecks(arComposer, noNouns).find((c) => c.range.counted),
-    "agreement",
-  );
-  assert.equal(check.open, false);
-  assert.deepEqual(check.warnings.map((w) => w.code), ["missing-noun-form"]);
+  const checks = rangeChecks(arComposer, noNouns);
+  assert.ok(checks.every((c) => c.open), "every stretch still opens");
+  for (const check of checks) {
+    const counting = must(check.counting, check.range.id);
+    assert.equal(counting.open, false);
+    assert.deepEqual(counting.warnings.map((w) => w.code), ["missing-noun-form"]);
+  }
+  /* And a noun short of the plural counts nowhere three to ten is said,
+     while the stretches above go on counting with it. */
+  const noPlural = { ...SYS, nouns: SYS.nouns.map((/** @type {any} */ n) => ({ ...n, pl: "" })) };
+  const by = new Map(rangeChecks(arComposer, noPlural).map((c) => [c.range.id, c]));
+  assert.equal(must(by.get("numbers:0-9"), "0-9").open, true);
+  assert.equal(must(by.get("numbers:0-9"), "0-9").counting?.open, false);
+  assert.equal(must(by.get("numbers:20-99"), "20-99").counting?.open, true);
 });
 
 test("the clock ranges stop at the first hole too, and in teaching order", () => {
@@ -134,9 +150,9 @@ test("a missing face shuts nothing, because it still says something", () => {
   const thin = { ...SYS, lexemes: { ...SYS.lexemes } };
   thin.lexemes["unit.3"] = { slot: "unit.3", forms: { standalone: thin.lexemes["unit.3"].forms.standalone } };
   const check = must(
-    /* Three to ten, which is the part that says three. */
-    rangeChecks(arComposer, thin).find((c) => c.range.id === "numbers:count-3-10"),
-    "counting 3 to 10",
+    /* Counted with in 0 to 9, which is where three is said before a noun. */
+    must(rangeChecks(arComposer, thin).find((c) => c.range.id === "numbers:0-9"), "0 to 9").counting,
+    "counting in 0 to 9",
   );
   assert.equal(check.open, true);
   assert.ok(check.warnings.some((w) => w.code === "missing-form"), "and it is still reported");
@@ -150,10 +166,20 @@ test("what the probe says about a range is true of the whole of it", () => {
      proper sweep must not turn up a hole the probe was comfortable
      enough to miss. */
   for (const range of arComposer.ranges()) {
-    if (range.counted) continue;
     const top = Math.min(range.to, range.from + 3000);
     for (let v = range.from; v <= top; v += 1) {
       assert.deepEqual(blocking(arComposer.render(v, SYS).warnings), [], `${range.id}: ${v}`);
+    }
+  }
+  /* The same of counting: a stretch counted with can count every noun it
+     opened on at every number in it, not only the ones it probed. */
+  for (const range of arComposer.ranges()) {
+    const view = countingOf(range);
+    const top = Math.min(view.to, view.from + 3000);
+    for (const noun of SYS.nouns) {
+      for (let v = view.from; v <= top; v += 7) {
+        assert.deepEqual(blocking(arComposer.render(v, SYS, { noun }).warnings), [], `${range.id}: ${v} ${noun.id}`);
+      }
     }
   }
   /* And the probe stays inside its range and never asks twice. */
@@ -221,7 +247,7 @@ test("the generator is a generator, not a constant", () => {
 /* ---- what a question shows ---- */
 
 test("a number question shows the words and is answered in figures", () => {
-  const range = must(arComposer.ranges().find((r) => r.id === "numbers:11-99"), "11-99");
+  const range = must(arComposer.ranges().find((r) => r.id === "numbers:20-99"), "20-99");
   for (let i = 0; i < 200; i += 1) {
     const asked = renderAsk(askFor(range, `s${i}`, SYS), arComposer, SYS);
     assert.ok(asked.text, "nothing to show");
@@ -231,7 +257,7 @@ test("a number question shows the words and is answered in figures", () => {
 });
 
 test("a counted question says what it is counting, in both languages", () => {
-  const range = must(arComposer.ranges().find((r) => r.counted), "agreement");
+  const range = countingOf(must(arComposer.ranges().find((r) => r.counts), "a stretch counted with"));
   const asked = renderAsk({ rangeId: range.id, kind: "numbers", value: 3, nounId: "book" }, arComposer, SYS);
   assert.equal(asked.en, "3 books");
   assert.equal(asked.nounForm, "pl");
@@ -324,4 +350,128 @@ test("no wrong answer is offered twice, however few marks the clock has", () => 
       assert.ok(t.h >= 0 && t.h <= 23 && t.m >= 0 && t.m <= 59, `${where} offered ${t.h}:${t.m}`);
     }
   }
+});
+
+/* ---- what the answer screen says besides ---- */
+
+/** The golden system with a transliteration in every box, each naming
+    the box it is in, so what was joined can be read back off the result. */
+const transliterated = (/** @type {any} */ sys) => ({
+  ...sys,
+  lexemes: Object.fromEntries(
+    Object.entries(sys.lexemes).map(([slot, lex]) => [
+      slot,
+      { ...lex, lat: Object.fromEntries(Object.keys(lex.forms).map((key) => [key, `${slot}/${key}`])) },
+    ]),
+  ),
+  overrides: Object.fromEntries(
+    Object.entries(sys.overrides || {}).map(([key, over]) => [key, { ...over, lat: `over/${key}` }]),
+  ),
+});
+const LAT = transliterated(SYS);
+const num = (/** @type {number} */ value) => ({ rangeId: "numbers:x", kind: /** @type {"numbers"} */ ("numbers"), value });
+
+test("a number is said in English words, the way it is said aloud", () => {
+  const cases = /** @type {[number, string][]} */ ([
+    [0, "zero"],
+    [7, "seven"],
+    [13, "thirteen"],
+    [40, "forty"],
+    [47, "forty-seven"],
+    [100, "one hundred"],
+    [105, "one hundred and five"],
+    [470, "four hundred and seventy"],
+    [1000, "one thousand"],
+    [2005, "two thousand and five"],
+    [1125, "one thousand one hundred and twenty-five"],
+    [3000000, "three million"],
+    [NUMBER_CEILING, "nine million nine hundred and ninety-nine thousand nine hundred and ninety-nine"],
+  ]);
+  for (const [n, words] of cases) assert.equal(inEnglish(n), words, String(n));
+  assert.equal(inEnglish(-1), "");
+  assert.equal(inEnglish(1.5), "");
+});
+
+test("an asking carries its English words, with what it counts beside them", () => {
+  assert.equal(renderAsk(num(47), arComposer, SYS).words, "forty-seven");
+  const noun = SYS.nouns[0];
+  const counted = renderAsk({ ...num(3), nounId: noun.id }, arComposer, SYS);
+  assert.ok(counted.words && counted.words.startsWith("three "), counted.words);
+});
+
+test("a built number is transliterated out of its words, the connector joined to the word it leans on", () => {
+  /* Twenty-five is five, then the connector attached to twenty: the
+     space in the script is a space in the transliteration, and the join
+     with none is a hyphen. */
+  assert.equal(
+    renderAsk(num(25), arComposer, LAT).lat,
+    "unit.5/standalone connector/standalone-ten.20/standalone",
+  );
+  /* A number the teacher wrote out is said the way they wrote it out. */
+  assert.equal(renderAsk(num(300), arComposer, LAT).lat, "over/300");
+  /* And one asked for in a face the box borrows from is read off the
+     face the word is actually written in. */
+  assert.equal(renderAsk(num(7), arComposer, LAT).lat, "unit.7/standalone");
+});
+
+test("a connector already written with its hyphen is not given a second", () => {
+  const sys = { ...LAT, lexemes: { ...LAT.lexemes, connector: { ...LAT.lexemes.connector, lat: { standalone: "w-" } } } };
+  assert.equal(renderAsk(num(25), arComposer, sys).lat, "unit.5/standalone w-ten.20/standalone");
+});
+
+test("a number with one word nobody transliterated has no transliteration at all", () => {
+  const holed = { ...LAT, lexemes: { ...LAT.lexemes, connector: { ...LAT.lexemes.connector, lat: {} } } };
+  assert.equal(renderAsk(num(25), arComposer, holed).lat, "");
+  /* Its words without the connector still have theirs. */
+  assert.equal(renderAsk(num(7), arComposer, holed).lat, "unit.7/standalone");
+  assert.equal(renderAsk(num(25), arComposer, SYS).lat, "");
+});
+
+test("a time is transliterated out of its words as well", () => {
+  const time = {
+    ...transliterated(TIME),
+    minuteExprs: Object.fromEntries(
+      Object.entries(TIME.minuteExprs).map(([mark, expr]) => [mark, { ...expr, lat: `min/${mark}` }]),
+    ),
+  };
+  const got = renderAsk(
+    { rangeId: "time:x", kind: "time", value: 7, minute: 15, style: "colloquial" },
+    arComposer,
+    LAT,
+    arTimeComposer,
+    time,
+  );
+  assert.ok(got.lat && got.lat.startsWith("hour.word/standalone unit.7/"), got.lat);
+  assert.ok(got.lat.endsWith("-min/15"), got.lat);
+});
+
+/** The golden system with one recording, on one face of one box. */
+const recorded = (/** @type {string} */ slot, /** @type {string} */ key) => ({
+  ...SYS,
+  lexemes: { ...SYS.lexemes, [slot]: { ...SYS.lexemes[slot], audio: { [key]: ["clip0000"] } } },
+});
+
+test("a number recorded whole is heard, and one built out of parts is not", () => {
+  const sys = recorded("unit.7", "standalone");
+  assert.deepEqual(renderAsk(num(7), arComposer, sys).recs, ["clip0000"]);
+  assert.deepEqual(heardWhole(7, renderAsk(num(7), arComposer, sys).tokens, sys), ["clip0000"]);
+  /* Seventeen has its own box and no recording in it; forty-seven has
+     seven in it, and nothing inside a number is ever stitched. */
+  assert.deepEqual(renderAsk(num(17), arComposer, sys).recs, []);
+  assert.deepEqual(renderAsk(num(47), arComposer, sys).recs, []);
+  /* One asked for with a masculine word is the counting one, recorded once. */
+  assert.deepEqual(renderAsk(num(1), arComposer, recorded("unit.1", "standalone")).recs, ["clip0000"]);
+  /* A whole number recorded as such. */
+  const curated = { ...SYS, curatedAudio: { 47: ["clip0047"] } };
+  assert.deepEqual(renderAsk(num(47), arComposer, curated).recs, ["clip0047"]);
+});
+
+test("an asking is recorded only where the whole of it was", () => {
+  const sys = recorded("unit.7", "standalone");
+  assert.equal(recordedWhole(num(7), arComposer, sys), true);
+  assert.equal(recordedWhole(num(47), arComposer, sys), false);
+  assert.equal(recordedWhole(num(7), arComposer, SYS), false);
+  /* A counted phrase has its noun in it, and nobody recorded the two together. */
+  assert.equal(recordedWhole({ ...num(7), nounId: SYS.nouns[0].id }, arComposer, sys), false);
+  assert.equal(recordedWhole(num(7), null, sys), false);
 });

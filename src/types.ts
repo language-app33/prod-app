@@ -61,6 +61,13 @@ export interface ExerciseSpec {
   short: string;
   /** Fields a card must have for this to be asked. */
   needs: string[];
+  /**
+   * Fields that mean another exercise asks this one's question instead:
+   * a card carrying any of them is not asked this. A number in a language
+   * with figures of its own is written out from those figures, never from
+   * the ones English uses — see `own2ar`.
+   */
+  unless?: string[];
   question: string;
   placeholder: string;
   /** "audio" marks the listening exercises. */
@@ -341,6 +348,20 @@ export interface GrammarDim {
    */
   perCard?: boolean;
   retired?: boolean;
+  /**
+   * What is particular about one value, where something is.
+   *
+   * Arabic's plural after three to ten is the case this exists for: a box
+   * on a noun card and nothing anywhere else, a line under that box saying
+   * which nouns want it, and not a word to be asked on its own — it is
+   * said inside a counted phrase, *khams tiyyām*, and nowhere else.
+   *
+   *   * `onlyOn` — the kinds of word it is offered on; absent is all.
+   *   * `help` — said under the box it is the number of.
+   *   * `unasked` — a form of it starts switched off in practice; the
+   *     ticks are still there to switch it on.
+   */
+  optionRules?: Record<string, { onlyOn?: string[]; help?: string; unasked?: boolean }>;
 }
 
 /* ---- a language ----
@@ -539,6 +560,19 @@ export interface Lang {
   /** And how it tells the time, which is a separate answer: a language
       may build numbers and have nobody yet who knows its clock. */
   times?: import("./numbers/types.ts").TimeComposer | null;
+  /**
+   * How this language writes a number in figures, where it has figures of
+   * its own — ٣ for 3 in Arabic — rather than the ones English uses.
+   *
+   * A function rather than ten characters, because not every numbering is
+   * a digit swapped for a digit, and a pack that has one of those can say
+   * so here without anything else having to change. "" for a number it
+   * cannot write. Here and not beside the composer, because the figures
+   * are the language's own letters and src/numbers/ holds none of those.
+   * A pack without one writes its numbers the way English does, and its
+   * number cards carry no figures of their own.
+   */
+  numerals?: (n: number) => string;
 }
 
 /**
@@ -900,6 +934,13 @@ export interface Deck {
    * fileIntoDecks in numbers/generate.ts.
    */
   parts?: string[];
+  /**
+   * Which of `parts` its students get nothing from yet, because the words
+   * those parts are built of are not all written. Worked out by the
+   * server for the screens that show a deck, never stored — see
+   * partsWaiting in server/api/courses.js.
+   */
+  partsWaiting?: string[];
 }
 
 export interface Course {
@@ -1033,6 +1074,17 @@ export interface Question {
    * house beside a number and make the question a reading test.
    */
   options?: string[];
+  /**
+   * What the question may borrow from, where it is narrower than
+   * everything the learner holds.
+   *
+   * `"numbers"` on every question of a session made of numbers alone: the
+   * wrong answers beside a word and the company in a grid are other number
+   * words, never the learner's vocabulary — *fourteen* beside *forty*,
+   * not *house*. Set when the queue is built, because that is where the
+   * session is known to be numbers and nothing else.
+   */
+  within?: "numbers";
 }
 
 /**
@@ -1088,6 +1140,12 @@ export type Form = Record<string, any> & {
      variables.ts. Absent on every form that leaves no hole, which is nearly
      all of them. */
   met?: Record<string, number>;
+  /* Schedules handed on from a card that is no longer made, for the
+     exercises this form has nothing on — counting things, from the
+     counting parts to the stretch that asks it now. Read by the fold,
+     which adds them beneath the learner's own and never stores the
+     field. See handOnCounting. */
+  carried?: Record<string, ExerciseState>;
   created?: Millis;
   updated?: Millis;
 };
@@ -1235,6 +1293,30 @@ export type Item = {
    * schedule — see src/numbers/generate.ts.
    */
   range?: SkillRange;
+  /**
+   * The cards a range's words are written on — *four*, *seventy* and *and*
+   * under 11 to 99 — by id, where it is a skill.
+   *
+   * Written when a part is filed into a deck, which is the one place that
+   * already works it out. Two things read it: whether the part is learnt,
+   * which waits on every one of these being learnt too, and which number
+   * it is asked next, which is steered towards the ones that are not. See
+   * `partsOf` in the app.
+   */
+  parts?: string[];
+  /**
+   * The number a card out of a number system stands for, in the figures
+   * its language writes numbers in — ٣ on the card for *three*.
+   *
+   * Written by the generation from the pack's `numerals`, so a language
+   * whose figures are the ones English uses has none, and neither does a
+   * card that is not one number: *hundred*, *and*, *a quarter past*.
+   *
+   * On the card for its screen, and on every form of it for the question
+   * that asks the word from these figures — `own2ar`, which is the top of
+   * such a card's ladder, so the card is learnt only once the figures are.
+   */
+  numeral?: string;
   /**
    * The learner has asked for this card.
    *
