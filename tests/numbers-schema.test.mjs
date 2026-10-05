@@ -100,7 +100,9 @@ test("a whole system comes through with everything a composer reads", () => {
   assert.equal(got.lexemes["unit.1"].forms.f, "one-f");
   assert.deepEqual(must(got.lexemes["unit.1"].audio, "audio").standalone, ["a1b2c3d4"]);
   assert.deepEqual(Object.keys(got.overrides).sort(), ["300", "3|construct.f"]);
-  assert.equal(got.nouns[0].dual, "books-2");
+  /* The list of things to count a system used to carry is not read any
+     more: counting reads the teacher's noun cards. See nouns.ts. */
+  assert.deepEqual(got.nouns, []);
   /* And reading it back changes nothing, which is what makes it safe to
      run on every refresh. */
   assert.deepEqual(readNumberSystem(got), got);
@@ -142,8 +144,7 @@ test("a value of the wrong shape becomes no value, never a wrong one", () => {
   assert.equal(got.rev, 0);
   assert.equal(got.created, 0);
   assert.deepEqual(Object.keys(got.lexemes["unit.1"].forms), ["m"]);
-  assert.equal(got.nouns[0].gender, "m", "an unknown gender reads as the commoner one");
-  assert.equal(got.nouns[0].en, "");
+  assert.deepEqual(got.nouns, [], "a stored list of nouns is not read at all");
 });
 
 test("a noun with nothing to count is not a noun; one with no dual still is", () => {
@@ -348,4 +349,11 @@ test("an empty system is a system, and reads back as itself", () => {
      refusing the document. */
   assert.equal(times.minuteNoun.sg, "");
   assert.equal(times.minuteNoun.id, "minute");
+});
+
+/* ---- the blanks a part fills ---- */
+
+test("a system carries no blank names of its own: a part's tags are fixed", () => {
+  const got = must(readNumberSystem({ ...good(), fills: { "numbers:0-10": ["age"] } }), "sys");
+  assert.equal(/** @type {any} */ (got).fills, undefined);
 });

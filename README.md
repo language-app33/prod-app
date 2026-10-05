@@ -333,7 +333,8 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   questions over the length of a session times `PROGRESS_SHARE`, the part
   of a session that moves cards forward. The earliest is a calendar floor
   — `LEARN_DAYS` for a card not yet learnt, the wait for its passes for a
-  cleared one, and never-met cards coming in `FRONT_DOOR_CAP` at a time.
+  cleared one, `CLEAR_DAYS` more for a sentence whose words are not
+  cleared yet, and never-met cards coming in `FRONT_DOOR_CAP` at a time.
   It is instant, and approximate. **It restates the rules rather than
   running them, so a change to the ladder, the passes, the front door or
   what a session deals has to be carried into it by hand** — nothing will
@@ -472,8 +473,24 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   It is the editor that refuses, not the server, so a name that collided
   before the rule existed is stored and read as it always was.
   Every form of a filler lends itself, not only its
-  own word: a plural stands in a sentence its singular does not, gated on
-  what that form itself has climbed. A card with a blank in it never fills
+  own word: a plural stands in a sentence its singular does not.
+
+  **A building block is cleared before anything is built from it.** A
+  building block is any card used inside another card: a word in a
+  sentence's or a conversation's blank, a word of a number or a time, the
+  noun a number counts. It stands there only once the learner has
+  cleared it — been up every level of its own ladder — and in the form
+  it is shown in: the feminine an adjective agrees into, the person of a
+  verb, the face a numeral wears inside a bigger number, the plural after
+  three. One bar for every question the sentence asks (`valuesAt` in
+  `src/variables.ts`, `standsAsShown` in the app). A combination that
+  cannot be made yet is passed over for the next one rather than waited
+  on. A card or a form that is never asked on its own — a name, or a
+  plural kept only for sentences — can never be cleared, and is
+  introduced by the sentence instead, read off the sentence's record of
+  having met it. A sentence or a number part waiting on its building
+  blocks holds no place among the new words (`waitsOnBlocks`), since the
+  places are how those words come in. A card with a blank in it never fills
   one — a sentence dropped into somebody else's hole is a sentence with a
   gap where the point was — and `{{verb}}` on a verb card's own sentence
   means its own place in it rather than any verb, which `ownSlot` in
@@ -899,18 +916,24 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
     filled question and a report carries it as `sentence`; `my-reports`
     hands a teacher the reports on cards they can change, where one tap
     strikes it. `src/review-sheet.tsx` is the three screens.
-  - **Numbers and times are signed off, not read.** They run to millions,
-    so a teacher signs off the sample on the numbers screen, and students
-    are sent the version last signed (`sign-system`, kept under
-    `syssigned:`); an edit waits for the next sign-off. A system edited
-    for the first time since this existed keeps what students had.
+  - **Numbers and times are sent as saved.** They run to millions, so
+    nobody reads them sentence by sentence: students are sent the version
+    recorded under `syssigned:`, and since 0.325 every save records its
+    own version there (`save-system`). There was a separate Publish step
+    (`sign-system`, still answered for old builds); it was one decision
+    split over two buttons, and the second was the one forgotten.
 - **A number is built, not memorised, and so is a time.** A learner who
   knows *forty* and *seven* knows *forty-seven*, so numbers are not cards
   one at a time. A language's numbers are **one document** — the words it
   builds them out of, each with the faces it wears — written on one screen
-  and never a card: the teacher fills the boxes in from **Teaching →
-  Cards**, the `#` in the list's toolbar, and a **Time** tab beside them
-  holds the clock. A language and not a deck, because the words are the
+  and never a card: the teacher reaches it from **Teaching → Cards**, the
+  `#` in the list's toolbar. Its first screen only lists — the parts of
+  the numbers (0 to 9, 10 to 19, 20 to 99, 100 to 999, 1,000 and over),
+  the clock, and the numbers written out by hand — and each opens on a
+  screen of its own, which is where it is edited and saved. A part's words
+  are a panel per number, the way a card's editor puts each form in a
+  panel, and under each number's boxes is how it counts a thing — read
+  only, made of the boxes above and the teacher's noun cards. A language and not a deck, because the words are the
   language's.
 
   **The lexicon is data; the composition is code.** There is no rule
@@ -936,8 +959,8 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
 
   On a learner's device a system is **cards and skills**: one card per word
   the teacher wrote, with the faces under it as a table, and a **range**
-  per stretch that can be asked — counting to ten, counting things,
-  telling the hour, to the minute, which part of the day. A range holds a
+  per stretch that can be asked — 0 to 9, 10 to 19 and so on, telling the
+  hour, to the minute, which part of the day. A range holds a
   schedule and climbs the ladder like a card and has no words on it: the
   number or the time is made up when the question is dealt and thrown away
   with the sitting. A right answer says two things and files both — that
@@ -945,10 +968,60 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   they read the word for *forty* and knew what it meant, on each component
   card's ordinary key.
 
+  **A number is learnt in the figures its language writes it in.** Arabic
+  writes three as ٣, and that is what a learner meets on a price or a bus,
+  so in a language whose pack declares `numerals` the top of a number's
+  ladder — where "learnt" is decided — asks from those figures and from
+  nothing else: the word from ٣, a stretch from ٤٧, the clock from ٠٧:١٥.
+  `own2ar`, `own2num` and `own2time` in `src/languages.ts`, each in place
+  of the question that asked from 3, 47 and 07:15 (`unless` on that one).
+  The questions below the top that show figures show both, ٤٧ · 47, so the
+  figures are met on the way up. A key of its own, so a number learnt from
+  3 before this has to be proved again from ٣. A language that writes its
+  numbers the English way is asked exactly what it always was.
+
+  **A number waits on its words.** A learner who knows *forty* and
+  *seven* knows *forty-seven*, and one who does not know *forty* yet
+  cannot be asked it. Each word is a building block (see above), so a
+  number is asked only once every word in it is cleared, in the face it
+  is said in, and a counted question only with a noun cleared in the form
+  the number puts it in — and number by number rather than range by
+  range: 47 the day *forty*, *seven* and *and* are, whether or not
+  *ninety* has been met. Recognising the words was the bar until 0.351.
+  Until any can be, a session asks the words alone. Among the numbers
+  that can be asked, the draw still leans towards a word not yet learnt
+  (`steeredAsk`). A word that could never be cleared (not held, not
+  practised, nothing to ask) holds nothing back. `askingsKnown` and `askKnown` in
+  `src/numbers/generate.ts`, read through `knownNumbers` in the app.
+
+  **A session of numbers alone keeps to them.** Every card in it from a
+  number system, and no question stands a word in a sentence from
+  another deck, and each carries `within: "numbers"`, so the wrong
+  answers and the grid are other number words — *fourteen* beside
+  *forty*, not *house*. A deck that mixes numbers with words is dealt as
+  any other. `keptToNumbers` and `companyOf` in the app.
+
   Every id is derived from the system and the box, so a teacher correcting
   a word gives back the same cards and nobody loses their year on one. A
   range is offered only once the whole of it can be said, so a system that
   stops at ten is a practice that counts to ten and stops.
+
+  **The number line is learnt bottom up.** 10 to 19 is said out of the
+  words 0 to 9 teaches, so a stretch is not asked until the one below it
+  is *cleared* — the ladder's own word, read off its own keys — and every
+  one under that too. Until then the stretch is held back the way a verb's
+  unopened row is (`stretchBefore` in `src/numbers/generate.ts`, read by
+  `quietUnits`), so it keeps its place and its schedule and opens the
+  moment the one below clears; a stretch below that slips back off
+  cleared shuts it again until it is recovered. Only a stretch the learner
+  actually has is waited on — a deck that teaches 10 to 19 alone is not
+  held behind a 0 to 9 nobody sent. A word waits with the stretch whose
+  screen it is on, and a number written out with the stretch it is in
+  (`homeStretch`), so *ninety* and *a million* are not met before their
+  stretches open — and the clock is not a stretch of
+  the number line and waits on nothing. Cleared, here, is on a stretch's
+  number questions alone: its counting question never holds the stretch
+  above back (`stretchOpen` in the app).
 
   **A deck holds the parts it teaches.** A system is one document per
   language and not cards, so a deck cannot list it among its cards: it
@@ -965,12 +1038,21 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   pronouns in and out of the deck, one person at a time; those are
   ordinary cards and simply join it.
 
-  **Counting things is three ranges, not one** — 1 and 2, 3 to 10, 11 to
-  20, where the counted word changes shape — so a teacher can hand them
-  out a lesson at a time, and a missing plural no longer holds back the
-  part that never needs one. `COUNTING_RANGES` in `src/numbers/types.ts`,
-  shared by Arabic and Hebrew; `handOnSplit` carries a learner's progress
-  on the old single range into each part.
+  **Counting things is a question each stretch asks, not a part of its
+  own.** *How would you say this? · 3 books* stands on the top of a
+  stretch's ladder beside writing the number out, drawn from the same
+  stretch with a noun beside it (`countingOf`), and it joins the stretch's
+  questions once one of the teacher's noun cards can be counted across all
+  of it — never holding the stretch's other questions back
+  (`RangeCheck.counting`). A language with nothing to agree, like Huế,
+  counts nothing (`counts` on the range). It was three parts of its own
+  until 0.336; a deck that held one holds the stretch it went into
+  (`partsNow`), what a learner had earned on one is handed to that stretch
+  by `handOnCounting` and folded in beneath their own schedules, and a
+  sentence written with `{{count-3-10}}` is still filled from the
+  stretch's counted phrases. Whether a noun can be counted turns on its
+  gender and which of its faces are written, never on its words, so nouns
+  are checked once per kind (`countingWarnings`).
 
   A box that has a word in it asks two more things about it — **how it
   sounds** and **a recording** — and both ride onto the card the word

@@ -32,7 +32,7 @@ import type {
   Rendering,
   SlotSpec,
 } from "./types.ts";
-import { COUNTING_RANGES, NUMBER_CEILING } from "./types.ts";
+import { COUNTING_STRETCHES, NUMBER_CEILING } from "./types.ts";
 import { Build } from "./build.ts";
 import { chunksOf, nounTextOf } from "./compose.ts";
 import type { VerbSpec } from "../types.ts";
@@ -106,18 +106,13 @@ export const HE_SLOTS: SlotSpec[] = [
     slot: "connector",
     formKeys: COUNTING,
     label: "and",
-    group: "joining",
+    group: "connecting words",
     hint: "One per number, in front of the last word, with no space after it.",
   },
 ];
 
-export const HE_RANGES: Range[] = [
-  { id: "numbers:0-10", kind: "numbers", label: "Numbers 0 to 10", from: 0, to: 10 },
-  { id: "numbers:11-99", kind: "numbers", label: "Numbers 11 to 99", from: 11, to: 99 },
-  { id: "numbers:100-999", kind: "numbers", label: "Numbers 100 to 999", from: 100, to: 999 },
-  { id: "numbers:1000+", kind: "numbers", label: "Numbers over a thousand", from: 1000, to: NUMBER_CEILING },
-  ...COUNTING_RANGES,
-];
+/** The five stretches, each counted with too — see COUNTING_STRETCHES. */
+export const HE_RANGES: Range[] = COUNTING_STRETCHES;
 
 export const HE_NUMBER_TABLE: VerbSpec = {
   persons: [
