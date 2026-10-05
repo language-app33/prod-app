@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.315 — 5 October 2026
+
+**A bigger, number-sized box for answers in figures.**
+
+- Questions answered with a number in figures, or with a time, now have a
+  taller, narrower answer box in the middle of the screen, with the digits
+  in large type.
+- On a phone, those questions now bring up the number pad instead of the
+  full keyboard. For a time, the pad's full stop is accepted in place of
+  the colon, as it already was. There is no button for the on-screen
+  letter keys on these questions.
+- Writing a number out in Arabic or Hebrew is unchanged: it keeps the
+  normal answer box, the letter keyboard and the on-screen keys button.
+
 ## 0.314 — 2 October 2026
 
 **A missing "s" is not a typo, and punctuation never costs you an answer.**

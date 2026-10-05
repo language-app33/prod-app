@@ -9484,6 +9484,9 @@ export default function ArabicTrainer() {
   /* A right answer written off the hint has a line under it saying so, so
      the praise is not the whole of what came back. */
   const verdictAlone = answerRight && !answerRepeated && !toldAnswer;
+  /* Typed in digits: a number in figures, or a time. Its box is drawn for
+     a few digits rather than a sentence. */
+  const figures = !!spec && (spec.answerMode === "fig" || spec.answerMode === "clock");
 
   useEffect(() => {
     if (exercise && inputRef.current && !checked) inputRef.current.focus();
@@ -11048,8 +11051,19 @@ export default function ArabicTrainer() {
                           lang={spec.answerMode === "ar" ? qLang.id : undefined}
                           dir={spec.answerMode === "ar" ? qLang.direction : undefined}
                           className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
-                            checked ? (checked.ok ? " ok" : " no") : ""
-                          }`}
+                            figures ? " fig" : ""
+                          }${checked ? (checked.ok ? " ok" : " no") : ""}`}
+                          /* An answer in figures, or a time, asks for the
+                             phone's number pad. A time's pad is the one
+                             with a full stop on it, which the marking reads
+                             as the colon. A number written out in the
+                             language's script is an "ar" answer and is not
+                             one of these: it keeps its letters and its
+                             on-screen keys. */
+                          inputMode={
+                            spec.answerMode === "fig" ? "numeric" : spec.answerMode === "clock" ? "decimal" : undefined
+                          }
+                          autoComplete={figures ? "off" : undefined}
                           data-el="answer-input"
                           value={typed}
                           readOnly={!!checked}

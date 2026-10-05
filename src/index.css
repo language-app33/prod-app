@@ -2155,6 +2155,14 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    keeps its own type size; a single-line field centres its text
    vertically, so the height is set outright and the padding goes. */
 .at-answerbox .at-input { height:64px; box-sizing:border-box; padding-top:0; padding-bottom:0; line-height:normal; }
+/* An answer in figures, or a time, is a few digits long and is typed on
+   the phone's number pad. A box the width of a sentence left the digits
+   sitting small at one end of it; this one is taller, as narrow as the
+   longest number asked, and puts them in the middle in large type. */
+.at-answerbox .at-input.fig { height:88px; width:100%; max-width:240px; display:block;
+  margin-inline:auto; text-align:center; font-family: var(--mono); font-size:36px;
+  font-variant-numeric: tabular-nums; letter-spacing:.04em; }
+.at-answerbox .at-input.fig::placeholder { font-size:20px; letter-spacing:0; }
 /*
  * What the learner wrote, once it has been marked, standing where the box
  * they wrote it in stood.
@@ -2772,6 +2780,7 @@ button.at-stat { transition: border-color 140ms ease; }
 .at.kb-open .at-input { padding: 11px 14px; font-size: 17px; }
 .at.kb-open .at-input.ar { font-size:calc(32px * var(--sscale, 1)); }
 .at.kb-open .at-answerbox .at-input { height:52px; }
+.at.kb-open .at-answerbox .at-input.fig { height:72px; font-size:32px; }
 /* What the learner wrote, once marked, is as tall as it needs to be. The
    box it replaces is one line high, and an answer longer than one line —
    a sentence written in 40px script — was clipped top and bottom into
