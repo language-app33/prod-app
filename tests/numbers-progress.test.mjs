@@ -42,7 +42,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { buildSession, installIndexes, cardStandings, partsOf } = await import(path.join(out, "trainer.js"));
+const { buildSession, installIndexes, cardStandings, partsOf, climbOf, towardsLearnt } = await import(path.join(out, "trainer.js"));
 const { generate, fileIntoDecks, componentId, isRangeSkill, steeredAsk } = await import(
   path.join(here, "..", "src", "numbers", "generate.ts")
 );
@@ -169,4 +169,77 @@ test("a part is learnt only once every word it is built from is", () => {
   /* And read on its own, without the collection, the part is what its own
      ladder says — the one card's line, which cannot see its words. */
   assert.equal(must(standing(cardStandings(part, settings)), "no standing").status, "done");
+});
+
+/*
+ * How far along a deck of numbers is, counted over every number in it.
+ *
+ * A number waiting on its stretch has nothing to ask yet, and the
+ * percentages used to leave it out for that: a deck of every number read
+ * 90% to a learner who knew the words for 0 to 9, and fell to 50% once 0 to
+ * 9 was learnt and 10 to 19 opened. The ring on the home screen, a saved
+ * session's tile, the prep's and the Progress tab's decks all read
+ * climbOf's sum — see towardsLearnt.
+ */
+test("a deck of numbers counts the numbers still waiting, so its percentage only goes up", () => {
+  const partOf = (/** @type {string} */ rid) =>
+    must(filed.find((/** @type {any} */ it) => it.range && it.range.id === rid), rid);
+  /** The ids of a part and every word it is built from. */
+  const whole = (/** @type {string} */ rid) => [partOf(rid).id, ...(partOf(rid).parts || [])];
+  const climbWith = (/** @type {string[]} */ learnt) => {
+    const items = filed.map((/** @type {any} */ it) => (learnt.includes(it.id) ? learntCard(it) : it));
+    installIndexes(items, settings);
+    return climbOf(items, settings, items);
+  };
+
+  const steps = [
+    [],
+    [...(partOf("numbers:0-9").parts || [])],
+    whole("numbers:0-9"),
+    [...whole("numbers:0-9"), ...whole("numbers:10-19")],
+    [...whole("numbers:0-9"), ...whole("numbers:10-19"), ...whole("numbers:20-99")],
+    filed.map((/** @type {any} */ it) => it.id),
+  ].map(climbWith);
+
+  for (const step of steps) assert.equal(step.n, filed.length, "a number waiting on its stretch was left out");
+  assert.equal(steps[0].pct, 0);
+  /* Ten words of forty-nine, not ten of the eleven 0 to 9 holds. */
+  assert.ok(steps[1].pct <= 25, `${steps[1].pct}% for knowing the words for 0 to 9`);
+  for (let i = 1; i < steps.length; i += 1) {
+    assert.ok(steps[i].pct >= steps[i - 1].pct, `went from ${steps[i - 1].pct}% to ${steps[i].pct}% by learning more`);
+  }
+  assert.equal(steps[steps.length - 1].pct, 100);
+
+  /* A waiting number nobody has begun stands on the bottom level, not
+     started: on no level for anything that deals or shows a card, and
+     counted all the same. */
+  installIndexes(filed, settings);
+  const thousands = partOf("numbers:1000+");
+  assert.deepEqual(cardStandings(thousands, settings, filed), [], "1,000 and up is not waiting");
+  const fresh = must(towardsLearnt(thousands, settings, filed), "a waiting part counts");
+  assert.equal(fresh.at.level, 1);
+  assert.equal(fresh.share, 0);
+});
+
+test("a slip below a stretch keeps what the numbers above it had earned", () => {
+  /* Everything learnt, then 0 to 9 missed twice running: every stretch
+     above it waits again. Their words are still learnt, and the percentage
+     says so rather than counting them as nothing. */
+  const zeroToNine = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:0-9"), "0 to 9");
+  const missed = () => ({
+    ...freshState(), phase: "relearn", interval: 1, due: Date.now(),
+    reps: 6, right: 4, wrong: 2, hist: [1, 1, 1, 1, 0, 0], passes: 2, updated: Date.now() - 3600000,
+  });
+  const items = allLearntBut([zeroToNine.id]).map((/** @type {any} */ it) => (it.id === zeroToNine.id ? {
+    ...it,
+    forms: it.forms.map((/** @type {any} */ f) => ({ ...f, s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, missed()])) })),
+  } : it));
+  installIndexes(items, settings);
+  const tens = must(items.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:20-99"), "20 to 99");
+  assert.deepEqual(cardStandings(tens, settings, items), [], "20 to 99 is not waiting on the slip");
+  assert.deepEqual(cardStandings(must(items.find((/** @type {any} */ it) => it.id === ninety), "ninety"), settings, items), [],
+    "nor is its word for ninety");
+  const climb = climbOf(items, settings, items);
+  assert.equal(climb.n, filed.length);
+  assert.equal(climb.learnt, filed.length - 1, "only the part that slipped is short of learnt");
 });

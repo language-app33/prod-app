@@ -310,15 +310,51 @@ const itemDifficulty = (it: Item, settings: Settings): string =>
  * are not is held at Cleared, with how many words it is waiting on. A
  * caller that cannot see the collection — one card's own line — reads the
  * part on its own ladder, which is all it ever did.
+ *
+ * `keys` is laddered everywhere but towardsLearnt, which reads a number
+ * still waiting on its stretch as it will stand once the stretch opens.
  */
-export const cardStandings = (it: Item, settings: Settings, among?: Item[]): Standing[] => {
-  const rows = standingsOf(it, (u) => laddered(u, settings));
+export const cardStandings = (
+  it: Item,
+  settings: Settings,
+  among?: Item[],
+  keys: (unit: Form, settings: Settings) => string[] = laddered,
+): Standing[] => {
+  const rows = standingsOf(it, (u) => keys(u, settings));
   if (!it.parts || !among || !rows.length) return rows;
-  const held = partsOf(it, among, settings).filter((p) => p.validated === false).length;
+  const held = partsOf(it, among, settings, keys).filter((p) => p.validated === false).length;
   if (!held) return rows;
   const top = rows[rows.length - 1];
   return rows.slice(0, -1).concat([{ ...top, status: top.status === "done" ? "cleared" : top.status, held }]);
 };
+
+/**
+ * How far one card is towards learnt, as every percentage counts it: where
+ * it stands, and its share — the levels it has finished over the levels it
+ * has material for. Null for a card that can never be asked anything,
+ * which no practice would bring closer and so is no part of the sum.
+ *
+ * A number waiting for its stretch is not one of those. Its words wait
+ * with their stretch and a stretch waits on the one below — see
+ * quietUnits — so until then it has nothing to ask and stands on no level.
+ * The percentages used to leave it out for that, and a deck of every
+ * number read 90% to a learner who knew the words for 0 to 9, then fell to
+ * 50% once 0 to 9 was learnt and 10 to 19 opened: progress drawn going
+ * backwards because it had been made. It is in the deck and not yet
+ * learnt, so it counts — read as it will be asked once its stretch opens:
+ * fresh, or with whatever it had earned before a slip below shut it again.
+ *
+ * The home screen's ring, a saved session's tile, the prep's and the
+ * Progress tab's decks all read this, so none of them can count a waiting
+ * number differently from the others.
+ */
+export function towardsLearnt(it: Item, settings: Settings, among: Item[]): { at: Standing; share: number } | null {
+  let rows = cardStandings(it, settings, among);
+  if (!rows.length) rows = cardStandings(it, settings, among, ladderedOnceOpen);
+  const at = standing(rows);
+  if (!at) return null;
+  return { at, share: rows.filter((r) => r.status === "done").length / rows.length };
+}
 
 /* Every card in a collection by id, once per collection: a part asks after
    thirty words, and a screen asks after every part. */
@@ -340,25 +376,30 @@ function byIdOf(items: Item[]): Map<string, Item> {
  * word in no card this learner holds is left out for the same reason.
  * `met` is whether any question on it has been answered, which is what
  * tells a word under way from one not started.
+ *
+ * `keys` as in cardStandings: a part read through the quiet gate reads its
+ * words through it too, or a waiting part would count words that had
+ * slipped out of reach as holding nothing back.
  */
 export function partsOf(
   it: Item,
   among: Item[],
   settings: Settings,
+  keys: (unit: Form, settings: Settings) => string[] = laddered,
 ): { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] {
   const byId = byIdOf(among);
   const out: { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] = [];
   for (const id of it.parts || []) {
     const card = byId.get(id);
     if (!card) continue;
-    const rows = standingsOf(card, (u) => laddered(u, settings));
+    const rows = standingsOf(card, (u) => keys(u, settings));
     const at = standing(rows);
     out.push({
       card,
       at,
       validated: at ? at.status === "done" : null,
       met: unitsOf(card).some(({ unit }) =>
-        laddered(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
+        keys(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
       ),
     });
   }
@@ -2789,6 +2830,19 @@ const specOf = (key: string) => EX[typeOf(key)];
    a question was filled in from. */
 export function laddered(it: Form, settings: Settings): string[] {
   if (isQuiet(it)) return [];
+  return ladderedOnceOpen(it, settings);
+}
+
+/*
+ * The same, through the quiet gate: what a form will climb with once the
+ * row or the stretch it waits on opens.
+ *
+ * For the percentages alone — see towardsLearnt — which count a number
+ * waiting on its stretch as a card not yet learnt rather than as no card
+ * at all. Everything that deals a question or says where a card stands
+ * reads laddered, and a quiet form is still nothing to any of them.
+ */
+function ladderedOnceOpen(it: Form, settings: Settings): string[] {
   /* And nothing at all for a form the teacher keeps without asking about
      it. Said here, where the quiet ones are said, so that a form left on a
      card for a student to read is absent from every count the same way a
@@ -12460,8 +12514,10 @@ export default function ArabicTrainer() {
  * which a card's standing needs to read what it waits on. The home screen's
  * ring passes the same list twice; a saved session's tile passes its own
  * cards, so the two percentages are worked out the one way.
+ *
+ * Exported for the tests, which hold a deck of numbers to it.
  */
-function climbOf(cards: Item[], settings: Settings, all: Item[]) {
+export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
   /* The four levels, then the cards with nothing above them left to open
      — the same five buckets the tiles in Progress count. */
   const spread = [0, 0, 0, 0, 0];
@@ -12469,19 +12525,19 @@ function climbOf(cards: Item[], settings: Settings, all: Item[]) {
   let learnt = 0;
   let got = 0;
   for (const it of cards) {
-    const rows = cardStandings(it, settings, all);
-    const at = standing(rows);
-    /* A card with nothing it can be asked yet is on no level, so it is
-       not progress to be short of — the exclusion Progress makes too. */
-    if (!at) continue;
+    /* A card that can never be asked is not progress to be short of, and
+       a number waiting on its stretch is a card not learnt yet — both as
+       towardsLearnt has it, which the Progress tab's decks read too. A
+       waiting number is not started, so it is drawn on the bottom level
+       with the other cards nobody has begun. */
+    const toward = towardsLearnt(it, settings, all);
+    if (!toward) continue;
     n++;
-    /* A level a card has no material for is not a level it is short of,
-       so the denominator is the levels it actually has. */
-    got += rows.filter((r) => r.status === "done").length / rows.length;
-    if (at.status === "done") {
+    got += toward.share;
+    if (toward.at.status === "done") {
       learnt++;
       spread[4]++;
-    } else spread[at.level - 1]++;
+    } else spread[toward.at.level - 1]++;
   }
   return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
 }
@@ -16193,7 +16249,9 @@ function ProgressTab({
    */
   const progress = useMemo(() => {
     const at: Map<string, Standing | null> = new Map();
-    const share: Map<string, number> = new Map();
+    /* How far each card is towards learnt, which is what a deck's
+       percentage adds up — see towardsLearnt. */
+    const toward: Map<string, { at: Standing; share: number } | null> = new Map();
     /* And, for the cards at the top of the ladder, when each next comes
        round. Only for those two: it is another walk of the card's keys,
        the tiles below it show a bar instead, and a card still climbing is
@@ -16208,12 +16266,18 @@ function ProgressTab({
       at.set(it.id, one);
       /* A level a card has no material for is not a level it is short of —
          openTypes passes those straight through, and standings leaves them
-         out — so the denominator is the levels it actually has. */
-      share.set(it.id, rows.length ? rows.filter((r) => r.status === "done").length / rows.length : 0);
+         out — so the denominator is the levels it actually has. The rows
+         just read are towardsLearnt's own first reading, so a card on a
+         level is not walked twice; one on no level is asked whether it is
+         a number waiting on its stretch, which still counts. */
+      toward.set(
+        it.id,
+        one ? { at: one, share: rows.filter((r) => r.status === "done").length / rows.length } : towardsLearnt(it, settings, items),
+      );
       if (one && one.status === "cleared") next.set(it.id, nextPassAt(it, settings));
       else if (one && one.status === "done") next.set(it.id, nextReviewAt(it, settings));
     }
-    return { at, share, next };
+    return { at, toward, next };
   }, [items, settings]);
   const progressOf = progress.at;
 
@@ -16271,21 +16335,25 @@ function ProgressTab({
    * only honest answer to "how far along is this deck".
    *
    * Learnt, rather than any of the four levels, because that is the one
-   * that means finished: nothing left to open. It is the same set of cards
-   * the Learnt tile above counts, cut by deck.
+   * that means finished: nothing left to open.
+   *
+   * Every card of the deck that can be asked counts, numbers still waiting
+   * on their stretch among them — see towardsLearnt, which the home
+   * screen's ring and a saved session's tile read too. The level tiles
+   * above count only the cards on a level, so a deck of numbers can hold
+   * more cards here than those tiles show.
    */
   const deckRows = useMemo(() => {
     const held: Map<string, { n: number; learnt: number; got: number }> = new Map();
     for (const it of items) {
-      const at = progressOf.get(it.id);
-      /* The same exclusion the tiles make: a card with nothing it can be
-         asked is on no level, so it is not progress to be short of. */
-      if (!at) continue;
+      const toward = progress.toward.get(it.id);
+      /* A card that can never be asked is not progress to be short of. */
+      if (!toward) continue;
       for (const deck of it.tags || []) {
         const row = held.get(deck) || { n: 0, learnt: 0, got: 0 };
         row.n++;
-        row.got += progress.share.get(it.id) || 0;
-        if (at.status === "done") row.learnt++;
+        row.got += toward.share;
+        if (toward.at.status === "done") row.learnt++;
         held.set(deck, row);
       }
     }
@@ -16297,7 +16365,7 @@ function ProgressTab({
         pct: deckPercent({ n, learnt, got }),
       }))
       .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
-  }, [items, progressOf, progress]);
+  }, [items, progress]);
 
   /* Where the prep stands, for the line beside the button. */
   const prepNow = prep ? prepStatus(prep, items, settings) : null;

@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.350 — 5 October 2026
+
+**Progress on numbers counts every number, not just the ones reached so
+far.**
+
+- Fixed: a percentage on a deck of numbers counted only the parts a
+  learner had reached. Someone who knew the words for 0 to 9 saw 90% on a
+  deck of all the numbers, when they had learnt 10 of its 49 cards. The
+  figure then dropped to 50% once they finished 0 to 9 and 10 to 19
+  opened, so learning more made the number go down.
+- Numbers still waiting for their part now count as not learnt yet, so
+  that learner sees 20%, and the percentage only goes up as they learn.
+  This applies everywhere a percentage is shown: the ring on the home
+  screen, the saved-session tiles, the prep tile and the decks on the
+  Progress tab.
+- If a part slips back, the numbers above it wait again but keep what
+  they had learnt, so the percentage dips by the part that slipped and no
+  more.
+
 ## 0.349 — 4 October 2026
 
 **Backups keep your numbers, and a deck says when its number parts are

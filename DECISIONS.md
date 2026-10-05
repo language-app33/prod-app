@@ -5099,3 +5099,37 @@ case a part can say "not ready" when it does reach them. Working this
 out renders each part's sample numbers once per teacher and language on
 every deck list. That is a few hundred numbers, less than reading the
 cards beside them.
+
+## A number waiting on its stretch counts towards a percentage
+
+**5 October 2026** · `towardsLearnt`, `ladderedOnceOpen` and `climbOf` in `src/ArabicTrainer.tsx`; the Progress tab's deck rows
+
+The owner's rule for every percentage: how far along the learner is in
+fully learning all the cards it covers. A number's words wait with their
+stretch, and a stretch waits on the one below (`quietUnits`), so a
+waiting number has nothing to ask and stands on no level. Every
+percentage left out cards on no level, so a deck of all the numbers was
+measured over the stretches reached so far. It read 90% to a learner who
+knew 0 to 9's words (10 of 49 cards), and fell to 50% when 0 to 9 was
+learnt and 10 to 19 opened.
+
+**A card on no level still counts if it is only waiting.**
+`towardsLearnt` reads such a card through the quiet gate
+(`ladderedOnceOpen`), as it will stand once its stretch opens. A number
+nobody has begun is then on level one, not started. One a slip below has
+shut again keeps what it had earned, and its part reads its words the
+same way, so a slip costs the part that slipped and nothing more. A card
+that can never be asked, with no material or nothing the teacher asks,
+is still left out. The ring, the saved-session tiles, the prep tile and
+the Progress tab's decks all read `towardsLearnt`, so they cannot count a
+waiting number differently.
+
+**What it costs.** Only the percentages, and the "learnt of n" beside the
+ring, change. Everything that deals a question or puts a level on a card
+still reads `laddered`, which keeps a waiting number quiet. So the
+Progress tab's level tiles show fewer cards than its decks count, and the
+ring's band draws waiting numbers on level one with the other cards
+nobody has started. Verb tables also open a row at a time, but the word
+on a verb's front (or the cell that matches it) is met the day the card
+is and never waits, so a verb always stands on a level and this change
+does not touch it.
