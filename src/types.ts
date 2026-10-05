@@ -90,6 +90,12 @@ export interface ExerciseSpec {
   /** Recognition rather than production. */
   gentle?: boolean;
   /**
+   * Asked only once the learner has cleared the ten figures their language
+   * writes numbers in — ٠ to ٩ — so a miss on writing ٤٧ out of the words
+   * is a miss on the words. See `numeralsKnownOf` in the app.
+   */
+  afterNumerals?: boolean;
+  /**
    * Where it stands on the ladder a form climbs: 1 recognises the word on
    * its own, 2 tells it apart from others, 3 produces it from a cue, 4
    * produces it from its meaning alone. A level opens only once every
@@ -573,6 +579,17 @@ export interface Lang {
    * number cards carry no figures of their own.
    */
   numerals?: (n: number) => string;
+  /**
+   * What those figures are called, in English: "Eastern Arabic numerals"
+   * for ١٢٣. The ones English uses are "Arabic numerals" in every
+   * language, and are named in the exercise table directly.
+   */
+  numeralsLabel?: string;
+  /**
+   * One line a learner should know about them, shown beside the ten — in
+   * Arabic, that its speakers call them "Indian numerals".
+   */
+  numeralsNote?: string;
 }
 
 /**

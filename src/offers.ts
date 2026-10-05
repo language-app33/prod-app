@@ -189,7 +189,7 @@ export interface Offer {
 
 /* What a number system's cards and skills carry and no card a teacher
    writes ever does. */
-const MADE_NOT_WRITTEN = ["numeral", "rangeNumbers", "rangeCounted", "rangeTime", "rangeFigures"];
+const MADE_NOT_WRITTEN = ["numeral", "digit", "rangeNumbers", "rangeCounted", "rangeTime", "rangeFigures"];
 
 /* What a scene has to have that a text never does. */
 const NEVER_OF_TEXT = ["line", "reply", "choices", "order", "part"];

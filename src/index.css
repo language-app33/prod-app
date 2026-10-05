@@ -2214,6 +2214,14 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-figprompt { position:absolute; inset:0; display:flex; align-items:center;
   justify-content:center; pointer-events:none; font-family: var(--mono);
   font-size:20px; font-weight:500; color: var(--faint); }
+/* Written in the language's own figures — ٤٧ — which a monospace face
+   rarely has: the script's own face draws them, as it does on the keys
+   under the box. The prompt is a sentence rather than a word, so smaller. */
+.at-answerbox .at-input.fig.own { font-family: var(--sfont), var(--mono); }
+.at-figprompt.own { font-size:15px; }
+/* The ten figures, under the box: one row, a key each, a little apart from
+   the box above. */
+.at-numpad { max-width:420px; margin-inline:auto; }
 /*
  * What the learner wrote, once it has been marked, standing where the box
  * they wrote it in stood.

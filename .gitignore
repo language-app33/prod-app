@@ -19,6 +19,7 @@ tests/.readout-build/
 tests/.numbers-build/
 tests/.numbers-progress-build/
 tests/.numbers-figures-build/
+tests/.numbers-numerals-build/
 tests/.review-build/
 tests/.blank-pools-build/
 tests/.session-fill-build/

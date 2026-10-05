@@ -90,6 +90,18 @@ export const isFromSystem = (it: { id?: string } | null | undefined): boolean =>
 export const isRangeSkill = (it: { id?: string } | null | undefined): boolean =>
   /^sys:[^:]+:range:/.test(String((it && it.id) || ""));
 
+/** The card for one of the ten figures a language writes numbers in. */
+export const numeralId = (systemId: string, digit: number) => componentId(systemId, `numeral.${digit}`);
+
+export const isNumeralCard = (it: { id?: string } | null | undefined): boolean =>
+  /^sys:[^:]+:numeral\.\d$/.test(String((it && it.id) || ""));
+
+/** The system a range's form or a card's id belongs to, read off the id. */
+export const systemOfId = (id: string): string => {
+  const m = /^sys:([^:]+):/.exec(String(id || ""));
+  return m ? m[1] : "";
+};
+
 /**
  * The stretch of the number line a range waits on, if it waits on one.
  *
@@ -255,6 +267,33 @@ function cardOf(made: Made): Item {
   } as Item;
 }
 
+/** One of the ten figures, as a card: the figure, and the number it is. */
+function numeralCard(id: string, lang: LangId, systemId: string, digit: number, figure: string, now: Millis): Item {
+  return {
+    id,
+    lang,
+    kind: "word",
+    tags: [],
+    forms: [
+      {
+        id: `${id}-f0`,
+        ar: "",
+        en: String(digit),
+        lat: "",
+        numeral: figure,
+        digit: true,
+        s: {},
+      },
+    ],
+    numeral: figure,
+    source: { systemId, slot: `numeral.${digit}` },
+    locked: true,
+    drill: true,
+    created: now,
+    updated: now,
+  } as Item;
+}
+
 /* ---- the whole set ---- */
 
 export interface Generated {
@@ -412,6 +451,29 @@ export function generate({ composer, sys, timeComposer, timeSys, now, numerals }
           now,
         }),
       );
+    }
+  }
+
+  /*
+   * And the ten figures themselves, where the language has figures of its
+   * own: a card each for nought to nine.
+   *
+   * Every number is written in these, so they are what reading and
+   * writing forty-seven in them comes down to — and they are learnt once, as ten cards,
+   * rather than again on every number. A card each rather than one skill,
+   * because two figures alike are confused with each other and not with the rest,
+   * and a schedule per figure is what comes back to the one that is.
+   *
+   * Nothing a teacher writes: the figures are the language's, so a system
+   * with no boxes filled in yet still has them. They carry no word at all
+   * — `digit` is what their two questions need, and no other question can
+   * be asked of them.
+   */
+  if (numerals) {
+    for (let d = 0; d <= 9; d++) {
+      const figure = String(numerals(d) || "");
+      if (!figure) continue;
+      items.push(numeralCard(numeralId(sys.id, d), lang, sys.id, d, figure, now));
     }
   }
 
@@ -1021,6 +1083,13 @@ export function fileIntoDecks(
       if (!words.has(range.id)) words.set(range.id, wordsOfRange(range, set, ids));
       for (const id of words.get(range.id) as Set<string>) file(id, deck.title);
     }
+  }
+  /* The ten figures go wherever any part of the system does: every number
+     and every clock is written in them. */
+  const titles = new Set([...tags.values()].flatMap((t) => [...t]));
+  for (const it of items) {
+    if (!isNumeralCard(it)) continue;
+    for (const title of titles) file(it.id, title);
   }
   return items
     .filter((it) => tags.has(it.id))

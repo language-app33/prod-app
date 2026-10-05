@@ -5189,3 +5189,64 @@ words are not cleared; that figure is the pace simulation's measured day
 and a half, rounded up, not a new measurement, because the simulation
 models words alone. Number parts waiting on their words are not yet
 counted into that floor.
+
+---
+
+## The ten figures are cards, and writing in them waits on them
+
+**5 October 2026** · `numeralCard` and `fileIntoDecks` in `src/numbers/generate.ts`; `dig2fig`, `fig2dig`, `fig2own`, `ar2own`, `clock2own`, `time2own` and the `own` answer mode in `src/languages.ts`; `numeralsKnownOf`, `numeralsOf` and `NumeralPad` in `src/ArabicTrainer.tsx`
+
+The owner asked that learners can both read and write numbers in Eastern
+Arabic numerals (١٢٣), and that progress counts it. Until 0.363 only reading
+was asked: the top of every number's ladder showed ٤٧ alone.
+
+**The ten figures are ten cards, not a question on every number.** Written
+figures are positional — ٤٧ is ٤ then ٧, in the order 47 is written — so
+writing any number in them comes down to the ten. A question per number
+card (40 → ٤٠) would be dozens of near-identical questions; a card per
+figure is a schedule per figure, which is what comes back to ٤ and ٦, the
+pair that get confused. Each has `digit` on its form, so only its two
+questions can be asked of it: read (`dig2fig`, level one) and write
+(`fig2dig`, level three). Generated from the pack's `numerals`, so a
+language without its own figures has none. Filed under every deck that
+holds any part of the system.
+
+**Full numbers are written on the ranges.** `fig2own` (47 → ٤٧) and
+`ar2own` (the number in words → ٤٧), and the clock's `clock2own` and
+`time2own`, all on level three: writing from a cue. A range draws a
+different number each time, so this practises whole numbers without
+repeating one. The owner chose words → ٤٧ specifically, as practice in
+both. It tests two things at once, so it is asked only once the ten are
+cleared (`afterNumerals`, read by `availableTypes` through
+`numeralsKnownOf`). After that, a miss is a miss on the words. Before
+that, the four are not on the ladder at all, so nothing waits on figures
+never met. The early level-one question still accepts 47 or ٤٧.
+
+**A range is learnt only once the ten are.** `cardStandings` holds a range
+at Cleared while any of its system's figure cards is not learnt, as it
+already did for its words, and `heldFigures` lets the screen say
+"numerals" rather than "words". The Progress tab's Numbers section has the
+ten as a tile of their own.
+
+**Marked on the figures.** The `own` mode accepts only Eastern Arabic (or
+Persian) digits, forgiving notation as `fig` and `clock` do. The right
+number in Arabic numerals is not wrong: it comes back `western`, and the
+screen asks once more, the way a one-letter slip does. Reading a figure
+(`dig2fig`) can't be answered by copying it back.
+
+**The pad is always up.** A laptop keyboard has no ٤ and a phone's number
+pad only has 4, so for most learners the keys under the box are the only
+way to write the answer. The box asks the phone for no keyboard.
+
+**Names.** Eastern Arabic numerals for ١٢٣ (`numeralsLabel` on the pack,
+with an example where an instruction has room) and Arabic numerals for
+123, everywhere a learner reads them. `numeralsNote` carries "Indian
+numerals", the name Arabic speakers use.
+
+**What it costs.** One more question per range, and ten more cards. The
+first time the ten are cleared, each range gains two level-three
+questions, so the level above shuts, and so does the stretch that waits on
+it, until those are answered right twice in a row. Learners usually do
+that in a sitting. "Learnt" on a range now also waits on the ten figure
+cards' own reviews.
+

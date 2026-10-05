@@ -643,6 +643,8 @@ test("the gentle types are read off the definitions, not kept beside them", () =
        out of four, are recognition in exactly the sense the six above
        are: the answer is on the screen and nothing is written out. */
     "num2fig", "fig2pick", "rec2fig", "time2fig", "time2dial",
+    /* And reading one of the ten figures a language writes them in. */
+    "dig2fig",
   ]);
   for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {

@@ -98,6 +98,11 @@ export const NUMBER_EQUIVALENT: Record<string, string> = {
      is credited the way it always was; see NUMBER_FALLBACK. */
   own2num: "own2ar",
   own2time: "own2ar",
+  /* Written in the language's own figures out of the words: reading the
+     words, as `num2fig` is. Written from the English figures, no word was
+     read, so nothing is credited. */
+  ar2own: "ar2en",
+  time2own: "ar2en",
 };
 
 /**
@@ -126,8 +131,11 @@ export const TYPES = [
      range is never dealt an exercise above because it has no word of its
      own to be asked about, and a word is never dealt one of these because
      it is not a range — both fall out of what each `needs`. */
-  "num2fig", "fig2pick", "rec2fig", "fig2num", "own2num", "count2phrase",
-  "time2fig", "time2dial", "rec2dial", "fig2time", "own2time", "clock2time",
+  "num2fig", "fig2pick", "rec2fig", "fig2own", "ar2own", "fig2num", "own2num", "count2phrase",
+  "time2fig", "time2dial", "rec2dial", "clock2own", "time2own", "fig2time", "own2time", "clock2time",
+  /* and the ten figures a language writes numbers in, where it has its
+     own: read one, write one. */
+  "dig2fig", "fig2dig",
 ];
 
 export const EX: Record<string, ExerciseSpec> = {
@@ -325,7 +333,7 @@ export const EX: Record<string, ExerciseSpec> = {
   own2ar: {
     level: 4,
     instruction: "Write this number in {script}",
-    label: "{Script} figures → {script}",
+    label: "{Own} → {script}",
     short: "#→{S}",
     needs: ["numeral", "ar"],
     question: "Write this in {script}",
@@ -480,8 +488,8 @@ export const EX: Record<string, ExerciseSpec> = {
      implementation of the only screen there is. */
   num2fig: {
     level: 1,
-    instruction: "Read the number, then write it in figures",
-    label: "{Script} → figures",
+    instruction: "Read the number, then write it in Arabic numerals (123)",
+    label: "{Script} → Arabic numerals",
     short: "{S}→#",
     needs: ["rangeNumbers"],
     question: "Which number is this?",
@@ -496,7 +504,7 @@ export const EX: Record<string, ExerciseSpec> = {
   fig2pick: {
     level: 2,
     instruction: "Choose the number",
-    label: "Figures → choose",
+    label: "Arabic numerals → choose",
     short: "#→?",
     needs: ["rangeNumbers"],
     question: "Which one is this number?",
@@ -509,8 +517,8 @@ export const EX: Record<string, ExerciseSpec> = {
   },
   rec2fig: {
     level: 1,
-    instruction: "Listen, then write the number in figures",
-    label: "Listen → figures",
+    instruction: "Listen, then write the number in Arabic numerals (123)",
+    label: "Listen → Arabic numerals",
     short: "L→#",
     /* A recording somewhere in the system, which is what says a listening
        question is possible at all. Whether *this* number has one is
@@ -523,10 +531,45 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "fig",
     gentle: true,
   },
+  /* Written in the language's own figures, where it has them: 47 → ٤٧,
+     and the number in words → ٤٧. Third rung, beside listening and
+     writing the number down, because both are writing from a cue.
+
+     Only once the ten figures themselves are cleared — `afterNumerals`.
+     Writing ٤٧ out of the words asks two things at once, the words and
+     the figures, and a miss could be either; asked after the figures are
+     known, it is a miss on the words. Until then neither is on the
+     ladder, so a learner who has not met ٤ yet is not held back by it. */
+  fig2own: {
+    level: 3,
+    instruction: "Write this number in {ownEg}",
+    label: "Arabic numerals → {own}",
+    short: "#→{O}",
+    needs: ["rangeNumbers", "rangeFigures"],
+    afterNumerals: true,
+    question: "Write this number in {own}",
+    placeholder: "",
+    promptField: "en",
+    answerField: "numeral",
+    answerMode: "own",
+  },
+  ar2own: {
+    level: 3,
+    instruction: "Read the number, then write it in {ownEg}",
+    label: "{Script} → {own}",
+    short: "{S}→{O}",
+    needs: ["rangeNumbers", "rangeFigures"],
+    afterNumerals: true,
+    question: "Which number is this?",
+    placeholder: "",
+    promptField: "ar",
+    answerField: "numeral",
+    answerMode: "own",
+  },
   fig2num: {
     level: 4,
     instruction: "Write this number in {script}",
-    label: "Figures → {script}",
+    label: "Arabic numerals → {script}",
     short: "#→{S}",
     needs: ["rangeNumbers"],
     unless: ["rangeFigures"],
@@ -542,7 +585,7 @@ export const EX: Record<string, ExerciseSpec> = {
   own2num: {
     level: 4,
     instruction: "Write this number in {script}",
-    label: "{Script} figures → {script}",
+    label: "{Own} → {script}",
     short: "#→{S}",
     needs: ["rangeNumbers", "rangeFigures"],
     question: "Write this number out",
@@ -568,7 +611,7 @@ export const EX: Record<string, ExerciseSpec> = {
   },
   time2fig: {
     level: 1,
-    instruction: "Read the time, then write it in figures",
+    instruction: "Read the time, then write it in Arabic numerals (07:15)",
     label: "{Script} → clock",
     short: "{S}→⏱",
     needs: ["rangeTime"],
@@ -604,6 +647,34 @@ export const EX: Record<string, ExerciseSpec> = {
     answerField: "en",
     answerMode: "dial",
   },
+  /* The clock in the language's own figures, from the English ones and
+     from the words — see fig2own. */
+  clock2own: {
+    level: 3,
+    instruction: "Write this time in {ownEg}",
+    label: "Clock → {own}",
+    short: "⏱→{O}",
+    needs: ["rangeTime", "rangeFigures"],
+    afterNumerals: true,
+    question: "Write this time in {own}",
+    placeholder: "",
+    promptField: "en",
+    answerField: "numeral",
+    answerMode: "own",
+  },
+  time2own: {
+    level: 3,
+    instruction: "Read the time, then write it in {ownEg}",
+    label: "{Script} → {own} clock",
+    short: "{S}→{O}⏱",
+    needs: ["rangeTime", "rangeFigures"],
+    afterNumerals: true,
+    question: "What time is this?",
+    placeholder: "",
+    promptField: "ar",
+    answerField: "numeral",
+    answerMode: "own",
+  },
   fig2time: {
     level: 4,
     instruction: "Say this time in {script}",
@@ -621,7 +692,7 @@ export const EX: Record<string, ExerciseSpec> = {
   own2time: {
     level: 4,
     instruction: "Say this time in {script}",
-    label: "{Script} figures → {script}",
+    label: "{Own} → {script}",
     short: "⏱→{S}",
     needs: ["rangeTime", "rangeFigures"],
     question: "How would you say this time?",
@@ -645,6 +716,38 @@ export const EX: Record<string, ExerciseSpec> = {
     promptField: "clock",
     answerField: "ar",
     answerMode: "ar",
+  },
+  /* ---- the ten figures ------------------------------------------------
+     Asked of the ten cards a number system brings in a language that
+     writes numbers in figures of its own — ٠ to ٩ — and of nothing else:
+     `digit` is on those forms alone. Read first, written after, the way
+     every word is. Every number is built of these ten, so this is where
+     reading and writing ٤٧ is actually learnt; the questions on a range
+     that ask for the figures wait on them. */
+  dig2fig: {
+    level: 1,
+    instruction: "Write this numeral in Arabic numerals (123)",
+    label: "{Own} → Arabic numerals",
+    short: "{O}→#",
+    needs: ["digit"],
+    question: "Which number is this?",
+    placeholder: "Type the number",
+    promptField: "numeral",
+    answerField: "en",
+    answerMode: "fig",
+    gentle: true,
+  },
+  fig2dig: {
+    level: 3,
+    instruction: "Write this in {ownEg}",
+    label: "Arabic numerals → {own}",
+    short: "#→{O}",
+    needs: ["digit"],
+    question: "Write this in {own}",
+    placeholder: "",
+    promptField: "en",
+    answerField: "numeral",
+    answerMode: "own",
   },
 
   rec2attr: {
@@ -3058,6 +3161,10 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* Arabic's own figures, ٠ to ٩, which are what a learner meets on a
        price or a bus: the digit for the digit, and the Arabic thousands
        mark where English writes a comma. */
+    /* By the names they go by in English: these are Eastern Arabic
+       numerals, and 123 are Arabic numerals. */
+    numeralsLabel: "Eastern Arabic numerals",
+    numeralsNote: "Arabic speakers often call these “Indian numerals”: أرقام هندية.",
     numerals: (n) =>
       Number.isInteger(n) && n >= 0
         ? n
@@ -3482,6 +3589,8 @@ export function exOf(named: string, lang: Lang = activeLang()) {
   if (hit) return hit;
 
   const attr = quizAttrOf(lang);
+  const ownName = lang.numeralsLabel || "its own numerals";
+  const ownEg = lang.numerals ? `${ownName} (${lang.numerals(123)})` : ownName;
   /*
    * The two labels are different parts of speech, and that — not where they
    * land in a sentence — decides their case.
@@ -3501,7 +3610,15 @@ export function exOf(named: string, lang: Lang = activeLang()) {
       .replace(/\{Translit\}/g, cap(lang.translitLabel))
       .replace(/\{translit\}/g, lang.translitLabel.toLowerCase())
       .replace(/\{attr\}/g, attr ? attr.label : "sound")
-      .replace(/\{A\}/g, attr ? attr.short || "?" : "?");
+      .replace(/\{A\}/g, attr ? attr.short || "?" : "?")
+      /* The figures the language writes numbers in, by name — "Eastern
+         Arabic numerals" — and with three of them beside the name where
+         an instruction has the room. A pack with none never meets these:
+         every exercise that says them needs its figures. */
+      .replace(/\{Own\}/g, cap(ownName))
+      .replace(/\{own\}/g, ownName)
+      .replace(/\{ownEg\}/g, ownEg)
+      .replace(/\{O\}/g, lang.numerals ? lang.numerals(1) || "#" : "#");
 
   const out: Record<string, any> = { ...spec };
   for (const f of ["instruction", "label", "short", "question", "placeholder", "hintLabel", "hintHideLabel"]) {
@@ -3998,8 +4115,56 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
    * its comma as two answers — so 1 was right for 1,000 — and called 3000
    * a typo of 2000. See `numeralMeanings`.
    */
+  /*
+   * Written in the language's own figures — ٤٧, ٠٧:١٥ — and only in them.
+   *
+   * The one question here where ٤٧ and 47 are not the same answer: what
+   * it asks is the figures, so the number in the ones English uses is not
+   * it. Not a miss either, though. `western` says the number was right and
+   * the figures were not, and the screen asks again, once, saying which
+   * figures it wants — the same second go a slip of one letter gets.
+   *
+   * Notation is forgiven as everywhere else: grouping marks, a missing
+   * leading nought on a clock, the figures a Persian keyboard writes for
+   * the same numbers. A time read out of words is right in either half of
+   * the day, as `clock` is, and one copied from the figures is not.
+   */
+  if (mode === "own") {
+    const raw = String(typed == null ? "" : typed).trim();
+    const want = String(expected == null ? "" : expected);
+    if (!raw || !want) return { ok: false, reason: "wrong" };
+    const clock = want.includes(":");
+    const asNumber = (v: string): number | null => {
+      const t = figures(v);
+      return /^\d+$/.test(t) ? Number(t) : null;
+    };
+    const asMinutes = (v: string, either: boolean): number | null => {
+      const t = String(v)
+        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+        .replace(/[\s\u00A0]/g, "")
+        .replace(/[.\u066B\u066D]/g, ":");
+      const m = t.match(/^(\d{1,2}):(\d{1,2})$/);
+      if (!m) return null;
+      const h = Number(m[1]);
+      const min = Number(m[2]);
+      if (h > 23 || min > 59) return null;
+      return (either ? h % 12 : h) * 60 + min;
+    };
+    const either = spec.promptField !== "en";
+    const value = (v: string) => (clock ? asMinutes(v, either) : asNumber(v));
+    const same = value(raw) !== null && value(raw) === value(want);
+    if (/[0-9]/.test(raw)) return { ok: false, reason: "wrong", western: same };
+    return same ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
+  }
   const numerals = mode === "en" ? numeralMeanings(expected) : null;
   if (mode === "fig" || numerals) {
+    /* A question that shows the language's own figures and asks what
+       number they are is not answered by copying them back: ٤ for ٤
+       says nothing about whether it is four. */
+    if (mode === "fig" && spec.promptField === "numeral" && /[٠-٩۰-۹]/.test(String(typed || ""))) {
+      return { ok: false, reason: "wrong" };
+    }
     const got = figures(typed);
     if (!got || !/^\d+$/.test(got)) return { ok: false, reason: "wrong" };
     /* Leading zeros are notation too: 047 is 47 written out of habit. */

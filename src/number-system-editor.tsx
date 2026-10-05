@@ -2011,7 +2011,7 @@ function TryItScreen({ lang, draft, labels, render, onWrite, onClose }: {
   return (
     <Screen title="Check a number" onBack={onClose}>
       <Help>
-        Type any number up to seven figures and see exactly what a student would be asked. It is
+        Type any number up to seven digits and see exactly what a student would be asked. It is
         the same words the app would use in a question — nothing here is a preview of something
         else.
       </Help>
@@ -2022,7 +2022,7 @@ function TryItScreen({ lang, draft, labels, render, onWrite, onClose }: {
           value={typed}
           inputMode="numeric"
           placeholder="47"
-          aria-label="A number to try, in figures"
+          aria-label="A number to try, in Arabic numerals"
           autoFocus
           onChange={(e) => setTyped(e.target.value)}
         />

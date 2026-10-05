@@ -960,7 +960,8 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
      the tile with an empty face was the alternative. */
   /* One accepted answer of each kind, not all of them: see firstOfEach. */
   const lead = firstOfEach(leadOf(card));
-  const face = isDialog(card) ? firstOfEach(linesOf(card)[0]).ar : lead.ar;
+  /* And one of the ten figures, which has no word: the figure is its face. */
+  const face = isDialog(card) ? firstOfEach(linesOf(card)[0]).ar : lead.ar || String(card.numeral || "");
   return (
     <div
       className={`at-minicard${className ? " " + className : ""}`}
@@ -2726,13 +2727,18 @@ function ReadKind({ card, lang }: { card: Record<string, any>; lang: Lang }) {
       {isSentence(card) ? <ReadRow label="Shape">{A_SENTENCE}</ReadRow> : null}
       <ReadRow label="Listed as">{name ? <Written text={name} /> : null}</ReadRow>
       <ReadRow label="Worth">{worth}</ReadRow>
-      <ReadRow label="In figures">
+      <ReadRow label={lang.numeralsLabel ? `In ${lang.numeralsLabel}` : "In figures"}>
         {numeral ? (
-          <span lang={lang.id} dir={lang.direction}>
+          <span lang={lang.id} dir="ltr">
             {numeral}
           </span>
         ) : null}
       </ReadRow>
+      {/* And, on one of the ten figures themselves, what a learner will
+          hear them called — in Arabic, "Indian numerals". */}
+      {numeral && /^numeral\.\d$/.test(String((card.source && card.source.slot) || "")) && lang.numeralsNote ? (
+        <ReadRow label="Good to know">{lang.numeralsNote}</ReadRow>
+      ) : null}
       {perCard.map((dim) => (
         <ReadRow key={dim.field} label={dim.label}>
           {dimText(dim, lead[dim.field])}

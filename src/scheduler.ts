@@ -1294,6 +1294,11 @@ export interface Standing {
    */
   held?: number;
   /**
+   * And how many of those are the figures it is written in rather than
+   * words — ٤ — so what it is waiting on can be said by name.
+   */
+  heldFigures?: number;
+  /**
    * How many of the exercises that must hold for the next level to open
    * are there yet, and how many there are. That is everything on this
    * level *and under it*, because that is what openTypes asks: the
