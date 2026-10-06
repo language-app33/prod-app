@@ -2294,7 +2294,12 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const pad = (/** @type {number} */ n) => String(n).padStart(2, "0");
     const day = `${inMonth.getFullYear()}-${pad(inMonth.getMonth() + 1)}-${pad(inMonth.getDate())}`;
 
-    click(buttonNamed(/^Prep mode$/));
+    const prepHead = [...document.querySelectorAll("h3.at-sectionhead")].find((h) => /^Prep mode$/.test(h.textContent || ""));
+    check("Progress has Prep mode under a heading of its own, styled as the Courses tab's",
+      !!prepHead && !!prepHead.closest(".at-section")?.querySelector(".at-sectionlede"),
+      [...document.querySelectorAll(".at-sectionhead")].map((h) => h.textContent).join(" | "));
+    check("and its button starts one while there is none", !!buttonNamed(/^Start prep mode$/));
+    click(buttonNamed(/^Start prep mode$/));
     await sleep(250);
     check("Progress opens Prep mode on a screen of its own",
       /Prep mode/.test(((top() || {}).textContent || "")), ((top() || {}).textContent || "").slice(0, 60));
@@ -2379,7 +2384,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     /* Edited: the same screen, holding what was set. */
     click(buttonNamed(/^Progress$/));
     await sleep(300);
-    click(buttonNamed(/^Prep mode$/));
+    click(buttonNamed(/^Edit prep mode$/));
     await sleep(250);
     const again = /** @type {any} */ (document.getElementById("at-prep-name"));
     check("opening it again holds the prep as it was set",
@@ -2401,7 +2406,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     /* Aimed at Cleared instead: the tile counts cleared cards. */
     click(buttonNamed(/^Progress$/));
     await sleep(300);
-    click(buttonNamed(/^Prep mode$/));
+    click(buttonNamed(/^Edit prep mode$/));
     await sleep(250);
     click(levelPick(/^Cleared$/));
     await sleep(80);
@@ -2416,7 +2421,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     /* Cleared. */
     click(buttonNamed(/^Progress$/));
     await sleep(300);
-    click(buttonNamed(/^Prep mode$/));
+    click(buttonNamed(/^Edit prep mode$/));
     await sleep(250);
     const del = () => [...((foot() || document).querySelectorAll("button"))].find((b) => b.getAttribute("aria-label") === "Delete this prep");
     check("the way to delete it is an icon in the same bar, before Save",
@@ -2425,7 +2430,8 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       (foot() || {}).innerHTML?.slice(0, 160) || "(no foot)");
     click(del());
     await sleep(300);
-    check("deleting clears it from Progress", !document.querySelector(".at-prepnote"), note());
+    check("deleting clears it from Progress, whose button starts one again",
+      !document.querySelector(".at-prepnote") && !!buttonNamed(/^Start prep mode$/), note());
     click(buttonNamed(/^Home$/));
     await sleep(300);
     check("and from the home screen, which has its climb back",

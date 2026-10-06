@@ -2707,7 +2707,7 @@ button.at-deckstat:focus-visible { outline:3px solid var(--brass); outline-offse
 }
 .at-numword:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
 /* Prep mode, above the ladder: the button, and what is being prepped for. */
-.at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:16px; }
+.at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; }
 .at-prepbar .at-prepnote { margin:0; }
 /* The deck's own screen: how far it has got, then the two dates. */
 .at-deckhead { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
@@ -2931,7 +2931,8 @@ button.at-stat { transition: border-color 140ms ease; }
 
 /* --- Section: an eyebrow and an optional lede, the standard opener --- */
 .at-section > .at-sectiontop { display:flex; align-items:baseline; justify-content:space-between; gap: var(--s3); }
-.at-section > .at-sectiontop > .at-eyebrow { margin:0; }
+.at-section > .at-sectiontop > .at-eyebrow,
+.at-section > .at-sectiontop > .at-sectionhead { margin:0; }
 .at-section .at-sectioncount { font-family: var(--ui); font-size: var(--fs-xs); font-weight:800; letter-spacing:.04em; text-transform:uppercase; color: var(--muted); white-space:nowrap; }
 .at-section .at-sectionlede { margin: var(--s2) 0 0; }
 .at-section .at-sectionbody { margin-top: var(--s3); }
@@ -3845,6 +3846,8 @@ body.at-screening .at-chromebar { display:none; }
 .at-reportmeans { font-size: var(--fs-sm); color: var(--text); }
 .at-reportnote { font-size: var(--fs-sm); color: var(--text-soft); }
 .at-reportwho { font-size: var(--fs-xs); color: var(--muted); }
-/* An icon in the footer keeps its own size at the start of the bar — the
-   prep's delete beside its save — rather than taking a share of the row. */
-.at-screenfoot > .at-icon { flex: 0 0 auto; align-self: center; }
+/* An icon in the footer is a square the height of the button beside it —
+   the prep's delete next to its save — drawn as the icons beside New card
+   in the Cards tab are, rather than stretching to a share of the row. */
+.at-screenfoot > .at-icon { flex:0 0 auto; width:52px; height:52px; min-height:52px;
+  padding:0; box-sizing:border-box; }

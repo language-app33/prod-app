@@ -572,8 +572,14 @@ export function Notice({ kind = "info", children, plain }: {
 /* --- Section ------------------------------------------------------
    An eyebrow, an optional count, an optional lede. Thirty-two hand
    assembled copies of this shape, each with its own inline margins. */
-export function Section({ title, count, lede, action, children, className = "" }: {
+export function Section({ title, count, lede, action, children, className = "", head = false }: {
   title?: Node;
+  /**
+   * The title as a heading, the way the Courses tab heads "My courses" and
+   * "Join a course", rather than as the small capitals over a group of
+   * settings. For a screen made of a few large parts, like Progress.
+   */
+  head?: boolean;
   count?: number;
   lede?: Node;
   /**
@@ -593,7 +599,7 @@ export function Section({ title, count, lede, action, children, className = "" }
     <div className={`at-section${className ? " " + className : ""}`}>
       {(title || count || action) && (
         <div className="at-sectiontop">
-          {title ? <p className="at-eyebrow">{title}</p> : <span />}
+          {title ? head ? <h3 className="at-sectionhead">{title}</h3> : <p className="at-eyebrow">{title}</p> : <span />}
           {action || (count != null ? <span className="at-sectioncount">{count}</span> : null)}
         </div>
       )}

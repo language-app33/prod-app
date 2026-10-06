@@ -17173,25 +17173,30 @@ function ProgressTab({
   return (
     <>
       <Lately moves={moves} />
-      {/* Prep mode: getting a set of decks learnt by a date. The button
-          says what is being prepped for, once something is. */}
-      <div className="at-prepbar">
-        <Button variant="ghost" onClick={() => setPrepOpen(true)} aria-haspopup="dialog">
-          Prep mode
-        </Button>
-        {prep && (
-          <Help className="at-prepnote">
-            {prepNow === "past"
-              ? `${prep.name} has come — edit the prep or clear it.`
-              : prepNow === "done"
-              ? `Ready for ${prep.name}: every card is ${prep.target === "cleared" ? "cleared" : "learnt"}.`
-              : `Prepping for ${prep.name} · ${
-                  prepDaysLeft(prep.date) === 1 ? "1 day left" : `${prepDaysLeft(prep.date)} days left`
-                }`}
-          </Help>
-        )}
-      </div>
+      {/* Prep mode: getting a set of decks ready by a date, under a heading
+          of its own like the other parts of the screen. The button starts
+          one, or opens the one there is; the line beside it says what is
+          being prepped for. */}
+      <Section head title="Prep mode" lede="Get some decks ready by a set date, like an exam or the start of a class.">
+        <div className="at-prepbar">
+          <Button variant="ghost" onClick={() => setPrepOpen(true)} aria-haspopup="dialog">
+            {prep ? "Edit prep mode" : "Start prep mode"}
+          </Button>
+          {prep && (
+            <Help className="at-prepnote">
+              {prepNow === "past"
+                ? `${prep.name} has come — edit the prep or delete it.`
+                : prepNow === "done"
+                ? `Ready for ${prep.name}: every card is ${prep.target === "cleared" ? "cleared" : "learnt"}.`
+                : `Prepping for ${prep.name} · ${
+                    prepDaysLeft(prep.date) === 1 ? "1 day left" : `${prepDaysLeft(prep.date)} days left`
+                  }`}
+            </Help>
+          )}
+        </div>
+      </Section>
       <Section
+        head
         title="The ladder"
         lede="Where your cards are on the learning ladder. A card moves up a level once you have answered everything below it right twice running — and counts as learnt once it has come back twice since and you were right."
       >
@@ -17346,7 +17351,7 @@ function ProgressTab({
           how many are left, and a bar beside it because a number alone is
           read and a bar is seen. */}
       {deckRows.length > 0 && (
-        <Section title="Decks" lede="How you're doing on each deck you're studying.">
+        <Section head title="Decks" lede="How you're doing on each deck you're studying.">
           <div className="at-deckprog">
             {deckRows.map((d) => (
               /* A button: the whole tile opens the deck's own screen. */

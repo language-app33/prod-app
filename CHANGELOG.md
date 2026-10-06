@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.373 — 6 October 2026
+
+**Progress gives Prep mode a heading of its own, and the prep's delete button matches the rest.**
+
+- On Progress, Prep mode now sits under its own "Prep mode" heading, with
+  one line saying what it is for. Its button says "Start prep mode" while
+  there is no prep, and "Edit prep mode" once there is one.
+- The headings on Progress ("Prep mode", "The ladder", "Decks") are now
+  drawn like the ones on the Courses tab ("My courses", "Join a course"),
+  instead of small grey capitals.
+- The delete button at the bottom of the prep screen is now a square
+  outlined icon the height of Save, drawn like the icons beside New card
+  under Teaching › Cards. Before, it was a short, wide box.
+
 ## 0.372 — 6 October 2026
 
 **"Learn more" under an answer is open from the start.**
