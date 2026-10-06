@@ -3845,3 +3845,6 @@ body.at-screening .at-chromebar { display:none; }
 .at-reportmeans { font-size: var(--fs-sm); color: var(--text); }
 .at-reportnote { font-size: var(--fs-sm); color: var(--text-soft); }
 .at-reportwho { font-size: var(--fs-xs); color: var(--muted); }
+/* An icon in the footer keeps its own size at the start of the bar — the
+   prep's delete beside its save — rather than taking a share of the row. */
+.at-screenfoot > .at-icon { flex: 0 0 auto; align-self: center; }

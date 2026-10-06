@@ -12,7 +12,7 @@ import {
   Button,
   CardReadout,
   CardTile,
-  CheckList,
+  DeckSwitch,
   ClipList,
   ConfirmModal,
   Empty,
@@ -363,12 +363,17 @@ export const cardStandings = (
  * Progress tab's decks all read this, so none of them can count a waiting
  * number differently from the others.
  */
-export function towardsLearnt(it: Item, settings: Settings, among: Item[]): { at: Standing; share: number } | null {
+export function towardsLearnt(it: Item, settings: Settings, among: Item[]): { at: Standing; share: number; reach: number } | null {
   let rows = cardStandings(it, settings, among);
   if (!rows.length) rows = cardStandings(it, settings, among, ladderedOnceOpen);
   const at = standing(rows);
   if (!at) return null;
-  return { at, share: rows.filter((r) => r.status === "done").length / rows.length };
+  return {
+    at,
+    share: rows.filter((r) => r.status === "done").length / rows.length,
+    /* The same, with a cleared top row counted in: how far towards cleared. */
+    reach: rows.filter((r) => r.status === "done" || r.status === "cleared").length / rows.length,
+  };
 }
 
 /**
@@ -5298,7 +5303,8 @@ function dayOf(t: Millis): Millis {
 }
 
 export interface Workload {
-  /** Cards that can be asked about and are not yet learnt. */
+  /** Cards that can be asked about and are not yet learnt — or cleared,
+      where that is the target. */
   left: number;
   /** Right answers still needed to take all of them to learnt. */
   questions: number;
@@ -5324,15 +5330,21 @@ export interface Workload {
  * the last. Ten even for a keen learner, whose door is wider (see
  * frontDoorFor): a wider door clears each word more slowly, and measured,
  * a hundred cards were all met at about the same day either way.
+ *
+ * With Cleared as the target (a prep can aim there — see PrepTarget), a
+ * cleared card needs nothing, the passes are left out of the questions, and
+ * the fewest days are CLEAR_DAYS where they were LEARN_DAYS: the passes are
+ * what make learning a card take days rather than an evening.
  */
-export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()): Workload {
+export function workloadOf(cards: Item[], settings: Settings, at: Millis = now(), target: PrepTarget = "learnt"): Workload {
+  const toClear = target === "cleared";
   let left = 0;
   let questions = 0;
   let unseen = 0;
   let floor = 0;
   for (const it of cards) {
     const where = standing(cardStandings(it, settings, cards));
-    if (!where || where.status === "done") continue;
+    if (!where || reached(where, target)) continue;
     left += 1;
     let fresh = true;
     let passesLeft = 0;
@@ -5346,13 +5358,16 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
         const hist = st.hist || [];
         questions += hist.length && hist[hist.length - 1] ? 1 : 2;
       }
+      if (toClear) continue;
       const top = topLevelOf(keys);
       const owed = Math.max(0, PASSES_TO_LEARN - passesMade(keys, (k) => stateOf(unit, k)));
       questions += owed * keys.filter((k) => levelOf(k) === top).length;
       passesLeft = Math.max(passesLeft, owed);
     }
     if (fresh) unseen += 1;
-    if (where.status === "cleared" && passesLeft > 0) {
+    if (toClear) {
+      floor = Math.max(floor, blocksAhead(it, settings) ? 2 * CLEAR_DAYS : CLEAR_DAYS);
+    } else if (where.status === "cleared" && passesLeft > 0) {
       const next = nextPassAt(it, settings);
       const wait = next > at ? Math.ceil((dayOf(next) - dayOf(at)) / 86400000) : 0;
       floor = Math.max(floor, wait + (passesLeft - 1) * 2);
@@ -5362,7 +5377,7 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
       floor = Math.max(floor, LEARN_DAYS);
     }
   }
-  if (unseen) floor = Math.max(floor, Math.ceil(unseen / FRONT_DOOR_CAP) - 1 + LEARN_DAYS);
+  if (unseen) floor = Math.max(floor, Math.ceil(unseen / FRONT_DOOR_CAP) - 1 + (toClear ? CLEAR_DAYS : LEARN_DAYS));
   return {
     left,
     questions,
@@ -11814,7 +11829,7 @@ export default function ArabicTrainer() {
                     learner set themselves. */}
                 {homePrep && (
                   <div className="at-card at-preptile at-mb3">
-                    <Climb items={shown.filter(prepDeckOf(homePrep.decks))} settings={settings} />
+                    <Climb items={shown.filter(prepDeckOf(homePrep.decks))} settings={settings} target={homePrep.target} />
                     <div className="at-row">
                       <Button variant="primary" onClick={() => begin(false, prepDeckOf(homePrep.decks))}>
                         Prep for {homePrep.name}
@@ -13150,7 +13165,7 @@ export default function ArabicTrainer() {
  *
  * Exported for the tests, which hold a deck of numbers to it.
  */
-export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
+export function climbOf(cards: Item[], settings: Settings, all: Item[], target: PrepTarget = "learnt") {
   /* The four levels, then the cards with nothing above them left to open
      — the same five buckets the tiles in Progress count. */
   const spread = [0, 0, 0, 0, 0];
@@ -13166,8 +13181,10 @@ export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
     const toward = towardsLearnt(it, settings, all);
     if (!toward) continue;
     n++;
-    got += toward.share;
-    if (toward.at.status === "done") {
+    /* Aiming at Cleared, the top row counts once it is cleared: the passes
+       are the part of the climb a prep for Cleared leaves out. */
+    got += target === "cleared" && toward.at.status === "cleared" ? toward.reach : toward.share;
+    if (reached(toward.at, target)) {
       learnt++;
       spread[4]++;
     } else spread[toward.at.level - 1]++;
@@ -13175,8 +13192,8 @@ export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
   return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
 }
 
-function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
-  const climb = useMemo(() => climbOf(items, settings, items), [items, settings]);
+function Climb({ items, settings, target = "learnt" }: { items: Item[]; settings: Settings; target?: PrepTarget }) {
+  const climb = useMemo(() => climbOf(items, settings, items, target), [items, settings, target]);
 
   /* Nothing practisable, nothing to draw. The card below still offers what
      it can, and the reason there is nothing is the Cards tab's to give. */
@@ -13214,7 +13231,7 @@ function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
       </div>
       <div className="at-climbside">
         <p className="at-climbsay">
-          {learnt} of {plural(n, "card")} learnt
+          {learnt} of {plural(n, "card")} {target === "cleared" ? "cleared" : "learnt"}
         </p>
         <span className="at-climbband" aria-hidden="true">
           {spread.map((count, i) =>
@@ -16239,15 +16256,16 @@ function Lately({ moves }: { moves?: Record<string, DayMoves> }) {
    Prep mode
 
    A learner preparing for something on a date — the start of a class, an
-   exam — names it, sets the date and picks the decks that have to be
-   learnt by then. The home screen then offers a session drawn from those
+   exam — names it, sets the date, picks the decks that have to be ready by
+   then and how far: cleared, or learnt. The home screen then offers a session drawn from those
    decks alone, which is the fastest way to finish them, and says how many
    days are left and whether their pace gets them there. The one prep is
    kept in the settings, so it follows the learner to their other devices
    the way the rest of their settings do, and it is theirs to edit or clear.
 
-   Being ready means every card in the chosen decks learnt before the day
-   itself starts: on the morning of an exam is too late to be learning.
+   Being ready means every card in the chosen decks at the target before
+   the day itself starts: on the morning of an exam is too late to be
+   learning.
    ------------------------------------------------------------------ */
 
 export interface Prep {
@@ -16255,8 +16273,24 @@ export interface Prep {
   name: string;
   /** The day of it, as a date input writes one: YYYY-MM-DD. */
   date: string;
-  /** The decks to have learnt by then. */
+  /** The decks to have learnt, or cleared, by then. */
   decks: string[];
+  /** How far those decks have to be by then. */
+  target: PrepTarget;
+}
+
+/**
+ * How far a prep's decks have to get: every card learnt — cleared and its
+ * two passes made, days apart — or only cleared, which is up the whole
+ * ladder and can be done in days rather than the better part of a week.
+ * Learnt for a prep saved before there was a choice, since that is what it
+ * was aiming at.
+ */
+export type PrepTarget = "cleared" | "learnt";
+
+/** Whether a card standing here has got as far as the target. */
+function reached(at: Standing, target: PrepTarget): boolean {
+  return at.status === "done" || (target === "cleared" && at.status === "cleared");
 }
 
 /** The prep in the settings, if there is a whole one. */
@@ -16267,7 +16301,7 @@ export function prepOf(settings: Settings | null | undefined): Prep | null {
   const date = String(p.date || "");
   const decks = Array.isArray(p.decks) ? p.decks.map((d: unknown) => String(d)).filter(Boolean) : [];
   if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !decks.length) return null;
-  return { name, date, decks };
+  return { name, date, decks, target: p.target === "cleared" ? "cleared" : "learnt" };
 }
 
 /** The first moment of the prep's day: the deadline for being ready. */
@@ -16303,7 +16337,8 @@ export function prepDaysLeft(date: string, at: Millis = now()): number {
 
 /**
  * Where a prep stands: still to come, its day come, every card in it
- * learnt already, or nothing in its decks to learn in this language.
+ * learnt (or cleared) already, or nothing in its decks to learn in this
+ * language.
  */
 export function prepStatus(
   prep: Prep,
@@ -16314,13 +16349,13 @@ export function prepStatus(
   if (at >= prepStart(prep.date)) return "past";
   const cards = items.filter(prepDeckOf(prep.decks)).filter((it) => standing(cardStandings(it, settings, items)));
   if (!cards.length) return "empty";
-  return workloadOf(cards, settings, at).left ? "active" : "done";
+  return workloadOf(cards, settings, at, prep.target).left ? "active" : "done";
 }
 
 /** What a prep's forecast says, in a sentence. */
-export function readyWords(answer: ReadyAnswer, date: string, perDay: number): string {
+export function readyWords(answer: ReadyAnswer, date: string, perDay: number, target: PrepTarget = "learnt"): string {
   const day = new Date(prepStart(date)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-  if (answer.kind === "already") return "Every card in these decks is already learnt.";
+  if (answer.kind === "already") return `Every card in these decks is already ${target === "cleared" ? "cleared" : "learnt"}.`;
   if (answer.kind === "late") {
     return answer.earliest === null
       ? `You can't be ready before ${day}: however much you practise, it would take more than two years.`
@@ -16351,6 +16386,7 @@ function PrepScreen({
   const [name, setName] = useState(prep ? prep.name : "");
   const [date, setDate] = useState(prep ? prep.date : "");
   const [chosen, setChosen] = useState<string[]>(prep ? prep.decks.filter((d) => decks.some((x) => x.name === d)) : []);
+  const [target, setTarget] = useState<PrepTarget>(prep ? prep.target : "learnt");
   const tomorrow = dayKey(now() + 86400000);
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= tomorrow;
   const ready = name.trim() !== "" && dateOk && chosen.length > 0;
@@ -16358,15 +16394,35 @@ function PrepScreen({
   const answer = useMemo(
     () =>
       dateOk && chosen.length
-        ? readyFor(workloadOf(collection.filter(prepDeckOf(chosen)), settings), prepStart(date))
+        ? readyFor(workloadOf(collection.filter(prepDeckOf(chosen)), settings, now(), target), prepStart(date))
         : null,
-    [dateOk, chosen, date, collection, settings],
+    [dateOk, chosen, date, collection, settings, target],
   );
   return (
-    <Screen title="Prep mode" onBack={onBack}>
+    <Screen
+      title="Prep mode"
+      onBack={onBack}
+      /* Save at the foot of the screen, as every other form keeps it, and
+         the way to delete the prep at the other end of the same bar —
+         an icon, so it is there without competing with Save. */
+      footer={
+        <>
+          {prep && (
+            <IconButton icon="delete" label="Delete this prep" danger onClick={() => onSave(null)} />
+          )}
+          <Button
+            variant="primary"
+            disabled={!ready}
+            onClick={() => ready && onSave({ name: name.trim(), date, decks: chosen, target })}
+          >
+            {prep ? "Save changes" : "Start prepping"}
+          </Button>
+        </>
+      }
+    >
       <Lede>
-        Preparing for something on a set date? Pick the decks you need fully learnt by then. The home screen will
-        offer sessions drawn only from those decks, and tell you whether you're on track.
+        Preparing for something on a set date? Pick the decks you need ready by then. The home screen will offer
+        sessions drawn only from those decks, and tell you whether you're on track.
       </Lede>
       <FormField label="What are you preparing for?" htmlFor="at-prep-name">
         <input
@@ -16393,36 +16449,43 @@ function PrepScreen({
           onChange={(e) => setDate(e.target.value)}
         />
       </FormField>
-      <FormField label="Decks to have fully learnt by then">
-        <CheckList
-          options={decks.map((d) => ({ id: d.name, title: d.name, note: `${d.learnt} of ${plural(d.n, "card")} learnt` }))}
+      {/* The decks as a card's editor puts a card in them: pills, and a
+          sheet to add more from. */}
+      <FormField label="Decks to target">
+        <DeckSwitch
+          decks={decks.map((d) => ({ id: d.name, title: d.name, cardCount: d.n }))}
           chosen={chosen}
           onToggle={(id, wasOn) => setChosen((c) => (wasOn ? c.filter((x) => x !== id) : c.concat([id])))}
-          empty="No decks to prepare yet."
+          words={{
+            first: "Choose decks",
+            drop: (title) => `Stop targeting ${title}`,
+            lede: "Choose the decks to have ready by then.",
+            note: "",
+            none: "No decks to prepare yet.",
+          }}
+        />
+      </FormField>
+      <FormField
+        label="Target level"
+        hint={
+          target === "cleared"
+            ? "Every card answered right all the way up its levels. Quicker to reach."
+            : "Every card cleared, then remembered on two reviews a few days apart."
+        }
+      >
+        <Segmented
+          label="Target level"
+          options={[{ value: "cleared", label: "Cleared" }, { value: "learnt", label: "Learnt" }]}
+          value={target}
+          onChange={(v) => setTarget(v as PrepTarget)}
         />
       </FormField>
       {answer && (
         <div className="at-forecast at-prepready" aria-live="polite">
           <p>
-            <span className="at-forecastpace">{readyWords(answer, date, perDay)}</span>
+            <span className="at-forecastpace">{readyWords(answer, date, perDay, target)}</span>
           </p>
           <p className="at-forecastnote">An estimate, assuming you get every answer right, so allow a little more.</p>
-        </div>
-      )}
-      <div className="at-row">
-        <Button
-          variant="primary"
-          disabled={!ready}
-          onClick={() => ready && onSave({ name: name.trim(), date, decks: chosen })}
-        >
-          {prep ? "Save changes" : "Start prepping"}
-        </Button>
-      </div>
-      {prep && (
-        <div className="at-row at-mt3">
-          <Button variant="ghost" onClick={() => onSave(null)}>
-            Stop prepping
-          </Button>
         </div>
       )}
     </Screen>
@@ -16457,10 +16520,10 @@ function PrepLine({
 }) {
   const left = prepDaysLeft(prep.date);
   const answer = useMemo(
-    () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings), prepStart(prep.date)),
+    () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings, now(), prep.target), prepStart(prep.date)),
     [collection, settings, prep],
   );
-  const g = prepGlance(left, answer, perDay, today);
+  const g = prepGlance(left, answer, perDay, today, prep.target);
   /* Dots while they can be counted at a glance; past that, the number. */
   const dots = g.goal !== null && g.goal <= PREP_DOTS ? g.goal : 0;
   return (
@@ -16517,7 +16580,13 @@ export function prepToday(left: number, answer: ReadyAnswer, questionsToday: num
  * day it takes when it does not, and as the earliest they could be ready
  * when no amount of practice makes the day.
  */
-export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, questionsToday: number): {
+export function prepGlance(
+  left: number,
+  answer: ReadyAnswer,
+  perDay: number,
+  questionsToday: number,
+  target: PrepTarget = "learnt",
+): {
   done: number;
   goal: number | null;
   days: number;
@@ -16529,15 +16598,17 @@ export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, qu
 } {
   const { done, goal } = prepToday(left, answer, questionsToday);
   const base = { done, goal, days: Math.max(0, left) };
-  if (answer.kind === "already") return { ...base, tone: "good", status: "All learnt", detail: "" };
+  const toClear = target === "cleared";
+  if (answer.kind === "already") return { ...base, tone: "good", status: toClear ? "All cleared" : "All learnt", detail: "" };
   if (answer.kind === "late") {
+    const all = toClear ? "Too soon to clear it all" : "Too soon to learn it all";
     return {
       ...base,
       tone: "late",
       status: "Too soon",
       detail: answer.earliest === null
-        ? "Too soon to learn it all — it would take more than two years"
-        : `Too soon to learn it all — the earliest you could be ready is ${forecastWords(answer.earliest)}`,
+        ? `${all} — it would take more than two years`
+        : `${all} — the earliest you could be ready is ${forecastWords(answer.earliest)}`,
     };
   }
   /* This morning's rate, which today's goal is also made from — see
@@ -17113,7 +17184,7 @@ function ProgressTab({
             {prepNow === "past"
               ? `${prep.name} has come — edit the prep or clear it.`
               : prepNow === "done"
-              ? `Ready for ${prep.name}: every card is learnt.`
+              ? `Ready for ${prep.name}: every card is ${prep.target === "cleared" ? "cleared" : "learnt"}.`
               : `Prepping for ${prep.name} · ${
                   prepDaysLeft(prep.date) === 1 ? "1 day left" : `${prepDaysLeft(prep.date)} days left`
                 }`}

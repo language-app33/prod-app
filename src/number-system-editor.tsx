@@ -54,9 +54,9 @@ import type { RangeCheck } from "./numbers/range.ts";
 import { figureOf, homesOf, partTags } from "./numbers/generate.ts";
 import { readNouns, withNouns } from "./numbers/nouns.ts";
 import type { ReadNoun } from "./numbers/nouns.ts";
-import { Button, ConfirmModal, Help, Icon, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
+import { Button, ConfirmModal, DeckSwitch, Help, Icon, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
 import { dimsFor } from "./languages.ts";
-import { DeckSwitch, RecordingScreen, ScriptInput } from "./card-editor.tsx";
+import { RecordingScreen, ScriptInput } from "./card-editor.tsx";
 
 /** A box's number in the language's own figures, under the one it is
     called by — "" where the pack has none or the box is not one number. */

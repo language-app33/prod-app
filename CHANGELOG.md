@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.371 — 6 October 2026
+## 0.372 — 6 October 2026
 
 **"Learn more" under an answer is open from the start.**
 
@@ -19,6 +19,24 @@ and moves once per batch of work you would notice, not once per commit.
 - The arrow beside "Learn more" is gone, and the box can no longer be
   folded away. The trade-off: on a card with a lot to say, the Continue
   button sits further down the page.
+
+## 0.371 — 6 October 2026
+
+**Prep mode can aim at Cleared, and its screen works like the rest of the app.**
+
+- A new "Target level" choice, Cleared or Learnt, under the decks. Cleared
+  means every card answered right all the way up its levels; Learnt adds
+  the two reviews a few days apart that keep it. Aiming at Cleared, the
+  home screen's prep tile counts cards cleared rather than learnt, its
+  percentage and sessions a day are worked out to Cleared, the earliest
+  date comes sooner, and the prep counts as done once every card is
+  cleared. A prep set up before this aims at Learnt, as it did.
+- "Decks to have fully learnt by then" is now "Decks to target", and the
+  decks are chosen the way a card's decks are: the chosen ones as pills
+  you can take off, and a button opening the list to add more.
+- Save sits in the bar pinned to the bottom of the screen, as on the
+  other forms. "Stop prepping" is now a delete icon at the left of that
+  same bar.
 
 ## 0.370 — 6 October 2026
 
