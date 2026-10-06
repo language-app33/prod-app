@@ -47,7 +47,7 @@ import { linesOf, pickedFrom } from "./dialogs.ts";
 import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, lendsInto, tensedOf, verbOf } from "./languages.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
-import { aboutPerson, fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
+import { aboutPerson, fillForm, fillsOf, lentBy, readAs, readingOf, readingsOf, refOf, slotsOf, valuesForTurn } from "./variables.ts";
 import {
   agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, ownSlot, partnerOf, personsOf,
   rowIdsOf, rowOf, slotLinks, slotRows, subjectSlot,
@@ -291,7 +291,11 @@ export function agreeTook(
     if (spec) {
       const agreed = agreedValue(owner.card, spec, value, beside ? readOff(beside, lang) : null);
       if (!agreed) return false;
-      out[slot] = agreed;
+      /* A demonstrative in a reading blank reads *these are* off the form
+         the noun chose, not *this is* off the word it was drawn as. */
+      out[slot] = agreed !== value && readingOf(owner.card, slot)
+        ? readAs(owner.card, { ...agreed, readings: readingsOf(owner.card, agreed, false) }, slot)
+        : agreed;
       return true;
     }
     const tensed = tensedOf(lang, owner.card.category);

@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.367 — 6 October 2026
+
+**"What is this?" and "what are these?" from one sentence card.**
+
+- A blank for *this* can now read three ways in English, the same as a
+  pronoun blank: *this*, *this is*, or *is this*. The Arabic stays as it
+  is. شو {{is-this}}؟ comes out as "what is this?" with هاد and "what are
+  these?" with هدول.
+- The *is* or *are* follows whichever form the sentence shows, including
+  when the form is picked to match a noun beside it: "this is my friend",
+  "these are my friends".
+- When you choose a demonstrative blank in the editor, it asks how it
+  should read, as choosing a pronoun does. The same goes for a group
+  tag or a card ID with demonstratives behind it.
+- The English is worked out automatically: *this* and *that* take *is*,
+  *these* and *those* take *are*. Unlike pronouns, there is no place yet
+  to type a different wording for a demonstrative.
+
 ## 0.366 — 6 October 2026
 
 **Bigger keys for writing numbers in Arabic numerals.**

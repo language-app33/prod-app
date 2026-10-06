@@ -5548,6 +5548,9 @@ const openPronounTables = async () => {
       check("the pronoun is one blank on the list, not three",
         names().includes("pronoun") && !names().includes("pronoun-is") && !names().includes("is-pronoun"),
         names().join(" ") || "(nothing offered)");
+      check("and so is the demonstrative, which reads this, this is or is this",
+        names().includes("demonstrative") && !names().includes("demonstrative-is") && !names().includes("is-demonstrative"),
+        names().join(" ") || "(nothing offered)");
       click(rowFor(/^pronoun$/));
       await sleep(300);
       const title = () => {

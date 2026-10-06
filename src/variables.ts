@@ -105,6 +105,30 @@ export const IS_PRONOUN_SLOT = "is-pronoun";
 export const READING_SLOTS = [PRONOUN_IS_SLOT, IS_PRONOUN_SLOT];
 
 /*
+ * And *this* and *these*, read the same three ways.
+ *
+ * شو هاد؟ is *what is this?* and شو هدول؟ *what are these?* — the *is*
+ * and the *are* follow the demonstrative exactly as they follow a
+ * pronoun, and Arabic says neither. So a demonstrative fills the same
+ * pair of readings, under its own kind and under every tag or ID that
+ * reaches it:
+ *
+ *     {{demonstrative}}      this     · these
+ *     {{demonstrative-is}}   this is  · these are
+ *     {{is-demonstrative}}   is this  · are these
+ *
+ * Read off each form's own English by beReadings, since the plural is a
+ * form of the same card. Added in 0.367.
+ */
+export const DEMONSTRATIVE_SLOT = "demonstrative";
+export const DEMONSTRATIVE_IS_SLOT = "demonstrative-is";
+export const IS_DEMONSTRATIVE_SLOT = "is-demonstrative";
+export const DEMONSTRATIVE_READING_SLOTS = [DEMONSTRATIVE_IS_SLOT, IS_DEMONSTRATIVE_SLOT];
+
+/** Whether a kind of word reads with *to be* — a pronoun or a demonstrative. */
+export const readsWithBe = (kind: string): boolean => kind === PRONOUN_SLOT || kind === DEMONSTRATIVE_SLOT;
+
+/*
  * An adjective, said about somebody with the pronoun left out.
  *
  * Palestinian Arabic answers "how are you?" with تعبان — *I am tired* —
@@ -128,15 +152,16 @@ export const READING_SLOTS = [PRONOUN_IS_SLOT, IS_PRONOUN_SLOT];
 export const ADJECTIVE_SLOT = "adjective";
 export const ADJECTIVE_IS_SLOT = "adjective-is";
 /** Every blank name that reads a kind of word some other way. */
-export const RESERVED_READINGS = [...READING_SLOTS, ADJECTIVE_IS_SLOT];
+export const RESERVED_READINGS = [...READING_SLOTS, ...DEMONSTRATIVE_READING_SLOTS, ADJECTIVE_IS_SLOT];
 
 /**
  * The two readings of a pronoun's English, worked out from the English.
  *
  * About English and nothing else — which verb *to be* takes after I, he
  * or you is a fact of the language every card is explained in, not of the
- * one being learnt, so it can live here. *I* takes *am*; *he*, *she* and
- * *it* take *is*; everything else takes *are*. A note in brackets — "you
+ * one being learnt, so it can live here. *I* takes *am*; *he*, *she*,
+ * *it*, *this* and *that* take *is*; everything else — *these*, *those*,
+ * *you*, *they* — takes *are*. A note in brackets — "you
  * (m)" — stays on the end, where it still reads as a note: *you are (m)*,
  * *are you (m)*.
  *
@@ -150,16 +175,17 @@ export function beReadings(en: string | null | undefined): { is: string; ask: st
   const base = ((m && m[1]) || whole).trim() || whole;
   const note = m && m[2] && base !== whole ? ` ${m[2]}` : "";
   const first = base.split(/\s+/)[0].toLowerCase();
-  const be = first === "i" ? "am" : ["he", "she", "it"].includes(first) ? "is" : "are";
+  const be = first === "i" ? "am" : ["he", "she", "it", "this", "that"].includes(first) ? "is" : "are";
   return { is: `${base} ${be}${note}`, ask: `${be} ${base}${note}` };
 }
 
 /**
  * The English a pronoun lends each of the two reading blanks: what the
  * teacher wrote on the Pronouns screen, or what beReadings makes of its
- * English where they wrote nothing.
+ * English where they wrote nothing. A demonstrative the same, under its
+ * own kind's names — see DEMONSTRATIVE_SLOT.
  *
- * Empty for a card that is not a pronoun, which lends its plain English
+ * Empty for a card that is neither, which lends its plain English
  * everywhere. `form` is the form being lent — the card's own word, almost
  * always — and the teacher's readings belong to that word alone: another
  * form of a pronoun is read off its own English.
@@ -169,15 +195,17 @@ export function readingsOf(
   form: WithSlots | null | undefined,
   lead = true,
 ): Record<string, string> {
-  if (!card || String(card.category || "").toLowerCase() !== PRONOUN_SLOT) return {};
+  const kind = String((card && card.category) || "").toLowerCase();
+  if (!card || !readsWithBe(kind)) return {};
+  const [isSlot, askSlot] = readingNames(kind, kind);
   const en = (splitAlternatives(text(form, "en"))[0] || "").trim();
   const made = beReadings(en);
   const said = (field: string) => (lead ? text(card, field).trim() : "");
   const out: Record<string, string> = {};
   const is = said("enIs") || made.is;
   const ask = said("enAsk") || made.ask;
-  if (is) out[PRONOUN_IS_SLOT] = is;
-  if (ask) out[IS_PRONOUN_SLOT] = ask;
+  if (is) out[isSlot] = is;
+  if (ask) out[askSlot] = ask;
   return out;
 }
 
@@ -255,7 +283,8 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
  * three built-in names are this rule applied to the kind, and read exactly
  * as before.
  *
- * A pronoun reads `-is` as *I am* and `is-` as *am I*; an adjective reads
+ * A pronoun reads `-is` as *I am* and `is-` as *am I*, and a
+ * demonstrative as *this is* and *is this*; an adjective reads
  * `-is` about each person in turn; nothing else reads either, so a tag
  * with nouns and adjectives in it lends only its adjectives to
  * `{{feelings-is}}`. `{{word}}` has no readings: every word fills it, and
@@ -263,7 +292,7 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
  */
 export function readingNames(kind: string, name: string): string[] {
   if (!name || name === WORD_SLOT) return [];
-  if (kind === PRONOUN_SLOT) return [`${name}-is`, `is-${name}`];
+  if (readsWithBe(kind)) return [`${name}-is`, `is-${name}`];
   if (kind === ADJECTIVE_SLOT) return [`${name}-is`];
   return [];
 }
@@ -288,7 +317,7 @@ export function readingBase(slot: string): { base: string; reads: "is" | "ask" }
  */
 export function readingOf(card: WithSlots | null | undefined, slot: string): "" | "is" | "ask" {
   const kind = String((card && card.category) || "").toLowerCase();
-  if (kind !== PRONOUN_SLOT && kind !== ADJECTIVE_SLOT) return "";
+  if (!readsWithBe(kind) && kind !== ADJECTIVE_SLOT) return "";
   const read = readingBase(slot);
   if (!read) return "";
   if (fillNames(card).includes(slot) || cardRef(card) === slot) return "";
@@ -301,15 +330,18 @@ export const aboutPerson = (card: WithSlots | null | undefined, slot: string): b
   String((card && card.category) || "").toLowerCase() === ADJECTIVE_SLOT && readingOf(card, slot) === "is";
 
 /*
- * One value as it stands in one blank: a pronoun in a reading of any name
- * carries the English of that reading under the blank's own name, which
- * is the key fillText reads. Its readings are worked out under the
- * built-in names — see readingsOf — and copied across here.
+ * One value as it stands in one blank: a pronoun or a demonstrative in a
+ * reading of any name carries the English of that reading under the
+ * blank's own name, which is the key fillText reads. Its readings are
+ * worked out under its kind's built-in names — see readingsOf — and
+ * copied across here.
  */
 export function readAs(card: WithSlots | null | undefined, value: Value, slot: string): Value {
   const reads = readingOf(card, slot);
-  if (!reads || String((card && card.category) || "").toLowerCase() !== PRONOUN_SLOT) return value;
-  const key = reads === "is" ? PRONOUN_IS_SLOT : IS_PRONOUN_SLOT;
+  const kind = String((card && card.category) || "").toLowerCase();
+  if (!reads || !readsWithBe(kind)) return value;
+  const [isSlot, askSlot] = readingNames(kind, kind);
+  const key = reads === "is" ? isSlot : askSlot;
   const said = value.readings && value.readings[key];
   if (!said || key === slot) return value;
   return { ...value, readings: { ...value.readings, [slot]: said } };

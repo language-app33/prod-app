@@ -94,6 +94,7 @@ const { leadSpeed, deckPercent, levelPercent, nextReviewAt, reviewLine, nextPass
   await import(path.join(out, "trainer.js"));
 const { TYPES, LANGUAGES, verbOf, attachedOf, specOf, levelOf, askLabel } = await import(path.join(here, "..", "src", "languages.ts"));
 const { leadsOf } = await import(path.join(here, "..", "src", "review.ts"));
+const { fillText } = await import(path.join(here, "..", "src", "variables.ts"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -1640,6 +1641,28 @@ test("a demonstrative drawn into a sentence takes هاد, هاي or هدول fro
   const people = beside({ number: "plural", gender: "masculine", human: "person" });
   assert.equal(people.ar, "هدول");
   assert.equal(people.en, "these", "and the English the teacher wrote for that form");
+});
+
+test("a demonstrative read with to be reads is or are off the form the noun chose", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const card = /** @type {any} */ ({
+    id: "this", lang: "ar-PS", category: "demonstrative", fills: ["this"],
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "" },
+      { id: "this-plural", ar: "هدول", en: "these", lat: "", row: "agreement", col: "plural" },
+    ],
+  });
+  const ownerOf = (/** @type {any} */ v) => (v.id === "this" ? { card, form: card.forms[0] } : null);
+  const own = { id: "this", ar: "هاد", en: "this", lat: "", readings: { "this-is": "this is" } };
+  const took = (/** @type {Record<string, string>} */ grammar, /** @type {string} */ en) =>
+    must(agreeTook({ "this-is": own, noun: { id: "n", ar: "x", en, lat: "", grammar } },
+      ["this-is", "noun"], ownerOf, () => ar), "filled");
+  const many = took({ number: "plural", gender: "masculine", human: "person" }, "friends");
+  assert.equal(many["this-is"].ar, "هدول");
+  assert.equal(fillText("{{this-is}} my {{noun}}", many, "en"), "These are my friends");
+  const one = took({ number: "singular", gender: "masculine", human: "thing" }, "book");
+  assert.equal(one["this-is"].ar, "هاد");
+  assert.equal(fillText("{{this-is}} my {{noun}}", one, "en"), "This is my book");
 });
 
 test("a verb drawn into a sentence beside a pronoun is swapped for the person the pronoun names", () => {
