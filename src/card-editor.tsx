@@ -45,7 +45,7 @@ import { castFill, castOf, castReport, filledScene, memberBase, memberLabel, new
 import { reviewPool, sentencesOf } from "./review.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
 import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, DEMONSTRATIVE_READING_SLOTS, DEMONSTRATIVE_SLOT, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
-import { agreeingBlanks, combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
+import { agreeingBlanks, combosOf, mainFormOnly, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
 import { MAX_IMAGES, shrinkImage } from "./images.ts";
@@ -7733,6 +7733,13 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
     () => (examplesOpen ? examplesOf(null, main, pool, lang) : NO_ASKED),
     [examplesOpen, main, pool, lang],
   );
+  /* And the words that list shows in their main form alone, though they
+     have others — said under it, since the setting that changes it is
+     on this card and easy to forget. See mainFormOnly. */
+  const onlyMain = useMemo(
+    () => (examplesOpen && sentence ? mainFormOnly(main, pool, lang) : null),
+    [examplesOpen, sentence, main, pool, lang],
+  );
   /* A sentence fills nothing — see fillsOf, which is the one answer to
      that and which this only reports. So the second subsection has nothing
      to offer one, except where it already carries names, which it has to go
@@ -8191,6 +8198,13 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                     The first {plural(asked.length, "example")} of{" "}
                     {plural(combos, "example")}, which is as many as one screen
                     will draw. The rest are this card with other words in it.
+                  </Help>
+                )}
+                {onlyMain && (
+                  <Help>
+                    Only the main form of {onlyMain.words.join(", ")} is used here.
+                    To see {onlyMain.words.length > 1 ? "their" : "its"} other forms too, choose Every form in turn under
+                    Which forms {`{{${onlyMain.slot}}}`} uses, in Blanks above.
                   </Help>
                 )}
                 {/* Where these go next. Since 0.246 a sentence reaches a

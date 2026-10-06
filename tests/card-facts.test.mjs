@@ -318,3 +318,23 @@ test("a form reaches a sentence only if its word lends it and the blank asks for
   /* And nothing fills the name at all. */
   assert.equal(whyStarved(ends, "noun", [], ar), "nothing");
 });
+
+test("the examples list says which words it shows in their main form alone", async () => {
+  const { mainFormOnly } = await import("../src/card-facts.ts");
+  const { LANGUAGES } = await import("../src/languages.ts");
+  const ar = LANGUAGES["ar-PS"];
+  const thisCard = {
+    id: "this", lang: "ar-PS", category: "demonstrative", fills: ["this"], created: 2,
+    forms: [
+      { id: "this", ar: "هاد", en: "this" },
+      { id: "this-f", ar: "هاي", en: "this", row: "agreement", col: "feminine" },
+    ],
+  };
+  const ask = (/** @type {any} */ agrees) => ({ id: "q", ar: "شو {{this}}؟", en: "what is {{this}}?", ...(agrees ? { agrees } : {}) });
+  assert.deepEqual(mainFormOnly(ask(undefined), [thisCard], ar), { slot: "this", words: ["هاد"] });
+  assert.equal(mainFormOnly(ask({ this: "-" }), [thisCard], ar), null, "once it says every form");
+  /* Nothing to say where the word has no other form, or the blank has a partner. */
+  const bare = { ...thisCard, forms: [thisCard.forms[0]] };
+  assert.equal(mainFormOnly(ask(undefined), [bare], ar), null);
+  assert.equal(mainFormOnly({ id: "w", ar: "{{this}} {{noun}}", en: "" }, [thisCard], ar), null);
+});
