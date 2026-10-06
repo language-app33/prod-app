@@ -39,6 +39,27 @@ the remote ref, as above. If the push is not a fast-forward, merge
 Opening a pull request is still something to be asked for. Merging to `beta`
 is not.
 
+## Keep the open pull request's title and description current
+
+An open pull request follows its branch, so every push to `beta` adds to the
+pull request merging `beta` into `main`, if one is open. **After every push
+to a branch that has an open pull request, update that pull request's title
+and description, every time, without asking**, so they describe everything
+it now carries, not only what it was opened with:
+
+- The title names every release the pull request spans (for example
+  "0.364–0.365: …") and what each is about.
+- The description has a section per release, newest first, in the plain
+  terms of the changelog: what changes for the people using the app, any
+  trade-off, and anything still to be checked by hand. Then whatever else
+  rode along, and what was checked (`npm run check` on the pushed tree).
+- Check for an open pull request after pushing; do not assume there is
+  none. A change that is not a release (a test, a note like this one) goes
+  under "Also included".
+
+Do not report the work as delivered until the pull request says what it
+carries.
+
 ## How to talk about the work
 
 **Plans, proposals and summaries of what was done are written for the
