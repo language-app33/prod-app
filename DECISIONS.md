@@ -5333,3 +5333,68 @@ the question number (`qi`) so the keys do not move while the learner is
 typing. The cost is the phone-dialler familiarity 0.366 argued for, which
 the owner judged less important than having to read each figure. A
 keyboard that has the figures still types them directly.
+
+---
+
+## Practice can no longer only cost: one slip keeps the passes, and cleared opens what is next
+
+**6 October 2026** · `markedState` in `src/grade.ts`; `knownCard`, `cardStandings`, `stretchOpen`, `stretchCleared`, `wordsCleared` and `quietRows` in `src/ArabicTrainer.tsx`
+
+The owner practises numbers only, in a custom session, gets nearly
+everything right, and was stuck on 0 to 9 with the same questions coming
+round. A simulated learner on the golden Arabic system, in that set-up
+(four sittings a day, one answer in twelve wrong), showed why: 0 to 9
+reached Cleared in about a week and was still there after three, waiting
+on more cards in week three than in week two. Three rules made that, and
+each changes here.
+
+**One miss keeps the passes; two running take them.** A wrong answer put
+a card's passes back to nought. Practice before a card is due can never
+make a pass (`cameRound`), so every extra sitting could take passes and
+never give them, and a small set drilled all day lost them faster than the
+calendar handed them back: half the answers in the simulation were early,
+four in five in Ultimate. The ladder forgives one miss and shuts a level
+on two (`missedTwice`); the passes now follow the same line.
+
+**A number part is held at Cleared on its words being cleared, not
+learnt.** 0.324 and 0.363 held it until every word and all ten figures
+were learnt, which for 0 to 9 is twenty cards with their passes made at
+the same moment, with any slip taking one back. Each word still has its
+own way to learnt and the Numbers section still counts them by it; the
+part asks that they are known. `partsOf` and `numeralsOf` carry `known`
+beside `validated`, and steering still reads `validated`.
+
+**A stretch opens when the one below is through: its own questions
+cleared, or every word it is built from cleared, whichever comes first.**
+The stretch's own questions were the only way. A stretch shares its
+session with every word it is built from, so it is about one question in
+thirty and its questions alone held the next stretch shut for days, and
+shut it again when the ten figures added two questions to it. Words alone
+were tried first and measured slower: a stretch asks only numbers whose
+words are cleared, so it often clears before the last spelling of the
+last word does, and 10 to 19 opened on day 6 to 12 instead of 4 to 7.
+Either way through, as the front door's `throughDoor` does, is never
+slower.
+
+**A verb's next tense opens on the one above being cleared, not
+mastered.** Mastered is a four-day gap on every cell, which no practice
+brings forward. The owner asked for "cleared opens what is next" in
+general, and this was the other place a wait was on time rather than on
+work. Pronoun cells already open on their word reaching level two.
+
+**Measured.** Six seeded runs each, custom Regular, 0 to 9 and 10 to 19,
+four sittings a day, 8% wrong, 21 days: 0 to 9 learnt in 4 of 6 (none
+before), the rest waiting on one word (3 to 8 before); 10 to 19 opened
+on the same day as before. Ultimate: 1 of 6 learnt and the rest waiting
+on one or two (14 to 17 before). The simulation is not a test in the
+suite; the rules each have one.
+
+**What it costs.** Learnt is easier to reach: a card with a single slip
+in its passes still gets there, and a number part is learnt with some of
+its words still making their own reviews. The past tense of a verb can
+come the same week as its present. The deck estimate (`workloadOf`)
+already counted passes owed and nothing it restates changed.
+
+**Revisit if** learners report cards marked learnt that they do not know:
+the first thing to look at is a miss that is not followed by a second.
+

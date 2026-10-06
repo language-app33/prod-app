@@ -8,6 +8,31 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.368 — 6 October 2026
+
+**Practising a lot moves you forward instead of holding you in place.**
+
+- One wrong answer no longer cancels a card's reviews. A cleared card
+  becomes learnt after two reviews on later days, and before this a single
+  slip, even while practising the same day, cancelled both and the wait
+  started again. Now only two wrong in a row does, the same rule that
+  moves a card down a level.
+- A number group such as 0–9 counts as learnt once its own reviews are
+  done and you know every number in it (each one cleared). Before, every
+  number and all ten numerals ٠ to ٩ had to be fully learnt at the same
+  moment, so 0–9 could sit on "Cleared" for weeks.
+- The next group of numbers, such as 10–19, opens as soon as you've
+  cleared every number in the group before it, or finished that group's
+  own questions, whichever comes first. Before, only the group's own
+  questions counted, and they come up rarely.
+- A verb's next tense opens once you've cleared the tense before it.
+  Before, it waited until the earlier tense had been remembered for four
+  days, which practising more couldn't speed up.
+- Trade-off: "learnt" is a little easier to reach, since a card with one
+  slip still gets there.
+- To check by hand: in a custom session of numbers only, 0–9 should move
+  past "Cleared" within about two weeks of steady practice.
+
 ## 0.367 — 6 October 2026
 
 **The Arabic numeral keys are shuffled, so you have to know each numeral.**
