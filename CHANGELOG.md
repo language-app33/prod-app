@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.370 — 6 October 2026
+
+**A meaning with a comma in it is marked as one answer.**
+
+- An answer like "He is cold, he wants a jacket" was marked wrong even
+  when typed exactly as the card has it, with or without the comma, and
+  "He is cold" on its own was marked right. The app read every comma in a
+  meaning as a break between two separate answers. Now only a slash (or a
+  semicolon) separates answers; a comma is part of the phrase, and
+  whether you type it does not matter.
+- Trade-off: a card that used a comma to list two meanings ("big, large")
+  now needs the whole thing typed. Write such a card with a slash
+  ("big / large") to accept either.
+
 ## 0.369 — 6 October 2026
 
 **On a number system, the counting examples wait for the word they show.**
