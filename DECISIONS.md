@@ -5456,3 +5456,31 @@ last, under "Opens later". In the forecast it carries its whole ladder,
 with the floor of a card whose building blocks come first
 (`CLEAR_DAYS + LEARN_DAYS`) — a stand-in, not a measurement.
 
+## Matching recordings is the word grid with sounds on its tiles
+
+**6 October 2026** · `src/languages.ts` (`recmatch`, `isGrid`,
+`isListening`), `src/ArabicTrainer.tsx` (`MatchGrid`, `withGrids`,
+`gridFor`), `src/offers.ts` (`heard`)
+
+The owner asked for a matching exercise with recordings on the left and
+words in the script on the right, and set two things against the proposal
+that came before it: five pairs, not three or four, and tiles that look
+and behave exactly as the word grid's do — the empty circle, the numbers,
+and a tap on a paired tile freeing it, which on a sound tile means that
+hearing it again frees it too. So it is the grid with a flag on it rather
+than an exercise of its own: one `MatchGrid`, one dealing (`withGrids`,
+now per kind of grid), one marking. The play icon is drawn inside the tile
+rather than being a button, because the tile is the button and one inside
+another is not allowed; one player serves the whole grid so a second tile
+stops the first.
+
+It stands on level 2, beside the word grid. **What that costs:** a card
+with a recording now has one more question to pass before level 3 opens,
+and a card already past level 2 has it to answer too — the same price the
+picture exercises charged in 0.244. Cards without a recording are asked
+exactly what they were.
+
+At the same time, "Learn more" and the card's note are gone from under
+every grid. They spoke of the first word only and never said which; the
+owner preferred nothing to five times as much.
+
