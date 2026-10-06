@@ -78,6 +78,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
     ["answer-value-text", "The right answer itself, in whichever language was asked for.", "كِتاب"],
     ["also-heading", "The heading over everything else worth knowing.", "Learn more"],
     ["also", "The box under it: whichever of the blocks below the card has.", ""],
+    ["also-row", "Two of the short blocks side by side — how it is pronounced beside how it sounds.", ""],
     ["also-context", "Where the word turned up, with its label and the phrase.", ""],
     ["also-context-label", "The small line naming that block.", "Where it turned up"],
     ["also-context-text", "The phrase the word appeared in, as the teacher recorded it.", "الكتاب كبير"],

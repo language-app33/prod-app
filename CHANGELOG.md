@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.375 — 6 October 2026
+## 0.376 — 6 October 2026
 
 **A new matching exercise with recordings, and no "Learn more" after matching.**
 
@@ -31,6 +31,24 @@ and moves once per batch of work you would notice, not once per commit.
 - After either matching exercise, the "Learn more" section and the
   teacher's note are gone. Both only ever described the first word in
   the round, without saying which.
+
+## 0.375 — 6 October 2026
+
+**"Learn more" under an answer is more compact: two things to a row.**
+
+- The short items in the Learn more box now sit side by side, two to a
+  row: how a word is pronounced on the left, how it sounds (the play
+  button) on the right. Written form and the number in the language's own
+  figures pair up the same way. The box is about half as tall, so
+  Continue is closer to the answer.
+- The phrase a word turned up in, and the related words, still take the
+  full width: they are too long to share a row.
+- When there is an odd number of short items, the first one gets a row
+  to itself, so the pronunciation and the recording stay together.
+- The play buttons inside the box are a size smaller to fit half a row,
+  and where a word has a regular and a slow recording the two sit one
+  above the other. To check by hand: a long transliteration on a small
+  phone wraps onto a second line rather than squeezing the play button.
 
 ## 0.374 — 6 October 2026
 

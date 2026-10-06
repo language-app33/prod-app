@@ -1248,7 +1248,17 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("what is not the answer is gathered into a box",
       !!alsoBox && alsoBox.classList.contains("at-alsobox") && !!alsoBox.closest(".at-exercise"),
       alsoBox ? alsoBox.className : "no box");
-    const inBox = alsoBox ? [...alsoBox.children].map((e) => e.getAttribute("data-el")) : [];
+    /* The short blocks sit two to a row, so a row is looked through to the
+       blocks it holds. */
+    const rowsIn = alsoBox ? [...alsoBox.children] : [];
+    const inBox = rowsIn
+      .flatMap((e) => (e.getAttribute("data-el") === "also-row" ? [...e.children] : [e]))
+      .map((e) => e.getAttribute("data-el"));
+    check("a row holds two of the short blocks, never one and never a long one",
+      rowsIn.filter((e) => e.getAttribute("data-el") === "also-row").every((r) =>
+        r.children.length === 2 &&
+        [...r.children].every((c) => !["also-context", "related-words"].includes(c.getAttribute("data-el") || ""))),
+      rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
     const FAMILY = ["also-context", "also-script", "also-hint", "also-figures", "also-audio", "related-words"];
     check("and everything in it is one of the blocks that were loose on the page",
       inBox.length > 0 && inBox.every((n) => FAMILY.includes(n || "")), inBox.join(" ") || "empty");
