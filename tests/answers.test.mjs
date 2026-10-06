@@ -410,14 +410,18 @@ test("a card that means two things means both of them", () => {
 });
 
 test("a comma inside one meaning is not a second meaning", () => {
-  /* The checker splits on a comma too, and is right to: a card written by
-     hand may separate two meanings that way, and marking is where being
-     generous costs nothing. Reading one here would cut a phrase in half
-     and show a learner one clause of it as the question. */
+  /* Reading one here would cut a phrase in half and show a learner one
+     clause of it as the question. */
   assert.deepEqual(meaningsOf({ en: "close the door, please" }), ["close the door, please"]);
   assert.equal(meaningForTurn({ en: "close the door, please" }), "close the door, please");
-  /* And it is still marked as generously as it ever was. */
-  assert.equal(checkAnswer("please", { en: "close the door, please" }, "ar2en", { language: "ar-PS" }).ok, true);
+  /* The checker used to split on a comma, to be generous to a card that
+     separated two meanings that way. It was not generous: it marked
+     "He is cold, he wants a jacket" wrong, written out in full, and half
+     of it right. A learner reported it three times. So the whole phrase is
+     the answer, with or without its comma, and one clause of it is not. */
+  const form = { en: "close the door, please" };
+  assert.equal(checkAnswer("close the door please", form, "ar2en", { language: "ar-PS" }).ok, true);
+  assert.equal(checkAnswer("please", form, "ar2en", { language: "ar-PS" }).ok, false);
 });
 
 test("asked to write a card from its meaning, one meaning is the question", () => {

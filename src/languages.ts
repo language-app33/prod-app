@@ -3764,7 +3764,11 @@ const PERSON_NOTE = new RegExp(`\\s*\\(${NOTE_WORD}(?:[\\s,]+${NOTE_WORD})*\\)`,
 export function checkEn(given: string, expected: string) {
   const g = normEn(given);
   if (!g) return { ok: false, reason: "wrong" };
-  const split = splitForms(expected, /[/;,]/);
+  /* Alternatives are split on a slash or semicolon, not a comma: a comma
+     sits inside a phrase as often as between meanings. Splitting on it
+     marked "He is cold, he wants a jacket" wrong, written out in full,
+     and "He is cold" right. */
+  const split = splitForms(expected, /[/;]/);
   const bare = split.map((e) => e.replace(PERSON_NOTE, "")).filter((e, i) => e !== split[i]);
   const forms = split.concat(bare).map(normEn);
   if (forms.includes(g)) return { ok: true, reason: "exact" };
