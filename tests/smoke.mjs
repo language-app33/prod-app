@@ -939,6 +939,7 @@ async function playGrid() {
        whichever column the learner is reading, so half the pairs below are
        made the other way round, and this is what says they took. */
     fromRight: 0,
+    learnMore: false,
   };
   const early = document.querySelector('[data-el="check-button"]');
   seen.checkedEarly = !!early && /** @type {HTMLButtonElement} */ (early).disabled;
@@ -957,6 +958,9 @@ async function playGrid() {
   seen.marked =
     !!document.querySelector('[data-el="verdict"]') &&
     document.querySelectorAll(".at-matchtile.right, .at-matchtile.wrong").length > 0;
+  /* Whatever Learn more said under a grid was about its first word alone,
+     so there is none. */
+  seen.learnMore = !!document.querySelector('[data-el="also-heading"]');
   return seen;
 }
 
@@ -1244,7 +1248,24 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("what is not the answer is gathered into a box",
       !!alsoBox && alsoBox.classList.contains("at-alsobox") && !!alsoBox.closest(".at-exercise"),
       alsoBox ? alsoBox.className : "no box");
-    const inBox = alsoBox ? [...alsoBox.children].map((e) => e.getAttribute("data-el")) : [];
+    /* The short blocks sit two to a row, so a row is looked through to the
+       blocks it holds. */
+    const rowsIn = alsoBox ? [...alsoBox.children] : [];
+    const inBox = rowsIn
+      .flatMap((e) => (e.getAttribute("data-el") === "also-row" ? [...e.children] : [e]))
+      .map((e) => e.getAttribute("data-el"));
+    check("a row holds one or two of the short blocks, never the phrase",
+      rowsIn.filter((e) => e.getAttribute("data-el") === "also-row").every((r) =>
+        r.children.length >= 1 && r.children.length <= 2 &&
+        [...r.children].every((c) => c.getAttribute("data-el") !== "also-context")),
+      rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    check("and every short block sits in a row, the related words included",
+      rowsIn.every((e) => ["also-row", "also-context"].includes(e.getAttribute("data-el") || "")),
+      rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    const hintRow = alsoBox && alsoBox.querySelector('[data-el="also-hint"]');
+    const audioRow = alsoBox && alsoBox.querySelector('[data-el="also-audio"]');
+    check("how it's pronounced and how it sounds share a row",
+      !hintRow || !audioRow || hintRow.parentElement === audioRow.parentElement, "");
     const FAMILY = ["also-context", "also-script", "also-hint", "also-figures", "also-audio", "related-words"];
     check("and everything in it is one of the blocks that were loose on the page",
       inBox.length > 0 && inBox.every((n) => FAMILY.includes(n || "")), inBox.join(" ") || "empty");
@@ -3846,6 +3867,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      first meaning counted as "unpaired" could never be finished. */
   check("and pairing them all is, and gets marked",
     !!grid && grid.marked, String(grid && grid.marked));
+  check("with no Learn more under it, which could only ever speak of one word",
+    !!grid && grid.marked && !grid.learnMore, String(grid && grid.learnMore));
   /* Half the pairs above were begun from the meanings, and the grid was
      finished and marked all the same: a learner reading down the right-hand
      column starts there rather than crossing the screen first. */
@@ -9059,7 +9082,7 @@ const openPronounTables = async () => {
   const known = (keys) => Object.fromEntries(keys.map((t) => [t, { ...solid }]));
   const level1 = ["ar2pick", "ar2en", "rec2en", "rec2img"];
   const upTo2 = known(level1);
-  const upTo4 = known([...level1, "match", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
+  const upTo4 = known([...level1, "match", "recmatch", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
   /** @param {any[]} items */
   const walk = async (items) => {
     /* Its own five words and nothing else, as the walks above clear the
@@ -9085,7 +9108,12 @@ const openPronounTables = async () => {
     for (let t = 0; t < 100 && !startBtn(); t++) await sleep(100);
     click(startBtn());
     for (let t = 0; t < 50 && !host.querySelector(".at-instruction"); t++) await sleep(100);
-    const met = { chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0 };
+    const met = {
+      chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0,
+      /* The grid of recordings, where one comes up. */
+      soundGrids: 0, soundTiles: 0, wordsInScript: false, noEnglish: false,
+      unpairs: false, soundVerdict: "", learnMore: false, marked: false,
+    };
     for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
       const pics = host.querySelector(".at-picchoices");
       const promptPic = host.querySelector(".at-picture.prompt");
@@ -9110,7 +9138,35 @@ const openPronounTables = async () => {
         if (promptPic) met.promptWritten += 1;
         click([...host.querySelectorAll("button")].find((b) => /^I don't know$/.test((b.textContent || "").trim())));
       } else if (host.querySelector('[data-el="answer-match"]')) {
-        await playGrid();
+        const sounds = host.querySelectorAll('[data-el="match-sound"]').length;
+        if (sounds) {
+          met.soundGrids += 1;
+          met.soundTiles = Math.max(met.soundTiles, sounds);
+          const grid = host.querySelector('[data-el="answer-match"]');
+          met.wordsInScript = [...host.querySelectorAll('[data-el="match-meaning"]')]
+            .every((el) => /[\u0600-\u06FF]/.test(el.textContent || ""));
+          met.noEnglish = !/coffee|tea|bread|water|apples/.test((grid && grid.textContent) || "");
+          /* A sound tile behaves as a word tile does: paired, then tapped
+             again, it lets go — and is left held, so one more tap puts it
+             down before the grid is played through. */
+          const w0 = () => /** @type {Element} */ (host.querySelector('[data-el="match-word"]'));
+          click(w0());
+          await sleep(25);
+          click(host.querySelector('[data-el="match-meaning"]'));
+          await sleep(25);
+          const paired = w0().classList.contains("paired");
+          click(w0());
+          await sleep(25);
+          met.unpairs = paired && !w0().classList.contains("paired");
+          click(w0());
+          await sleep(25);
+        }
+        const seen = await playGrid();
+        if (sounds) {
+          met.soundVerdict = ((host.querySelector('[data-el="verdict"]') || {}).textContent || "").trim();
+          met.learnMore = !!host.querySelector('[data-el="also-heading"]');
+          met.marked = !!seen && !!seen.marked;
+        }
       }
       await sleep(120);
       if (!host.querySelector('[data-el="verdict"]')) {
@@ -9158,6 +9214,23 @@ const openPronounTables = async () => {
   const fourth = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, upTo4)));
   check("and, known further, to write it from the picture",
     fourth.promptWritten > 0, JSON.stringify(fourth));
+  /* Known by ear and every other second-level question passed, the one
+     left to ask is the grid of recordings: a play button for each word, the
+     words in the script beside them, and no English anywhere. */
+  const byEar = known([...level1, "match", "en2pick", "img2pick", "ctx2pick"]);
+  const heardGrid = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, byEar)));
+  check("words known by ear are asked to match each recording to its word",
+    heardGrid.soundGrids > 0, JSON.stringify(heardGrid));
+  check("five recordings, as the word grid has five words",
+    heardGrid.soundTiles === 5, JSON.stringify(heardGrid));
+  check("the other column is the words in the script, with no meaning on the screen",
+    heardGrid.wordsInScript && heardGrid.noEnglish, JSON.stringify(heardGrid));
+  check("tapping a paired recording lets go of its pair, as a word tile does",
+    heardGrid.unpairs, JSON.stringify(heardGrid));
+  check("the grid is marked, and a miss is told the right words are shown",
+    heardGrid.marked && !/meanings/.test(heardGrid.soundVerdict), JSON.stringify(heardGrid));
+  check("and there is no Learn more under it",
+    !heardGrid.learnMore, JSON.stringify(heardGrid));
   check("and nothing threw while the pictures were practised",
     errors.length === before, errors.slice(before, before + 3).join(" | "));
 }

@@ -345,13 +345,15 @@ test("every exercise that stands a card beside other cards asks for company", ()
      whose words change cannot be one of them — offers.ts reads that off
      this need rather than naming the three. */
   assert.deepEqual(TYPES.filter((t) => EX[t].needs.includes("mates")).sort(),
-    ["ar2pick", "en2pick", "img2pick", "match"]);
+    ["ar2pick", "en2pick", "img2pick", "match", "recmatch"]);
 });
 
 /* --- listening exercises --- */
 
-test("the listening exercises are exactly the ones prompted by audio", () => {
-  const byPrompt = TYPES.filter((t) => EX[t].promptField === "audio");
+test("the listening exercises are exactly the ones prompted by audio, or made of it", () => {
+  /* The grid of recordings plays nothing above it — each tile is a sound —
+     and is no more answerable in silence than a question that does. */
+  const byPrompt = TYPES.filter((t) => EX[t].promptField === "audio" || EX[t].tiles === "audio");
   const byHelper = TYPES.filter(isListening);
   assert.deepEqual(byHelper, byPrompt);
   /* Named so that adding another needs no second edit — but the ones that
@@ -360,7 +362,7 @@ test("the listening exercises are exactly the ones prompted by audio", () => {
      and the "can't listen right now" button all picked it up unprompted,
      which is what deriving this from the prompt rather than a flag buys. */
   assert.deepEqual(byHelper, [
-    "rec2en", "rec2img", "rec2ar", "rec2attr", "rec2ctx",
+    "rec2en", "rec2img", "recmatch", "rec2ar", "rec2attr", "rec2ctx",
     /* And the two that play a number or a time. They were picked up by
        the quiet window and the "can't listen right now" button without
        being told, which is what deriving this from the prompt buys. */
@@ -651,7 +653,7 @@ test("the gentle types are read off the definitions, not kept beside them", () =
      recognising what a word means, then which word it is. Every one of
      them puts the answer on the screen — nothing here is written out. */
   assert.deepEqual(EASY_TYPES, [
-    "ar2pick", "ar2en", "rec2en", "rec2img", "match", "en2pick", "img2pick", "ctx2pick", "dlgwhole",
+    "ar2pick", "ar2en", "rec2en", "rec2img", "match", "recmatch", "en2pick", "img2pick", "ctx2pick", "dlgwhole",
     /* Reading a number or a time and saying what it is, and picking one
        out of four, are recognition in exactly the sense the six above
        are: the answer is on the screen and nothing is written out. */

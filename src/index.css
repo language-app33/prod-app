@@ -302,6 +302,25 @@ button {
 .at-alsobox > * { margin-top:0; padding-top:0; border-top:0; }
 .at-alsobox > * + * { margin-top:14px; padding-top:12px;
   border-top:1px solid var(--line); }
+/* Two of the short blocks to a row: how it is pronounced beside how it
+   sounds. Two equal columns with a hairline between them, the same line
+   that divides the rows, so the box reads as a table of things to look up
+   rather than a list to scroll. Each half lets a long word break rather
+   than push the other off the screen. */
+.at-alsorow { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 12px; }
+.at-alsorow > * { margin:0; padding:0; border:0; min-width:0; overflow-wrap:anywhere; }
+.at-alsorow > * + * { padding-left:12px; border-left:1px solid var(--line); }
+/* A recording in half the row: the button keeps its shape and its label,
+   one size down again, centred in its half of the row. Two
+   speeds that no longer fit beside each other go one under the other. */
+.at-alsorow .at-playrow { justify-content:center; flex-wrap:wrap; gap:6px; }
+.at-alsobox .at-alsorow .at-playbig { min-width:0; padding:7px 12px; gap:6px; font-size:13px; }
+.at-alsobox .at-alsorow .at-playbig .at-ic { width:20px; height:20px; }
+.at-alsobox .at-alsorow .at-playbig.twin { flex:1 1 auto; padding-inline:10px; }
+.at-alsobox .at-alsorow .at-playbig.quiet .at-ic { width:18px; height:18px; }
+/* The related words under their label sit as close to it as every other
+   block's value does to its own. */
+.at-alsorow .at-pairs .at-hint { margin-top:4px; }
 .at-flagwrap { position:relative; margin-top:14px; text-align:center; }
 /* Two quiet ways out, set identically: reporting a bad question, and
    saying you cannot hear this one. Neither is a thing to do with the
@@ -3426,6 +3445,15 @@ body.at-screening .at-chromebar { display:none; }
    columns — it is a note about the word, never a second word. */
 .at-matchtag { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted);
   line-height:1.3; }
+/* The grid of recordings: the play button stands where the word would, a
+   little larger than in a list of clips because it is the whole of what
+   the tile says. Drawn, not pressed — the tile is the button. */
+.at-matchplay { width:34px; height:34px; display:inline-flex; align-items:center;
+  justify-content:center; font-size:13px; }
+.at-matchtile:hover .at-matchplay { background: var(--raised-hover); }
+/* Under a recording paired wrong, the word it was: in the script, and set
+   small like the meaning under a word is. */
+.at-matchfix.ar .at-arabic { font-size: calc(var(--ask) * .42); color: var(--rose); }
 /* On a phone the two columns still share the row; what gives is the type
    and the padding inside a tile, not the shape of the exercise. */
 @media (max-width: 480px) {

@@ -18,7 +18,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   | level | what it asks | exercises |
   |---|---|---|
   | 1 | what the word means | choose the meaning · {script} → English · listen → English · read a scene |
-  | 2 | which word it is | match the pairs · English → choose · choose the missing word |
+  | 2 | which word it is | match the pairs · match the recordings · English → choose · choose the missing word |
   | 3 | write it from a cue | {translit} → script · listen → script · listen → tone · choose the reply · put a scene in order |
   | 4 | write it from its meaning | English → script · fill the gap · phrase heard → script |
 
@@ -1141,6 +1141,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   they start, and the pair that comes of it is the same pair either way.
   `MatchGrid` holds the tile picked up as a side and a place on it, so the
   two columns are one gesture written twice and cannot drift apart.
+
+  **The same grid can be heard.** *Match the recordings* puts a play button
+  on each tile where the word would be and the words in the script down
+  the other side — no English on the screen. It is the grid in every
+  other respect, `picks: "pair"` with `tiles: "audio"`: five words, the
+  same tiles, and a tap that plays a tile also does what a tap on a word
+  does, freeing a pairing included. Its words need recordings, so it waits
+  for two more recorded cards beside the one asked (`heard`); its spare
+  tiles are words and need none. It is a listening question for "can't
+  listen right now" and offline (`isListening`).
+
+  **Nothing is shown under "Learn more" after a grid**, of either kind,
+  nor the teacher's note: both were about the first word alone.
 
 ## Running it
 
