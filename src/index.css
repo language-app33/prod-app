@@ -2683,29 +2683,6 @@ button.at-deckstat { width:100%; font:inherit; color:inherit; text-align:start; 
   button.at-deckstat:hover { border-color: var(--ink); }
 }
 button.at-deckstat:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
-/*
- * A number part's words, one tile each: the figure, the word, and where the
- * learner stands on it. Learnt wears the jade Learnt owns everywhere else;
- * under way the brass of work in progress; not started is plain.
- */
-.at-numwords { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; margin-top:14px; }
-.at-numword { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0;
-  width:100%; font:inherit; color:inherit; text-align:start; cursor:pointer;
-  border:2px solid var(--line); border-radius: var(--r-sm); background: var(--surface); padding:9px 10px; }
-.at-numwordfig { font-family: var(--ui); font-size:17px; font-weight:800; color: var(--text);
-  font-variant-numeric: tabular-nums; overflow-wrap:anywhere; }
-.at-numwordsaid { font-size:15px; color: var(--text-soft); overflow-wrap:anywhere; }
-.at-numwordstate { font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.06em;
-  text-transform:uppercase; color: var(--muted); }
-.at-numword.going { border-color: var(--brass); }
-.at-numword.going .at-numwordstate { color: var(--brass); }
-.at-numword.done { background: var(--jade-bg); border-color: var(--jade-soft); }
-.at-numword.done .at-numwordstate { color: var(--jade); }
-@media (hover:hover) {
-  .at-numword { transition: border-color 140ms ease; }
-  .at-numword:hover { border-color: var(--ink); }
-}
-.at-numword:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
 /* Prep mode, above the ladder: the button, and what is being prepped for. */
 .at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; }
 .at-prepbar .at-prepnote { margin:0; }

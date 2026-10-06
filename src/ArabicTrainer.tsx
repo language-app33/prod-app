@@ -5343,13 +5343,18 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
   let unseen = 0;
   let floor = 0;
   for (const it of cards) {
-    const where = standing(cardStandings(it, settings, cards));
+    /* A number waiting on its stretch is asked nothing yet, but it is in
+       the deck and has all of its ladder ahead of it: counted as it will
+       stand once the stretch opens, as towardsLearnt counts it. */
+    const now_ = standing(cardStandings(it, settings, cards));
+    const ladder = now_ ? laddered : ladderedOnceOpen;
+    const where = now_ || standing(cardStandings(it, settings, cards, ladderedOnceOpen));
     if (!where || reached(where, target)) continue;
     left += 1;
     let fresh = true;
     let passesLeft = 0;
     for (const { unit } of unitsOf(it)) {
-      const keys = laddered(unit, settings);
+      const keys = ladder(unit, settings);
       if (!keys.length) continue;
       for (const k of keys) {
         const st = stateOf(unit, k);
@@ -5365,13 +5370,16 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
       passesLeft = Math.max(passesLeft, owed);
     }
     if (fresh) unseen += 1;
+    /* Waiting on the stretch below it, a number starts its climb only once
+       that is cleared — the same wait as a sentence's words. */
+    const behind = !now_ || blocksAhead(it, settings);
     if (toClear) {
-      floor = Math.max(floor, blocksAhead(it, settings) ? 2 * CLEAR_DAYS : CLEAR_DAYS);
+      floor = Math.max(floor, behind ? 2 * CLEAR_DAYS : CLEAR_DAYS);
     } else if (where.status === "cleared" && passesLeft > 0) {
       const next = nextPassAt(it, settings);
       const wait = next > at ? Math.ceil((dayOf(next) - dayOf(at)) / 86400000) : 0;
       floor = Math.max(floor, wait + (passesLeft - 1) * 2);
-    } else if (blocksAhead(it, settings)) {
+    } else if (behind) {
       floor = Math.max(floor, CLEAR_DAYS + LEARN_DAYS);
     } else {
       floor = Math.max(floor, LEARN_DAYS);
@@ -16649,6 +16657,9 @@ const DECK_RUNS = [
   { key: "l4", label: LEVEL_NAME[4] },
   { key: "cleared", label: "Cleared" },
   { key: "done", label: "Learnt" },
+  /* A number whose stretch has not opened: nothing to ask it yet, so last,
+     after everything there is something to do about. */
+  { key: "waiting", label: "Opens later" },
 ];
 
 /** Which of DECK_RUNS a card goes under. */
@@ -16697,230 +16708,11 @@ export function forecastWords(at: Millis | null, from: Millis = now()): string {
   return `${date} (${off})`;
 }
 
-/*
- * Numbers, word by word.
- *
- * A number part is one skill on the ladder, and the ladder can say it is
- * going well while one of its words has never been kept: a learner can be
- * right about 11 to 99 a dozen times without meeting *ninety*. So each part
- * is shown here with every word it is built from — each unit, ten and
- * hundred, and the word that joins them — and whether that word is
- * validated, which is the app's standard for any card: learnt. The part
- * itself is learnt only once all of them are (see `cardStandings`), and its
- * questions are steered towards the ones that are not (see `drawRange`), so
- * this is the same answer the scheduler is acting on, drawn.
- */
-type WordState = "done" | "going" | "new";
-const WORD_STATE_LABEL: Record<WordState, string> = {
-  done: "Learnt",
-  going: "Learning",
-  new: "Not started",
-};
-
-/* Where a word stands, in the three states the page draws. */
-const wordStateOf = (p: { validated: boolean | null; met: boolean }): WordState =>
-  p.validated ? "done" : p.met ? "going" : "new";
-
-/* The figure a word stands for, for ordering: one before ten before a
-   hundred, and the words that are not a number — *and*, *hundred* — after
-   them all. */
-const figureOf = (card: Item): number => {
-  const n = Number(String(leadOf(card).en || "").replace(/,/g, ""));
-  return Number.isFinite(n) && String(leadOf(card).en || "").trim() !== "" ? n : Infinity;
-};
-
-function NumberParts({
-  items,
-  settings,
-  progressOf,
-  onCard,
-}: {
-  items: Item[];
-  settings: Settings;
-  progressOf: Map<string, Standing | null>;
-  onCard: (it: Item) => void;
-}) {
-  const parts = useMemo(
-    () =>
-      items
-        .filter((it) => isRangeSkill(it) && (it.parts || []).length)
-        .map((it) => {
-          const words = partsOf(it, items, settings)
-            .filter((p) => p.validated !== null)
-            .sort((a, b) => figureOf(a.card) - figureOf(b.card));
-          return {
-            it,
-            name: String(it.name || (it.range && it.range.label) || ""),
-            words,
-            learnt: words.filter((p) => p.validated).length,
-          };
-        })
-        .filter((p) => p.words.length),
-    [items, settings],
-  );
-  /* And the ten figures each system writes its numbers in, first: every
-     part is written in them, and a part is learnt only once they are. */
-  const figureSets = useMemo(() => {
-    const systems = [...new Set(items.filter(isNumeralCard).map((it) => systemIdOf(it)))];
-    return systems
-      .map((system) => {
-        const cards = numeralCardsOf(system, items).filter((card) => isDrillable(card, settings));
-        const words = cards.map((card) => {
-          const at = standing(cardStandings(card, settings, items));
-          return {
-            card,
-            at,
-            validated: at ? at.status === "done" : null,
-            met: unitsOf(card).some(({ unit }) =>
-              laddered(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
-            ),
-          };
-        }).filter((p) => p.validated !== null);
-        const lang = LANGUAGES[(cards[0] && cards[0].lang) as LangId] || langOf(settings);
-        return {
-          id: `numerals:${system}`,
-          name: lang.numeralsLabel || "Numerals",
-          note: lang.numeralsNote || "",
-          words,
-          learnt: words.filter((p) => p.validated).length,
-        };
-      })
-      .filter((f) => f.words.length);
-  }, [items, settings]);
-  const [open, setOpen] = useState<string>("");
-  if (!parts.length && !figureSets.length) return null;
-  const showing = parts.find((p) => p.it.id === open);
-  const figuresShowing = figureSets.find((f) => f.id === open);
-  return (
-    <Section
-      title="Numbers"
-      lede="Each part of the numbers you're studying, and how many of the words it is built from you have learnt. A part counts as learnt once its own reviews are done and you know every one of its words."
-    >
-      <div className="at-deckprog">
-        {figureSets.map((f) => {
-          const all = f.learnt === f.words.length;
-          const state: WordState = all ? "done" : f.words.some((p) => p.met) ? "going" : "new";
-          return (
-            <button
-              type="button"
-              className={`at-deckstat${all ? " done" : ""}`}
-              key={f.id}
-              aria-haspopup="dialog"
-              onClick={() => setOpen(f.id)}
-            >
-              <span className="at-deckstatname">{f.name}</span>
-              <b>
-                {f.learnt}
-                <i>/{f.words.length}</i>
-              </b>
-              <span className="at-deckbar" aria-hidden="true">
-                <span style={{ width: `${Math.round((f.learnt / f.words.length) * 100)}%` }} />
-              </span>
-              <span className="at-deckstatnote">
-                {plural(f.words.length, "numeral")} · {WORD_STATE_LABEL[state]}
-              </span>
-            </button>
-          );
-        })}
-        {parts.map((p) => {
-          const at = progressOf.get(p.it.id) || null;
-          const all = p.learnt === p.words.length;
-          return (
-            <button
-              type="button"
-              className={`at-deckstat${all && at && at.status === "done" ? " done" : ""}`}
-              key={p.it.id}
-              aria-haspopup="dialog"
-              onClick={() => setOpen(p.it.id)}
-            >
-              <span className="at-deckstatname">{p.name}</span>
-              <b>
-                {p.learnt}
-                <i>/{p.words.length}</i>
-              </b>
-              <span className="at-deckbar" aria-hidden="true">
-                <span style={{ width: `${Math.round((p.learnt / p.words.length) * 100)}%` }} />
-              </span>
-              <span className="at-deckstatnote">
-                {plural(p.words.length, "word")} · {standingLabel(at)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {figuresShowing && (
-        <Screen title={figuresShowing.name} onBack={() => setOpen("")}>
-          <Lede>
-            {figuresShowing.learnt === figuresShowing.words.length
-              ? `All ${figuresShowing.words.length} are learnt.`
-              : `${figuresShowing.learnt} of ${figuresShowing.words.length} learnt. Every number is written with these, so each part of the numbers counts as learnt only once they all are.`}
-          </Lede>
-          {figuresShowing.note && <Help>{figuresShowing.note}</Help>}
-          <div className="at-numwords">
-            {figuresShowing.words.map((p) => {
-              const state = wordStateOf(p);
-              const lead = leadOf(p.card);
-              return (
-                <button
-                  type="button"
-                  className={`at-numword ${state}`}
-                  key={p.card.id}
-                  aria-haspopup="dialog"
-                  aria-label={`${p.card.numeral || ""} (${lead.en}): ${WORD_STATE_LABEL[state]}`}
-                  onClick={() => onCard(p.card)}
-                >
-                  <span className="at-numwordfig">{p.card.numeral}</span>
-                  <span className="at-numwordsaid" dir="ltr">
-                    {lead.en}
-                  </span>
-                  <span className="at-numwordstate">{WORD_STATE_LABEL[state]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Screen>
-      )}
-      {showing && (
-        <Screen title={showing.name} onBack={() => setOpen("")}>
-          <Lede>
-            {showing.learnt === showing.words.length
-              ? `Every word in ${showing.name} is learnt.`
-              : `${showing.learnt} of ${plural(showing.words.length, "word")} learnt. The numbers you are asked here lean towards the ones still to learn.`}
-          </Lede>
-          <Help>Where the part itself stands: {standingLabel(progressOf.get(showing.it.id) || null)}.</Help>
-          <div className="at-numwords">
-            {showing.words.map((p) => {
-              const state = wordStateOf(p);
-              const lead = leadOf(p.card);
-              return (
-                <button
-                  type="button"
-                  className={`at-numword ${state}`}
-                  key={p.card.id}
-                  aria-haspopup="dialog"
-                  aria-label={`${lead.en || lead.ar}: ${WORD_STATE_LABEL[state]}`}
-                  onClick={() => onCard(p.card)}
-                >
-                  <span className="at-numwordfig">{p.card.numeral || lead.en}</span>
-                  <span className="at-numwordsaid" dir="auto">
-                    {lead.ar}
-                  </span>
-                  <span className="at-numwordstate">{WORD_STATE_LABEL[state]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Screen>
-      )}
-    </Section>
-  );
-}
-
 function DeckScreen({
   name,
   cards,
   progressOf,
+  towardOf,
   settings,
   perDay,
   onBack,
@@ -16929,14 +16721,25 @@ function DeckScreen({
   name: string;
   cards: Item[];
   progressOf: Map<string, Standing | null>;
+  /** How far each card is towards learnt — see towardsLearnt. */
+  towardOf: Map<string, { at: Standing; share: number } | null>;
   settings: Settings;
   perDay: number;
   onBack: () => void;
   onCard: (it: Item) => void;
 }) {
-  const shown = cards.filter((it) => progressOf.get(it.id));
-  const learnt = shown.filter((it) => progressOf.get(it.id)?.status === "done").length;
-  const pct = shown.length ? Math.round((learnt / shown.length) * 100) : 0;
+  /* Every card of the deck that can be asked, now or once what it waits on
+     opens: a number whose stretch is still ahead is in the deck and not
+     yet learnt, and the deck's tile on Progress counts it, so this screen
+     lists it too. It used to list only the cards on a level, so a deck of
+     numbers opened on the handful being worked on and none of the rest. */
+  const shown = cards.filter((it) => towardOf.get(it.id));
+  const learnt = shown.filter((it) => towardOf.get(it.id)?.at.status === "done").length;
+  const pct = deckPercent({
+    n: shown.length,
+    learnt,
+    got: shown.reduce((sum, it) => sum + (towardOf.get(it.id)?.share || 0), 0),
+  });
   const allDone = shown.length > 0 && learnt === shown.length;
   /* What is left and how soon it could be done — see workloadOf. */
   const work = useMemo(() => workloadOf(cards, settings), [cards, settings]);
@@ -16989,7 +16792,7 @@ function DeckScreen({
         size="small"
         empty="No cards match."
         groups={DECK_RUNS}
-        groupOf={(it: Item) => deckRunOf(progressOf.get(it.id))}
+        groupOf={(it: Item) => (progressOf.get(it.id) ? deckRunOf(progressOf.get(it.id)) : "waiting")}
         match={(it: Item, needle: string) =>
           (leadOf(it).ar || "").includes(needle) ||
           (leadOf(it).lat || "").toLowerCase().includes(needle) ||
@@ -16999,7 +16802,7 @@ function DeckScreen({
           <CardTile
             card={it}
             lang={langOf(settingsFor(settings, it))}
-            meta={standingShort(progressOf.get(it.id) || null)}
+            meta={progressOf.get(it.id) ? standingShort(progressOf.get(it.id) || null) : "Opens later"}
             className="whole"
             onClick={() => onCard(it)}
           />
@@ -17340,8 +17143,6 @@ function ProgressTab({
       )}
       </Section>
 
-      <NumberParts items={items} settings={settings} progressOf={progressOf} onCard={(it) => setViewing(it)} />
-
       {/* ---- the decks, as how far each one is from finished ----
 
           The ladder above says where the cards are; this says where the
@@ -17411,6 +17212,7 @@ function ProgressTab({
           name={deckOpen}
           cards={items.filter((it) => (it.tags || []).includes(deckOpen))}
           progressOf={progressOf}
+          towardOf={progress.toward}
           settings={settings}
           perDay={perDay}
           onBack={() => setDeckOpen("")}

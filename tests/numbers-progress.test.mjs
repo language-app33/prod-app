@@ -42,7 +42,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { buildSession, installIndexes, cardStandings, partsOf, climbOf, towardsLearnt } = await import(path.join(out, "trainer.js"));
+const { buildSession, installIndexes, cardStandings, partsOf, climbOf, towardsLearnt, workloadOf } = await import(path.join(out, "trainer.js"));
 const { generate, fileIntoDecks, componentId, isRangeSkill, steeredAsk } = await import(
   path.join(here, "..", "src", "numbers", "generate.ts")
 );
@@ -234,6 +234,18 @@ test("a deck of numbers counts the numbers still waiting, so its percentage only
   const fresh = must(towardsLearnt(thousands, settings, filed), "a waiting part counts");
   assert.equal(fresh.at.level, 1);
   assert.equal(fresh.share, 0);
+});
+
+test("the work left on a deck of numbers counts the numbers still waiting", () => {
+  installIndexes(filed, settings);
+  const counted = filed.filter((/** @type {any} */ it) => towardsLearnt(it, settings, filed)).length;
+  const asked = filed.filter((/** @type {any} */ it) => standing(cardStandings(it, settings, filed))).length;
+  assert.ok(asked < counted, "nothing is waiting, so this proves nothing");
+  const w = workloadOf(filed, settings);
+  assert.equal(w.left, counted, "a number waiting on its stretch is work the deck has left");
+  /* And the work on a waiting part is its whole ladder, not nothing. */
+  const thousands = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:1000+"), "1000+");
+  assert.ok(workloadOf([thousands], settings).questions > 0, "a waiting part needs no answers");
 });
 
 /** Missed twice running, so the level it is on shuts. */

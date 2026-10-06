@@ -5439,3 +5439,20 @@ rather than the trainer importing the card editor, which loads on its own
 and would otherwise be pulled into every student's first load. The
 picker's sentences, which spoke of putting a card in a deck, became
 overridable (`words`).
+
+## Numbers are followed through their decks, waiting ones included
+
+**6 October 2026** · `src/ArabicTrainer.tsx` (`DeckScreen`, `workloadOf`)
+
+The owner asked for the Numbers section on Progress to go: a deck that
+holds numbers is the place to follow them. Its word-by-word view went with
+it. The deck tile already counted a number waiting on its stretch (see
+`towardsLearnt`), but the deck's own screen and `workloadOf` read only
+`laddered`, so they left those out: the screen listed the parts being
+worked on and none of the rest, and the forecast and a prep's sessions a
+day counted no work for them. Both now read a waiting card through
+`ladderedOnceOpen`, as the percentages do. On the deck screen it is listed
+last, under "Opens later". In the forecast it carries its whole ladder,
+with the floor of a card whose building blocks come first
+(`CLEAR_DAYS + LEARN_DAYS`) — a stand-in, not a measurement.
+

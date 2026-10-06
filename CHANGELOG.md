@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.374 — 6 October 2026
+
+**Progress follows numbers through their decks, and a deck counts every number in it.**
+
+- The "Numbers" section is gone from Progress. To follow how the numbers
+  are going, open a deck that holds them under Decks.
+- A deck's own screen now lists every number card in it. Before, it
+  listed only the ones being worked on, and left out numbers whose part
+  hasn't opened yet (10 to 19 while 0 to 9 is still being learnt, for
+  example). Those now appear at the end under "Opens later", and the
+  "x of y cards fully learnt" line and the bar count them too, so they
+  match the deck's tile on Progress.
+- How much is left on a deck, and when it could be done, now includes
+  those numbers as well, so the dates under a deck, and Prep mode's
+  sessions a day for a deck with numbers in it, come out a bit later
+  and closer to the truth.
+
 ## 0.373 — 6 October 2026
 
 **Progress gives Prep mode a heading of its own, and the prep's delete button matches the rest.**
