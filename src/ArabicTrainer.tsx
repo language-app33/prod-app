@@ -172,6 +172,7 @@ import {
   cellsIn,
   hasCells,
   ownSlot,
+  linkedToNothing,
   partnerOf,
   slotLinks,
   citedCell,
@@ -1383,13 +1384,17 @@ function askedIn(unit: Form, slot: string, list: Value[]): Value[] {
   /* And whether the blank agrees with another — a verb beside a subject
      stands in it once per tense, since the subject picks the person. */
   const agrees = !!partnerOf(unit, slotsOf(unit), slot);
-  if (!rows.length && !agrees) return list;
+  /* And whether it was linked to nothing, which has a word whose forms
+     agree stand in it as every form in turn. Never a shortcut past the
+     filter, since such a word lends its whole table and only a blank
+     linked to nothing takes all of it — see blankAdmits. */
+  const alone = linkedToNothing(unit, slot);
   /* Worked out once while the indexes hold — see ASKED_IN. */
   const fallback = activeLang().id;
   let mine = ASKED_IN.get(unit);
   const held = mine && mine.get(slot);
   if (held && held.list === list && held.lang === fallback) return held.out;
-  const admits = (lang: Lang) => blankAdmits(lang, () => rows, () => agrees);
+  const admits = (lang: Lang) => blankAdmits(lang, () => rows, () => agrees, () => alone);
   const out = list.filter((value) => {
     const owner = VALUE_OWNER.get(refOf(value));
     if (!owner) return true;

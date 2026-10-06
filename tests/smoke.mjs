@@ -4818,6 +4818,32 @@ const openPronounTables = async () => {
         `save ${buttonNamed(/^Save$/) && !/** @type {any} */ (buttonNamed(/^Save$/)).disabled ? "on" : "off"}`);
   }
 
+  /* A person's boxes, a side for each gender, all start folded under their
+     names — even where something is written, and even when they appear
+     because the card has just been said to be a person. An animal's are
+     not: they open as they appear, the way any form asked for does. */
+  await leaveScreen();
+  openFormsAsDrawn = false;
+  await newCard();
+  await pickCardKind(/^Word or phrase/);
+  await pickKind(/^Noun/);
+  {
+    const shut = () => formFolds().filter((b) => b.getAttribute("aria-expanded") === "false").length;
+    await pickToggle("Person, animal or thing", "Person");
+    await sleep(250);
+    check("a person's forms all start folded under their names",
+      formFolds().length > 2 && shut() === formFolds().length,
+      `${shut()} of ${formFolds().length} folded`);
+    await pickToggle("Person, animal or thing", "Thing");
+    await sleep(250);
+    await pickToggle("Person, animal or thing", "Animal");
+    await sleep(250);
+    check("while an animal's open as they appear",
+      formFolds().length > 2 && shut() === 0,
+      `${shut()} of ${formFolds().length} folded`);
+  }
+  openFormsAsDrawn = true;
+
   await leaveScreen();
   openFormsAsDrawn = false;
   await newCard();
