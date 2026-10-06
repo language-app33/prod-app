@@ -1226,18 +1226,16 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const dupes2 = answered.filter((n, i) => n !== "related-word" && answered.indexOf(n) !== i);
     check("and each of those means one thing too", dupes2.length === 0, dupes2.join(", "));
 
-    /* The extras open closed, behind one tap. The answer is what you came
-       back for; five blocks of context under it is a page to scroll past
-       rather than a thing to read. */
-    check("what is not the answer starts put away",
-      !document.querySelector('[data-el="also"]'), "the box is open before it is asked for");
-    const moreBtn = document.querySelector('[data-el="also-toggle"]');
-    check("and there is an invitation to open it",
-      !!moreBtn && /Learn more/.test(moreBtn.textContent), moreBtn ? moreBtn.textContent : "no toggle");
-    check("which says whether it is open", moreBtn && moreBtn.getAttribute("aria-expanded") === "false",
-      moreBtn ? String(moreBtn.getAttribute("aria-expanded")) : "");
-    click(moreBtn);
-    await sleep(120);
+    /* The extras are shown open, under a plain "Learn more" heading with
+       nothing to fold them away: they are there to be read. */
+    const moreHead = document.querySelector('[data-el="also-heading"]');
+    check("what is not the answer is headed Learn more",
+      !!moreHead && /^Learn more$/.test(moreHead.textContent.trim()), moreHead ? moreHead.textContent : "no heading");
+    check("and the heading is not a control that folds it away",
+      !!moreHead && moreHead.tagName !== "BUTTON" && !moreHead.querySelector("svg") && !moreHead.hasAttribute("aria-expanded"),
+      moreHead ? moreHead.outerHTML : "");
+    check("and the box is open without being asked for",
+      !!document.querySelector('[data-el="also"]'), "the box is closed");
 
     /* Everything that is not the answer, in one box. The members are each
        conditional, so what matters is that whichever turned up are inside
@@ -2278,7 +2276,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   click(levelTile);
   await sleep(200);
 
-  /* ---- prep mode: decks to have learnt by a date ----
+  /* ---- prep mode: decks to have cleared or learnt by a date ----
      Set up from Progress, offered on the home screen as a session of its
      own, edited, and cleared. */
   {
@@ -2296,7 +2294,12 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const pad = (/** @type {number} */ n) => String(n).padStart(2, "0");
     const day = `${inMonth.getFullYear()}-${pad(inMonth.getMonth() + 1)}-${pad(inMonth.getDate())}`;
 
-    click(buttonNamed(/^Prep mode$/));
+    const prepHead = [...document.querySelectorAll("h3.at-sectionhead")].find((h) => /^Prep mode$/.test(h.textContent || ""));
+    check("Progress has Prep mode under a heading of its own, styled as the Courses tab's",
+      !!prepHead && !!prepHead.closest(".at-section")?.querySelector(".at-sectionlede"),
+      [...document.querySelectorAll(".at-sectionhead")].map((h) => h.textContent).join(" | "));
+    check("and its button starts one while there is none", !!buttonNamed(/^Start prep mode$/));
+    click(buttonNamed(/^Start prep mode$/));
     await sleep(250);
     check("Progress opens Prep mode on a screen of its own",
       /Prep mode/.test(((top() || {}).textContent || "")), ((top() || {}).textContent || "").slice(0, 60));
@@ -2306,11 +2309,27 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     if (nameBox) typeIn(nameBox, "Start of class");
     if (dateBox) typeIn(dateBox, day);
     await sleep(80);
-    const lessonRow = [...((top() || document).querySelectorAll("label.at-tickrow"))]
-      .find((l) => /Lesson 1/.test(l.textContent || ""));
-    check("and which decks to have learnt by then", !!lessonRow);
-    click(lessonRow && lessonRow.querySelector("input"));
+    /* The decks as a card's editor chooses them: a button opening a sheet,
+       and the chosen ones as pills. */
+    click(buttonNamed(/^Choose decks$/));
     await sleep(80);
+    const lessonPick = [...document.querySelectorAll(".at-decksheet button.at-deckpick")]
+      .find((b) => /Lesson 1/.test(b.textContent || ""));
+    check("and which decks to target, from the sheet a card's decks are chosen in", !!lessonPick);
+    click(lessonPick);
+    await sleep(80);
+    click([...document.querySelectorAll(".at-decksheet button")].find((b) => b.getAttribute("aria-label") === "Close"));
+    await sleep(80);
+    check("the deck chosen stands as a pill",
+      [...((top() || document).querySelectorAll(".at-deckpill"))].some((p) => /Lesson 1/.test(p.textContent || "")));
+    const levelPick = (/** @type {RegExp} */ re) =>
+      [...((top() || document).querySelectorAll(".at-segmented button"))].find((b) => re.test(b.textContent || ""));
+    check("and the level to have them at, Learnt to begin with",
+      !!levelPick(/^Cleared$/) && levelPick(/^Learnt$/)?.getAttribute("aria-pressed") === "true",
+      (levelPick(/^Learnt$/) || {}).outerHTML || "(no level picker)");
+    const foot = () => (top() || document).querySelector(".at-screenfoot");
+    check("Save sits in the bar at the foot of the screen",
+      !!foot()?.contains(buttonNamed(/^Start prepping$/) || null), (foot() || {}).textContent || "(no foot)");
     const readyText = () => ((document.querySelector(".at-prepready") || {}).textContent || "");
     for (let i = 0; i < 160 && (!readyText() || /Working out/.test(readyText())); i++) await sleep(250);
     check("saying how much practice being ready takes, or when it could be",
@@ -2365,7 +2384,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     /* Edited: the same screen, holding what was set. */
     click(buttonNamed(/^Progress$/));
     await sleep(300);
-    click(buttonNamed(/^Prep mode$/));
+    click(buttonNamed(/^Edit prep mode$/));
     await sleep(250);
     const again = /** @type {any} */ (document.getElementById("at-prep-name"));
     check("opening it again holds the prep as it was set",
@@ -2380,15 +2399,39 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     await sleep(300);
     check("and reaches the home screen's button",
       /^Prep for Exam$/.test((prepButton() || {}).textContent || ""), (prepButton() || {}).textContent || "(none)");
+    check("whose ring counts cards learnt",
+      / cards? learnt$/.test((prepTile()?.querySelector(".at-climbsay") || {}).textContent || ""),
+      (prepTile()?.querySelector(".at-climbsay") || {}).textContent || "(no ring)");
+
+    /* Aimed at Cleared instead: the tile counts cleared cards. */
+    click(buttonNamed(/^Progress$/));
+    await sleep(300);
+    click(buttonNamed(/^Edit prep mode$/));
+    await sleep(250);
+    click(levelPick(/^Cleared$/));
+    await sleep(80);
+    click(buttonNamed(/^Save changes$/));
+    await sleep(300);
+    click(buttonNamed(/^Home$/));
+    await sleep(300);
+    const said = () => (prepTile()?.querySelector(".at-climbsay") || {}).textContent || "";
+    check("aimed at Cleared, the tile counts cleared cards, and still offers the prep",
+      / cards? cleared$/.test(said()) || (!prepTile() && !!document.querySelector(".at-prepnote")), said() || "(no tile)");
 
     /* Cleared. */
     click(buttonNamed(/^Progress$/));
     await sleep(300);
-    click(buttonNamed(/^Prep mode$/));
+    click(buttonNamed(/^Edit prep mode$/));
     await sleep(250);
-    click(buttonNamed(/^Stop prepping$/));
+    const del = () => [...((foot() || document).querySelectorAll("button"))].find((b) => b.getAttribute("aria-label") === "Delete this prep");
+    check("the way to delete it is an icon in the same bar, before Save",
+      !!del() && !(del()?.textContent || "").trim() &&
+        !!((del()?.compareDocumentPosition(/** @type {Node} */ (buttonNamed(/^Save changes$/))) || 0) & 4),
+      (foot() || {}).innerHTML?.slice(0, 160) || "(no foot)");
+    click(del());
     await sleep(300);
-    check("stopping clears it from Progress", !document.querySelector(".at-prepnote"), note());
+    check("deleting clears it from Progress, whose button starts one again",
+      !document.querySelector(".at-prepnote") && !!buttonNamed(/^Start prep mode$/), note());
     click(buttonNamed(/^Home$/));
     await sleep(300);
     check("and from the home screen, which has its climb back",
@@ -3728,12 +3771,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     }
 
     /* Move two: what the answer screen says about where the word lives.
-       Behind "Learn more", which is where everything that is not the
-       answer lives. */
-    const more = document.querySelector('[data-el="also-toggle"]');
+       Under "Learn more", which is where everything that is not the
+       answer lives, open from the start. */
+    const more = document.querySelector('[data-el="also"]');
     if (/Choose the meaning/.test(asked) && !alsoOnMeaning) {
-      if (more) click(more);
-      await sleep(120);
       alsoOnMeaning = {
         box: !!more,
         said: ((document.querySelector('[data-el="also-hint"]') || {}).textContent || "")
@@ -3741,8 +3782,6 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       };
     }
     if (more) {
-      click(more);
-      await sleep(120);
       const where = document.querySelector('[data-el="also-context"]');
       if (where && /الكتاب كبير/.test(where.textContent || "")) {
         sawWhereItTurnedUp += 1;
@@ -8276,12 +8315,21 @@ const openPronounTables = async () => {
     await sleep(200);
   }
 
-  /* Under the boxes, the number counting a thing: read only, made of the
-     word just typed and the noun card — and nothing under a number with
-     no word yet, since there is nothing to count with. */
+  /* Under the boxes, examples of the number counting things: read only,
+     made of the words typed and the noun card. Seven has a box for its
+     word before a noun, so nothing shows until that box is filled — and
+     nothing under a number with no word yet, since there is nothing to
+     count with. */
   const counts = (/** @type {string} */ n) => ((tileOf(n) || { querySelector: () => null }).querySelector(".at-numcount") || {}).textContent || "";
-  check("under a number's boxes is how it counts a thing, read only",
-    /Counting a thing/.test(counts("7")) && /sab3a/.test(counts("7")) && /7 books/.test(counts("7")) &&
+  check("no example under a number until its word before a noun is typed",
+    !counts("7"), counts("7"));
+  const sevenBefore = boxNamed("7, before a noun");
+  if (sevenBefore) {
+    typeIn(sevenBefore, "sab3at");
+    await sleep(200);
+  }
+  check("then under its boxes are examples of counting things, read only",
+    !!sevenBefore && /Examples of counting things/.test(counts("7")) && /sab3at/.test(counts("7")) && /7 books/.test(counts("7")) &&
       !(/** @type {any} */ (tileOf("7"))).querySelector(".at-numcount input"),
     counts("7") || "(nothing under seven)");
   check("and nothing under a number with no word to count with",

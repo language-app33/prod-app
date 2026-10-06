@@ -192,6 +192,19 @@ test("Punctuation is never what an answer is marked on, curly or straight", () =
   assert.equal(checkViet("“xin chào”", "xin chào", { tones: "either" }).ok, true);
 });
 
+test("English: a comma inside a meaning is part of it, not a break between meanings", () => {
+  /* Reported by a learner, three times: the whole sentence was marked
+     wrong, with or without its comma, and half of it was marked right. */
+  const m = "He's cold, he wants a jacket / He's cold, he needs a jacket / He is cold, he wants a jacket / He is cold, he needs a jacket";
+  assert.deepEqual(checkEn("He is cold, he wants a jacket ", m), { ok: true, reason: "exact" });
+  assert.deepEqual(checkEn("He is cold he wants a jacket ", m), { ok: true, reason: "exact" });
+  assert.deepEqual(checkEn("He's cold, he needs a jacket", m), { ok: true, reason: "exact" });
+  assert.equal(checkEn("He is cold", m).ok, false);
+  assert.equal(checkEn("he needs a jacket", m).ok, false);
+  /* The other person is still the other person. */
+  assert.equal(checkEn("She is cold, she wants a jacket", m).ok, false);
+});
+
 test("English: a different word in one place is wrong, not a near miss", () => {
   /* Reported by a learner, twice: "their" for "your" was marked as the
      right word, not quite spelt. */

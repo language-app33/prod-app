@@ -8,6 +8,93 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.374 — 6 October 2026
+
+**Progress follows numbers through their decks, and a deck counts every number in it.**
+
+- The "Numbers" section is gone from Progress. To follow how the numbers
+  are going, open a deck that holds them under Decks.
+- A deck's own screen now lists every number card in it. Before, it
+  listed only the ones being worked on, and left out numbers whose part
+  hasn't opened yet (10 to 19 while 0 to 9 is still being learnt, for
+  example). Those now appear at the end under "Opens later", and the
+  "x of y cards fully learnt" line and the bar count them too, so they
+  match the deck's tile on Progress.
+- How much is left on a deck, and when it could be done, now includes
+  those numbers as well, so the dates under a deck, and Prep mode's
+  sessions a day for a deck with numbers in it, come out a bit later
+  and closer to the truth.
+
+## 0.373 — 6 October 2026
+
+**Progress gives Prep mode a heading of its own, and the prep's delete button matches the rest.**
+
+- On Progress, Prep mode now sits under its own "Prep mode" heading, with
+  one line saying what it is for. Its button says "Start prep mode" while
+  there is no prep, and "Edit prep mode" once there is one.
+- The headings on Progress ("Prep mode", "The ladder", "Decks") are now
+  drawn like the ones on the Courses tab ("My courses", "Join a course"),
+  instead of small grey capitals.
+- The delete button at the bottom of the prep screen is now a square
+  outlined icon the height of Save, drawn like the icons beside New card
+  under Teaching › Cards. Before, it was a short, wide box.
+
+## 0.372 — 6 October 2026
+
+**"Learn more" under an answer is open from the start.**
+
+- Everything else worth knowing about a card — what it means, how it
+  sounds and is written, the phrase it turned up in — is now shown straight
+  away under the answer, beneath a plain "Learn more" heading. It used to
+  open on a tap.
+- The arrow beside "Learn more" is gone, and the box can no longer be
+  folded away. The trade-off: on a card with a lot to say, the Continue
+  button sits further down the page.
+
+## 0.371 — 6 October 2026
+
+**Prep mode can aim at Cleared, and its screen works like the rest of the app.**
+
+- A new "Target level" choice, Cleared or Learnt, under the decks. Cleared
+  means every card answered right all the way up its levels; Learnt adds
+  the two reviews a few days apart that keep it. Aiming at Cleared, the
+  home screen's prep tile counts cards cleared rather than learnt, its
+  percentage and sessions a day are worked out to Cleared, the earliest
+  date comes sooner, and the prep counts as done once every card is
+  cleared. A prep set up before this aims at Learnt, as it did.
+- "Decks to have fully learnt by then" is now "Decks to target", and the
+  decks are chosen the way a card's decks are: the chosen ones as pills
+  you can take off, and a button opening the list to add more.
+- Save sits in the bar pinned to the bottom of the screen, as on the
+  other forms. "Stop prepping" is now a delete icon at the left of that
+  same bar.
+
+## 0.370 — 6 October 2026
+
+**A meaning with a comma in it is marked as one answer.**
+
+- An answer like "He is cold, he wants a jacket" was marked wrong even
+  when typed exactly as the card has it, with or without the comma, and
+  "He is cold" on its own was marked right. The app read every comma in a
+  meaning as a break between two separate answers. Now only a slash (or a
+  semicolon) separates answers; a comma is part of the phrase, and
+  whether you type it does not matter.
+- Trade-off: a card that used a comma to list two meanings ("big, large")
+  now needs the whole thing typed. Write such a card with a slash
+  ("big / large") to accept either.
+
+## 0.369 — 6 October 2026
+
+**On a number system, the counting examples wait for the word they show.**
+
+- Under each number, the read-only line that shows it counting something
+  is now called "Examples of counting things" (it was "Counting a
+  thing").
+- On a number with a "before a noun" box, such as 3 to 19 in Arabic, the
+  examples appear only once that box is filled. Before, they showed as
+  soon as the counting word was typed, made from a word you hadn't given
+  yet. Numbers without that box show their examples as before.
+
 ## 0.368 — 6 October 2026
 
 **Practising a lot moves you forward instead of holding you in place.**

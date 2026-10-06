@@ -12,7 +12,7 @@ import {
   Button,
   CardReadout,
   CardTile,
-  CheckList,
+  DeckSwitch,
   ClipList,
   ConfirmModal,
   Empty,
@@ -363,12 +363,17 @@ export const cardStandings = (
  * Progress tab's decks all read this, so none of them can count a waiting
  * number differently from the others.
  */
-export function towardsLearnt(it: Item, settings: Settings, among: Item[]): { at: Standing; share: number } | null {
+export function towardsLearnt(it: Item, settings: Settings, among: Item[]): { at: Standing; share: number; reach: number } | null {
   let rows = cardStandings(it, settings, among);
   if (!rows.length) rows = cardStandings(it, settings, among, ladderedOnceOpen);
   const at = standing(rows);
   if (!at) return null;
-  return { at, share: rows.filter((r) => r.status === "done").length / rows.length };
+  return {
+    at,
+    share: rows.filter((r) => r.status === "done").length / rows.length,
+    /* The same, with a cleared top row counted in: how far towards cleared. */
+    reach: rows.filter((r) => r.status === "done" || r.status === "cleared").length / rows.length,
+  };
 }
 
 /**
@@ -5298,7 +5303,8 @@ function dayOf(t: Millis): Millis {
 }
 
 export interface Workload {
-  /** Cards that can be asked about and are not yet learnt. */
+  /** Cards that can be asked about and are not yet learnt — or cleared,
+      where that is the target. */
   left: number;
   /** Right answers still needed to take all of them to learnt. */
   questions: number;
@@ -5324,20 +5330,31 @@ export interface Workload {
  * the last. Ten even for a keen learner, whose door is wider (see
  * frontDoorFor): a wider door clears each word more slowly, and measured,
  * a hundred cards were all met at about the same day either way.
+ *
+ * With Cleared as the target (a prep can aim there — see PrepTarget), a
+ * cleared card needs nothing, the passes are left out of the questions, and
+ * the fewest days are CLEAR_DAYS where they were LEARN_DAYS: the passes are
+ * what make learning a card take days rather than an evening.
  */
-export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()): Workload {
+export function workloadOf(cards: Item[], settings: Settings, at: Millis = now(), target: PrepTarget = "learnt"): Workload {
+  const toClear = target === "cleared";
   let left = 0;
   let questions = 0;
   let unseen = 0;
   let floor = 0;
   for (const it of cards) {
-    const where = standing(cardStandings(it, settings, cards));
-    if (!where || where.status === "done") continue;
+    /* A number waiting on its stretch is asked nothing yet, but it is in
+       the deck and has all of its ladder ahead of it: counted as it will
+       stand once the stretch opens, as towardsLearnt counts it. */
+    const now_ = standing(cardStandings(it, settings, cards));
+    const ladder = now_ ? laddered : ladderedOnceOpen;
+    const where = now_ || standing(cardStandings(it, settings, cards, ladderedOnceOpen));
+    if (!where || reached(where, target)) continue;
     left += 1;
     let fresh = true;
     let passesLeft = 0;
     for (const { unit } of unitsOf(it)) {
-      const keys = laddered(unit, settings);
+      const keys = ladder(unit, settings);
       if (!keys.length) continue;
       for (const k of keys) {
         const st = stateOf(unit, k);
@@ -5346,23 +5363,29 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
         const hist = st.hist || [];
         questions += hist.length && hist[hist.length - 1] ? 1 : 2;
       }
+      if (toClear) continue;
       const top = topLevelOf(keys);
       const owed = Math.max(0, PASSES_TO_LEARN - passesMade(keys, (k) => stateOf(unit, k)));
       questions += owed * keys.filter((k) => levelOf(k) === top).length;
       passesLeft = Math.max(passesLeft, owed);
     }
     if (fresh) unseen += 1;
-    if (where.status === "cleared" && passesLeft > 0) {
+    /* Waiting on the stretch below it, a number starts its climb only once
+       that is cleared — the same wait as a sentence's words. */
+    const behind = !now_ || blocksAhead(it, settings);
+    if (toClear) {
+      floor = Math.max(floor, behind ? 2 * CLEAR_DAYS : CLEAR_DAYS);
+    } else if (where.status === "cleared" && passesLeft > 0) {
       const next = nextPassAt(it, settings);
       const wait = next > at ? Math.ceil((dayOf(next) - dayOf(at)) / 86400000) : 0;
       floor = Math.max(floor, wait + (passesLeft - 1) * 2);
-    } else if (blocksAhead(it, settings)) {
+    } else if (behind) {
       floor = Math.max(floor, CLEAR_DAYS + LEARN_DAYS);
     } else {
       floor = Math.max(floor, LEARN_DAYS);
     }
   }
-  if (unseen) floor = Math.max(floor, Math.ceil(unseen / FRONT_DOOR_CAP) - 1 + LEARN_DAYS);
+  if (unseen) floor = Math.max(floor, Math.ceil(unseen / FRONT_DOOR_CAP) - 1 + (toClear ? CLEAR_DAYS : LEARN_DAYS));
   return {
     left,
     questions,
@@ -5745,34 +5768,23 @@ export function praiseFor(n: number) {
 }
 
 /* --- AlsoBox --------------------------------------------------------
-   What is worth knowing beyond the answer, behind one tap. It opens
-   closed: the answer is what you came back for, and five blocks of
-   context under it is a page to scroll past rather than a thing to
-   read. Anyone who wants them is one tap away, and the tap is the
-   signal that they are actually being read.
+   What is worth knowing beyond the answer, under a "Learn more" heading.
+   It is shown open, with nothing to fold it away: the blocks are there to
+   be read, and a tap to reach them was a tap most answers never got.
 
-   Renders nothing — not even the invitation — when there is nothing to
-   put in it, so "Learn more" is never a promise the box cannot keep. */
-function AlsoBox({ children, open, onToggle }: { children?: Node; open?: boolean; onToggle?: () => void }) {
+   Renders nothing — not even the heading — when there is nothing to put
+   in it, so "Learn more" is never a promise the box cannot keep. */
+function AlsoBox({ children }: { children?: Node }) {
   const shown = React.Children.toArray(children).filter(Boolean);
   if (!shown.length) return null;
   return (
     <>
-      <button
-        type="button"
-        className="at-alsomore"
-        data-el="also-toggle"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
+      <p className="at-alsomore" data-el="also-heading">
         Learn more
-        <Icon name={open ? "chevronUp" : "chevronDown"} size={20} />
-      </button>
-      {open && (
-        <div className="at-alsobox" data-el="also">
-          {shown}
-        </div>
-      )}
+      </p>
+      <div className="at-alsobox" data-el="also">
+        {shown}
+      </div>
     </>
   );
 }
@@ -8856,7 +8868,6 @@ export default function ArabicTrainer() {
   const [showMeaning, setShowMeaning] = useState(false);
   /* Closed for every new question. Opening it for one card is not a
      standing request to see it for the next twenty. */
-  const [alsoOpen, setAlsoOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [tally, setTally] = useState({ ok: 0, no: 0 });
   /*
@@ -10306,7 +10317,6 @@ export default function ArabicTrainer() {
     setRetried(false);
     setFlaggedNow(false);
     setEasedFor(null);
-    setAlsoOpen(false);
     setShowSaid(false);
     setShowMeaning(false);
     setHintOpen(null);
@@ -11827,7 +11837,7 @@ export default function ArabicTrainer() {
                     learner set themselves. */}
                 {homePrep && (
                   <div className="at-card at-preptile at-mb3">
-                    <Climb items={shown.filter(prepDeckOf(homePrep.decks))} settings={settings} />
+                    <Climb items={shown.filter(prepDeckOf(homePrep.decks))} settings={settings} target={homePrep.target} />
                     <div className="at-row">
                       <Button variant="primary" onClick={() => begin(false, prepDeckOf(homePrep.decks))}>
                         Prep for {homePrep.name}
@@ -12595,7 +12605,7 @@ export default function ArabicTrainer() {
                           noticing, so each says what it is, they are set
                           smaller, and they are kept together in one box
                           rather than trailing down the page. */}
-                      <AlsoBox open={alsoOpen} onToggle={() => setAlsoOpen((v) => !v)}>
+                      <AlsoBox>
                         {/* The phrase it appeared in, whole, and what it
                             means. A gap question showed that meaning with
                             the gap; every other question held it back
@@ -13163,7 +13173,7 @@ export default function ArabicTrainer() {
  *
  * Exported for the tests, which hold a deck of numbers to it.
  */
-export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
+export function climbOf(cards: Item[], settings: Settings, all: Item[], target: PrepTarget = "learnt") {
   /* The four levels, then the cards with nothing above them left to open
      — the same five buckets the tiles in Progress count. */
   const spread = [0, 0, 0, 0, 0];
@@ -13179,8 +13189,10 @@ export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
     const toward = towardsLearnt(it, settings, all);
     if (!toward) continue;
     n++;
-    got += toward.share;
-    if (toward.at.status === "done") {
+    /* Aiming at Cleared, the top row counts once it is cleared: the passes
+       are the part of the climb a prep for Cleared leaves out. */
+    got += target === "cleared" && toward.at.status === "cleared" ? toward.reach : toward.share;
+    if (reached(toward.at, target)) {
       learnt++;
       spread[4]++;
     } else spread[toward.at.level - 1]++;
@@ -13188,8 +13200,8 @@ export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
   return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
 }
 
-function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
-  const climb = useMemo(() => climbOf(items, settings, items), [items, settings]);
+function Climb({ items, settings, target = "learnt" }: { items: Item[]; settings: Settings; target?: PrepTarget }) {
+  const climb = useMemo(() => climbOf(items, settings, items, target), [items, settings, target]);
 
   /* Nothing practisable, nothing to draw. The card below still offers what
      it can, and the reason there is nothing is the Cards tab's to give. */
@@ -13227,7 +13239,7 @@ function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
       </div>
       <div className="at-climbside">
         <p className="at-climbsay">
-          {learnt} of {plural(n, "card")} learnt
+          {learnt} of {plural(n, "card")} {target === "cleared" ? "cleared" : "learnt"}
         </p>
         <span className="at-climbband" aria-hidden="true">
           {spread.map((count, i) =>
@@ -16252,15 +16264,16 @@ function Lately({ moves }: { moves?: Record<string, DayMoves> }) {
    Prep mode
 
    A learner preparing for something on a date — the start of a class, an
-   exam — names it, sets the date and picks the decks that have to be
-   learnt by then. The home screen then offers a session drawn from those
+   exam — names it, sets the date, picks the decks that have to be ready by
+   then and how far: cleared, or learnt. The home screen then offers a session drawn from those
    decks alone, which is the fastest way to finish them, and says how many
    days are left and whether their pace gets them there. The one prep is
    kept in the settings, so it follows the learner to their other devices
    the way the rest of their settings do, and it is theirs to edit or clear.
 
-   Being ready means every card in the chosen decks learnt before the day
-   itself starts: on the morning of an exam is too late to be learning.
+   Being ready means every card in the chosen decks at the target before
+   the day itself starts: on the morning of an exam is too late to be
+   learning.
    ------------------------------------------------------------------ */
 
 export interface Prep {
@@ -16268,8 +16281,24 @@ export interface Prep {
   name: string;
   /** The day of it, as a date input writes one: YYYY-MM-DD. */
   date: string;
-  /** The decks to have learnt by then. */
+  /** The decks to have learnt, or cleared, by then. */
   decks: string[];
+  /** How far those decks have to be by then. */
+  target: PrepTarget;
+}
+
+/**
+ * How far a prep's decks have to get: every card learnt — cleared and its
+ * two passes made, days apart — or only cleared, which is up the whole
+ * ladder and can be done in days rather than the better part of a week.
+ * Learnt for a prep saved before there was a choice, since that is what it
+ * was aiming at.
+ */
+export type PrepTarget = "cleared" | "learnt";
+
+/** Whether a card standing here has got as far as the target. */
+function reached(at: Standing, target: PrepTarget): boolean {
+  return at.status === "done" || (target === "cleared" && at.status === "cleared");
 }
 
 /** The prep in the settings, if there is a whole one. */
@@ -16280,7 +16309,7 @@ export function prepOf(settings: Settings | null | undefined): Prep | null {
   const date = String(p.date || "");
   const decks = Array.isArray(p.decks) ? p.decks.map((d: unknown) => String(d)).filter(Boolean) : [];
   if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !decks.length) return null;
-  return { name, date, decks };
+  return { name, date, decks, target: p.target === "cleared" ? "cleared" : "learnt" };
 }
 
 /** The first moment of the prep's day: the deadline for being ready. */
@@ -16316,7 +16345,8 @@ export function prepDaysLeft(date: string, at: Millis = now()): number {
 
 /**
  * Where a prep stands: still to come, its day come, every card in it
- * learnt already, or nothing in its decks to learn in this language.
+ * learnt (or cleared) already, or nothing in its decks to learn in this
+ * language.
  */
 export function prepStatus(
   prep: Prep,
@@ -16327,13 +16357,13 @@ export function prepStatus(
   if (at >= prepStart(prep.date)) return "past";
   const cards = items.filter(prepDeckOf(prep.decks)).filter((it) => standing(cardStandings(it, settings, items)));
   if (!cards.length) return "empty";
-  return workloadOf(cards, settings, at).left ? "active" : "done";
+  return workloadOf(cards, settings, at, prep.target).left ? "active" : "done";
 }
 
 /** What a prep's forecast says, in a sentence. */
-export function readyWords(answer: ReadyAnswer, date: string, perDay: number): string {
+export function readyWords(answer: ReadyAnswer, date: string, perDay: number, target: PrepTarget = "learnt"): string {
   const day = new Date(prepStart(date)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-  if (answer.kind === "already") return "Every card in these decks is already learnt.";
+  if (answer.kind === "already") return `Every card in these decks is already ${target === "cleared" ? "cleared" : "learnt"}.`;
   if (answer.kind === "late") {
     return answer.earliest === null
       ? `You can't be ready before ${day}: however much you practise, it would take more than two years.`
@@ -16364,6 +16394,7 @@ function PrepScreen({
   const [name, setName] = useState(prep ? prep.name : "");
   const [date, setDate] = useState(prep ? prep.date : "");
   const [chosen, setChosen] = useState<string[]>(prep ? prep.decks.filter((d) => decks.some((x) => x.name === d)) : []);
+  const [target, setTarget] = useState<PrepTarget>(prep ? prep.target : "learnt");
   const tomorrow = dayKey(now() + 86400000);
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= tomorrow;
   const ready = name.trim() !== "" && dateOk && chosen.length > 0;
@@ -16371,15 +16402,35 @@ function PrepScreen({
   const answer = useMemo(
     () =>
       dateOk && chosen.length
-        ? readyFor(workloadOf(collection.filter(prepDeckOf(chosen)), settings), prepStart(date))
+        ? readyFor(workloadOf(collection.filter(prepDeckOf(chosen)), settings, now(), target), prepStart(date))
         : null,
-    [dateOk, chosen, date, collection, settings],
+    [dateOk, chosen, date, collection, settings, target],
   );
   return (
-    <Screen title="Prep mode" onBack={onBack}>
+    <Screen
+      title="Prep mode"
+      onBack={onBack}
+      /* Save at the foot of the screen, as every other form keeps it, and
+         the way to delete the prep at the other end of the same bar —
+         an icon, so it is there without competing with Save. */
+      footer={
+        <>
+          {prep && (
+            <IconButton icon="delete" label="Delete this prep" danger onClick={() => onSave(null)} />
+          )}
+          <Button
+            variant="primary"
+            disabled={!ready}
+            onClick={() => ready && onSave({ name: name.trim(), date, decks: chosen, target })}
+          >
+            {prep ? "Save changes" : "Start prepping"}
+          </Button>
+        </>
+      }
+    >
       <Lede>
-        Preparing for something on a set date? Pick the decks you need fully learnt by then. The home screen will
-        offer sessions drawn only from those decks, and tell you whether you're on track.
+        Preparing for something on a set date? Pick the decks you need ready by then. The home screen will offer
+        sessions drawn only from those decks, and tell you whether you're on track.
       </Lede>
       <FormField label="What are you preparing for?" htmlFor="at-prep-name">
         <input
@@ -16406,36 +16457,43 @@ function PrepScreen({
           onChange={(e) => setDate(e.target.value)}
         />
       </FormField>
-      <FormField label="Decks to have fully learnt by then">
-        <CheckList
-          options={decks.map((d) => ({ id: d.name, title: d.name, note: `${d.learnt} of ${plural(d.n, "card")} learnt` }))}
+      {/* The decks as a card's editor puts a card in them: pills, and a
+          sheet to add more from. */}
+      <FormField label="Decks to target">
+        <DeckSwitch
+          decks={decks.map((d) => ({ id: d.name, title: d.name, cardCount: d.n }))}
           chosen={chosen}
           onToggle={(id, wasOn) => setChosen((c) => (wasOn ? c.filter((x) => x !== id) : c.concat([id])))}
-          empty="No decks to prepare yet."
+          words={{
+            first: "Choose decks",
+            drop: (title) => `Stop targeting ${title}`,
+            lede: "Choose the decks to have ready by then.",
+            note: "",
+            none: "No decks to prepare yet.",
+          }}
+        />
+      </FormField>
+      <FormField
+        label="Target level"
+        hint={
+          target === "cleared"
+            ? "Every card answered right all the way up its levels. Quicker to reach."
+            : "Every card cleared, then remembered on two reviews a few days apart."
+        }
+      >
+        <Segmented
+          label="Target level"
+          options={[{ value: "cleared", label: "Cleared" }, { value: "learnt", label: "Learnt" }]}
+          value={target}
+          onChange={(v) => setTarget(v as PrepTarget)}
         />
       </FormField>
       {answer && (
         <div className="at-forecast at-prepready" aria-live="polite">
           <p>
-            <span className="at-forecastpace">{readyWords(answer, date, perDay)}</span>
+            <span className="at-forecastpace">{readyWords(answer, date, perDay, target)}</span>
           </p>
           <p className="at-forecastnote">An estimate, assuming you get every answer right, so allow a little more.</p>
-        </div>
-      )}
-      <div className="at-row">
-        <Button
-          variant="primary"
-          disabled={!ready}
-          onClick={() => ready && onSave({ name: name.trim(), date, decks: chosen })}
-        >
-          {prep ? "Save changes" : "Start prepping"}
-        </Button>
-      </div>
-      {prep && (
-        <div className="at-row at-mt3">
-          <Button variant="ghost" onClick={() => onSave(null)}>
-            Stop prepping
-          </Button>
         </div>
       )}
     </Screen>
@@ -16470,10 +16528,10 @@ function PrepLine({
 }) {
   const left = prepDaysLeft(prep.date);
   const answer = useMemo(
-    () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings), prepStart(prep.date)),
+    () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings, now(), prep.target), prepStart(prep.date)),
     [collection, settings, prep],
   );
-  const g = prepGlance(left, answer, perDay, today);
+  const g = prepGlance(left, answer, perDay, today, prep.target);
   /* Dots while they can be counted at a glance; past that, the number. */
   const dots = g.goal !== null && g.goal <= PREP_DOTS ? g.goal : 0;
   return (
@@ -16530,7 +16588,13 @@ export function prepToday(left: number, answer: ReadyAnswer, questionsToday: num
  * day it takes when it does not, and as the earliest they could be ready
  * when no amount of practice makes the day.
  */
-export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, questionsToday: number): {
+export function prepGlance(
+  left: number,
+  answer: ReadyAnswer,
+  perDay: number,
+  questionsToday: number,
+  target: PrepTarget = "learnt",
+): {
   done: number;
   goal: number | null;
   days: number;
@@ -16542,15 +16606,17 @@ export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, qu
 } {
   const { done, goal } = prepToday(left, answer, questionsToday);
   const base = { done, goal, days: Math.max(0, left) };
-  if (answer.kind === "already") return { ...base, tone: "good", status: "All learnt", detail: "" };
+  const toClear = target === "cleared";
+  if (answer.kind === "already") return { ...base, tone: "good", status: toClear ? "All cleared" : "All learnt", detail: "" };
   if (answer.kind === "late") {
+    const all = toClear ? "Too soon to clear it all" : "Too soon to learn it all";
     return {
       ...base,
       tone: "late",
       status: "Too soon",
       detail: answer.earliest === null
-        ? "Too soon to learn it all — it would take more than two years"
-        : `Too soon to learn it all — the earliest you could be ready is ${forecastWords(answer.earliest)}`,
+        ? `${all} — it would take more than two years`
+        : `${all} — the earliest you could be ready is ${forecastWords(answer.earliest)}`,
     };
   }
   /* This morning's rate, which today's goal is also made from — see
@@ -16591,6 +16657,9 @@ const DECK_RUNS = [
   { key: "l4", label: LEVEL_NAME[4] },
   { key: "cleared", label: "Cleared" },
   { key: "done", label: "Learnt" },
+  /* A number whose stretch has not opened: nothing to ask it yet, so last,
+     after everything there is something to do about. */
+  { key: "waiting", label: "Opens later" },
 ];
 
 /** Which of DECK_RUNS a card goes under. */
@@ -16639,230 +16708,11 @@ export function forecastWords(at: Millis | null, from: Millis = now()): string {
   return `${date} (${off})`;
 }
 
-/*
- * Numbers, word by word.
- *
- * A number part is one skill on the ladder, and the ladder can say it is
- * going well while one of its words has never been kept: a learner can be
- * right about 11 to 99 a dozen times without meeting *ninety*. So each part
- * is shown here with every word it is built from — each unit, ten and
- * hundred, and the word that joins them — and whether that word is
- * validated, which is the app's standard for any card: learnt. The part
- * itself is learnt only once all of them are (see `cardStandings`), and its
- * questions are steered towards the ones that are not (see `drawRange`), so
- * this is the same answer the scheduler is acting on, drawn.
- */
-type WordState = "done" | "going" | "new";
-const WORD_STATE_LABEL: Record<WordState, string> = {
-  done: "Learnt",
-  going: "Learning",
-  new: "Not started",
-};
-
-/* Where a word stands, in the three states the page draws. */
-const wordStateOf = (p: { validated: boolean | null; met: boolean }): WordState =>
-  p.validated ? "done" : p.met ? "going" : "new";
-
-/* The figure a word stands for, for ordering: one before ten before a
-   hundred, and the words that are not a number — *and*, *hundred* — after
-   them all. */
-const figureOf = (card: Item): number => {
-  const n = Number(String(leadOf(card).en || "").replace(/,/g, ""));
-  return Number.isFinite(n) && String(leadOf(card).en || "").trim() !== "" ? n : Infinity;
-};
-
-function NumberParts({
-  items,
-  settings,
-  progressOf,
-  onCard,
-}: {
-  items: Item[];
-  settings: Settings;
-  progressOf: Map<string, Standing | null>;
-  onCard: (it: Item) => void;
-}) {
-  const parts = useMemo(
-    () =>
-      items
-        .filter((it) => isRangeSkill(it) && (it.parts || []).length)
-        .map((it) => {
-          const words = partsOf(it, items, settings)
-            .filter((p) => p.validated !== null)
-            .sort((a, b) => figureOf(a.card) - figureOf(b.card));
-          return {
-            it,
-            name: String(it.name || (it.range && it.range.label) || ""),
-            words,
-            learnt: words.filter((p) => p.validated).length,
-          };
-        })
-        .filter((p) => p.words.length),
-    [items, settings],
-  );
-  /* And the ten figures each system writes its numbers in, first: every
-     part is written in them, and a part is learnt only once they are. */
-  const figureSets = useMemo(() => {
-    const systems = [...new Set(items.filter(isNumeralCard).map((it) => systemIdOf(it)))];
-    return systems
-      .map((system) => {
-        const cards = numeralCardsOf(system, items).filter((card) => isDrillable(card, settings));
-        const words = cards.map((card) => {
-          const at = standing(cardStandings(card, settings, items));
-          return {
-            card,
-            at,
-            validated: at ? at.status === "done" : null,
-            met: unitsOf(card).some(({ unit }) =>
-              laddered(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
-            ),
-          };
-        }).filter((p) => p.validated !== null);
-        const lang = LANGUAGES[(cards[0] && cards[0].lang) as LangId] || langOf(settings);
-        return {
-          id: `numerals:${system}`,
-          name: lang.numeralsLabel || "Numerals",
-          note: lang.numeralsNote || "",
-          words,
-          learnt: words.filter((p) => p.validated).length,
-        };
-      })
-      .filter((f) => f.words.length);
-  }, [items, settings]);
-  const [open, setOpen] = useState<string>("");
-  if (!parts.length && !figureSets.length) return null;
-  const showing = parts.find((p) => p.it.id === open);
-  const figuresShowing = figureSets.find((f) => f.id === open);
-  return (
-    <Section
-      title="Numbers"
-      lede="Each part of the numbers you're studying, and how many of the words it is built from you have learnt. A part counts as learnt once its own reviews are done and you know every one of its words."
-    >
-      <div className="at-deckprog">
-        {figureSets.map((f) => {
-          const all = f.learnt === f.words.length;
-          const state: WordState = all ? "done" : f.words.some((p) => p.met) ? "going" : "new";
-          return (
-            <button
-              type="button"
-              className={`at-deckstat${all ? " done" : ""}`}
-              key={f.id}
-              aria-haspopup="dialog"
-              onClick={() => setOpen(f.id)}
-            >
-              <span className="at-deckstatname">{f.name}</span>
-              <b>
-                {f.learnt}
-                <i>/{f.words.length}</i>
-              </b>
-              <span className="at-deckbar" aria-hidden="true">
-                <span style={{ width: `${Math.round((f.learnt / f.words.length) * 100)}%` }} />
-              </span>
-              <span className="at-deckstatnote">
-                {plural(f.words.length, "numeral")} · {WORD_STATE_LABEL[state]}
-              </span>
-            </button>
-          );
-        })}
-        {parts.map((p) => {
-          const at = progressOf.get(p.it.id) || null;
-          const all = p.learnt === p.words.length;
-          return (
-            <button
-              type="button"
-              className={`at-deckstat${all && at && at.status === "done" ? " done" : ""}`}
-              key={p.it.id}
-              aria-haspopup="dialog"
-              onClick={() => setOpen(p.it.id)}
-            >
-              <span className="at-deckstatname">{p.name}</span>
-              <b>
-                {p.learnt}
-                <i>/{p.words.length}</i>
-              </b>
-              <span className="at-deckbar" aria-hidden="true">
-                <span style={{ width: `${Math.round((p.learnt / p.words.length) * 100)}%` }} />
-              </span>
-              <span className="at-deckstatnote">
-                {plural(p.words.length, "word")} · {standingLabel(at)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {figuresShowing && (
-        <Screen title={figuresShowing.name} onBack={() => setOpen("")}>
-          <Lede>
-            {figuresShowing.learnt === figuresShowing.words.length
-              ? `All ${figuresShowing.words.length} are learnt.`
-              : `${figuresShowing.learnt} of ${figuresShowing.words.length} learnt. Every number is written with these, so each part of the numbers counts as learnt only once they all are.`}
-          </Lede>
-          {figuresShowing.note && <Help>{figuresShowing.note}</Help>}
-          <div className="at-numwords">
-            {figuresShowing.words.map((p) => {
-              const state = wordStateOf(p);
-              const lead = leadOf(p.card);
-              return (
-                <button
-                  type="button"
-                  className={`at-numword ${state}`}
-                  key={p.card.id}
-                  aria-haspopup="dialog"
-                  aria-label={`${p.card.numeral || ""} (${lead.en}): ${WORD_STATE_LABEL[state]}`}
-                  onClick={() => onCard(p.card)}
-                >
-                  <span className="at-numwordfig">{p.card.numeral}</span>
-                  <span className="at-numwordsaid" dir="ltr">
-                    {lead.en}
-                  </span>
-                  <span className="at-numwordstate">{WORD_STATE_LABEL[state]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Screen>
-      )}
-      {showing && (
-        <Screen title={showing.name} onBack={() => setOpen("")}>
-          <Lede>
-            {showing.learnt === showing.words.length
-              ? `Every word in ${showing.name} is learnt.`
-              : `${showing.learnt} of ${plural(showing.words.length, "word")} learnt. The numbers you are asked here lean towards the ones still to learn.`}
-          </Lede>
-          <Help>Where the part itself stands: {standingLabel(progressOf.get(showing.it.id) || null)}.</Help>
-          <div className="at-numwords">
-            {showing.words.map((p) => {
-              const state = wordStateOf(p);
-              const lead = leadOf(p.card);
-              return (
-                <button
-                  type="button"
-                  className={`at-numword ${state}`}
-                  key={p.card.id}
-                  aria-haspopup="dialog"
-                  aria-label={`${lead.en || lead.ar}: ${WORD_STATE_LABEL[state]}`}
-                  onClick={() => onCard(p.card)}
-                >
-                  <span className="at-numwordfig">{p.card.numeral || lead.en}</span>
-                  <span className="at-numwordsaid" dir="auto">
-                    {lead.ar}
-                  </span>
-                  <span className="at-numwordstate">{WORD_STATE_LABEL[state]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Screen>
-      )}
-    </Section>
-  );
-}
-
 function DeckScreen({
   name,
   cards,
   progressOf,
+  towardOf,
   settings,
   perDay,
   onBack,
@@ -16871,14 +16721,25 @@ function DeckScreen({
   name: string;
   cards: Item[];
   progressOf: Map<string, Standing | null>;
+  /** How far each card is towards learnt — see towardsLearnt. */
+  towardOf: Map<string, { at: Standing; share: number } | null>;
   settings: Settings;
   perDay: number;
   onBack: () => void;
   onCard: (it: Item) => void;
 }) {
-  const shown = cards.filter((it) => progressOf.get(it.id));
-  const learnt = shown.filter((it) => progressOf.get(it.id)?.status === "done").length;
-  const pct = shown.length ? Math.round((learnt / shown.length) * 100) : 0;
+  /* Every card of the deck that can be asked, now or once what it waits on
+     opens: a number whose stretch is still ahead is in the deck and not
+     yet learnt, and the deck's tile on Progress counts it, so this screen
+     lists it too. It used to list only the cards on a level, so a deck of
+     numbers opened on the handful being worked on and none of the rest. */
+  const shown = cards.filter((it) => towardOf.get(it.id));
+  const learnt = shown.filter((it) => towardOf.get(it.id)?.at.status === "done").length;
+  const pct = deckPercent({
+    n: shown.length,
+    learnt,
+    got: shown.reduce((sum, it) => sum + (towardOf.get(it.id)?.share || 0), 0),
+  });
   const allDone = shown.length > 0 && learnt === shown.length;
   /* What is left and how soon it could be done — see workloadOf. */
   const work = useMemo(() => workloadOf(cards, settings), [cards, settings]);
@@ -16931,7 +16792,7 @@ function DeckScreen({
         size="small"
         empty="No cards match."
         groups={DECK_RUNS}
-        groupOf={(it: Item) => deckRunOf(progressOf.get(it.id))}
+        groupOf={(it: Item) => (progressOf.get(it.id) ? deckRunOf(progressOf.get(it.id)) : "waiting")}
         match={(it: Item, needle: string) =>
           (leadOf(it).ar || "").includes(needle) ||
           (leadOf(it).lat || "").toLowerCase().includes(needle) ||
@@ -16941,7 +16802,7 @@ function DeckScreen({
           <CardTile
             card={it}
             lang={langOf(settingsFor(settings, it))}
-            meta={standingShort(progressOf.get(it.id) || null)}
+            meta={progressOf.get(it.id) ? standingShort(progressOf.get(it.id) || null) : "Opens later"}
             className="whole"
             onClick={() => onCard(it)}
           />
@@ -17115,25 +16976,30 @@ function ProgressTab({
   return (
     <>
       <Lately moves={moves} />
-      {/* Prep mode: getting a set of decks learnt by a date. The button
-          says what is being prepped for, once something is. */}
-      <div className="at-prepbar">
-        <Button variant="ghost" onClick={() => setPrepOpen(true)} aria-haspopup="dialog">
-          Prep mode
-        </Button>
-        {prep && (
-          <Help className="at-prepnote">
-            {prepNow === "past"
-              ? `${prep.name} has come — edit the prep or clear it.`
-              : prepNow === "done"
-              ? `Ready for ${prep.name}: every card is learnt.`
-              : `Prepping for ${prep.name} · ${
-                  prepDaysLeft(prep.date) === 1 ? "1 day left" : `${prepDaysLeft(prep.date)} days left`
-                }`}
-          </Help>
-        )}
-      </div>
+      {/* Prep mode: getting a set of decks ready by a date, under a heading
+          of its own like the other parts of the screen. The button starts
+          one, or opens the one there is; the line beside it says what is
+          being prepped for. */}
+      <Section head title="Prep mode" lede="Get some decks ready by a set date, like an exam or the start of a class.">
+        <div className="at-prepbar">
+          <Button variant="ghost" onClick={() => setPrepOpen(true)} aria-haspopup="dialog">
+            {prep ? "Edit prep mode" : "Start prep mode"}
+          </Button>
+          {prep && (
+            <Help className="at-prepnote">
+              {prepNow === "past"
+                ? `${prep.name} has come — edit the prep or delete it.`
+                : prepNow === "done"
+                ? `Ready for ${prep.name}: every card is ${prep.target === "cleared" ? "cleared" : "learnt"}.`
+                : `Prepping for ${prep.name} · ${
+                    prepDaysLeft(prep.date) === 1 ? "1 day left" : `${prepDaysLeft(prep.date)} days left`
+                  }`}
+            </Help>
+          )}
+        </div>
+      </Section>
       <Section
+        head
         title="The ladder"
         lede="Where your cards are on the learning ladder. A card moves up a level once you have answered everything below it right twice running — and counts as learnt once it has come back twice since and you were right."
       >
@@ -17277,8 +17143,6 @@ function ProgressTab({
       )}
       </Section>
 
-      <NumberParts items={items} settings={settings} progressOf={progressOf} onCard={(it) => setViewing(it)} />
-
       {/* ---- the decks, as how far each one is from finished ----
 
           The ladder above says where the cards are; this says where the
@@ -17288,7 +17152,7 @@ function ProgressTab({
           how many are left, and a bar beside it because a number alone is
           read and a bar is seen. */}
       {deckRows.length > 0 && (
-        <Section title="Decks" lede="How you're doing on each deck you're studying.">
+        <Section head title="Decks" lede="How you're doing on each deck you're studying.">
           <div className="at-deckprog">
             {deckRows.map((d) => (
               /* A button: the whole tile opens the deck's own screen. */
@@ -17348,6 +17212,7 @@ function ProgressTab({
           name={deckOpen}
           cards={items.filter((it) => (it.tags || []).includes(deckOpen))}
           progressOf={progressOf}
+          towardOf={progress.toward}
           settings={settings}
           perDay={perDay}
           onBack={() => setDeckOpen("")}

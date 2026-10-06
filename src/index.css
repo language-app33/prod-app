@@ -289,11 +289,9 @@ button {
    it is an offer, not the next thing to do — the next thing to do is
    Continue, at the foot of the screen. It carries the chevron so the tap
    target says which way the box will go. */
-.at-alsomore { display:flex; align-items:center; justify-content:center; gap:4px;
-  margin: 14px auto 0; background:none; border:0; cursor:pointer;
+.at-alsomore { margin: 14px 0 0; text-align:center;
   font-family: var(--ui); font-size:15px; font-weight:700; color: var(--muted);
   padding:6px 10px; }
-.at-alsomore:hover { color: var(--text); }
 .at-alsobox { margin-top:10px; padding:14px; background: var(--well);
   border:2px solid var(--line); border-radius: var(--r); }
 /* The dividers belong to the box, not to its members: the related words
@@ -2685,31 +2683,8 @@ button.at-deckstat { width:100%; font:inherit; color:inherit; text-align:start; 
   button.at-deckstat:hover { border-color: var(--ink); }
 }
 button.at-deckstat:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
-/*
- * A number part's words, one tile each: the figure, the word, and where the
- * learner stands on it. Learnt wears the jade Learnt owns everywhere else;
- * under way the brass of work in progress; not started is plain.
- */
-.at-numwords { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; margin-top:14px; }
-.at-numword { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0;
-  width:100%; font:inherit; color:inherit; text-align:start; cursor:pointer;
-  border:2px solid var(--line); border-radius: var(--r-sm); background: var(--surface); padding:9px 10px; }
-.at-numwordfig { font-family: var(--ui); font-size:17px; font-weight:800; color: var(--text);
-  font-variant-numeric: tabular-nums; overflow-wrap:anywhere; }
-.at-numwordsaid { font-size:15px; color: var(--text-soft); overflow-wrap:anywhere; }
-.at-numwordstate { font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.06em;
-  text-transform:uppercase; color: var(--muted); }
-.at-numword.going { border-color: var(--brass); }
-.at-numword.going .at-numwordstate { color: var(--brass); }
-.at-numword.done { background: var(--jade-bg); border-color: var(--jade-soft); }
-.at-numword.done .at-numwordstate { color: var(--jade); }
-@media (hover:hover) {
-  .at-numword { transition: border-color 140ms ease; }
-  .at-numword:hover { border-color: var(--ink); }
-}
-.at-numword:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
 /* Prep mode, above the ladder: the button, and what is being prepped for. */
-.at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:16px; }
+.at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; }
 .at-prepbar .at-prepnote { margin:0; }
 /* The deck's own screen: how far it has got, then the two dates. */
 .at-deckhead { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
@@ -2933,7 +2908,8 @@ button.at-stat { transition: border-color 140ms ease; }
 
 /* --- Section: an eyebrow and an optional lede, the standard opener --- */
 .at-section > .at-sectiontop { display:flex; align-items:baseline; justify-content:space-between; gap: var(--s3); }
-.at-section > .at-sectiontop > .at-eyebrow { margin:0; }
+.at-section > .at-sectiontop > .at-eyebrow,
+.at-section > .at-sectiontop > .at-sectionhead { margin:0; }
 .at-section .at-sectioncount { font-family: var(--ui); font-size: var(--fs-xs); font-weight:800; letter-spacing:.04em; text-transform:uppercase; color: var(--muted); white-space:nowrap; }
 .at-section .at-sectionlede { margin: var(--s2) 0 0; }
 .at-section .at-sectionbody { margin-top: var(--s3); }
@@ -3847,3 +3823,8 @@ body.at-screening .at-chromebar { display:none; }
 .at-reportmeans { font-size: var(--fs-sm); color: var(--text); }
 .at-reportnote { font-size: var(--fs-sm); color: var(--text-soft); }
 .at-reportwho { font-size: var(--fs-xs); color: var(--muted); }
+/* An icon in the footer is a square the height of the button beside it —
+   the prep's delete next to its save — drawn as the icons beside New card
+   in the Cards tab are, rather than stretching to a share of the row. */
+.at-screenfoot > .at-icon { flex:0 0 auto; width:52px; height:52px; min-height:52px;
+  padding:0; box-sizing:border-box; }

@@ -5398,3 +5398,61 @@ already counted passes owed and nothing it restates changed.
 **Revisit if** learners report cards marked learnt that they do not know:
 the first thing to look at is a miss that is not followed by a second.
 
+## A comma in a meaning is part of it, when marking too
+
+A learner reported three times that "He is cold, he wants a jacket"
+(k5b6526eedb99, بردان بده جاكيت) was marked wrong, typed out in full with
+or without the comma. `checkEn` split the expected English on `/`, `;`
+and `,`, so the meaning became "He is cold" and "he wants a jacket" plus
+the whole field with every alternative in it: the full sentence matched
+nothing, and either half was marked right.
+
+**Now.** `checkEn` splits on a slash or semicolon only, as `readAlike`,
+`meaningsOf` and the other checkers already did. `normEn` drops the comma,
+so the phrase is right with or without it. The comma split had been kept
+on purpose, as generosity to a hand-written card listing two meanings with
+a comma; the owner chose the slash as the only separator.
+
+**What it costs.** A card written "big, large" no longer accepts "big"
+alone. It wants a slash. The transliteration check still splits on a
+comma; nothing has been reported there, and it was left as it was.
+
+## A prep can aim at Cleared, and the deck picker moved to shared
+
+**6 October 2026** · `src/ArabicTrainer.tsx` (`PrepTarget`, `workloadOf`,
+`climbOf`, `towardsLearnt`'s `reach`), `src/shared.tsx` (`DeckSwitch`,
+`PickSheet`)
+
+The owner asked for a prep to aim at Cleared as well as Learnt, with the
+home tile's numbers following. The target is on the prep, defaulting to
+Learnt so a saved prep means what it meant. One number decides "far
+enough" everywhere (`reached`), so the tile's ring, its sessions a day,
+the forecast on the prep screen and whether the prep is done cannot
+disagree. Aiming at Cleared drops the passes from the work and puts the
+floor at `CLEAR_DAYS` (twice that for a card whose words come first)
+rather than `LEARN_DAYS` — the same measured figures, not new ones; the
+estimate is no better checked than the Learnt one was.
+
+The prep's decks are chosen with the card editor's `DeckSwitch`, as
+asked. It and `PickSheet` moved from `card-editor.tsx` to `shared.tsx`
+rather than the trainer importing the card editor, which loads on its own
+and would otherwise be pulled into every student's first load. The
+picker's sentences, which spoke of putting a card in a deck, became
+overridable (`words`).
+
+## Numbers are followed through their decks, waiting ones included
+
+**6 October 2026** · `src/ArabicTrainer.tsx` (`DeckScreen`, `workloadOf`)
+
+The owner asked for the Numbers section on Progress to go: a deck that
+holds numbers is the place to follow them. Its word-by-word view went with
+it. The deck tile already counted a number waiting on its stretch (see
+`towardsLearnt`), but the deck's own screen and `workloadOf` read only
+`laddered`, so they left those out: the screen listed the parts being
+worked on and none of the rest, and the forecast and a prep's sessions a
+day counted no work for them. Both now read a waiting card through
+`ladderedOnceOpen`, as the percentages do. On the deck screen it is listed
+last, under "Opens later". In the forecast it carries its whole ladder,
+with the floor of a card whose building blocks come first
+(`CLEAR_DAYS + LEARN_DAYS`) — a stand-in, not a measurement.
+
