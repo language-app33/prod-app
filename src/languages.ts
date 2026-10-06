@@ -2659,7 +2659,7 @@ function impliedOf(
  * are in a hole.
  *
  * A card whose forms agree with what they stand beside — an adjective, a
- * number, a demonstrative — lent its own word only until 0.378, and the
+ * number, a demonstrative — lent its own word only until 0.379, and the
  * sentence picked the agreeing form. It lends its whole table now, and
  * which of it a blank takes is the blank's business: its own word where it
  * has something to agree with or nothing said, every form in turn where

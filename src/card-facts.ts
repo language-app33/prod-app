@@ -426,7 +426,7 @@ export function tensedBlanks(
  * nouns or names decides and never follows, and is asked nothing.
  *
  * A sentence's only blank is asked too where an adjective or a
- * demonstrative is behind it, since 0.378: "what is {{this}}?" has
+ * demonstrative is behind it, since 0.379: "what is {{this}}?" has
  * nothing to follow, and can be linked to nothing to have every form in
  * turn. A verb there goes through its persons already.
  */
