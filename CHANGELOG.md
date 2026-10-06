@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.378 — 6 October 2026
+
+**A sentence with "this" or an adjective as its only blank can go through every form.**
+
+- "What is {{this}}?" used to be asked with هاد only, never هاي or هدول,
+  because words like *this* and adjectives take their form from the
+  word beside them, and with only one blank there was nothing beside
+  them to pick a form.
+- A sentence whose only blank is filled by such a word now asks
+  **Which forms it uses**: *Main form* (as before) or *Every form in
+  turn*. With the second, each form is its own sentence — "what is
+  this?" with هاد, with هاي, and "what is these?" with هدول — and the
+  question says which form it is (masculine, feminine, plural).
+- The same answer already offered in sentences with more than one
+  blank, *Nothing — every form in turn*, now works for these words too.
+  Until now it only did for verbs.
+- Nothing changes until a teacher picks it. Main form stays the default
+  so that a sentence that writes the word out, like "the weather is
+  {{adjective}}", is not met with the feminine beside a masculine word.
+- To check by hand: open the sentence, choose *Every form in turn*, and
+  see that the preview lists three sentences.
+
 ## 0.377 — 6 October 2026
 
 **Learn more: shorter labels, a centred play button, and related words like the rest.**

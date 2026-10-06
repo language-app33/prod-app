@@ -4685,7 +4685,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
   /* And which of them can be told which blank to agree with: those whose
      words change form to agree — see agreeingBlanks. */
   const agreeing = useMemo(() => {
-    if (scene || holes.length < 2) return new Set<string>();
+    if (scene || !holes.length) return new Set<string>();
     return agreeingBlanks(main, allCards || [], lang);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, holes, allCards, lang]);
@@ -7948,7 +7948,38 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             follow the verb, which comes second; and a verb beside its object should follow
             nothing and go through its persons. Offered under each blank
             whose words change to agree, never a choice that would have a
-            blank end up following itself. See slotLinks. */}
+            blank end up following itself. See slotLinks.
+
+            A sentence's only blank has nothing to follow, and is asked
+            the one question left: its words as written, or every form of
+            them in turn — "what is {{this}}?" as هاد, هاي and هدول. */}
+        {sentence && holes.length === 1 && agreeing.has(holes[0]) && (() => {
+          const slot = holes[0];
+          const said = blankLinks[slot] === NO_PARTNER ? NO_PARTNER : "";
+          return (
+            <Field
+              key={`agrees-${slot}`}
+              label={<>Which forms <BlankNames names={[slot]} /> uses</>}
+              hint={
+                said === NO_PARTNER
+                  ? "Every form of its words in turn — masculine, feminine, plural."
+                  : "Its words as written, for a sentence that writes out the word they describe."
+              }
+            >
+              <RadioGroup
+                quiet
+                label={`Which forms ${slot} uses`}
+                name={`agrees-${slot}`}
+                options={[
+                  { value: "", label: "Main form", note: "as written" },
+                  { value: NO_PARTNER, label: "Every form in turn", note: "a sentence each" },
+                ]}
+                value={said}
+                onChange={(v) => setBlankLink(slot, v)}
+              />
+            </Field>
+          );
+        })()}
         {sentence && holes.length > 1 && holes.map((slot) => {
           if (!agreeing.has(slot)) return null;
           const said = blankLinks[slot] || "";

@@ -58,7 +58,7 @@ import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { sentencesOf } from "./review.ts";
 import { aboutPerson, cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
-import { citationOf, colOf, isCell, NO_PARTNER, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
+import { citationOf, colOf, isCell, linkedToNothing, NO_PARTNER, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
 
 /* A card, a form of one, a turn of one, or a half-written draft — open for
    the reason the other pure modules are: the same questions are asked of a
@@ -376,6 +376,7 @@ export function fillersFor(
       lang,
       (slot) => slotRows(form, slot),
       (slot) => !!partnerOf(form, formSlots, slot),
+      (slot) => linkedToNothing(form, slot),
     ),
     /* And an adjective said about a person, once per form — see
        aboutPersons. */
@@ -423,6 +424,11 @@ export function tensedBlanks(
  * with another blank — an adjective, a demonstrative, a verb with more
  * than one person — and so can be told which blank to follow. A blank of
  * nouns or names decides and never follows, and is asked nothing.
+ *
+ * A sentence's only blank is asked too where an adjective or a
+ * demonstrative is behind it, since 0.378: "what is {{this}}?" has
+ * nothing to follow, and can be linked to nothing to have every form in
+ * turn. A verb there goes through its persons already.
  */
 export function agreeingBlanks(
   form: Held | null | undefined,
@@ -431,12 +437,13 @@ export function agreeingBlanks(
 ): Set<string> {
   const out = new Set<string>();
   const holes = slotsOf(form);
-  if (holes.length < 2) return out;
+  if (!holes.length) return out;
+  const lone = holes.length < 2;
   for (const card of pool || []) {
     if (lang && card.lang && card.lang !== lang.id) continue;
     const category = str(card.category);
     const tensed = tensedOf(lang, category);
-    if (!agreementOf(lang, category) && !(tensed && personsOf(tensed).length > 1)) continue;
+    if (!agreementOf(lang, category) && (lone || !(tensed && personsOf(tensed).length > 1))) continue;
     const names = fillsOf(card, kindOf(card, lang));
     /* Not an adjective said about a person: it carries its own person,
        and has nothing to follow. */
@@ -1364,6 +1371,7 @@ export function whyStarved(
     lang,
     (s) => slotRows(form, s),
     (s) => !!partnerOf(form, formSlots, s),
+    (s) => linkedToNothing(form, s),
   );
   let fills = false;
   let kept = false;

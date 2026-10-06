@@ -503,7 +503,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   gap where the point was — and `{{verb}}` on a verb card's own sentence
   means its own place in it rather than any verb, which `ownSlot` in
   `src/verbs.ts` is the one answer to. A word whose forms agree with what
-  they stand beside — an adjective, a number — lends its own word only,
+  they stand beside — an adjective, a number — stands in a blank as its own word,
   and the sentence goes back to its card for the form the first other
   blank calls for (`agreedValue` in `src/verbs.ts`, `agreeTook` in
   `src/review.ts`): the cell a column picks, the word where none does, and
@@ -535,6 +535,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   singular, *we*, *you (pl)* and *they* a plural of people (`asSubject`).
   `agreeTook` fills a blank after the one it follows, so a chain reads
   the form its partner ended up as.
+
+  **And linked to nothing, an agreeing word goes through every form.** An
+  adjective or a demonstrative with no blank to follow stands in a
+  sentence as its own word, which is right for "the weather is
+  {{adjective}}" with the noun written out and wrong for "what is
+  {{this}}?", which wants هاد, هاي and هدول in turn. So such a word lends
+  its whole table (`lendsForm` lends everything now), and `blankAdmits`
+  takes its own word only, unless the blank is linked to `NO_PARTNER`
+  (`linkedToNothing` in `src/verbs.ts`): then every cell, and the own word
+  only where no cell it lends is spelt the same. A sentence's only blank
+  is asked this as *Which forms it uses* — `agreeingBlanks` offers it
+  where an agreeing word stands behind it — and nothing changes for a
+  sentence until a teacher answers it.
 
   **A pronoun reads three ways in English, and the blank says which.**
   Arabic and Hebrew drop *to be* in the present — أنا تعبان is *I am

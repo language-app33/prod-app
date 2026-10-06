@@ -207,6 +207,43 @@ test("a verb beside a blank that names no person is not asked, and one beside no
   assert.equal(turns.list.length, 4);
 });
 
+test("a lone demonstrative is its own word, and every form in turn once linked to nothing", () => {
+  /* "what is {{this}}?" has nothing to agree with. Left as it is, the
+     word as written — which is right for "the weather is {{adjective}}"
+     with the noun written out. Linked to nothing, every form of it, the
+     masculine once even though the card's own word spells it too. */
+  const thisCard = {
+    id: "this", lang: "ar-PS", category: "demonstrative", fills: ["this"], created: 3,
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "haad" },
+      { id: "this-m", ar: "هاد", en: "this", lat: "haad", row: "agreement", col: "masculine" },
+      { id: "this-f", ar: "هاي", en: "this", lat: "haay", row: "agreement", col: "feminine" },
+      { id: "this-pl", ar: "هدول", en: "these", lat: "hadool", row: "agreement", col: "plural" },
+    ],
+  };
+  const ask = (/** @type {Record<string, string> | undefined} */ agrees) => ({
+    id: "q", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "q", ar: "شو {{this}}؟", en: "what is {{this}}?", lat: "shu {{this}}?", ...(agrees ? { agrees } : {}) }],
+  });
+  const [plain] = cardSentences(ask(undefined), [thisCard], ar);
+  assert.deepEqual(plain.list.map((s) => s.ar), ["شو هاد؟"]);
+  const [every] = cardSentences(ask({ this: "-" }), [thisCard], ar);
+  assert.deepEqual(every.list.map((s) => s.ar).sort(), ["شو هاد؟", "شو هاي؟", "شو هدول؟"].sort());
+  assert.ok(every.list.some((s) => s.en === "what is these?" || s.en === "what is these"), every.list.map((s) => s.en).join(" | "));
+
+  /* Beside a noun it still agrees with it, and nothing else of it is lent. */
+  const withNoun = { id: "w", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "w", ar: "{{this}} {{noun}}", en: "{{this}} {{noun}}", lat: "" }] };
+  const [paired] = cardSentences(withNoun, [noun("car", "سيارة", "car", "feminine", 1), thisCard, withNoun], ar);
+  assert.deepEqual(paired.list.map((s) => s.ar), ["هاي سيارة"]);
+
+  /* And an adjective beside a written noun keeps its word as written. */
+  const weather = { id: "wx", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "wx", ar: "البيت {{adjective}}", en: "the house is {{adjective}}", lat: "" }] };
+  const [house] = cardSentences(weather, [big, weather], ar);
+  assert.deepEqual(house.list.map((s) => s.ar), ["البيت كبير"]);
+});
+
 test("where a card stands: never reviewed, reviewed with sentences waiting, and too many to read", () => {
   const pool = [noun("house", "بيت", "house", "masculine", 1), noun("car", "سيارة", "car", "feminine", 2), big, frame];
   const legacy = reviewState(frame, pool, ar);
@@ -532,6 +569,32 @@ test("a student is asked it the way the teacher's list shows it", () => {
   /* And beside it, which of the three it is: the line the answer screen
      shows, in a word rather than a note in the sentence. */
   assert.deepEqual(lentTags(unit, ar), ["tired: masculine"]);
+});
+
+/*
+ * "what is {{this}}?" linked to nothing, on a student's device: each form
+ * of the demonstrative is a sentence the device can ask, named beside it.
+ */
+test("a lone blank linked to nothing is asked on the device in each form, and says which", () => {
+  const thisCard = {
+    id: "this", lang: "ar-PS", kind: "word", tags: [], created: 2, category: "demonstrative", fills: ["this"], drill: false,
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "haad", lang: "ar-PS", s: {} },
+      { id: "this-f", ar: "هاي", en: "this", lat: "haay", lang: "ar-PS", row: "agreement", col: "feminine", s: {} },
+      { id: "this-pl", ar: "هدول", en: "these", lat: "hadool", lang: "ar-PS", row: "agreement", col: "plural", s: {} },
+    ],
+  };
+  const frame = { id: "W", ar: "شو {{this}}؟", en: "what is {{this}}?", lat: "shu {{this}}?", lang: "ar-PS", s: {},
+    agrees: { this: "-" }, met: { "this:this": 9, "this:this-f": 9, "this:this-pl": 9 } };
+  const card = { id: "W", lang: "ar-PS", kind: "phrase", tags: [], created: 1, sentence: true, forms: [frame] };
+  const made = sentencesOf(card, frame, [card, thisCard], ar).list;
+  assert.deepEqual(made.map((s) => s.ar), ["شو هاد؟", "شو هاي؟", "شو هدول؟"]);
+  const fem = must(made.find((s) => s.ar === "شو هاي؟"), "the feminine sentence");
+  const items = [{ ...card, review: { ok: [fem.key] } }, thisCard];
+  installIndexes(items, settings);
+  const unit = must(castQuestion(items, { id: "W", subId: null, type: "ar2en" }), "the question");
+  assert.equal(unit.ar, "شو هاي؟");
+  assert.deepEqual(lentTags(unit, ar), ["this: feminine"]);
 });
 
 /*

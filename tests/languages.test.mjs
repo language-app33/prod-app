@@ -999,9 +999,13 @@ test("a demonstrative agrees the way an adjective does, and is a subtype of its 
   assert.equal(agreementOf(ar, "demonstrative"), agreementOf(ar, "adjective"));
   assert.ok(agreementOf(LANGUAGES["he-IL"], "demonstrative"), "Hebrew's זה and זאת agree too");
   assert.equal(agreementOf(LANGUAGES["vi-Hue"], "demonstrative"), null, "nothing agrees in Huế");
-  /* Its forms wait for the sentence to pick one, like an adjective's. */
-  assert.equal(lendsForm(ar, { category: "demonstrative" })({ row: "agreement" }), false);
-  assert.equal(lendsForm(ar, { category: "demonstrative" })({}), true);
+  /* Its forms wait for the sentence to pick one, like an adjective's,
+     unless the blank was linked to nothing — see blankAdmits. */
+  const admits = blankAdmits(ar, () => [], () => true);
+  assert.equal(admits({ category: "demonstrative" }, { row: "agreement" }, "this"), false);
+  assert.equal(admits({ category: "demonstrative" }, {}, "this"), true);
+  const alone = blankAdmits(ar, () => [], () => false, () => true);
+  assert.equal(alone({ category: "demonstrative" }, { row: "agreement" }, "this"), true);
 });
 
 test("and which kinds of word a sentence can ask for a tense of", () => {
@@ -1103,12 +1107,22 @@ test("an adjective's shapes say which they are: gender, plural and dual", () => 
   assert.equal(labelFor(cell("feminine"), LANGUAGES["vi-Hue"]), "");
 });
 
-test("an agreeing card lends its own word only, and every other card lends every form", () => {
+test("an agreeing card stands in a blank as its own word, unless the blank is linked to nothing", () => {
   const ar = LANGUAGES["ar-PS"];
   const lendsBig = lendsForm(ar, { category: "adjective" });
-  assert.equal(lendsBig({ ar: "كبير" }), true, "the word");
-  assert.equal(lendsBig({ ar: "كبيرة", row: "agreement", col: "feminine" }), false, "not a form the sentence picks");
-  assert.equal(lendsBig({ ar: "كبيرين", row: "" }), true, "a plain extra form still lends");
+  assert.equal(lendsBig({ ar: "كبيرة", row: "agreement", col: "feminine" }), true, "every card lends its whole table");
+  const big = { category: "adjective", forms: [
+    { id: "big", ar: "كبير" },
+    { id: "big-m", ar: "كبير", row: "agreement", col: "masculine" },
+    { id: "big-f", ar: "كبيرة", row: "agreement", col: "feminine" },
+  ] };
+  const [own, m, f] = big.forms;
+  const usual = blankAdmits(ar, () => []);
+  assert.equal(usual(big, own, "adjective"), true, "the word");
+  assert.equal(usual(big, f, "adjective"), false, "not a form the sentence picks");
+  assert.equal(usual(big, { ar: "كبيرين", row: "" }, "adjective"), true, "a plain extra form still lends");
+  const alone = blankAdmits(ar, () => [], () => false, () => true);
+  assert.deepEqual([own, m, f].map((x) => alone(big, x, "adjective")), [false, true, true], "every form, the masculine once");
   const lendsBook = lendsForm(ar, { category: "noun" });
   assert.equal(lendsBook({ ar: "كتابي", row: "attached", col: "me" }), true, "the pronouns pick nothing, so they lend");
   assert.equal(lendsForm(ar, { category: "" })({ row: "agreement" }), true, "a card that says nothing lends everything");
