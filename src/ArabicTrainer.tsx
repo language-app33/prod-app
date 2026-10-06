@@ -216,7 +216,6 @@ import {
   isAsked,
   itemDifficulty as itemDifficultyOf,
   justPractised,
-  mastered,
   maturity,
   missedTwice,
   openTypes as openTypesOf,
@@ -304,14 +303,21 @@ const itemDifficulty = (it: Item, settings: Settings): string =>
    this, so what a learner is told and what the scheduler does are the one
    answer said twice rather than two answers that can drift. */
 /*
- * A number part is learnt only once the words it is made of are.
+ * A number part is learnt only once the words it is made of are known.
  *
  * Its own ladder says the learner is getting numbers right, which a run of
- * easy ones can say about 11 to 99 while *ninety* has never been kept. So
- * where the collection is to hand, a part whose top is done but whose words
- * are not is held at Cleared, with how many words it is waiting on. A
- * caller that cannot see the collection — one card's own line — reads the
- * part on its own ladder, which is all it ever did.
+ * easy ones can say about 11 to 99 while *ninety* has never been cleared.
+ * So where the collection is to hand, a part whose top is done but whose
+ * words are not cleared is held at Cleared, with how many words it is
+ * waiting on. A caller that cannot see the collection — one card's own
+ * line — reads the part on its own ladder, which is all it ever did.
+ *
+ * Cleared and not learnt, since 0.368. Learnt asked every one of a part's
+ * words and its ten figures — twenty cards for 0 to 9 — to have made their
+ * passes at the same moment, and a slip on any one of them took it back,
+ * so a learner drilling 0 to 9 every day was held at Cleared for weeks
+ * with the count going up as often as down. Each word keeps its own way
+ * to learnt, and shows it; the part asks that they are known.
  *
  * `keys` is laddered everywhere but towardsLearnt, which reads a number
  * still waiting on its stretch as it will stand once the stretch opens.
@@ -324,8 +330,8 @@ export const cardStandings = (
 ): Standing[] => {
   const rows = standingsOf(it, (u) => keys(u, settings));
   if (!among || !rows.length) return rows;
-  const words = it.parts ? partsOf(it, among, settings, keys).filter((p) => p.validated === false).length : 0;
-  const figures = numeralsOf(it, among, settings, keys).filter((p) => p.validated === false).length;
+  const words = it.parts ? partsOf(it, among, settings, keys).filter((p) => p.known === false).length : 0;
+  const figures = numeralsOf(it, among, settings, keys).filter((p) => p.known === false).length;
   const held = words + figures;
   if (!held) return rows;
   const top = rows[rows.length - 1];
@@ -380,7 +386,7 @@ export function numeralsOf(
   among: Item[],
   settings: Settings,
   keys: (unit: Form, settings: Settings) => string[] = laddered,
-): { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] {
+): PartWord[] {
   if (!isRangeSkill(it) || !(it.forms[0] && it.forms[0].rangeFigures)) return [];
   return numeralCardsOf(systemIdOf(it), among).map((card) => {
     const at = standing(standingsOf(card, (u) => keys(u, settings)));
@@ -388,9 +394,25 @@ export function numeralsOf(
       card,
       at,
       validated: at ? at.status === "done" : null,
+      known: knownCard(card, settings, keys),
       met: unitsOf(card).some(({ unit }) => keys(unit, settings).some((k) => stateOf(unit, k).phase !== "new")),
     };
   });
+}
+
+/* One word or figure a number part is built from, as the learner stands on
+   it — see partsOf. */
+type PartWord = { card: Item; at: Standing | null; validated: boolean | null; known: boolean | null; met: boolean };
+
+/* Whether a card is cleared on every form it can be asked — the bar a
+   number part holds its words to. Null where nothing on it can be asked,
+   which holds nothing back. */
+function knownCard(card: Item, settings: Settings, keys: (unit: Form, settings: Settings) => string[]): boolean | null {
+  const forms = unitsOf(card)
+    .map(({ unit }) => ({ unit, ladder: keys(unit, settings) }))
+    .filter((f) => f.ladder.length);
+  if (!forms.length) return null;
+  return forms.every(({ unit, ladder }) => cleared(ladder, (k) => stateOf(unit, k)));
 }
 
 /* The ten figure cards of one system the learner holds, ٠ to ٩. */
@@ -422,6 +444,9 @@ function byIdOf(items: Item[]): Map<string, Item> {
  * cleared and its passes made — and null for a word that cannot be asked
  * at all, which nothing could ever validate and so holds nothing back. A
  * word in no card this learner holds is left out for the same reason.
+ * `known` is the lower bar of cleared, which is what holds the part back
+ * (see cardStandings); `validated` is what the words are counted by and
+ * what a part's questions are steered towards.
  * `met` is whether any question on it has been answered, which is what
  * tells a word under way from one not started.
  *
@@ -434,9 +459,9 @@ export function partsOf(
   among: Item[],
   settings: Settings,
   keys: (unit: Form, settings: Settings) => string[] = laddered,
-): { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] {
+): PartWord[] {
   const byId = byIdOf(among);
-  const out: { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] = [];
+  const out: PartWord[] = [];
   for (const id of it.parts || []) {
     const card = byId.get(id);
     if (!card) continue;
@@ -446,6 +471,7 @@ export function partsOf(
       card,
       at,
       validated: at ? at.status === "done" : null,
+      known: knownCard(card, settings, keys),
       met: unitsOf(card).some(({ unit }) =>
         keys(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
       ),
@@ -1471,7 +1497,7 @@ function sceneOf(unitId: string): { card: Item, at: number } | null {
    other — somebody who can say what they *do* has something to hang the
    past on, and somebody handed present, past and command in one week has
    three tables to confuse — so a row opens only once the row above it is
-   mastered, which is the bar a level asks of the level below it applied
+   cleared, which is the bar a level asks of the level below it applied
    down the other axis.
 
    And the card's own word, where the language cites a cell that is the
@@ -1647,16 +1673,55 @@ export function easedUnits(items: Item[], settings: Settings): Set<string> {
   return out;
 }
 
-/* Whether a stretch of the number line has every stretch under it cleared.
-   On its numbers alone: counting a thing is a question a stretch asks too,
-   and it never holds anything back — not the stretch, and not the one
-   above it. See countingOf. */
+/*
+ * Whether a stretch of the number line is open: every stretch under it is
+ * through — its own questions cleared, or every word it is built from
+ * cleared, whichever comes first.
+ *
+ * The own questions were the only way through until 0.368, and a stretch
+ * is asked about one question in thirty of a numbers session, because it
+ * shares the session with every word it is built from; so the stretch
+ * above could stay shut for days after every one of those words was known,
+ * and shut again whenever the ten figures added two questions to the
+ * stretch below, or a slip on one of them made it miss twice. The words
+ * alone were tried and measured, and were slower for somebody whose
+ * stretch had cleared first: its questions ask only numbers whose words
+ * are cleared, so it can clear before the last spelling of the last word
+ * has. Either one lets the stretch above through — the same shape as the
+ * front door's `throughDoor` — so nobody waits longer than they did.
+ *
+ * Read through availableTypes and not laddered, because laddered reads the
+ * quiet set this is in the middle of working out. A word with nothing to
+ * ask, or one the learner does not hold, holds nothing back. A stretch that
+ * does not know its words — one filed before parts were written down —
+ * has its own questions alone. Those are its numbers: counting a thing
+ * never holds anything back. See countingOf.
+ */
 function stretchOpen(card: Item, items: Item[], lang: Lang): boolean {
   const below = stretchBefore(card, items);
   if (!below) return true;
-  const unit = below.forms[0];
+  return (stretchCleared(below, lang) || wordsCleared(below, items, lang)) && stretchOpen(below, items, lang);
+}
+
+function stretchCleared(stretch: Item, lang: Lang): boolean {
+  const unit = stretch.forms[0];
+  if (!unit) return false;
   const plain = availableTypes(unit, lang).filter((t) => !((specOf(t) && specOf(t).needs) || []).includes("rangeCounted"));
-  return !!unit && cleared(plain, (t) => statesOf(unit)[t]) && stretchOpen(below, items, lang);
+  return cleared(plain, (t) => statesOf(unit)[t]);
+}
+
+function wordsCleared(stretch: Item, items: Item[], lang: Lang): boolean {
+  if (!stretch.parts || !stretch.parts.length) return false;
+  const byId = byIdOf(items);
+  return stretch.parts.every((id) => {
+    const card = byId.get(id);
+    if (!card || card.drill === false) return true;
+    return unitsOf(card).every(({ unit }) => {
+      if (!isAsked(unit)) return true;
+      const types = availableTypes(unit, lang);
+      return !types.length || cleared(types, (t) => statesOf(unit)[t]);
+    });
+  });
 }
 
 /* What a table's cells wait on, where it says nothing: the word, which is
@@ -1666,9 +1731,9 @@ const waitsOnWord = (spec: VerbSpec): boolean => (spec.gate || "word") === "word
 /*
  * Working them out, across every card in hand.
  *
- * A row counts as mastered when every cell in it is mastered at everything
- * it is asked — read off the same open types the rest of the app uses, so
- * a cell the learner has switched every exercise off for cannot hold the
+ * A row counts as done when every cell in it is cleared at everything it
+ * is asked — read off the same open types the rest of the app uses, so a
+ * cell the learner has switched every exercise off for cannot hold the
  * rows below it shut for ever.
  */
 export function quietUnits(items: Item[], settings: Settings): Set<string> {
@@ -1771,9 +1836,9 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
 /*
  * One tense of a verb is ever new at a time.
  *
- * A row counts as mastered when every cell in it is mastered at everything
- * it is asked — read off the same open types the rest of the app uses, so
- * a cell the learner has switched every exercise off for cannot hold the
+ * A row counts as done when every cell in it is cleared at everything it
+ * is asked — read off the same open types the rest of the app uses, so a
+ * cell the learner has switched every exercise off for cannot hold the
  * rows below it shut for ever.
  */
 function quietRows(card: Item, spec: VerbSpec, lang: Lang, out: Set<string>) {
@@ -1791,10 +1856,12 @@ function quietRows(card: Item, spec: VerbSpec, lang: Lang, out: Set<string>) {
       /* Nothing to ask, so nothing to wait for: a cell the material cannot
          put a question to must not hold the rows below it shut for ever. */
       if (!climbing.length) return true;
-      return climbing.every((t) => {
-        const s = statesOf(cell)[t];
-        return !!s && mastered(s);
-      });
+      /* Cleared, since 0.368: every question it can be asked right twice
+         running. It was mastered — every one held at a four-day gap — which
+         no amount of practice could bring forward, so a verb practised
+         every day opened its past tense a week or more after its present
+         was known. Cleared is what opens the next thing everywhere else. */
+      return cleared(supported, (t) => statesOf(cell)[t]);
     });
     for (const cell of cellsIn(card, spec)) {
       /* The cited cell is the word on the front of the card and is met the
@@ -16669,7 +16736,7 @@ function NumberParts({
   return (
     <Section
       title="Numbers"
-      lede="Each part of the numbers you're studying, and how many of the words it is built from you have learnt. A part counts as learnt only once every one of its words is."
+      lede="Each part of the numbers you're studying, and how many of the words it is built from you have learnt. A part counts as learnt once its own reviews are done and you know every one of its words."
     >
       <div className="at-deckprog">
         {figureSets.map((f) => {
