@@ -1353,8 +1353,12 @@ both are strings. `tests/cards.test.mjs` catches that one.
 
 Each device holds the whole document in local storage and syncs it under a
 token derived from the sign-in key, so every device signed in as one person
-shares one document. Recordings live in IndexedDB, keyed by a hash of their
-contents, and are fetched on demand.
+shares one document. A sync carries the whole document both ways, so it is
+rationed: once at launch, a few seconds after a change outside a session,
+and during a session only when it stops, when the app is put away, and
+otherwise at most every few minutes — `syncAfterChange` in `src/sync.ts`.
+Recordings live in IndexedDB, keyed by a hash of their contents, and are
+fetched on demand.
 
 Course cards carry a `source` pointing back at the deck they came from. The
 teacher owns their wording; the student owns their progress. When a teacher

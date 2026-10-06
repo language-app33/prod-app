@@ -495,6 +495,40 @@ export async function syncOnce(local: Doc, token: string) {
   return { merged, changed, lost: (lost as string) || "" };
 }
 
+/* ---------------- when ----------------
+
+   A round trip is the whole document both ways: pulled, merged and pushed
+   back, on the order of a megabyte each way once there are a few hundred
+   cards. It used to run four seconds after every change, and every answer
+   is a change, so a session was a sync per question. The radio that
+   carries it never got to rest, and phones grew warm in the hand.
+
+   Nothing waits on it. An answer is on this device the moment it is given;
+   the shared copy is for the learner's other devices, and for a phone that
+   is lost. So while questions are being answered the first change after a
+   sync arms the next one a few minutes out, and the answers after it ride
+   along rather than pushing it back. The app sends sooner where it matters:
+   when the session stops asking and when the app is put away, which are
+   the moments another device might be picked up. Outside a session a change
+   goes up a few seconds after the last of a run of them, as it always did. */
+
+/** After a change outside a session, once a run of them has stopped. */
+export const SYNC_SOON_MS = 4000;
+/** At most this often while questions are being answered. */
+export const SESSION_SYNC_MS = 3 * 60 * 1000;
+/** Once a session stops asking: long enough for its last screen to draw. */
+export const SESSION_END_SYNC_MS = 1500;
+
+/**
+ * When the round trip for a change just made should go, and whether one
+ * already waiting covers it — which, inside a session, it does.
+ */
+export function syncAfterChange(answering: boolean): { wait: number; keep: boolean } {
+  return answering
+    ? { wait: SESSION_SYNC_MS, keep: true }
+    : { wait: SYNC_SOON_MS, keep: false };
+}
+
 /* ------------------------------------------------------------------
    Clip transport
 

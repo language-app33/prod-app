@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.364 — 6 October 2026
+
+**Easier on your phone: less heat, less battery, less data.**
+
+- Your answers are no longer sent to the server one by one. Before, a few
+  seconds after almost every answer, the app uploaded your whole card
+  collection and downloaded it again. That kept your phone's Wi‑Fi or
+  mobile data busy for the entire session and could make the phone warm.
+- Each answer is still saved on your phone the moment you give it. Your
+  progress now goes up when the session ends, when you switch away from
+  the app, and every few minutes during a long session.
+- If you use two devices, the other one sees your latest answers once
+  you finish the session or leave the app. During a long session it can
+  be up to a few minutes behind.
+- Timed sessions: the countdown now updates once a second, and stops
+  completely while the session is paused. Before, it redrew the whole
+  question screen twice a second, even while paused.
+- Sound effects: the phone's sound system now switches off after ten
+  quiet seconds and back on for the next sound. Before, it stayed on from
+  the first sound until you closed the app.
+
 ## 0.363 — 5 October 2026
 
 **Learn to read and write numbers in Eastern Arabic numerals (١٢٣).**

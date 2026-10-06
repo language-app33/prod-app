@@ -3216,6 +3216,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     ]),
   };
   remote.etag = "e-scene";
+  /* Fetched the way a learner fetches something new at once: Sync now, in
+     the corner menu. It used to ride on the sync four seconds after the
+     last answer, which a session no longer makes — answers go up when it
+     stops, and this one had nothing left to send. */
+  click(document.querySelector(".at-cornerbtn"));
+  await sleep(150);
+  click([...document.querySelectorAll(".at-cline .at-cact")][0] || null);
+  await sleep(300);
+  click(document.querySelector(".at-cornerbtn"));
   w.dispatchEvent(new w.Event("focus"));
   await sleep(1600);
 
@@ -3531,6 +3540,33 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const pauseBtn = () => document.querySelector('[data-el="session-pause"]');
   check("a timed session counts down and offers a pause beside the bar",
     /^\d+:\d\d$/.test(clockText()) && !!pauseBtn(), `${clockText()} / ${pauseBtn() ? "pause" : "no pause"}`);
+
+  /* The clock is all that redraws as it runs. It used to tick in the
+     trainer, twice a second, rebuilding the whole session screen to move
+     one number. React hands a node a new props object whenever the
+     component that draws it draws again with a new handler — the way out
+     has an inline one — so counting the objects the way out has carried
+     counts the trainer's renders. A background refresh landing in the
+     window is two at most; the old tick was five. */
+  {
+    /** @param {Element | null} el */
+    const reactProps = (el) => {
+      const key = el ? Object.keys(el).find((k) => k.startsWith("__reactProps$")) : undefined;
+      return el && key ? /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (el))[key] : null;
+    };
+    const exit = document.querySelector('[data-el="leave-session"]');
+    const from = clockText();
+    const carried = new Set();
+    for (let i = 0; i < 22; i++) {
+      carried.add(reactProps(exit));
+      await sleep(100);
+    }
+    check("the clock ticks without redrawing the session around it",
+      !!reactProps(exit) && clockText() !== from && carried.size <= 3,
+      reactProps(exit)
+        ? `${carried.size - 1} redraws of the session in 2.2s, clock ${from} → ${clockText()}`
+        : "no React props on the way out — this check needs a new way to count renders");
+  }
 
   click(pauseBtn());
   await sleep(100);
@@ -8028,6 +8064,13 @@ const openPronounTables = async () => {
   check("and nothing threw while the weak session was built",
     errors.length === before, errors.slice(before, before + 2).join(" | "));
   if (online) Object.defineProperty(w.navigator, "onLine", online);
+  /* Taken down like every other app this file mounts. Left up, it sat in
+     its session for the rest of the run, answering every focus, every
+     return to the page and every sync timer it had — and a sync sends
+     under whichever token the device's sync settings hold, so it went on
+     pushing this document over whatever the walks below had put there. */
+  root3.unmount();
+  host3.remove();
 }
 
 /* ---- the number system's own screen ----
@@ -9532,6 +9575,201 @@ const openPronounTables = async () => {
   materialSystems = [];
   materialDecks = [];
   materialQuiet = false;
+}
+
+/* ---- what a session sends, and when ----
+
+   A sync is the whole document both ways. It used to go four seconds after
+   every change, and every answer is one, so a session was a round trip per
+   question and the phone's radio never rested. While questions are being
+   answered the trip now waits a few minutes and the answers ride along;
+   putting the app away sends what is owed there and then, and so does the
+   session stopping.
+
+   On an account of its own, counted by its own token: the walk above
+   leaves an app mounted in the middle of a session, and what that one
+   sends is not this one's. Last, because it answers questions, which
+   would change what the walks after it are dealt. */
+{
+  const { SYNC_SOON_MS, SESSION_END_SYNC_MS } = await import(path.resolve("src/sync.ts"));
+  const quiet = { ...account, key: "quiet-ember-fjord-gable-0e0e" };
+  const quietToken = await sha(quiet.key);
+  /** @type {number[]} */
+  const sent = [];
+  const fetchBefore = anyGlobal.fetch;
+  /** @param {any} input @param {any} [opts] */
+  anyWindow.fetch = anyGlobal.fetch = (input, opts = {}) => {
+    const url = new URL(String(input && input.url ? input.url : input), "https://taleb.test/");
+    if (url.pathname === "/api/sync" && !url.searchParams.get("audio") &&
+        (opts.method || "GET") === "POST" && (opts.headers || {})["x-sync-token"] === quietToken) {
+      sent.push(Date.now());
+    }
+    return fetchBefore(input, opts);
+  };
+  /** @param {boolean} away */
+  const putAway = (away) => {
+    const doc = /** @type {any} */ (document);
+    if (away) {
+      Object.defineProperty(doc, "visibilityState", { value: "hidden", configurable: true });
+      Object.defineProperty(doc, "hidden", { value: true, configurable: true });
+    } else {
+      delete doc.visibilityState;
+      delete doc.hidden;
+    }
+    document.dispatchEvent(new w.Event("visibilitychange"));
+  };
+
+  localStorage.setItem("arabic-account", JSON.stringify(quiet));
+  localStorage.setItem("arabic-trainer:sync-config", JSON.stringify({ token: quietToken, lastSync: 0, uploaded: [] }));
+  const words = [["بيت", "house", "beet"], ["قلم", "pen", "qalam"], ["باب", "door", "baab"],
+    ["شمس", "sun", "shams"], ["ولد", "boy", "walad"], ["بنت", "girl", "bint"]];
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" },
+    items: words.map(([ar, en, lat], i) => ({
+      id: `quiet${i}`, ar, en, lat, kind: "word", tags: ["Quiet"], created: i + 1, updated: i + 1,
+    })),
+  }));
+  remoteDocs.delete(quietToken);
+
+  const host8 = document.createElement("div");
+  document.body.appendChild(host8);
+  const root8 = createRoot(host8);
+  root8.render(React.createElement(App));
+  /* The launch sync, and long enough after it for anything it armed. */
+  await sleep(1500 + SYNC_SOON_MS);
+  check("the app syncs as it opens", sent.length >= 1, `${sent.length} sent`);
+
+  const named = (/** @type {RegExp} */ re) =>
+    [...host8.querySelectorAll("button")].find((b) => re.test((b.textContent || "").trim()));
+  const asking = () => !!host8.querySelector('[data-el="leave-session"]');
+  const giveUp = async () => {
+    click(host8.querySelector('[data-el="dont-know-button"]'));
+    await sleep(150);
+    click(named(/^(Continue|Next)$/));
+    await sleep(250);
+  };
+  const answered = () => {
+    const held = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+    return ((held && held.items) || []).filter((/** @type {any} */ it) =>
+      (it.forms || []).some((/** @type {any} */ f) => Object.keys(f.s || {}).length > 0)).length;
+  };
+
+  click(named(/^(Start session|Practise anyway)$/));
+  await sleep(700);
+  const atStart = sent.length;
+  await giveUp();
+  await giveUp();
+  await sleep(SYNC_SOON_MS + 600);
+  check("answering sends nothing while the session runs",
+    asking() && sent.length === atStart,
+    asking() ? `${sent.length - atStart} sent after two answers` : "the session ended early");
+  check("though each answer is on the device the moment it is given", answered() > 0,
+    `${answered()} cards answered on the device`);
+
+  putAway(true);
+  await sleep(300);
+  check("putting the app away sends what the session has done, there and then",
+    sent.length === atStart + 1, `${sent.length - atStart} sent`);
+  putAway(false);
+  await sleep(200);
+
+  await giveUp();
+  click(host8.querySelector('[data-el="leave-session"]'));
+  await sleep(150);
+  click(named(/^Leave$/));
+  await sleep(SESSION_END_SYNC_MS + 600);
+  check("and leaving the session sends the rest",
+    !asking() && sent.length === atStart + 2, `${sent.length - atStart} sent`);
+  await sleep(SYNC_SOON_MS - SESSION_END_SYNC_MS + 200);
+  check("once, with nothing left to follow it", sent.length === atStart + 2,
+    `${sent.length - atStart} sent`);
+
+  putAway(true);
+  await sleep(300);
+  check("and with nothing owed, putting the app away sends nothing", sent.length === atStart + 2,
+    `${sent.length - atStart} sent`);
+  putAway(false);
+
+  root8.unmount();
+  host8.remove();
+  anyWindow.fetch = anyGlobal.fetch = fetchBefore;
+  localStorage.setItem("arabic-account", JSON.stringify(account));
+}
+
+/* ---- the sound engine rests ----
+
+   A running audio context keeps the phone's audio hardware switched on,
+   and nothing ever stopped this one: the first sound of the evening kept
+   it running until the app was closed. Each sound now arms a rest a few
+   seconds out, and the next sound wakes it. Played against a stand-in,
+   because there is no audio out here; the rest is fired by hand rather
+   than waited for. */
+{
+  const { sfx, SOUND_REST_MS, setSounds } = await import(path.join(out, "ArabicTrainer.js"));
+  /** A stand-in engine: what the sound code reaches for, and its state. */
+  class StandIn {
+    constructor() {
+      this.state = "suspended";
+      this.currentTime = 0;
+      this.destination = {};
+      this.notes = 0;
+      StandIn.last = this;
+    }
+    resume() { this.state = "running"; return Promise.resolve(); }
+    suspend() { this.state = "suspended"; return Promise.resolve(); }
+    createOscillator() {
+      return { type: "", frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+        connect() {}, start() {}, stop() {} };
+    }
+    createGain() {
+      this.notes += 1;
+      return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} };
+    }
+  }
+  /** @type {StandIn | null} */
+  StandIn.last = null;
+  anyWindow.AudioContext = StandIn;
+  setSounds("loud");
+
+  /* Every rest a sound arms, caught on its way to the timer so it can be
+     fired now rather than waited for. */
+  /** @type {{ fire: () => void, handle: any }[]} */
+  const rests = [];
+  const realSetTimeout = globalThis.setTimeout;
+  /** @param {string} kind */
+  const play = async (kind) => {
+    await sleep(100); // past the rate limit between two sounds
+    anyGlobal.setTimeout = (/** @type {() => void} */ fn, /** @type {number} */ ms, /** @type {any[]} */ ...rest) => {
+      const handle = realSetTimeout(fn, ms, ...rest);
+      if (ms === SOUND_REST_MS) rests.push({ fire: fn, handle });
+      return handle;
+    };
+    try {
+      sfx(kind);
+    } finally {
+      anyGlobal.setTimeout = realSetTimeout;
+    }
+  };
+
+  await play("tick");
+  /* Read through a cast: the checker last saw this set to null, and cannot
+     know the sound just played made one. */
+  const engine = /** @type {StandIn | null} */ (StandIn.last);
+  check("a sound wakes the engine and plays", !!engine && engine.state === "running" && engine.notes > 0,
+    engine ? `${engine.state}, ${engine.notes} notes` : "no engine made");
+  check("and arms a rest for after it", rests.length === 1, `${rests.length} armed`);
+  if (engine && rests.length) {
+    clearTimeout(rests[0].handle);
+    rests[0].fire();
+    check("which, once the quiet has lasted, puts the engine to sleep", engine.state === "suspended", engine.state);
+    const before = engine.notes;
+    await play("correct");
+    check("and the next sound wakes it and is played", engine.state === "running" && engine.notes > before,
+      `${engine.state}, ${engine.notes - before} notes`);
+    check("arming the next rest afresh", rests.length === 2, `${rests.length} armed`);
+  }
+  for (const r of rests) clearTimeout(r.handle);
+  delete anyWindow.AudioContext;
 }
 
 report();

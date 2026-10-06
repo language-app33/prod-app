@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergeData, compactItem, isFreshState, syncClips, clipIdsIn } from "../src/sync.ts";
+import {
+  mergeData, compactItem, isFreshState, syncClips, clipIdsIn,
+  syncAfterChange, SYNC_SOON_MS, SESSION_SYNC_MS, SESSION_END_SYNC_MS,
+} from "../src/sync.ts";
 import { TYPES } from "../src/languages.ts";
 import { must } from "./helpers.mjs";
 /** @import { Doc, Item, WireDoc } from "../src/types.ts" */
@@ -632,4 +635,19 @@ test("a document written before any of this was recorded merges to nothing rathe
      a year ago carries only what existed then. */
   const old = /** @type {any} */ ({ version: 3, items: [], tombstones: {}, log: {} });
   assert.deepEqual(mergeData(doc([]), old).moves, {});
+});
+
+test("a session's answers wait for its next sync, and anything else goes soon", () => {
+  /* Outside a session a change replaces whatever trip was waiting, so a
+     run of edits goes up once, a few seconds after the last of them. */
+  assert.deepEqual(syncAfterChange(false), { wait: SYNC_SOON_MS, keep: false });
+  /* Inside one the first answer arms a trip minutes away and the answers
+     after it leave that trip where it is: a session of fifty answers is a
+     handful of round trips, not fifty. */
+  assert.deepEqual(syncAfterChange(true), { wait: SESSION_SYNC_MS, keep: true });
+  assert.ok(SESSION_SYNC_MS >= 60 * 1000 && SESSION_SYNC_MS <= 5 * 60 * 1000,
+    "a few minutes: long enough to spare the radio, short enough to be a backup");
+  /* The end of a session is sent sooner than an ordinary change: it is the
+     moment another device is most likely to be picked up. */
+  assert.ok(SESSION_END_SYNC_MS < SYNC_SOON_MS);
 });
