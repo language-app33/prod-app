@@ -49,7 +49,7 @@ import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { aboutPerson, fillForm, fillsOf, lentBy, readAs, readingOf, readingsOf, refOf, slotsOf, valuesForTurn } from "./variables.ts";
 import {
-  agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, ownSlot, partnerOf, personsOf,
+  agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, linkedToNothing, ownSlot, partnerOf, personsOf,
   rowIdsOf, rowOf, slotLinks, slotRows, subjectSlot,
 } from "./verbs.ts";
 
@@ -408,6 +408,7 @@ export function reviewPool(
     lang,
     (slot) => slotRows(part, slot),
     (slot) => !!partnerOf(part, partSlots, slot),
+    (slot) => linkedToNothing(part, slot),
   );
   const langId = lang ? lang.id : "";
   const byAge = [...(pool || [])].sort(

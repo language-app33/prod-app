@@ -201,6 +201,23 @@ test("choosing a picture needs other cards with pictures to choose between", () 
   assert.ok(unmetNeeds(word({ images: ["a".repeat(64)] }), EX.rec2img, null, [], {}, 10, 10).includes("recs"));
 });
 
+test("matching recordings needs a recording, and other recorded cards to stand beside it", () => {
+  const heard = word({ recs: [{ id: "r1" }] });
+  /* Two more recorded words: the fewest a grid is dealt with is three. */
+  assert.deepEqual(unmetNeeds(heard, EX.recmatch, null, [], {}, 10, 0, 1), ["heard"]);
+  assert.deepEqual(unmetNeeds(heard, EX.recmatch, null, [], {}, 10, 0, 2), []);
+  assert.deepEqual(
+    find(offersFor({ units: [{ unit: heard, isSub: false, scene: null }], lang: ar, matesFor: () => 10 }), "recmatch").missing,
+    ["a few more cards with a recording"],
+  );
+  assert.equal(
+    find(offersFor({ units: [{ unit: heard, isSub: false, scene: null }], lang: ar, matesFor: () => 10, heardFor: () => 4 }), "recmatch").ready,
+    true,
+  );
+  /* And its own recording first of all. */
+  assert.ok(unmetNeeds(word(), EX.recmatch, null, [], {}, 10, 0, 10).includes("recs"));
+});
+
 test("a card whose words change is not pictured, as it is not recorded", () => {
   const frame = word({ ar: "اسمي {{person}}", en: "My name is {{person}}", images: ["a".repeat(64)] });
   assert.deepEqual(unmetNeeds(frame, EX.img2ar, null, [], { person: [{}] }), ["fixed"]);

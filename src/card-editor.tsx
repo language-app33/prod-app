@@ -69,10 +69,11 @@ import {
   Screen,
   Segmented,
   plural,
-  deckSize,
   useOffline,
   ConfirmModal,
   Overlay,
+  PickSheet,
+  DeckSwitch,
 } from "./shared.tsx";
 
 /* A blank form carries every grammatical value any language might use, so a
@@ -2018,168 +2019,6 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
         </div>
       ))}
     </>
-  );
-}
-
-/*
- * A sheet of choices, in the mould of the one a blank is put in from.
- *
- * Which decks a card is in and what subtype it is used to open as lists
- * hanging off their buttons, inside the form — where a long list ran off
- * the bottom of a phone and a short one covered the field under it. They
- * are sheets now, as putting in a blank and choosing custom tags already
- * were: up from the bottom on a phone, a panel in the middle where there
- * is room, shut by its cross, by Escape or by a tap outside it.
- */
-function PickSheet({ title, lede, className = "", onClose, children }: {
-  title: string;
-  lede?: string;
-  className?: string;
-  onClose: () => void;
-  children?: Node;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <Overlay>
-      <div className="at-modalback sheet" onClick={onClose}>
-        <div
-          className={`at-sheet${className ? " " + className : ""}`}
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="at-sheettop">
-            <h3 className="at-modaltitle">{title}</h3>
-            <IconButton icon="close" label="Close" onClick={onClose} />
-          </div>
-          {lede ? <p className="at-hint">{lede}</p> : null}
-          {children}
-        </div>
-      </div>
-    </Overlay>
-  );
-}
-
-/*
- * Which decks a card is in: the decks as pills, and a button that opens
- * the list of them in a sheet.
- *
- * It was the last block on the editor, a full section with a heading, a
- * paragraph and a tick per deck — so the answer to "where does this card
- * go?" was several hundred pixels below the question. The decision is one
- * line long and belongs near the top, beside what kind of card this is:
- * both are facts about the card rather than about its words.
- */
-export function DeckSwitch({ decks, chosen, onToggle, of = "card" }: {
-  /* Only what is shown of a deck: a card's editor hands over whole decks,
-     and the number screen hands over the decks a part of the numbers can
-     go in. */
-  decks: Pick<Deck, "id" | "title" | "locked" | "cardCount">[];
-  chosen: string[];
-  onToggle: (id: string, wasOn: boolean) => void;
-  /** What is being put in decks, as the row and the sheet name it — a
-      card, or a part of a language's numbers. */
-  of?: string;
-}) {
-  const [open, setOpen] = useState(false);
-
-  const all = decks || [];
-  const inThese = all.filter((d) => chosen.includes(d.id));
-
-  return (
-    <div className="at-chooser deckwrap">
-      {/* The decks this card is in, each as a thing you can see and take
-          off, with the way to add another on the end of the row. It was a
-          pill saying "2 decks" that had to be opened to find out which
-          two — a count is a state, and the thing a teacher wants to read
-          here is the names. */}
-      <div className="at-deckpills">
-        {inThese.map((d) => (
-          <span className="at-deckpill" key={d.id}>
-            <span className="nm">{d.title}</span>
-            {/* A locked deck keeps its cards: a padlock where the way out
-                would be, saying why there isn't one. */}
-            {d.locked ? (
-              <span className="at-decklock" title={`${d.title} is locked`} aria-label={`${d.title} is locked`}>
-                <Icon name="lock" size={14} />
-              </span>
-            ) : (
-              <button
-                className="at-deckdrop"
-                aria-label={`Take this ${of} out of ${d.title}`}
-                onClick={() => onToggle(d.id, true)}
-              >
-                <Icon name="close" size={16} />
-              </button>
-            )}
-          </span>
-        ))}
-
-        {/* Dotted, because it is the outline of a pill that is not there
-            yet: what it makes is what stands beside it. Its words are the
-            whole invitation while the card is in nothing, and shorten to
-            the bare offer once the row can speak for itself. */}
-        {all.length > 0 && (
-          <button
-            className="at-deckadd"
-            aria-expanded={open}
-            onClick={() => setOpen(true)}
-          >
-            <Icon name="add" size={17} />
-            {inThese.length ? "Another deck" : `Add this ${of} to a deck`}
-          </button>
-        )}
-
-        {!all.length && (
-          <Help>{`You have no decks yet. Make one under Decks, then this ${of} can go in it.`}</Help>
-        )}
-      </div>
-
-      {/* Stays open while decks are picked, because a card usually goes in
-          more than one; the pills behind it change as it does. */}
-      {open && (
-        <PickSheet
-          title="Decks"
-          lede={`Choose the decks this ${of} belongs to.`}
-          className="at-decksheet"
-          onClose={() => setOpen(false)}
-        >
-          <div className="at-deckpicks">
-            {all.map((d) => {
-              const on = chosen.includes(d.id);
-              return (
-                <button
-                  className={`at-deckpick${on ? " on" : ""}${d.locked ? " locked" : ""}`}
-                  key={d.id}
-                  aria-pressed={on}
-                  disabled={!!d.locked}
-                  onClick={() => !d.locked && onToggle(d.id, on)}
-                >
-                  <span className="at-tickbody">
-                    <b>{d.title}</b>
-                    <i>{deckSize(d)}</i>
-                  </span>
-                  {/* What tapping it does, rather than a tick saying what
-                      is already true: the row is the verb. A locked deck
-                      says so instead, since tapping it does nothing. */}
-                  <span className="at-deckmark">
-                    {d.locked ? (
-                      <span title="Locked" aria-label="Locked" role="img"><Icon name="lock" size={14} /></span>
-                    ) : on ? "Added" : "Add"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <Help>{`A student sees this ${of} only where it is in a deck their course uses.`}</Help>
-        </PickSheet>
-      )}
-    </div>
   );
 }
 
@@ -4901,7 +4740,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
   /* And which of them can be told which blank to agree with: those whose
      words change form to agree — see agreeingBlanks. */
   const agreeing = useMemo(() => {
-    if (scene || holes.length < 2) return new Set<string>();
+    if (scene || !holes.length) return new Set<string>();
     return agreeingBlanks(main, allCards || [], lang);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, holes, allCards, lang]);
@@ -6598,7 +6437,8 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
      out does not shut under the teacher's fingers. */
   const drawn = useContext(FoldsForms);
   const folds = !!drawn;
-  const [open, setOpen] = useState(() => !drawn || drawn.current || more || formWritten(f));
+  const [open, setOpen] = useState(() =>
+    !drawn || (!drawn.folded && (drawn.drawn.current || more || formWritten(f))));
   const [rows, setRows] = useState(() => answerRows(f, fields));
   /* Which answer's recordings are being made, where any are. The screen is
      rendered from here rather than beside the editor's other two, because
@@ -6813,8 +6653,9 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
  */
 /* Null outside the section. Inside, whether the section has been drawn
    once already: a form that arrives after that — "Add a form" — opens,
-   since it was asked for to be written in. */
-const FoldsForms = createContext<{ current: boolean } | null>(null);
+   since it was asked for to be written in. And whether every form starts
+   folded, written in or not — see NounEditor. */
+const FoldsForms = createContext<{ drawn: { current: boolean }; folded: boolean } | null>(null);
 
 /* Whether anything at all is written in a form: a word in any of its
    boxes, an accepted answer, a recording or a picture. */
@@ -6826,7 +6667,7 @@ function formWritten(f: Record<string, any>): boolean {
     (Array.isArray(f.answers) && f.answers.some((a: any) => a && (said(a.text) || said(a.lat))));
 }
 
-function FormsSection({ children }: { children?: Node }) {
+function FormsSection({ folded = false, children }: { folded?: boolean; children?: Node }) {
   const drawn = useRef(false);
   useEffect(() => {
     drawn.current = true;
@@ -6844,7 +6685,7 @@ function FormsSection({ children }: { children?: Node }) {
           feminine.
         </span>
       </div>
-      <FoldsForms.Provider value={drawn}>{children}</FoldsForms.Provider>
+      <FoldsForms.Provider value={{ drawn, folded }}>{children}</FoldsForms.Provider>
     </div>
   );
 }
@@ -8164,7 +8005,38 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             follow the verb, which comes second; and a verb beside its object should follow
             nothing and go through its persons. Offered under each blank
             whose words change to agree, never a choice that would have a
-            blank end up following itself. See slotLinks. */}
+            blank end up following itself. See slotLinks.
+
+            A sentence's only blank has nothing to follow, and is asked
+            the one question left: its words as written, or every form of
+            them in turn — "what is {{this}}?" as هاد, هاي and هدول. */}
+        {sentence && holes.length === 1 && agreeing.has(holes[0]) && (() => {
+          const slot = holes[0];
+          const said = blankLinks[slot] === NO_PARTNER ? NO_PARTNER : "";
+          return (
+            <Field
+              key={`agrees-${slot}`}
+              label={<>Which forms <BlankNames names={[slot]} /> uses</>}
+              hint={
+                said === NO_PARTNER
+                  ? "Every form of its words in turn — masculine, feminine, plural."
+                  : "Its words as written, for a sentence that writes out the word they describe."
+              }
+            >
+              <RadioGroup
+                quiet
+                label={`Which forms ${slot} uses`}
+                name={`agrees-${slot}`}
+                options={[
+                  { value: "", label: "Main form", note: "as written" },
+                  { value: NO_PARTNER, label: "Every form in turn", note: "a sentence each" },
+                ]}
+                value={said}
+                onChange={(v) => setBlankLink(slot, v)}
+              />
+            </Field>
+          );
+        })()}
         {sentence && holes.length > 1 && holes.map((slot) => {
           if (!agreeing.has(slot)) return null;
           const said = blankLinks[slot] || "";
@@ -8823,9 +8695,14 @@ function NounEditor({ word, lang, allCards, selfId }: {
   selfId: string;
 }) {
   const { forms, nounBoxList, nounPlaced, emptyBox, fillBox } = word;
+  /* A person has every box twice, a side for each gender, and opened
+     wherever something was written it was a screen of fields and pronoun
+     tables before anything else the card says. So every box starts under
+     its name, written in or not, and opens where the teacher asks. */
+  const person = String((forms[0] || {}).human || "") === "person";
   return (
     <>
-      <FormsSection>
+      <FormsSection folded={person}>
         {nounBoxList.map((box) => {
           const i = box.key in nounPlaced.at ? nounPlaced.at[box.key] : -1;
           const f = i >= 0 ? forms[i] : emptyBox(box);

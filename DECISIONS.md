@@ -5262,7 +5262,9 @@ ten figures said "Write this numeral…", and a number word (ثلاثة, meaning
 "3") said "Write in English", although its answer is marked as a number
 (`numeralMeanings`). Now the written ones all say "Write the number in
 Arabic numerals (123)" and the heard ones "Listen, then write the number
-in Arabic numerals (123)". The two strings are constants, used by
+in Arabic numerals (123)" (since 0.367 both say "Write in Arabic numerals
+(123)": the owner asked for the shorter line, and the play button already
+says to listen). The two strings are constants, used by
 `num2fig`, `dig2fig` and `rec2fig` directly, and by `ar2en` and `rec2en`
 as `figuresInstruction`, which `instructionFor` picks when every meaning
 of the card is a number. Only the line changes: which questions a card
@@ -5316,3 +5318,169 @@ download when the server holds nothing new, would make every trip smaller.
 Both reach into the server and the merge. Fewer trips was the bigger saving
 for the smaller change, and the other is still worth doing if collections
 grow into the thousands.
+
+---
+
+## The numeral pad's figures are shuffled per question
+
+**6 October 2026** · `NumeralPad` and its `deal` prop in `src/ArabicTrainer.tsx`
+
+In counting order, the phone-keypad layout of 0.366 gave the answer away:
+the fourth key was ٤, so a learner could write ٤ by position without
+recognising it. The twelve-key shape stays; which figure is on which of
+the ten figure keys is shuffled with the app's one `shuffle`, memoised on
+the question number (`qi`) so the keys do not move while the learner is
+typing. The cost is the phone-dialler familiarity 0.366 argued for, which
+the owner judged less important than having to read each figure. A
+keyboard that has the figures still types them directly.
+
+---
+
+## Practice can no longer only cost: one slip keeps the passes, and cleared opens what is next
+
+**6 October 2026** · `markedState` in `src/grade.ts`; `knownCard`, `cardStandings`, `stretchOpen`, `stretchCleared`, `wordsCleared` and `quietRows` in `src/ArabicTrainer.tsx`
+
+The owner practises numbers only, in a custom session, gets nearly
+everything right, and was stuck on 0 to 9 with the same questions coming
+round. A simulated learner on the golden Arabic system, in that set-up
+(four sittings a day, one answer in twelve wrong), showed why: 0 to 9
+reached Cleared in about a week and was still there after three, waiting
+on more cards in week three than in week two. Three rules made that, and
+each changes here.
+
+**One miss keeps the passes; two running take them.** A wrong answer put
+a card's passes back to nought. Practice before a card is due can never
+make a pass (`cameRound`), so every extra sitting could take passes and
+never give them, and a small set drilled all day lost them faster than the
+calendar handed them back: half the answers in the simulation were early,
+four in five in Ultimate. The ladder forgives one miss and shuts a level
+on two (`missedTwice`); the passes now follow the same line.
+
+**A number part is held at Cleared on its words being cleared, not
+learnt.** 0.324 and 0.363 held it until every word and all ten figures
+were learnt, which for 0 to 9 is twenty cards with their passes made at
+the same moment, with any slip taking one back. Each word still has its
+own way to learnt and the Numbers section still counts them by it; the
+part asks that they are known. `partsOf` and `numeralsOf` carry `known`
+beside `validated`, and steering still reads `validated`.
+
+**A stretch opens when the one below is through: its own questions
+cleared, or every word it is built from cleared, whichever comes first.**
+The stretch's own questions were the only way. A stretch shares its
+session with every word it is built from, so it is about one question in
+thirty and its questions alone held the next stretch shut for days, and
+shut it again when the ten figures added two questions to it. Words alone
+were tried first and measured slower: a stretch asks only numbers whose
+words are cleared, so it often clears before the last spelling of the
+last word does, and 10 to 19 opened on day 6 to 12 instead of 4 to 7.
+Either way through, as the front door's `throughDoor` does, is never
+slower.
+
+**A verb's next tense opens on the one above being cleared, not
+mastered.** Mastered is a four-day gap on every cell, which no practice
+brings forward. The owner asked for "cleared opens what is next" in
+general, and this was the other place a wait was on time rather than on
+work. Pronoun cells already open on their word reaching level two.
+
+**Measured.** Six seeded runs each, custom Regular, 0 to 9 and 10 to 19,
+four sittings a day, 8% wrong, 21 days: 0 to 9 learnt in 4 of 6 (none
+before), the rest waiting on one word (3 to 8 before); 10 to 19 opened
+on the same day as before. Ultimate: 1 of 6 learnt and the rest waiting
+on one or two (14 to 17 before). The simulation is not a test in the
+suite; the rules each have one.
+
+**What it costs.** Learnt is easier to reach: a card with a single slip
+in its passes still gets there, and a number part is learnt with some of
+its words still making their own reviews. The past tense of a verb can
+come the same week as its present. The deck estimate (`workloadOf`)
+already counted passes owed and nothing it restates changed.
+
+**Revisit if** learners report cards marked learnt that they do not know:
+the first thing to look at is a miss that is not followed by a second.
+
+## A comma in a meaning is part of it, when marking too
+
+A learner reported three times that "He is cold, he wants a jacket"
+(k5b6526eedb99, بردان بده جاكيت) was marked wrong, typed out in full with
+or without the comma. `checkEn` split the expected English on `/`, `;`
+and `,`, so the meaning became "He is cold" and "he wants a jacket" plus
+the whole field with every alternative in it: the full sentence matched
+nothing, and either half was marked right.
+
+**Now.** `checkEn` splits on a slash or semicolon only, as `readAlike`,
+`meaningsOf` and the other checkers already did. `normEn` drops the comma,
+so the phrase is right with or without it. The comma split had been kept
+on purpose, as generosity to a hand-written card listing two meanings with
+a comma; the owner chose the slash as the only separator.
+
+**What it costs.** A card written "big, large" no longer accepts "big"
+alone. It wants a slash. The transliteration check still splits on a
+comma; nothing has been reported there, and it was left as it was.
+
+## A prep can aim at Cleared, and the deck picker moved to shared
+
+**6 October 2026** · `src/ArabicTrainer.tsx` (`PrepTarget`, `workloadOf`,
+`climbOf`, `towardsLearnt`'s `reach`), `src/shared.tsx` (`DeckSwitch`,
+`PickSheet`)
+
+The owner asked for a prep to aim at Cleared as well as Learnt, with the
+home tile's numbers following. The target is on the prep, defaulting to
+Learnt so a saved prep means what it meant. One number decides "far
+enough" everywhere (`reached`), so the tile's ring, its sessions a day,
+the forecast on the prep screen and whether the prep is done cannot
+disagree. Aiming at Cleared drops the passes from the work and puts the
+floor at `CLEAR_DAYS` (twice that for a card whose words come first)
+rather than `LEARN_DAYS` — the same measured figures, not new ones; the
+estimate is no better checked than the Learnt one was.
+
+The prep's decks are chosen with the card editor's `DeckSwitch`, as
+asked. It and `PickSheet` moved from `card-editor.tsx` to `shared.tsx`
+rather than the trainer importing the card editor, which loads on its own
+and would otherwise be pulled into every student's first load. The
+picker's sentences, which spoke of putting a card in a deck, became
+overridable (`words`).
+
+## Numbers are followed through their decks, waiting ones included
+
+**6 October 2026** · `src/ArabicTrainer.tsx` (`DeckScreen`, `workloadOf`)
+
+The owner asked for the Numbers section on Progress to go: a deck that
+holds numbers is the place to follow them. Its word-by-word view went with
+it. The deck tile already counted a number waiting on its stretch (see
+`towardsLearnt`), but the deck's own screen and `workloadOf` read only
+`laddered`, so they left those out: the screen listed the parts being
+worked on and none of the rest, and the forecast and a prep's sessions a
+day counted no work for them. Both now read a waiting card through
+`ladderedOnceOpen`, as the percentages do. On the deck screen it is listed
+last, under "Opens later". In the forecast it carries its whole ladder,
+with the floor of a card whose building blocks come first
+(`CLEAR_DAYS + LEARN_DAYS`) — a stand-in, not a measurement.
+
+## Matching recordings is the word grid with sounds on its tiles
+
+**6 October 2026** · `src/languages.ts` (`recmatch`, `isGrid`,
+`isListening`), `src/ArabicTrainer.tsx` (`MatchGrid`, `withGrids`,
+`gridFor`), `src/offers.ts` (`heard`)
+
+The owner asked for a matching exercise with recordings on the left and
+words in the script on the right, and set two things against the proposal
+that came before it: five pairs, not three or four, and tiles that look
+and behave exactly as the word grid's do — the empty circle, the numbers,
+and a tap on a paired tile freeing it, which on a sound tile means that
+hearing it again frees it too. So it is the grid with a flag on it rather
+than an exercise of its own: one `MatchGrid`, one dealing (`withGrids`,
+now per kind of grid), one marking. The play icon is drawn inside the tile
+rather than being a button, because the tile is the button and one inside
+another is not allowed; one player serves the whole grid so a second tile
+stops the first.
+
+It stands on level 2, beside the word grid. **What that costs:** a card
+with a recording now has one more question to pass before level 3 opens,
+and a card already past level 2 has it to answer too — the same price the
+picture exercises charged in 0.244. Cards without a recording are asked
+exactly what they were.
+
+At the same time, "Learn more" and the card's note are gone from under
+every grid. They spoke of the first word only and never said which; the
+owner preferred nothing to five times as much.
+

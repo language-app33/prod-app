@@ -939,6 +939,7 @@ async function playGrid() {
        whichever column the learner is reading, so half the pairs below are
        made the other way round, and this is what says they took. */
     fromRight: 0,
+    learnMore: false,
   };
   const early = document.querySelector('[data-el="check-button"]');
   seen.checkedEarly = !!early && /** @type {HTMLButtonElement} */ (early).disabled;
@@ -957,6 +958,9 @@ async function playGrid() {
   seen.marked =
     !!document.querySelector('[data-el="verdict"]') &&
     document.querySelectorAll(".at-matchtile.right, .at-matchtile.wrong").length > 0;
+  /* Whatever Learn more said under a grid was about its first word alone,
+     so there is none. */
+  seen.learnMore = !!document.querySelector('[data-el="also-heading"]');
   return seen;
 }
 
@@ -1226,18 +1230,16 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const dupes2 = answered.filter((n, i) => n !== "related-word" && answered.indexOf(n) !== i);
     check("and each of those means one thing too", dupes2.length === 0, dupes2.join(", "));
 
-    /* The extras open closed, behind one tap. The answer is what you came
-       back for; five blocks of context under it is a page to scroll past
-       rather than a thing to read. */
-    check("what is not the answer starts put away",
-      !document.querySelector('[data-el="also"]'), "the box is open before it is asked for");
-    const moreBtn = document.querySelector('[data-el="also-toggle"]');
-    check("and there is an invitation to open it",
-      !!moreBtn && /Learn more/.test(moreBtn.textContent), moreBtn ? moreBtn.textContent : "no toggle");
-    check("which says whether it is open", moreBtn && moreBtn.getAttribute("aria-expanded") === "false",
-      moreBtn ? String(moreBtn.getAttribute("aria-expanded")) : "");
-    click(moreBtn);
-    await sleep(120);
+    /* The extras are shown open, under a plain "Learn more" heading with
+       nothing to fold them away: they are there to be read. */
+    const moreHead = document.querySelector('[data-el="also-heading"]');
+    check("what is not the answer is headed Learn more",
+      !!moreHead && /^Learn more$/.test(moreHead.textContent.trim()), moreHead ? moreHead.textContent : "no heading");
+    check("and the heading is not a control that folds it away",
+      !!moreHead && moreHead.tagName !== "BUTTON" && !moreHead.querySelector("svg") && !moreHead.hasAttribute("aria-expanded"),
+      moreHead ? moreHead.outerHTML : "");
+    check("and the box is open without being asked for",
+      !!document.querySelector('[data-el="also"]'), "the box is closed");
 
     /* Everything that is not the answer, in one box. The members are each
        conditional, so what matters is that whichever turned up are inside
@@ -1246,7 +1248,24 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("what is not the answer is gathered into a box",
       !!alsoBox && alsoBox.classList.contains("at-alsobox") && !!alsoBox.closest(".at-exercise"),
       alsoBox ? alsoBox.className : "no box");
-    const inBox = alsoBox ? [...alsoBox.children].map((e) => e.getAttribute("data-el")) : [];
+    /* The short blocks sit two to a row, so a row is looked through to the
+       blocks it holds. */
+    const rowsIn = alsoBox ? [...alsoBox.children] : [];
+    const inBox = rowsIn
+      .flatMap((e) => (e.getAttribute("data-el") === "also-row" ? [...e.children] : [e]))
+      .map((e) => e.getAttribute("data-el"));
+    check("a row holds one or two of the short blocks, never the phrase",
+      rowsIn.filter((e) => e.getAttribute("data-el") === "also-row").every((r) =>
+        r.children.length >= 1 && r.children.length <= 2 &&
+        [...r.children].every((c) => c.getAttribute("data-el") !== "also-context")),
+      rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    check("and every short block sits in a row, the related words included",
+      rowsIn.every((e) => ["also-row", "also-context"].includes(e.getAttribute("data-el") || "")),
+      rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    const hintRow = alsoBox && alsoBox.querySelector('[data-el="also-hint"]');
+    const audioRow = alsoBox && alsoBox.querySelector('[data-el="also-audio"]');
+    check("how it's pronounced and how it sounds share a row",
+      !hintRow || !audioRow || hintRow.parentElement === audioRow.parentElement, "");
     const FAMILY = ["also-context", "also-script", "also-hint", "also-figures", "also-audio", "related-words"];
     check("and everything in it is one of the blocks that were loose on the page",
       inBox.length > 0 && inBox.every((n) => FAMILY.includes(n || "")), inBox.join(" ") || "empty");
@@ -2278,7 +2297,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   click(levelTile);
   await sleep(200);
 
-  /* ---- prep mode: decks to have learnt by a date ----
+  /* ---- prep mode: decks to have cleared or learnt by a date ----
      Set up from Progress, offered on the home screen as a session of its
      own, edited, and cleared. */
   {
@@ -2296,7 +2315,12 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const pad = (/** @type {number} */ n) => String(n).padStart(2, "0");
     const day = `${inMonth.getFullYear()}-${pad(inMonth.getMonth() + 1)}-${pad(inMonth.getDate())}`;
 
-    click(buttonNamed(/^Prep mode$/));
+    const prepHead = [...document.querySelectorAll("h3.at-sectionhead")].find((h) => /^Prep mode$/.test(h.textContent || ""));
+    check("Progress has Prep mode under a heading of its own, styled as the Courses tab's",
+      !!prepHead && !!prepHead.closest(".at-section")?.querySelector(".at-sectionlede"),
+      [...document.querySelectorAll(".at-sectionhead")].map((h) => h.textContent).join(" | "));
+    check("and its button starts one while there is none", !!buttonNamed(/^Start prep mode$/));
+    click(buttonNamed(/^Start prep mode$/));
     await sleep(250);
     check("Progress opens Prep mode on a screen of its own",
       /Prep mode/.test(((top() || {}).textContent || "")), ((top() || {}).textContent || "").slice(0, 60));
@@ -2306,11 +2330,27 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     if (nameBox) typeIn(nameBox, "Start of class");
     if (dateBox) typeIn(dateBox, day);
     await sleep(80);
-    const lessonRow = [...((top() || document).querySelectorAll("label.at-tickrow"))]
-      .find((l) => /Lesson 1/.test(l.textContent || ""));
-    check("and which decks to have learnt by then", !!lessonRow);
-    click(lessonRow && lessonRow.querySelector("input"));
+    /* The decks as a card's editor chooses them: a button opening a sheet,
+       and the chosen ones as pills. */
+    click(buttonNamed(/^Choose decks$/));
     await sleep(80);
+    const lessonPick = [...document.querySelectorAll(".at-decksheet button.at-deckpick")]
+      .find((b) => /Lesson 1/.test(b.textContent || ""));
+    check("and which decks to target, from the sheet a card's decks are chosen in", !!lessonPick);
+    click(lessonPick);
+    await sleep(80);
+    click([...document.querySelectorAll(".at-decksheet button")].find((b) => b.getAttribute("aria-label") === "Close"));
+    await sleep(80);
+    check("the deck chosen stands as a pill",
+      [...((top() || document).querySelectorAll(".at-deckpill"))].some((p) => /Lesson 1/.test(p.textContent || "")));
+    const levelPick = (/** @type {RegExp} */ re) =>
+      [...((top() || document).querySelectorAll(".at-segmented button"))].find((b) => re.test(b.textContent || ""));
+    check("and the level to have them at, Learnt to begin with",
+      !!levelPick(/^Cleared$/) && levelPick(/^Learnt$/)?.getAttribute("aria-pressed") === "true",
+      (levelPick(/^Learnt$/) || {}).outerHTML || "(no level picker)");
+    const foot = () => (top() || document).querySelector(".at-screenfoot");
+    check("Save sits in the bar at the foot of the screen",
+      !!foot()?.contains(buttonNamed(/^Start prepping$/) || null), (foot() || {}).textContent || "(no foot)");
     const readyText = () => ((document.querySelector(".at-prepready") || {}).textContent || "");
     for (let i = 0; i < 160 && (!readyText() || /Working out/.test(readyText())); i++) await sleep(250);
     check("saying how much practice being ready takes, or when it could be",
@@ -2365,7 +2405,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     /* Edited: the same screen, holding what was set. */
     click(buttonNamed(/^Progress$/));
     await sleep(300);
-    click(buttonNamed(/^Prep mode$/));
+    click(buttonNamed(/^Edit prep mode$/));
     await sleep(250);
     const again = /** @type {any} */ (document.getElementById("at-prep-name"));
     check("opening it again holds the prep as it was set",
@@ -2380,15 +2420,39 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     await sleep(300);
     check("and reaches the home screen's button",
       /^Prep for Exam$/.test((prepButton() || {}).textContent || ""), (prepButton() || {}).textContent || "(none)");
+    check("whose ring counts cards learnt",
+      / cards? learnt$/.test((prepTile()?.querySelector(".at-climbsay") || {}).textContent || ""),
+      (prepTile()?.querySelector(".at-climbsay") || {}).textContent || "(no ring)");
+
+    /* Aimed at Cleared instead: the tile counts cleared cards. */
+    click(buttonNamed(/^Progress$/));
+    await sleep(300);
+    click(buttonNamed(/^Edit prep mode$/));
+    await sleep(250);
+    click(levelPick(/^Cleared$/));
+    await sleep(80);
+    click(buttonNamed(/^Save changes$/));
+    await sleep(300);
+    click(buttonNamed(/^Home$/));
+    await sleep(300);
+    const said = () => (prepTile()?.querySelector(".at-climbsay") || {}).textContent || "";
+    check("aimed at Cleared, the tile counts cleared cards, and still offers the prep",
+      / cards? cleared$/.test(said()) || (!prepTile() && !!document.querySelector(".at-prepnote")), said() || "(no tile)");
 
     /* Cleared. */
     click(buttonNamed(/^Progress$/));
     await sleep(300);
-    click(buttonNamed(/^Prep mode$/));
+    click(buttonNamed(/^Edit prep mode$/));
     await sleep(250);
-    click(buttonNamed(/^Stop prepping$/));
+    const del = () => [...((foot() || document).querySelectorAll("button"))].find((b) => b.getAttribute("aria-label") === "Delete this prep");
+    check("the way to delete it is an icon in the same bar, before Save",
+      !!del() && !(del()?.textContent || "").trim() &&
+        !!((del()?.compareDocumentPosition(/** @type {Node} */ (buttonNamed(/^Save changes$/))) || 0) & 4),
+      (foot() || {}).innerHTML?.slice(0, 160) || "(no foot)");
+    click(del());
     await sleep(300);
-    check("stopping clears it from Progress", !document.querySelector(".at-prepnote"), note());
+    check("deleting clears it from Progress, whose button starts one again",
+      !document.querySelector(".at-prepnote") && !!buttonNamed(/^Start prep mode$/), note());
     click(buttonNamed(/^Home$/));
     await sleep(300);
     check("and from the home screen, which has its climb back",
@@ -3728,12 +3792,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     }
 
     /* Move two: what the answer screen says about where the word lives.
-       Behind "Learn more", which is where everything that is not the
-       answer lives. */
-    const more = document.querySelector('[data-el="also-toggle"]');
+       Under "Learn more", which is where everything that is not the
+       answer lives, open from the start. */
+    const more = document.querySelector('[data-el="also"]');
     if (/Choose the meaning/.test(asked) && !alsoOnMeaning) {
-      if (more) click(more);
-      await sleep(120);
       alsoOnMeaning = {
         box: !!more,
         said: ((document.querySelector('[data-el="also-hint"]') || {}).textContent || "")
@@ -3741,8 +3803,6 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       };
     }
     if (more) {
-      click(more);
-      await sleep(120);
       const where = document.querySelector('[data-el="also-context"]');
       if (where && /الكتاب كبير/.test(where.textContent || "")) {
         sawWhereItTurnedUp += 1;
@@ -3807,6 +3867,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      first meaning counted as "unpaired" could never be finished. */
   check("and pairing them all is, and gets marked",
     !!grid && grid.marked, String(grid && grid.marked));
+  check("with no Learn more under it, which could only ever speak of one word",
+    !!grid && grid.marked && !grid.learnMore, String(grid && grid.learnMore));
   /* Half the pairs above were begun from the meanings, and the grid was
      finished and marked all the same: a learner reading down the right-hand
      column starts there rather than crossing the screen first. */
@@ -4755,6 +4817,32 @@ const openPronounTables = async () => {
       `feminine ${fem && fem.classList.contains("main") ? "is" : "is not"} the word · ` +
         `save ${buttonNamed(/^Save$/) && !/** @type {any} */ (buttonNamed(/^Save$/)).disabled ? "on" : "off"}`);
   }
+
+  /* A person's boxes, a side for each gender, all start folded under their
+     names — even where something is written, and even when they appear
+     because the card has just been said to be a person. An animal's are
+     not: they open as they appear, the way any form asked for does. */
+  await leaveScreen();
+  openFormsAsDrawn = false;
+  await newCard();
+  await pickCardKind(/^Word or phrase/);
+  await pickKind(/^Noun/);
+  {
+    const shut = () => formFolds().filter((b) => b.getAttribute("aria-expanded") === "false").length;
+    await pickToggle("Person, animal or thing", "Person");
+    await sleep(250);
+    check("a person's forms all start folded under their names",
+      formFolds().length > 2 && shut() === formFolds().length,
+      `${shut()} of ${formFolds().length} folded`);
+    await pickToggle("Person, animal or thing", "Thing");
+    await sleep(250);
+    await pickToggle("Person, animal or thing", "Animal");
+    await sleep(250);
+    check("while an animal's open as they appear",
+      formFolds().length > 2 && shut() === 0,
+      `${shut()} of ${formFolds().length} folded`);
+  }
+  openFormsAsDrawn = true;
 
   await leaveScreen();
   openFormsAsDrawn = false;
@@ -8279,12 +8367,21 @@ const openPronounTables = async () => {
     await sleep(200);
   }
 
-  /* Under the boxes, the number counting a thing: read only, made of the
-     word just typed and the noun card — and nothing under a number with
-     no word yet, since there is nothing to count with. */
+  /* Under the boxes, examples of the number counting things: read only,
+     made of the words typed and the noun card. Seven has a box for its
+     word before a noun, so nothing shows until that box is filled — and
+     nothing under a number with no word yet, since there is nothing to
+     count with. */
   const counts = (/** @type {string} */ n) => ((tileOf(n) || { querySelector: () => null }).querySelector(".at-numcount") || {}).textContent || "";
-  check("under a number's boxes is how it counts a thing, read only",
-    /Counting a thing/.test(counts("7")) && /sab3a/.test(counts("7")) && /7 books/.test(counts("7")) &&
+  check("no example under a number until its word before a noun is typed",
+    !counts("7"), counts("7"));
+  const sevenBefore = boxNamed("7, before a noun");
+  if (sevenBefore) {
+    typeIn(sevenBefore, "sab3at");
+    await sleep(200);
+  }
+  check("then under its boxes are examples of counting things, read only",
+    !!sevenBefore && /Examples of counting things/.test(counts("7")) && /sab3at/.test(counts("7")) && /7 books/.test(counts("7")) &&
       !(/** @type {any} */ (tileOf("7"))).querySelector(".at-numcount input"),
     counts("7") || "(nothing under seven)");
   check("and nothing under a number with no word to count with",
@@ -9014,7 +9111,7 @@ const openPronounTables = async () => {
   const known = (keys) => Object.fromEntries(keys.map((t) => [t, { ...solid }]));
   const level1 = ["ar2pick", "ar2en", "rec2en", "rec2img"];
   const upTo2 = known(level1);
-  const upTo4 = known([...level1, "match", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
+  const upTo4 = known([...level1, "match", "recmatch", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
   /** @param {any[]} items */
   const walk = async (items) => {
     /* Its own five words and nothing else, as the walks above clear the
@@ -9040,7 +9137,12 @@ const openPronounTables = async () => {
     for (let t = 0; t < 100 && !startBtn(); t++) await sleep(100);
     click(startBtn());
     for (let t = 0; t < 50 && !host.querySelector(".at-instruction"); t++) await sleep(100);
-    const met = { chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0 };
+    const met = {
+      chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0,
+      /* The grid of recordings, where one comes up. */
+      soundGrids: 0, soundTiles: 0, wordsInScript: false, noEnglish: false,
+      unpairs: false, soundVerdict: "", learnMore: false, marked: false,
+    };
     for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
       const pics = host.querySelector(".at-picchoices");
       const promptPic = host.querySelector(".at-picture.prompt");
@@ -9065,7 +9167,35 @@ const openPronounTables = async () => {
         if (promptPic) met.promptWritten += 1;
         click([...host.querySelectorAll("button")].find((b) => /^I don't know$/.test((b.textContent || "").trim())));
       } else if (host.querySelector('[data-el="answer-match"]')) {
-        await playGrid();
+        const sounds = host.querySelectorAll('[data-el="match-sound"]').length;
+        if (sounds) {
+          met.soundGrids += 1;
+          met.soundTiles = Math.max(met.soundTiles, sounds);
+          const grid = host.querySelector('[data-el="answer-match"]');
+          met.wordsInScript = [...host.querySelectorAll('[data-el="match-meaning"]')]
+            .every((el) => /[\u0600-\u06FF]/.test(el.textContent || ""));
+          met.noEnglish = !/coffee|tea|bread|water|apples/.test((grid && grid.textContent) || "");
+          /* A sound tile behaves as a word tile does: paired, then tapped
+             again, it lets go — and is left held, so one more tap puts it
+             down before the grid is played through. */
+          const w0 = () => /** @type {Element} */ (host.querySelector('[data-el="match-word"]'));
+          click(w0());
+          await sleep(25);
+          click(host.querySelector('[data-el="match-meaning"]'));
+          await sleep(25);
+          const paired = w0().classList.contains("paired");
+          click(w0());
+          await sleep(25);
+          met.unpairs = paired && !w0().classList.contains("paired");
+          click(w0());
+          await sleep(25);
+        }
+        const seen = await playGrid();
+        if (sounds) {
+          met.soundVerdict = ((host.querySelector('[data-el="verdict"]') || {}).textContent || "").trim();
+          met.learnMore = !!host.querySelector('[data-el="also-heading"]');
+          met.marked = !!seen && !!seen.marked;
+        }
       }
       await sleep(120);
       if (!host.querySelector('[data-el="verdict"]')) {
@@ -9113,6 +9243,23 @@ const openPronounTables = async () => {
   const fourth = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, upTo4)));
   check("and, known further, to write it from the picture",
     fourth.promptWritten > 0, JSON.stringify(fourth));
+  /* Known by ear and every other second-level question passed, the one
+     left to ask is the grid of recordings: a play button for each word, the
+     words in the script beside them, and no English anywhere. */
+  const byEar = known([...level1, "match", "en2pick", "img2pick", "ctx2pick"]);
+  const heardGrid = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, byEar)));
+  check("words known by ear are asked to match each recording to its word",
+    heardGrid.soundGrids > 0, JSON.stringify(heardGrid));
+  check("five recordings, as the word grid has five words",
+    heardGrid.soundTiles === 5, JSON.stringify(heardGrid));
+  check("the other column is the words in the script, with no meaning on the screen",
+    heardGrid.wordsInScript && heardGrid.noEnglish, JSON.stringify(heardGrid));
+  check("tapping a paired recording lets go of its pair, as a word tile does",
+    heardGrid.unpairs, JSON.stringify(heardGrid));
+  check("the grid is marked, and a miss is told the right words are shown",
+    heardGrid.marked && !/meanings/.test(heardGrid.soundVerdict), JSON.stringify(heardGrid));
+  check("and there is no Learn more under it",
+    !heardGrid.learnMore, JSON.stringify(heardGrid));
   check("and nothing threw while the pictures were practised",
     errors.length === before, errors.slice(before, before + 3).join(" | "));
 }
@@ -9512,7 +9659,8 @@ const openPronounTables = async () => {
   await sleep(700);
 
   const own = packs["ar-PS"].numerals;
-  const met = { pad: 0, keys: 0, askedAgain: 0, rightOnKeys: 0, named: 0, phoneOrder: 0, shut: 0 };
+  const met = { pad: 0, keys: 0, askedAgain: 0, rightOnKeys: 0, named: 0, allTen: 0, held: 0, shut: 0 };
+  const orders = new Set();
   let stopped = "after 20 questions";
   const checkBtn = () => [...host6.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim()));
   for (let i = 0; i < 20; i += 1) {
@@ -9529,8 +9677,11 @@ const openPronounTables = async () => {
       if (/Eastern Arabic numerals/.test(host6.textContent || "")) met.named += 1;
       const keys = [...pad.querySelectorAll("button")].filter((b) => /^[٠-٩]$/.test((b.textContent || "").trim()));
       met.keys = Math.max(met.keys, keys.length);
-      /* Laid out as a phone's keypad: ١ to ٩ in reading order, then ٠. */
-      if (keys.map((b) => (b.textContent || "").trim()).join("") === [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(own).join("")) met.phoneOrder += 1;
+      /* Every one of the ten, once each, in an order dealt for this
+         question rather than counting order. */
+      const order = keys.map((b) => (b.textContent || "").trim()).join("");
+      if ([...order].sort().join("") === [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(own).join("")) met.allTen += 1;
+      orders.add(order);
       /* And the box beside it never raises the phone's own keyboard. */
       if (/** @type {any} */ (input).readOnly && input.getAttribute("inputmode") === "none") met.shut += 1;
       const said = (prompt.textContent || "").trim();
@@ -9548,6 +9699,9 @@ const openPronounTables = async () => {
         else if (ch === ":") click([...pad.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === ":"));
         await sleep(30);
       }
+      /* The keys have not moved under the learner's hand. */
+      const now = [...pad.querySelectorAll("button")].filter((b) => /^[٠-٩]$/.test((b.textContent || "").trim()));
+      if (now.map((b) => (b.textContent || "").trim()).join("") === order) met.held += 1;
       click(checkBtn());
       await sleep(150);
       if (host6.querySelector(".at-shout.ok")) met.rightOnKeys += 1;
@@ -9573,8 +9727,13 @@ const openPronounTables = async () => {
   check("a figure read already is asked to be written in Eastern Arabic numerals, on a pad of the ten",
     met.pad > 0 && met.keys === 10, `${JSON.stringify(met)} — stopped ${stopped}`);
   check("and the question names them", met.named > 0, JSON.stringify(met));
-  check("the pad is a phone's keypad, ١ first and ٠ last",
-    met.pad > 0 && met.phoneOrder === met.pad, JSON.stringify(met));
+  const counting = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(own).join("");
+  check("the pad holds each of the ten figures once",
+    met.pad > 0 && met.allTen === met.pad, JSON.stringify(met));
+  check("in an order dealt again for each question, not counting order",
+    met.pad > 1 && orders.size > 1 && [...orders].some((o) => o !== counting), `${JSON.stringify(met)} — ${orders.size} orders`);
+  check("and the figures stay put while a question is answered",
+    met.pad > 0 && met.held === met.pad, JSON.stringify(met));
   check("and the answer box leaves the phone's keyboard down",
     met.pad > 0 && met.shut === met.pad, JSON.stringify(met));
   check("the right number in Arabic numerals is asked again rather than marked",
