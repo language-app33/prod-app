@@ -124,6 +124,7 @@ import {
   activeLang,
   checkAnswer,
   answersInFigures,
+  instructionFor,
   answerFields,
   derivedValue,
   dimValues,
@@ -11800,7 +11801,7 @@ export default function ArabicTrainer() {
                       ? spec.intro
                         ? "Read the text"
                         : "Read the whole text"
-                      : spec.instruction}
+                      : instructionFor(spec, item)}
                   </p>
                   <div className="at-ask" data-el="question-prompt">
                     {spec.promptField === "pairs" ? null : spec.promptField === "scene" ? (

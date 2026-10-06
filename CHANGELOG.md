@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.364 — 6 October 2026
+
+**Every question asking for a number in figures is worded the same way.**
+
+- Typing a number as 123 is now always asked as "Write the number in
+  Arabic numerals (123)", or "Listen, then write the number in Arabic
+  numerals (123)" when you hear it. Before, the same thing was asked
+  three different ways.
+- A number word such as ثلاثة, whose meaning is 3, no longer says
+  "Write in English": it asks for the number, as the other number
+  questions do. Which questions you get and how answers are marked are
+  unchanged.
+
 ## 0.363 — 5 October 2026
 
 **Learn to read and write numbers in Eastern Arabic numerals (١٢٣).**

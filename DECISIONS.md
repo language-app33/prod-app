@@ -5250,3 +5250,19 @@ it, until those are answered right twice in a row. Learners usually do
 that in a sitting. "Learnt" on a range now also waits on the ten figure
 cards' own reviews.
 
+
+## A number is asked for in one wording
+
+**6 October 2026** · `WRITE_FIGURES`, `HEAR_FIGURES`, `figuresInstruction` and `instructionFor` in `src/languages.ts`; the question line in `src/ArabicTrainer.tsx`
+
+Three questions asked for the same thing — type this number in 123 — in
+three wordings: a range said "Read the number, then write it…", one of the
+ten figures said "Write this numeral…", and a number word (ثلاثة, meaning
+"3") said "Write in English", although its answer is marked as a number
+(`numeralMeanings`). Now the written ones all say "Write the number in
+Arabic numerals (123)" and the heard ones "Listen, then write the number
+in Arabic numerals (123)". The two strings are constants, used by
+`num2fig`, `dig2fig` and `rec2fig` directly, and by `ar2en` and `rec2en`
+as `figuresInstruction`, which `instructionFor` picks when every meaning
+of the card is a number. Only the line changes: which questions a card
+gets, how they are marked and their levels are as before.

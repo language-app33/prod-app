@@ -56,6 +56,12 @@ export type Millis = number;
  */
 export interface ExerciseSpec {
   instruction: string;
+  /**
+   * The instruction instead, on a card whose answer is a number in figures
+   * (see `numeralMeanings`). Shared with the number questions, so the same
+   * thing asked is worded once. See `instructionFor`.
+   */
+  figuresInstruction?: string;
   /** May contain {Script}/{translit} placeholders. */
   label: string;
   short: string;
