@@ -103,7 +103,7 @@ export const TEXT_STYLES: [string, TextStyle[]][] = [
       name: ".at-alsolabel",
       size: "11px",
       what: "The same, one size down, over each block inside Learn more.",
-      example: "This is how it's pronounced",
+      example: "How it's pronounced",
       cls: "at-alsolabel",
     },
   ]],

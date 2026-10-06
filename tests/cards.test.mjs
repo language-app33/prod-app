@@ -1577,6 +1577,32 @@ test("a card carrying two tables is gated on both", () => {
 });
 
 /*
+ * The next tense opens when the one before it is cleared.
+ *
+ * Since 0.368. It waited until every cell of the row above was held at a
+ * four-day gap, which no amount of practice could bring forward, so a verb
+ * practised every day opened its past a week or more after its present
+ * was known. Cleared is what opens the next thing everywhere else.
+ */
+test("a verb's next tense opens once the tense before it is cleared, not once it has been held for days", () => {
+  const verb = (/** @type {any} */ present) => ({
+    id: "eat", ar: "أكل", en: "to eat", lat: "", lang: "ar-PS", kind: "word", category: "verb", s: {},
+    subs: [
+      { id: "eat-p-he", ar: "بوكل", en: "he eats", lat: "", lang: "ar-PS", row: "present", col: "he", s: present },
+      { id: "eat-p-she", ar: "بتوكل", en: "she eats", lat: "", lang: "ar-PS", row: "present", col: "she", s: present },
+      { id: "eat-c-he", ar: "كول", en: "eat!", lat: "", lang: "ar-PS", row: "command", col: "he", s: {} },
+    ],
+  });
+  /* Right twice running on everything, a day apart: cleared, nowhere near
+     a four-day gap. */
+  const clearedToday = quietUnits([verb(allAt(state("review", 1)))], settings);
+  assert.equal(clearedToday.has("eat-c-he"), false, "the next tense waits although the present is cleared");
+  /* One right answer on each: not cleared, so it still waits. */
+  const halfway = quietUnits([verb(allAt(state("review", 1, { hist: [1] })))], settings);
+  assert.ok(halfway.has("eat-c-he"), "the next tense opened before the present was cleared");
+});
+
+/*
  * A sentence puts the agreeing form beside its noun.
  *
  * The values a sentence was filled with, after the draw: an adjective's

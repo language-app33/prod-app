@@ -3693,6 +3693,13 @@ function TryExercises({ card, cards, lang, onTry, back }: {
           (c) => !isDialog(c) && !hasSlots(c) && c.drill !== false &&
             formsOf(c).some((f: any) => f.ar && Array.isArray(f.images) && f.images.length)
         ).length - (Array.isArray(unit.images) && unit.images.length ? 1 : 0),
+      /* And how many have a recording and could stand in a grid, which is
+         the company the grid of recordings needs. */
+      heardFor: (unit) =>
+        material.filter(
+          (c) => !isDialog(c) && !hasSlots(c) && c.drill !== false &&
+            formsOf(c).some((f: any) => f.ar && (f.recs || []).length)
+        ).length - ((unit.recs || []).length ? 1 : 0),
     });
   }, [mine, lang, contexts, scenes, values, material]);
 

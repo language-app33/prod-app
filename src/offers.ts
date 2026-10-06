@@ -31,7 +31,7 @@ import { saidAnswers } from "./answers.ts";
 import { slotsOf } from "./variables.ts";
 import { ownSlot } from "./verbs.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.ts";
-import { MIN_PAIR_MATES, PICK_OPTIONS } from "./chance.ts";
+import { MIN_PAIR_MATES, MIN_PAIR_WORDS, PICK_OPTIONS } from "./chance.ts";
 
 /*
  * What this unit has not got, of what an exercise asks for.
@@ -65,6 +65,12 @@ export function unmetNeeds(
    * wrong ones have to be somebody's.
    */
   pictured = 0,
+  /**
+   * How many other cards in this language could stand in a grid with a
+   * recording of their own. Only the grid of recordings asks: every word
+   * on its left is a play button, so its company has to be heard too.
+   */
+  heard = 0,
 ): string[] {
   const holes = slotsOf(unit);
   /* The verb's own place in a verb card's sentence is a hole no card
@@ -120,6 +126,8 @@ export function unmetNeeds(
     if (f === "images") return !(Array.isArray(unit.images) && unit.images.length);
     /* Three wrong pictures beside the right one: four tiles. */
     if (f === "pictured") return pictured < PICK_OPTIONS - 1;
+    /* Two more recorded words beside it: the fewest a grid is dealt with. */
+    if (f === "heard") return heard < MIN_PAIR_WORDS - 1;
     if (f === "contexts") return !contexts.length;
     if (f === "contextAudio") return !contexts.some((c) => (c.recs || []).length > 0);
     if (DIALOG_NEEDS.includes(f)) return !dialogNeedMet(f, scene, unit);
@@ -144,6 +152,7 @@ export function canAsk(
     values?: Record<string, unknown[]>;
     mates?: number;
     pictured?: number;
+    heard?: number;
   },
   type: string,
   lang: Lang,
@@ -153,7 +162,7 @@ export function canAsk(
   if ((spec.dialog || "word") !== roleOf(on.unit, on.scene)) return false;
   if (!drilledBy(spec, lang, on.unit)) return false;
   if (askedInstead(spec, on.unit)) return false;
-  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}, on.mates || 0, on.pictured || 0).length === 0;
+  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}, on.mates || 0, on.pictured || 0, on.heard || 0).length === 0;
 }
 
 /* Whether another exercise asks this one's question of this unit — see
@@ -206,6 +215,7 @@ export function offersFor({
   valuesFor = () => ({}),
   matesFor = () => 0,
   picturedFor = () => 0,
+  heardFor = () => 0,
 }: {
   units: { unit: Form; isSub: boolean; scene?: Placed | null }[];
   lang: Lang;
@@ -216,6 +226,8 @@ export function offersFor({
   matesFor?: (unit: Form) => number;
   /** How many other cards have a picture to stand beside its own. */
   picturedFor?: (unit: Form) => number;
+  /** How many other cards with a recording could stand in a grid with it. */
+  heardFor?: (unit: Form) => number;
 }): Offer[] {
   const known = units.map((u) => ({
     unit: u.unit,
@@ -225,6 +237,7 @@ export function offersFor({
     values: valuesFor(u.unit) || {},
     mates: matesFor(u.unit) || 0,
     pictured: picturedFor(u.unit) || 0,
+    heard: heardFor(u.unit) || 0,
   }));
 
   const offers: Offer[] = [];
@@ -264,7 +277,7 @@ export function offersFor({
          language gives its script. */
       missing: ready
         ? []
-        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values, on.mates, on.pictured).map((f) =>
+        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values, on.mates, on.pictured, on.heard).map((f) =>
             needLabel(f, lang)
           ),
     });

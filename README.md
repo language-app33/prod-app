@@ -18,7 +18,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   | level | what it asks | exercises |
   |---|---|---|
   | 1 | what the word means | choose the meaning · {script} → English · listen → English · read a scene |
-  | 2 | which word it is | match the pairs · English → choose · choose the missing word |
+  | 2 | which word it is | match the pairs · match the recordings · English → choose · choose the missing word |
   | 3 | write it from a cue | {translit} → script · listen → script · listen → tone · choose the reply · put a scene in order |
   | 4 | write it from its meaning | English → script · fill the gap · phrase heard → script |
 
@@ -43,7 +43,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   `cleared`, `passesMade` and `learnt` in the scheduler, counted in
   `markedState` and gated on `cameRound` — the same line that already
   stops an early answer growing a gap, which is why no amount of practice
-  in one evening can make a pass. Two passes: `PASSES_TO_LEARN`.
+  in one evening can make a pass. Two passes: `PASSES_TO_LEARN`. And the
+  passes keep the ladder's own forgiveness: one miss leaves them where they
+  are, and two running put them back to nought (`missedTwice`). Until 0.368
+  one miss did, so practice that could never make a pass could always take
+  one, and a small set drilled many times a day lost its passes faster than
+  the calendar gave them back.
 
   The top of a form's ladder is the form's own, read with `topLevelOf`
   rather than from `TOP_LEVEL`, so a conversation that tops out at putting
@@ -355,8 +360,11 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   one person and four markers — each cell of it is a sub-form, drilled and
   scheduled in its own right by the exercises every other form gets. The
   rows open in the order the language teaches them, one waiting on the one
-  above it being mastered, so the past of a verb is not asked until its
-  present is known and a lapse closes the rows above. Where a language has
+  above it being cleared, so the past of a verb is not asked until its
+  present is known and a lapse closes the rows above. Cleared since 0.368;
+  it was mastered — every cell held at a four-day gap — which no practice
+  could bring forward, so the next tense came a week or more after the
+  present was known. Where a language has
   no infinitive it names the cell a dictionary would list instead — Arabic
   cites the he-past — and that cell stands in for the card's own word
   rather than the two being drilled as one word twice. On those languages
@@ -1008,20 +1016,33 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
 
   **The number line is learnt bottom up.** 10 to 19 is said out of the
   words 0 to 9 teaches, so a stretch is not asked until the one below it
-  is *cleared* — the ladder's own word, read off its own keys — and every
-  one under that too. Until then the stretch is held back the way a verb's
+  is through — its own questions *cleared*, or every word it is built from
+  cleared, whichever comes first — and every one under that too. The words
+  were added as a way through in 0.368: a stretch is asked about one
+  question in thirty of a numbers session, so waiting on its questions alone
+  held the next stretch shut for days after its words were known. Until then the stretch is held back the way a verb's
   unopened row is (`stretchBefore` in `src/numbers/generate.ts`, read by
   `quietUnits`), so it keeps its place and its schedule and opens the
-  moment the one below clears; a stretch below that slips back off
-  cleared shuts it again until it is recovered. Only a stretch the learner
+  moment the one below is through; a stretch below that slips back on
+  both counts shuts it again until it is recovered. Only a stretch the learner
   actually has is waited on — a deck that teaches 10 to 19 alone is not
   held behind a 0 to 9 nobody sent. A word waits with the stretch whose
   screen it is on, and a number written out with the stretch it is in
   (`homeStretch`), so *ninety* and *a million* are not met before their
   stretches open — and the clock is not a stretch of
-  the number line and waits on nothing. Cleared, here, is on a stretch's
+  the number line and waits on nothing. A stretch's own questions are its
   number questions alone: its counting question never holds the stretch
   above back (`stretchOpen` in the app).
+
+  **And a part is learnt once its words are known.** A part whose own
+  reviews are made is held at Cleared while any word it is built from, or
+  any of the ten figures, is not yet cleared — and no longer while one is
+  not yet *learnt*, which was the bar until 0.368. That asked twenty cards
+  for 0 to 9 to have made their passes at the same moment, and with a slip
+  anywhere taking one back a learner drilling 0 to 9 every day sat at
+  Cleared for weeks. Each word still has its own way to learnt, and the
+  Numbers section still counts them by it. `knownCard` and `cardStandings`
+  in the app.
 
   **A deck holds the parts it teaches.** A system is one document per
   language and not cards, so a deck cannot list it among its cards: it
@@ -1120,6 +1141,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   they start, and the pair that comes of it is the same pair either way.
   `MatchGrid` holds the tile picked up as a side and a place on it, so the
   two columns are one gesture written twice and cannot drift apart.
+
+  **The same grid can be heard.** *Match the recordings* puts a play button
+  on each tile where the word would be and the words in the script down
+  the other side — no English on the screen. It is the grid in every
+  other respect, `picks: "pair"` with `tiles: "audio"`: five words, the
+  same tiles, and a tap that plays a tile also does what a tap on a word
+  does, freeing a pairing included. Its words need recordings, so it waits
+  for two more recorded cards beside the one asked (`heard`); its spare
+  tiles are words and need none. It is a listening question for "can't
+  listen right now" and offline (`isListening`).
+
+  **Nothing is shown under "Learn more" after a grid**, of either kind,
+  nor the teacher's note: both were about the first word alone.
 
 ## Running it
 

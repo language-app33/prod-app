@@ -119,7 +119,7 @@ export const TYPES = [
   /* 1: what does it mean */
   "ar2pick", "ar2en", "rec2en", "rec2img",
   /* 2: which one is it */
-  "match", "en2pick", "img2pick", "ctx2pick",
+  "match", "recmatch", "en2pick", "img2pick", "ctx2pick",
   /* 3: write it from a cue */
   "tr2ar", "rec2ar", "rec2attr",
   /* 4: write it from its meaning */
@@ -141,9 +141,10 @@ export const TYPES = [
 /* The one wording of "type this number in the figures English uses", read or
    heard. Every question whose answer is that — a range, one of the ten
    figures, the meaning of a number word — says it in these words, so the
-   same thing asked two ways is not described two ways. */
-const WRITE_FIGURES = "Write the number in Arabic numerals (123)";
-const HEAR_FIGURES = "Listen, then write the number in Arabic numerals (123)";
+   same thing asked two ways is not described two ways. Heard or read, the
+   words are the same: the play button already says to listen. */
+const WRITE_FIGURES = "Write in Arabic numerals (123)";
+const HEAR_FIGURES = WRITE_FIGURES;
 
 export const EX: Record<string, ExerciseSpec> = {
   /* The gentlest question in the app, and the only one that asks nothing of
@@ -176,6 +177,34 @@ export const EX: Record<string, ExerciseSpec> = {
     answerField: "en",
     answerMode: "choice",
     picks: "pair",
+    gentle: true,
+  },
+  /* The same grid heard rather than read: a play button on each tile where
+     the word would be, and the words themselves, in the script, down the
+     other side. No English anywhere on the screen — what it asks is the
+     one thing nothing else asks gently, which written word is the sound
+     just heard. Every other listening question either asks what it means
+     or asks for it written out.
+
+     The tiles look and behave exactly as the word grid's do, by the
+     owner's choice: five of them, the same numbers, and tapping a paired
+     tile frees it — which on a sound tile means hearing it again frees it
+     too. Each word standing in it needs a recording, so it needs company
+     with recordings as well: `heard`. The spare tiles on the right are
+     words in the script and need none. */
+  recmatch: {
+    level: 2,
+    instruction: "Match each recording to its word",
+    label: "Match the recordings",
+    short: "Sounds",
+    needs: ["recs", "ar", "mates", "heard"],
+    question: "Match each recording to its word",
+    placeholder: "",
+    promptField: "pairs",
+    answerField: "ar",
+    answerMode: "choice",
+    picks: "pair",
+    tiles: "audio",
     gentle: true,
   },
   /* The first thing ever asked of a word: here it is, which of these four
@@ -966,9 +995,20 @@ export const typeOf = (key: string): string => String(key || "").split(KEY_SEP)[
 export const answerOf = (key: string): number =>
   Math.max(0, Math.floor(Number(String(key || "").split(KEY_SEP)[1]) || 0));
 
+/* A grid of recordings is a listening question too, though nothing is
+   played above it: it cannot be answered without sound, so "can't listen
+   right now" and being offline without the clips put it aside like the
+   rest. */
 export const isListening = (key?: string | null): boolean => {
   const spec = key ? EX[typeOf(key)] : null;
-  return !!spec && spec.promptField === "audio";
+  return !!spec && (spec.promptField === "audio" || spec.tiles === "audio");
+};
+
+/* A matching grid, of either kind: dealt when the session is built, several
+   words to a screen, and never conjured on its own for one word. */
+export const isGrid = (key?: string | null): boolean => {
+  const spec = key ? EX[typeOf(key)] : null;
+  return !!spec && spec.picks === "pair";
 };
 
 export function editDistance(a: string, b: string) {
@@ -1616,6 +1656,7 @@ export function needLabel(need: string, lang: Partial<Lang>) {
     recs: "a recording",
     images: "a picture",
     pictured: "a few more cards with a picture",
+    heard: "a few more cards with a recording",
     /* Not a field to fill in: a card whose words vary cannot be the one on
        a recording, so hearing it is the one thing a variable costs. */
     fixed: "words that don't change — neither a recording, a picture nor a grid can follow a variable",
@@ -3763,7 +3804,11 @@ const PERSON_NOTE = new RegExp(`\\s*\\(${NOTE_WORD}(?:[\\s,]+${NOTE_WORD})*\\)`,
 export function checkEn(given: string, expected: string) {
   const g = normEn(given);
   if (!g) return { ok: false, reason: "wrong" };
-  const split = splitForms(expected, /[/;,]/);
+  /* Alternatives are split on a slash or semicolon, not a comma: a comma
+     sits inside a phrase as often as between meanings. Splitting on it
+     marked "He is cold, he wants a jacket" wrong, written out in full,
+     and "He is cold" right. */
+  const split = splitForms(expected, /[/;]/);
   const bare = split.map((e) => e.replace(PERSON_NOTE, "")).filter((e, i) => e !== split[i]);
   const forms = split.concat(bare).map(normEn);
   if (forms.includes(g)) return { ok: true, reason: "exact" };
