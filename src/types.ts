@@ -139,6 +139,12 @@ export interface ExerciseSpec {
    * differently.
    */
   picks?: "reply" | "word" | "meaning" | "pair" | "image";
+  /**
+   * What a grid's words are shown as, where not as themselves: "audio" puts
+   * a play button on each tile where the word would be. The other column is
+   * then the `answerField`, which for a grid of words is the meaning.
+   */
+  tiles?: "audio";
 }
 
 /* ---- a verb's table ----

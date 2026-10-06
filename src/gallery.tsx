@@ -135,6 +135,7 @@ const PLACES: Record<string, [string, string]> = {
   SceneOrder: [LEARN, "A practice session · putting a scene in order"],
   ScenePart: [LEARN, "A practice session · playing a part"],
   TextChoices: [LEARN, "A practice session · choosing an answer from a few"],
+  MatchGrid: [LEARN, "A practice session · matching pairs"],
   ManualSessionSheet: [LEARN, "Building a session by hand"],
   SavedSessionsSheet: [LEARN, "The sessions you kept"],
   SavedTiles: [LEARN, "The home screen · the sessions you kept, with how much of each is learnt"],

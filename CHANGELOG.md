@@ -8,21 +8,46 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.376 — 6 October 2026
+## 0.377 — 6 October 2026
 
 **Learn more: shorter labels, a centred play button, and related words like the rest.**
 
-- "This is how it's pronounced" is now "How it's pronounced", and "This
-  is how it sounds" is now "How it sounds".
+- "This is how it's pronounced" is now "How it's pronounced", "This is
+  how it sounds" is now "How it sounds", and "This is how it's written"
+  is now "How it's written".
 - The play button sits in the middle of its half of the row instead of
   against the left edge.
 - "Built on the same root" (and, for Vietnamese, "Also spelt this way,
-  with a different tone") now has the
-  same small heading as the other items and takes half a row like them,
-  instead of a larger heading across the full width. It shares a row with
-  another item where there is one; on its own it keeps to its half.
+  with a different tone") now has the same small heading as the other
+  items and takes half a row like them, instead of a larger heading
+  across the full width. It shares a row with another item where there
+  is one; on its own it keeps to its half.
 - How it's pronounced and how it sounds are always the pair on one row.
   Other items now come after that row instead of before it.
+
+## 0.376 — 6 October 2026
+
+**A new matching exercise with recordings, and no "Learn more" after matching.**
+
+- **Match the recordings**: five play buttons down the left, five words
+  in Arabic script (plus two spare) down the right. Tap a recording to
+  hear it, then tap the word it says. There is no English on the screen.
+  The tiles look and work exactly like *Match the pairs*: the same
+  numbered circles, and tapping a paired tile takes it apart again, so
+  listening to one again un-pairs it. After checking, a recording paired
+  wrong shows the word it should have been, and the tiles still play.
+- It sits on the second level, next to *Match the pairs*. It is offered
+  on a card with a recording once at least two other cards have one too,
+  and it steps aside for "Can't listen right now" and offline like the
+  other listening exercises.
+- **Trade-off:** a card with a recording now has this one more question
+  to pass before the writing exercises open. That includes cards already
+  past that point: until a learner gets it right, those cards stop
+  counting as cleared or learnt, and Prep mode dates move a little
+  later. Cards without a recording are not affected.
+- After either matching exercise, the "Learn more" section and the
+  teacher's note are gone. Both only ever described the first word in
+  the round, without saying which.
 
 ## 0.375 — 6 October 2026
 

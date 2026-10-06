@@ -61,6 +61,7 @@ const {
   prepDeckOf,
   buildSession,
   climbOf,
+  gridFor,
 } = await import(path.join(out, "trainer.js"));
 const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
 const { FRONT_DOOR_CAP, PASSES_TO_LEARN } = await import(path.join(here, "..", "src", "scheduler.ts"));
@@ -195,6 +196,28 @@ test("an answer is marked by the one function the question screen uses", () => {
   });
   assert.deepEqual(marks.map((/** @type {any} */ m) => m.id).sort(), [a.id, b.id, c.id].sort());
   assert.ok(marks.every((/** @type {any} */ m) => m.correct), "a right grid marked a word wrong");
+});
+
+test("a grid of recordings pairs each recorded word with the word in the script", () => {
+  /* Three words with recordings among sixty without. The words asked are
+     the recorded ones; the spare tiles on the right are words in the
+     script, and need nothing to play. */
+  const heard = collection.map((it, i) =>
+    i < 3 ? { ...it, forms: [{ ...it.forms[0], recs: [{ id: `clip${i}` }] }] } : it);
+  installIndexes(heard, settings);
+  const [a, b, c] = heard;
+  const exercise = { id: a.id, subId: null, type: "recmatch", mates: [{ id: b.id, subId: null }, { id: c.id, subId: null }] };
+  const { words, meanings } = gridFor(a.forms[0], exercise, heard, settings, { id: "ar-PS" });
+  assert.deepEqual(words.map((/** @type {any} */ w) => w.id).sort(), [a.id, b.id, c.id].sort());
+  assert.ok(words.every((/** @type {any} */ w) => (w.recs || []).length), "every word asked can be played");
+  assert.ok(meanings.length > words.length, "spare words, so the last pair is never free");
+  for (const w of words) assert.ok(meanings.includes(w.ar), `${w.ar} is among the words to pair it with`);
+  assert.ok(!meanings.some((/** @type {string} */ m) => /^word /.test(m)), "no meaning on the screen");
+
+  /* A teacher trying it on one card is given company that can be played. */
+  const trial = gridFor(a.forms[0], { id: a.id, subId: null, type: "recmatch" }, heard, settings, { id: "ar-PS" });
+  assert.deepEqual(trial.words.map((/** @type {any} */ w) => w.id).sort(), [a.id, b.id, c.id].sort());
+  installIndexes(collection, settings);
 });
 
 /* ------------------------------------------------------------------

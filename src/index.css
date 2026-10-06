@@ -3445,6 +3445,15 @@ body.at-screening .at-chromebar { display:none; }
    columns — it is a note about the word, never a second word. */
 .at-matchtag { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted);
   line-height:1.3; }
+/* The grid of recordings: the play button stands where the word would, a
+   little larger than in a list of clips because it is the whole of what
+   the tile says. Drawn, not pressed — the tile is the button. */
+.at-matchplay { width:34px; height:34px; display:inline-flex; align-items:center;
+  justify-content:center; font-size:13px; }
+.at-matchtile:hover .at-matchplay { background: var(--raised-hover); }
+/* Under a recording paired wrong, the word it was: in the script, and set
+   small like the meaning under a word is. */
+.at-matchfix.ar .at-arabic { font-size: calc(var(--ask) * .42); color: var(--rose); }
 /* On a phone the two columns still share the row; what gives is the type
    and the padding inside a tile, not the shape of the exercise. */
 @media (max-width: 480px) {
