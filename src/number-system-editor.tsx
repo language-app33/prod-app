@@ -1190,11 +1190,12 @@ function TwoWordsBlock({ lang, questions, onKeep }: {
  * whose was read off the spacing. Here the number heads its own boxes,
  * and what each one is for is named over it.
  *
- * Under them, on a part that is counted with, the number counting a thing
- * — read only, because it is made out of the boxes above and the noun
- * cards, and the place to change it is one of those. It is here because
- * the word before a noun is the box a teacher is least sure of, and the
- * phrase it makes is what shows whether it is right.
+ * Under them, on a part that is counted with, examples of the number
+ * counting things — read only, because it is made out of the boxes above
+ * and the noun cards, and the place to change it is one of those. It is
+ * here because the word before a noun is the box a teacher is least sure
+ * of, and the phrase it makes is what shows whether it is right; so on a
+ * number that has that box, it waits until the box is filled.
  */
 function WordGrid({ lang, draft, setDraft, slots, onRecord, countedAt }: {
   lang: Lang;
@@ -1209,7 +1210,14 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord, countedAt }: {
     <div className="at-numtiles">
       {slots.map((slot) => {
         const n = figureOf(slot.label);
-        const counted = countedAt && n != null ? countedAt(n) : null;
+        /* Where the number has a box for its word before a noun, the
+           example waits for that box: until it is filled the phrase is
+           made from a word the teacher has not said, and shows nothing
+           about whether the box is right. */
+        const forms = (draft.lexemes[slot.slot] || { forms: {} }).forms;
+        const beforeNoun = slot.formKeys.filter((key) => key.startsWith("construct."));
+        const waiting = beforeNoun.length > 0 && !beforeNoun.some((key) => (forms[key] || "").trim());
+        const counted = countedAt && n != null && !waiting ? countedAt(n) : null;
         return (
           <div className="at-part at-numtile" key={slot.slot}>
             <p className="at-groupline at-numhead">
@@ -1250,7 +1258,7 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord, countedAt }: {
             ))}
             {counted ? (
               <div className="at-numcount">
-                <span className="at-label">Counting a thing</span>
+                <span className="at-label">Examples of counting things</span>
                 <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
                   {counted.text}
                 </span>

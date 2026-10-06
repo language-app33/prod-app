@@ -8276,12 +8276,21 @@ const openPronounTables = async () => {
     await sleep(200);
   }
 
-  /* Under the boxes, the number counting a thing: read only, made of the
-     word just typed and the noun card — and nothing under a number with
-     no word yet, since there is nothing to count with. */
+  /* Under the boxes, examples of the number counting things: read only,
+     made of the words typed and the noun card. Seven has a box for its
+     word before a noun, so nothing shows until that box is filled — and
+     nothing under a number with no word yet, since there is nothing to
+     count with. */
   const counts = (/** @type {string} */ n) => ((tileOf(n) || { querySelector: () => null }).querySelector(".at-numcount") || {}).textContent || "";
-  check("under a number's boxes is how it counts a thing, read only",
-    /Counting a thing/.test(counts("7")) && /sab3a/.test(counts("7")) && /7 books/.test(counts("7")) &&
+  check("no example under a number until its word before a noun is typed",
+    !counts("7"), counts("7"));
+  const sevenBefore = boxNamed("7, before a noun");
+  if (sevenBefore) {
+    typeIn(sevenBefore, "sab3at");
+    await sleep(200);
+  }
+  check("then under its boxes are examples of counting things, read only",
+    !!sevenBefore && /Examples of counting things/.test(counts("7")) && /sab3at/.test(counts("7")) && /7 books/.test(counts("7")) &&
       !(/** @type {any} */ (tileOf("7"))).querySelector(".at-numcount input"),
     counts("7") || "(nothing under seven)");
   check("and nothing under a number with no word to count with",

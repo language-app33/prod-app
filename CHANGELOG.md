@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.369 — 6 October 2026
+
+**On a number system, the counting examples wait for the word they show.**
+
+- Under each number, the read-only line that shows it counting something
+  is now called "Examples of counting things" (it was "Counting a
+  thing").
+- On a number with a "before a noun" box, such as 3 to 19 in Arabic, the
+  examples appear only once that box is filled. Before, they showed as
+  soon as the counting word was typed, made from a word you hadn't given
+  yet. Numbers without that box show their examples as before.
+
 ## 0.368 — 6 October 2026
 
 **Practising a lot moves you forward instead of holding you in place.**
