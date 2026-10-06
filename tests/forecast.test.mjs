@@ -250,9 +250,9 @@ test("the home screen's prep tile says whether the pace gets you there", () => {
   assert.deepEqual([more.tone, more.status], ["push", ""]);
   assert.equal(more.detail, "About 6 sessions a day will get you ready");
   assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).detail, "About 0.4 sessions a day will get you ready");
-  /* Six days from today rather than from FROM. The line says how far off
-     the date is from the real today, so a fixed date read "in 2 days" when
-     this was written, "tomorrow" on 6 October and "today" for ever after. */
+  /* Counted from now, not FROM: the line says how far off the date is from
+     today, and a fixed date stops being "in N days" once the calendar
+     catches up with it. */
   const late = prepGlance(3, { kind: "late", earliest: Date.now() + 6 * DAY }, 36, 0);
   assert.deepEqual([late.tone, late.status], ["late", "Too soon"]);
   assert.match(late.detail, /^Too soon to learn it all — the earliest you could be ready is .+\(in \d+ days\)$/);

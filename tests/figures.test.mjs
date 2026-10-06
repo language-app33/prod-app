@@ -10,7 +10,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { answersInFigures, checkAnswer, numeralMeanings } from "../src/languages.ts";
+import { LANGUAGES, answersInFigures, checkAnswer, exOf, instructionFor, numeralMeanings } from "../src/languages.ts";
 
 const SETTINGS = { language: "ar-PS" };
 const meaning = (/** @type {string} */ en) => ({ ar: "x", en });
@@ -64,3 +64,31 @@ test("a meaning in words is marked as English, as before", () => {
   assert.equal(mark("five", "five / 5").ok, true);
   assert.equal(mark("5", "five / 5").ok, true);
 });
+
+test("every question asking for a number in figures says so in the same words", () => {
+  const AR = LANGUAGES["ar-PS"];
+  const ask = (/** @type {string} */ type, /** @type {any} */ item) => instructionFor(must(exOf(type, AR)), item);
+  const written = ask("num2fig", meaning(""));
+  const heard = ask("rec2fig", meaning(""));
+  assert.equal(written, "Write the number in Arabic numerals (123)");
+  assert.equal(heard, "Listen, then write the number in Arabic numerals (123)");
+  assert.equal(ask("dig2fig", { numeral: "٤", en: "4" }), written, "one of the ten figures");
+  /* A number word's meaning is a number, so asking for it is the same
+     question. */
+  for (const en of ["3", "40", "1,000", "5 / 6"]) {
+    assert.equal(ask("ar2en", meaning(en)), written, `the meaning ${en}`);
+    assert.equal(ask("rec2en", meaning(en)), heard, `the meaning ${en}, heard`);
+  }
+  /* Any word among the meanings and it is asked for in English. */
+  for (const en of ["five", "five / 5", "book"]) {
+    assert.equal(ask("ar2en", meaning(en)), "Write in English", `the meaning ${en}`);
+    assert.equal(ask("rec2en", meaning(en)), "Listen, then write it in English", `the meaning ${en}, heard`);
+  }
+  assert.equal(ask("ar2en", null), "Write in English");
+});
+
+/** @template T @param {T | null | undefined} x @returns {T} */
+function must(x) {
+  assert.ok(x);
+  return x;
+}
