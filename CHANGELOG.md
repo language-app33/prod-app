@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.366 — 6 October 2026
+
+**Bigger keys for writing numbers in Arabic numerals.**
+
+- When a question asks you to write a number in Eastern Arabic numerals
+  (١٢٣), the keys are now laid out like a phone's keypad: three across,
+  ١ ٢ ٣ on top and ٠ at the bottom, the same layout as phone diallers
+  and number keyboards in the Arab world. Before, all ten were squeezed
+  into one row and were hard to hit.
+- Delete and Clear sit in the keypad's bottom row, on either side of ٠.
+  On time questions the bottom row has a colon key instead, and Clear
+  moves to its own row underneath.
+- These questions no longer bring up your phone's keyboard. It only
+  offered 4 for ٤, and some phones raised it anyway when you tapped the
+  answer box. On a computer, you can still type the answer if your
+  keyboard has Arabic numerals.
+
 ## 0.365 — 6 October 2026
 
 **Easier on your phone: less heat, less battery, less data.**

@@ -7242,9 +7242,13 @@ function Keyboard({ onKey, onBack, onClear, onHide, lang }: {
  * Up whenever an answer is to be written in them, without being asked
  * for. A laptop keyboard has no ٤ on it and a phone's number pad has only
  * 4, so for most learners these keys are the only way to write the answer
- * at all — which is not a thing to hide behind a button. In the order the
- * figures count, left to right as a number is written, and a colon for a
- * clock.
+ * at all — which is not a thing to hide behind a button.
+ *
+ * Laid out as a phone's keypad, three by four with ١ at the top left and
+ * ٠ under ٨: what an Arabic phone's dialler and number keyboard show, so
+ * the hand already knows where ٤ is. A row of ten across the screen made
+ * every key a sliver. The bottom row is clear, ٠, backspace — and for a
+ * clock, colon, ٠, backspace, with clear on a row of its own beneath.
  */
 /* The figures a language writes numbers in, by name and with three of
    them: "Eastern Arabic numerals (١٢٣)". */
@@ -7262,29 +7266,37 @@ function NumeralPad({ lang, clock, onKey, onBack, onClear }: {
 }) {
   const write = lang.numerals;
   if (!write) return null;
-  const figures = Array.from({ length: 10 }, (_, d) => String(write(d) || "")).filter(Boolean);
+  const figure = (d: number) => {
+    const ch = String(write(d) || "");
+    return (
+      <button key={d} type="button" className="at-key" lang={lang.id} onClick={() => onKey(ch)}>
+        {ch}
+      </button>
+    );
+  };
+  const back = (
+    <button key="back" type="button" className="at-key util" onClick={onBack} aria-label="Backspace">
+      ⌫
+    </button>
+  );
+  const clear = (
+    <button key="clear" type="button" className={`at-key util${clock ? " wide" : ""}`} onClick={onClear}>
+      clear
+    </button>
+  );
   return (
     <div className="at-kb at-numpad" data-el="numeral-pad" dir="ltr">
-      <div className="at-kbrow fit">
-        {figures.map((ch) => (
-          <button key={ch} type="button" className="at-key" lang={lang.id} onClick={() => onKey(ch)}>
-            {ch}
-          </button>
-        ))}
-      </div>
-      <div className="at-kbrow">
-        {clock && (
-          <button type="button" className="at-key" onClick={() => onKey(":")} aria-label="Colon">
-            :
-          </button>
-        )}
-        <button type="button" className="at-key util" onClick={onBack} aria-label="Backspace">
-          ⌫
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(figure)}
+      {clock ? (
+        <button key="colon" type="button" className="at-key" onClick={() => onKey(":")} aria-label="Colon">
+          :
         </button>
-        <button type="button" className="at-key util" onClick={onClear}>
-          clear
-        </button>
-      </div>
+      ) : (
+        clear
+      )}
+      {figure(0)}
+      {back}
+      {clock && clear}
     </div>
   );
 }
@@ -12278,11 +12290,16 @@ export default function ArabicTrainer() {
                              these, and keeps its letters and on-screen keys. */
                           /* And in the language's own figures, the keys
                              under the box are the keyboard: a phone's own
-                             would only offer 4 for ٤, so it stays down. */
+                             would only offer 4 for ٤, so it stays down.
+                             Asking for no keyboard is not enough — some
+                             phone browsers raise one anyway when the box
+                             takes focus — so the box is read-only to the
+                             phone and the pad writes into it. A computer's
+                             own keys can still write the figures, below. */
                           inputMode={figures ? "numeric" : ownFigures ? "none" : undefined}
                           autoComplete={figures || ownFigures ? "off" : undefined}
                           value={typed}
-                          readOnly={!!checked}
+                          readOnly={!!checked || ownFigures}
                           placeholder={figures ? "Type the number" : ownFigures ? ownPrompt : spec.placeholder}
                           onChange={(e) => setTyped(e.target.value)}
                           /* Only the Check button checks. Enter — and a
@@ -12294,6 +12311,21 @@ export default function ArabicTrainer() {
                           enterKeyHint="done"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") e.preventDefault();
+                            /* The read-only box takes nothing typed, so a
+                               keyboard that does have ٤ on it — or a colon,
+                               or backspace — goes through the pad's own
+                               hands. Only the language's figures: 4 is
+                               not ٤, and accepting it would answer the
+                               question for them. */
+                            if (!ownFigures || checked || e.ctrlKey || e.metaKey || e.altKey) return;
+                            const own = Array.from({ length: 10 }, (_, d) => String(qLang.numerals?.(d) || ""));
+                            if (own.includes(e.key) || e.key === ":") {
+                              e.preventDefault();
+                              caretInsert(inputRef, typed, setTyped, e.key);
+                            } else if (e.key === "Backspace") {
+                              e.preventDefault();
+                              caretBackspace(inputRef, typed, setTyped);
+                            }
                           }}
                         />
                         )}

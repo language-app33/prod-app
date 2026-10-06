@@ -9509,7 +9509,7 @@ const openPronounTables = async () => {
   await sleep(700);
 
   const own = packs["ar-PS"].numerals;
-  const met = { pad: 0, keys: 0, askedAgain: 0, rightOnKeys: 0, named: 0 };
+  const met = { pad: 0, keys: 0, askedAgain: 0, rightOnKeys: 0, named: 0, phoneOrder: 0, shut: 0 };
   let stopped = "after 20 questions";
   const checkBtn = () => [...host6.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim()));
   for (let i = 0; i < 20; i += 1) {
@@ -9526,6 +9526,10 @@ const openPronounTables = async () => {
       if (/Eastern Arabic numerals/.test(host6.textContent || "")) met.named += 1;
       const keys = [...pad.querySelectorAll("button")].filter((b) => /^[٠-٩]$/.test((b.textContent || "").trim()));
       met.keys = Math.max(met.keys, keys.length);
+      /* Laid out as a phone's keypad: ١ to ٩ in reading order, then ٠. */
+      if (keys.map((b) => (b.textContent || "").trim()).join("") === [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(own).join("")) met.phoneOrder += 1;
+      /* And the box beside it never raises the phone's own keyboard. */
+      if (/** @type {any} */ (input).readOnly && input.getAttribute("inputmode") === "none") met.shut += 1;
       const said = (prompt.textContent || "").trim();
       /* The right number, in the figures English uses. */
       must(setter, "value setter").call(input, said);
@@ -9566,6 +9570,10 @@ const openPronounTables = async () => {
   check("a figure read already is asked to be written in Eastern Arabic numerals, on a pad of the ten",
     met.pad > 0 && met.keys === 10, `${JSON.stringify(met)} — stopped ${stopped}`);
   check("and the question names them", met.named > 0, JSON.stringify(met));
+  check("the pad is a phone's keypad, ١ first and ٠ last",
+    met.pad > 0 && met.phoneOrder === met.pad, JSON.stringify(met));
+  check("and the answer box leaves the phone's keyboard down",
+    met.pad > 0 && met.shut === met.pad, JSON.stringify(met));
   check("the right number in Arabic numerals is asked again rather than marked",
     met.pad > 0 && met.askedAgain === met.pad, JSON.stringify(met));
   check("and written on the keys it is right",
