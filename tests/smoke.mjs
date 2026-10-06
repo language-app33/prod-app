@@ -9509,7 +9509,8 @@ const openPronounTables = async () => {
   await sleep(700);
 
   const own = packs["ar-PS"].numerals;
-  const met = { pad: 0, keys: 0, askedAgain: 0, rightOnKeys: 0, named: 0, phoneOrder: 0, shut: 0 };
+  const met = { pad: 0, keys: 0, askedAgain: 0, rightOnKeys: 0, named: 0, allTen: 0, held: 0, shut: 0 };
+  const orders = new Set();
   let stopped = "after 20 questions";
   const checkBtn = () => [...host6.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim()));
   for (let i = 0; i < 20; i += 1) {
@@ -9526,8 +9527,11 @@ const openPronounTables = async () => {
       if (/Eastern Arabic numerals/.test(host6.textContent || "")) met.named += 1;
       const keys = [...pad.querySelectorAll("button")].filter((b) => /^[٠-٩]$/.test((b.textContent || "").trim()));
       met.keys = Math.max(met.keys, keys.length);
-      /* Laid out as a phone's keypad: ١ to ٩ in reading order, then ٠. */
-      if (keys.map((b) => (b.textContent || "").trim()).join("") === [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(own).join("")) met.phoneOrder += 1;
+      /* Every one of the ten, once each, in an order dealt for this
+         question rather than counting order. */
+      const order = keys.map((b) => (b.textContent || "").trim()).join("");
+      if ([...order].sort().join("") === [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(own).join("")) met.allTen += 1;
+      orders.add(order);
       /* And the box beside it never raises the phone's own keyboard. */
       if (/** @type {any} */ (input).readOnly && input.getAttribute("inputmode") === "none") met.shut += 1;
       const said = (prompt.textContent || "").trim();
@@ -9545,6 +9549,9 @@ const openPronounTables = async () => {
         else if (ch === ":") click([...pad.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === ":"));
         await sleep(30);
       }
+      /* The keys have not moved under the learner's hand. */
+      const now = [...pad.querySelectorAll("button")].filter((b) => /^[٠-٩]$/.test((b.textContent || "").trim()));
+      if (now.map((b) => (b.textContent || "").trim()).join("") === order) met.held += 1;
       click(checkBtn());
       await sleep(150);
       if (host6.querySelector(".at-shout.ok")) met.rightOnKeys += 1;
@@ -9570,8 +9577,13 @@ const openPronounTables = async () => {
   check("a figure read already is asked to be written in Eastern Arabic numerals, on a pad of the ten",
     met.pad > 0 && met.keys === 10, `${JSON.stringify(met)} — stopped ${stopped}`);
   check("and the question names them", met.named > 0, JSON.stringify(met));
-  check("the pad is a phone's keypad, ١ first and ٠ last",
-    met.pad > 0 && met.phoneOrder === met.pad, JSON.stringify(met));
+  const counting = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(own).join("");
+  check("the pad holds each of the ten figures once",
+    met.pad > 0 && met.allTen === met.pad, JSON.stringify(met));
+  check("in an order dealt again for each question, not counting order",
+    met.pad > 1 && orders.size > 1 && [...orders].some((o) => o !== counting), `${JSON.stringify(met)} — ${orders.size} orders`);
+  check("and the figures stay put while a question is answered",
+    met.pad > 0 && met.held === met.pad, JSON.stringify(met));
   check("and the answer box leaves the phone's keyboard down",
     met.pad > 0 && met.shut === met.pad, JSON.stringify(met));
   check("the right number in Arabic numerals is asked again rather than marked",

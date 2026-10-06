@@ -5262,7 +5262,9 @@ ten figures said "Write this numeral…", and a number word (ثلاثة, meaning
 "3") said "Write in English", although its answer is marked as a number
 (`numeralMeanings`). Now the written ones all say "Write the number in
 Arabic numerals (123)" and the heard ones "Listen, then write the number
-in Arabic numerals (123)". The two strings are constants, used by
+in Arabic numerals (123)" (since 0.367 both say "Write in Arabic numerals
+(123)": the owner asked for the shorter line, and the play button already
+says to listen). The two strings are constants, used by
 `num2fig`, `dig2fig` and `rec2fig` directly, and by `ar2en` and `rec2en`
 as `figuresInstruction`, which `instructionFor` picks when every meaning
 of the card is a number. Only the line changes: which questions a card
@@ -5316,3 +5318,18 @@ download when the server holds nothing new, would make every trip smaller.
 Both reach into the server and the merge. Fewer trips was the bigger saving
 for the smaller change, and the other is still worth doing if collections
 grow into the thousands.
+
+---
+
+## The numeral pad's figures are shuffled per question
+
+**6 October 2026** · `NumeralPad` and its `deal` prop in `src/ArabicTrainer.tsx`
+
+In counting order, the phone-keypad layout of 0.366 gave the answer away:
+the fourth key was ٤, so a learner could write ٤ by position without
+recognising it. The twelve-key shape stays; which figure is on which of
+the ten figure keys is shuffled with the app's one `shuffle`, memoised on
+the question number (`qi`) so the keys do not move while the learner is
+typing. The cost is the phone-dialler familiarity 0.366 argued for, which
+the owner judged less important than having to read each figure. A
+keyboard that has the figures still types them directly.
