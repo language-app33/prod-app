@@ -141,9 +141,10 @@ export const TYPES = [
 /* The one wording of "type this number in the figures English uses", read or
    heard. Every question whose answer is that — a range, one of the ten
    figures, the meaning of a number word — says it in these words, so the
-   same thing asked two ways is not described two ways. */
-const WRITE_FIGURES = "Write the number in Arabic numerals (123)";
-const HEAR_FIGURES = "Listen, then write the number in Arabic numerals (123)";
+   same thing asked two ways is not described two ways. Heard or read, the
+   words are the same: the play button already says to listen. */
+const WRITE_FIGURES = "Write in Arabic numerals (123)";
+const HEAR_FIGURES = WRITE_FIGURES;
 
 export const EX: Record<string, ExerciseSpec> = {
   /* The gentlest question in the app, and the only one that asks nothing of

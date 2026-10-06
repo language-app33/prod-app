@@ -7244,11 +7244,16 @@ function Keyboard({ onKey, onBack, onClear, onHide, lang }: {
  * 4, so for most learners these keys are the only way to write the answer
  * at all — which is not a thing to hide behind a button.
  *
- * Laid out as a phone's keypad, three by four with ١ at the top left and
- * ٠ under ٨: what an Arabic phone's dialler and number keyboard show, so
- * the hand already knows where ٤ is. A row of ten across the screen made
- * every key a sliver. The bottom row is clear, ٠, backspace — and for a
- * clock, colon, ٠, backspace, with clear on a row of its own beneath.
+ * Laid out as a phone's keypad, three by four: a row of ten across the
+ * screen made every key a sliver. The bottom row is clear, a figure,
+ * backspace — and for a clock, colon, a figure, backspace, with clear on a
+ * row of its own beneath.
+ *
+ * Which figure sits on which of the ten keys is shuffled for each
+ * question. In counting order the pad answered for the learner: the
+ * fourth key was ٤ whether or not they knew ٤, and the question became
+ * where to tap rather than which figure to pick. The shape stays the
+ * same; only the figures move, and they stay put while the question is up.
  */
 /* The figures a language writes numbers in, by name and with three of
    them: "Eastern Arabic numerals (١٢٣)". */
@@ -7257,14 +7262,18 @@ const ownNamed = (lang: Lang): string => {
   return lang.numerals ? `${name} (${lang.numerals(123)})` : name;
 };
 
-function NumeralPad({ lang, clock, onKey, onBack, onClear }: {
+function NumeralPad({ lang, clock, deal, onKey, onBack, onClear }: {
   lang: Lang;
   clock: boolean;
+  /* The question the pad is up for; a new one deals the figures again. */
+  deal: number;
   onKey: (key: string) => void;
   onBack: () => void;
   onClear: () => void;
 }) {
   const write = lang.numerals;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const order = useMemo(() => shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), [deal]);
   if (!write) return null;
   const figure = (d: number) => {
     const ch = String(write(d) || "");
@@ -7286,7 +7295,7 @@ function NumeralPad({ lang, clock, onKey, onBack, onClear }: {
   );
   return (
     <div className="at-kb at-numpad" data-el="numeral-pad" dir="ltr">
-      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(figure)}
+      {order.slice(0, 9).map(figure)}
       {clock ? (
         <button key="colon" type="button" className="at-key" onClick={() => onKey(":")} aria-label="Colon">
           :
@@ -7294,7 +7303,7 @@ function NumeralPad({ lang, clock, onKey, onBack, onClear }: {
       ) : (
         clear
       )}
-      {figure(0)}
+      {figure(order[9])}
       {back}
       {clock && clear}
     </div>
@@ -12363,6 +12372,7 @@ export default function ArabicTrainer() {
                     <NumeralPad
                       lang={qLang}
                       clock={String(item[spec.answerField] || "").includes(":")}
+                      deal={qi}
                       onKey={(ch) => caretInsert(inputRef, typed, setTyped, ch)}
                       onBack={() => caretBackspace(inputRef, typed, setTyped)}
                       onClear={() => setTyped("")}

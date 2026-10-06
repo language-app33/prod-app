@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.367 — 6 October 2026
+
+**The Arabic numeral keys are shuffled, so you have to know each numeral.**
+
+- On questions where you write a number in Eastern Arabic numerals
+  (١٢٣), the keypad keeps its shape, but which numeral sits on which key
+  changes with every question. Before, they were always in counting
+  order, so you could find ٤ just by counting along the keys, without
+  recognising it. The keys stay put while you answer a question.
+- Trade-off: you can no longer rely on knowing where a numeral is from
+  your phone's dialler; you have to read the keys.
+- Questions asking you to write a number as 123 now just say "Write in
+  Arabic numerals (123)", whether you read or hear it. The play button
+  already tells you to listen.
+
 ## 0.366 — 6 October 2026
 
 **Bigger keys for writing numbers in Arabic numerals.**
