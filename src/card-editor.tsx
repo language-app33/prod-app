@@ -6543,7 +6543,8 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
      out does not shut under the teacher's fingers. */
   const drawn = useContext(FoldsForms);
   const folds = !!drawn;
-  const [open, setOpen] = useState(() => !drawn || drawn.current || more || formWritten(f));
+  const [open, setOpen] = useState(() =>
+    !drawn || (!drawn.folded && (drawn.drawn.current || more || formWritten(f))));
   const [rows, setRows] = useState(() => answerRows(f, fields));
   /* Which answer's recordings are being made, where any are. The screen is
      rendered from here rather than beside the editor's other two, because
@@ -6758,8 +6759,9 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
  */
 /* Null outside the section. Inside, whether the section has been drawn
    once already: a form that arrives after that — "Add a form" — opens,
-   since it was asked for to be written in. */
-const FoldsForms = createContext<{ current: boolean } | null>(null);
+   since it was asked for to be written in. And whether every form starts
+   folded, written in or not — see NounEditor. */
+const FoldsForms = createContext<{ drawn: { current: boolean }; folded: boolean } | null>(null);
 
 /* Whether anything at all is written in a form: a word in any of its
    boxes, an accepted answer, a recording or a picture. */
@@ -6771,7 +6773,7 @@ function formWritten(f: Record<string, any>): boolean {
     (Array.isArray(f.answers) && f.answers.some((a: any) => a && (said(a.text) || said(a.lat))));
 }
 
-function FormsSection({ children }: { children?: Node }) {
+function FormsSection({ folded = false, children }: { folded?: boolean; children?: Node }) {
   const drawn = useRef(false);
   useEffect(() => {
     drawn.current = true;
@@ -6789,7 +6791,7 @@ function FormsSection({ children }: { children?: Node }) {
           feminine.
         </span>
       </div>
-      <FoldsForms.Provider value={drawn}>{children}</FoldsForms.Provider>
+      <FoldsForms.Provider value={{ drawn, folded }}>{children}</FoldsForms.Provider>
     </div>
   );
 }
@@ -8768,9 +8770,14 @@ function NounEditor({ word, lang, allCards, selfId }: {
   selfId: string;
 }) {
   const { forms, nounBoxList, nounPlaced, emptyBox, fillBox } = word;
+  /* A person has every box twice, a side for each gender, and opened
+     wherever something was written it was a screen of fields and pronoun
+     tables before anything else the card says. So every box starts under
+     its name, written in or not, and opens where the teacher asks. */
+  const person = String((forms[0] || {}).human || "") === "person";
   return (
     <>
-      <FormsSection>
+      <FormsSection folded={person}>
         {nounBoxList.map((box) => {
           const i = box.key in nounPlaced.at ? nounPlaced.at[box.key] : -1;
           const f = i >= 0 ? forms[i] : emptyBox(box);

@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.367 — 6 October 2026
+
+**A person's forms open folded.**
+
+- On a word card for a noun that is a person, every form — masculine and
+  feminine, singular, plural and the rest — now opens folded under its
+  name, even the ones already written in. Tap a name to open that form.
+  Before, every written form opened at once, which filled the screen with
+  fields and pronoun tables before anything else on the card.
+- Animals and things are unchanged: a form opens where something is
+  written in it.
+
 ## 0.366 — 6 October 2026
 
 **Bigger keys for writing numbers in Arabic numerals.**
