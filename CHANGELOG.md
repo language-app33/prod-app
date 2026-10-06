@@ -8,6 +8,41 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.381 — 6 October 2026
+
+**"What is this?" and "what are these?" from one sentence card.**
+
+- A blank for *this* can now read three ways in English, the same as a
+  pronoun blank: *this*, *this is*, or *is this*. The Arabic stays as it
+  is. With *Every form in turn* (0.379), شو {{is-this}}؟ comes out as
+  "what is this?" with هاد and هاي and "what are these?" with هدول,
+  where the plain {{this}} gave "what is these?".
+- The *is* or *are* follows whichever form the sentence shows, including
+  when the form is picked to match a noun beside it: "this is my friend",
+  "these are my friends".
+- When you choose a demonstrative blank in the editor, it asks how it
+  should read, as choosing a pronoun does. The same goes for a group
+  tag or a card ID with demonstratives behind it.
+- The English is worked out automatically: *this* and *that* take *is*,
+  *these* and *those* take *are*. Unlike pronouns, there is no place yet
+  to type a different wording for a demonstrative.
+- To check by hand: change the blank in "شو {{this}}؟" to the question
+  reading (*is this*), keep *Every form in turn*, and see that the
+  preview reads "what is this?" twice and "what are these?" once.
+
+## 0.380 — 6 October 2026
+
+**The examples of a sentence say when a word is shown in its main form only.**
+
+- On a sentence whose only blank is filled by "this" or an adjective,
+  the *Examples of this card with filled blanks* list now says, under
+  the sentences, which words it is showing in their main form only —
+  for example "Only the main form of هاد is used here" — and where to
+  change that: *Every form in turn* under *Which forms … uses*.
+- The line goes away once *Every form in turn* is chosen, and it never
+  shows for a word that has only one form or for a blank that takes its
+  form from another blank.
+
 ## 0.379 — 6 October 2026
 
 **A sentence with "this" or an adjective as its only blank can go through every form.**

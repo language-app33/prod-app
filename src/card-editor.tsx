@@ -44,8 +44,8 @@ import type { SceneKind } from "./dialogs.ts";
 import { castFill, castOf, castReport, filledScene, memberBase, memberLabel, newMember, recast, roleIn } from "./cast.ts";
 import { reviewPool, sentencesOf } from "./review.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
-import { agreeingBlanks, combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
+import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, DEMONSTRATIVE_READING_SLOTS, DEMONSTRATIVE_SLOT, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
+import { agreeingBlanks, combosOf, mainFormOnly, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
 import { MAX_IMAGES, shrinkImage } from "./images.ts";
@@ -2428,6 +2428,30 @@ const pronounReadings = (name: string, pronouns?: number): Reading[] => {
 };
 
 /*
+ * And a demonstrative's three, which are the pronoun's over *this* and
+ * *these*: شو هاد؟ is *what is this?* — see DEMONSTRATIVE_SLOT.
+ */
+const demonstrativeReadings = (name: string, words?: number): Reading[] => {
+  const [is, ask] = readingNames(DEMONSTRATIVE_SLOT, name);
+  const counted = words === undefined ? null : { words };
+  return [
+    { name, label: "This", note: "this, these \u2014 I want this" },
+    {
+      name: is,
+      label: "This with \u201cto be\u201d",
+      note: "this is, these are \u2014 this is my house",
+      ...counted,
+    },
+    {
+      name: ask,
+      label: "This with \u201cto be\u201d, as a question",
+      note: "is this, are these \u2014 what is this?",
+      ...counted,
+    },
+  ];
+};
+
+/*
  * The two ways an adjective blank reads: the word as it is — *a tired
  * man*, *the house is big* — and the word said about a person with no
  * pronoun, which goes through every person and puts in the form each one
@@ -4300,6 +4324,18 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     return out;
   }, [allCards, lang]);
 
+  /* How many of those are demonstratives, which word the readings of a
+     tag or an ID as *this is* rather than *I am* — see readingsBehind. */
+  const demonstrativesBehind = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const c of allCards || []) {
+      if (lang && c.lang && c.lang !== lang.id) continue;
+      if (String(c.category || "").toLowerCase() !== DEMONSTRATIVE_SLOT) continue;
+      for (const name of fillsOf(c, kindOf(c, lang))) out.set(name, (out.get(name) || 0) + 1);
+    }
+    return out;
+  }, [allCards, lang]);
+
   /*
    * The blanks with a word behind them that takes the pronouns on its end,
    * and what those look like on one of them.
@@ -4425,6 +4461,14 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
       /* And a pronoun read with *to be*, where the language has pronouns
          to read — see READING_SLOTS. */
       ...(categoriesOf(lang).some((c) => c.id === PRONOUN_SLOT) ? READING_SLOTS : []).map((name) => ({
+        name,
+        words: behind.get(name) || 0,
+        used: used.get(name) || 0,
+        wrote: named.get(name) || 0,
+        built: "reading" as const,
+      })),
+      /* And a demonstrative the same, where the language has them. */
+      ...(categoriesOf(lang).some((c) => c.id === DEMONSTRATIVE_SLOT) ? DEMONSTRATIVE_READING_SLOTS : []).map((name) => ({
         name,
         words: behind.get(name) || 0,
         used: used.get(name) || 0,
@@ -4564,14 +4608,19 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
        somebody. Counted through fillsOf, which gives a pronoun both
        readings and an adjective the one — so the pronouns are the `is-`
        count, and the adjectives what the `-is` count has besides. */
-    const pronounKind = categoriesOf(lang).some((c) => c.id === PRONOUN_SLOT);
+    const pronounKind = categoriesOf(lang).some((c) => c.id === PRONOUN_SLOT || c.id === DEMONSTRATIVE_SLOT);
     const readingsBehind = (name: string): Partial<BlankOffer> => {
-      const pronouns = behind.get(`is-${name}`) || 0;
-      const adjectives = (behind.get(`${name}-is`) || 0) - pronouns;
+      const withBe = behind.get(`is-${name}`) || 0;
+      const adjectives = (behind.get(`${name}-is`) || 0) - withBe;
       if (adjectives > 0 && saysAboutPersons(lang)) {
         return { readings: adjectiveReadings(name, adjectives), readingsHint: ABOUT_HINT };
       }
-      if (pronouns > 0 && pronounKind) return { readings: pronounReadings(name, pronouns) };
+      if (withBe > 0 && pronounKind) {
+        /* Worded as *this* where every word read with *to be* is a
+           demonstrative, and as a pronoun otherwise. */
+        const thisOnly = withBe === (demonstrativesBehind.get(name) || 0);
+        return { readings: thisOnly ? demonstrativeReadings(name, withBe) : pronounReadings(name, withBe) };
+      }
       return {};
     };
     const rows: BlankOffer[] = [];
@@ -4584,7 +4633,10 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
            same cards, read as *I*, *I am* or *am I*. Which is asked once it
            is chosen — see BlankScreen — rather than laid out here as three
            rows a teacher has to tell apart before they know why. */
-        const reads = b.name === PRONOUN_SLOT && blanksAround.some((r) => r.built === "reading" && r.name !== ADJECTIVE_IS_SLOT);
+        const reads = b.name === PRONOUN_SLOT && blanksAround.some((r) => r.built === "reading" && READING_SLOTS.includes(r.name));
+        /* And a demonstrative is one blank read three ways the same. */
+        const these = b.name === DEMONSTRATIVE_SLOT &&
+          blanksAround.some((r) => r.built === "reading" && DEMONSTRATIVE_READING_SLOTS.includes(r.name));
         /* And an adjective is one blank too, asked once chosen whether it
            is the word or the word said about a person. */
         const about = b.name === ADJECTIVE_SLOT && blanksAround.find((r) => r.name === ADJECTIVE_IS_SLOT);
@@ -4594,14 +4646,17 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
           words,
           note: reads
             ? "Any pronoun \u2014 then choose how it reads in English"
-            : about
+            : these
+              ? "Any demonstrative \u2014 then choose how it reads in English"
+              : about
               ? "Any adjective \u2014 then choose whether it says who"
               : `Any ${named(b.name).toLowerCase()}`,
           ...(reads ? { readings: pronounReadings(b.name) } : null),
+          ...(these ? { readings: demonstrativeReadings(b.name) } : null),
           ...(about ? { readings: adjectiveReadings(b.name, about.words), readingsHint: ABOUT_HINT } : null),
         });
       } else if (b.built === "reading") {
-        /* Offered under the pronoun, above. */
+        /* Offered under the pronoun or the demonstrative, above. */
       } else if (b.used > 0 || b.wrote > 0) {
         rows.push({ name: b.name, kind: "group", words, note: "The cards tagged with it", ...readingsBehind(b.name) });
       }
@@ -4647,7 +4702,7 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         "Some words in this blank have a pronoun on the end written out. Choose whether this sentence uses the word itself or those forms \u2014 for every word in the blank. A form kept out of sentences on its own card stays out either way.";
     }
     return rows.sort((a, b) => a.name.localeCompare(b.name));
-  }, [blanksAround, behind, allCards, lang, card, endsBehind]);
+  }, [blanksAround, behind, demonstrativesBehind, allCards, lang, card, endsBehind]);
 
   /*
    * The words each of this card's blanks can be filled with, today.
@@ -7678,6 +7733,13 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
     () => (examplesOpen ? examplesOf(null, main, pool, lang) : NO_ASKED),
     [examplesOpen, main, pool, lang],
   );
+  /* And the words that list shows in their main form alone, though they
+     have others — said under it, since the setting that changes it is
+     on this card and easy to forget. See mainFormOnly. */
+  const onlyMain = useMemo(
+    () => (examplesOpen && sentence ? mainFormOnly(main, pool, lang) : null),
+    [examplesOpen, sentence, main, pool, lang],
+  );
   /* A sentence fills nothing — see fillsOf, which is the one answer to
      that and which this only reports. So the second subsection has nothing
      to offer one, except where it already carries names, which it has to go
@@ -8136,6 +8198,13 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                     The first {plural(asked.length, "example")} of{" "}
                     {plural(combos, "example")}, which is as many as one screen
                     will draw. The rest are this card with other words in it.
+                  </Help>
+                )}
+                {onlyMain && (
+                  <Help>
+                    Only the main form of {onlyMain.words.join(", ")} is used here.
+                    To see {onlyMain.words.length > 1 ? "their" : "its"} other forms too, choose Every form in turn under
+                    Which forms {`{{${onlyMain.slot}}}`} uses, in Blanks above.
                   </Help>
                 )}
                 {/* Where these go next. Since 0.246 a sentence reaches a

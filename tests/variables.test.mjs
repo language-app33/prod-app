@@ -32,6 +32,8 @@ import {
   readingsOf,
   PRONOUN_IS_SLOT,
   IS_PRONOUN_SLOT,
+  DEMONSTRATIVE_IS_SLOT,
+  IS_DEMONSTRATIVE_SLOT,
   cardRef,
   refClash,
   renameSlot,
@@ -1154,6 +1156,46 @@ test("a teacher's own reading wins over the worked-out one, and the person still
   assert.equal(fillText("{{pronoun}} like it", { pronoun: lent[0].value }, "en"), "I like it");
   /* And valueOf, handed the card, says the same. */
   assert.equal(must(valueOf(ana).readings, "readings")[IS_PRONOUN_SLOT], "am I");
+});
+
+/* شو هاد؟ is "what is this?" and شو هدول؟ "what are these?": the *is* and
+   the *are* follow the demonstrative as they follow a pronoun. */
+
+test("this and that take is, these and those are", () => {
+  assert.deepEqual(beReadings("this"), { is: "this is", ask: "is this" });
+  assert.deepEqual(beReadings("that"), { is: "that is", ask: "is that" });
+  assert.deepEqual(beReadings("these"), { is: "these are", ask: "are these" });
+  assert.deepEqual(beReadings("those"), { is: "those are", ask: "are those" });
+});
+
+test("a demonstrative reads three ways by the blank it fills, each form off its own English", () => {
+  const haad = {
+    id: "this", category: "demonstrative", ref: "this-one", fills: ["this"],
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "haad" },
+      { id: "these", ar: "هدول", en: "these", lat: "hadool" },
+    ],
+  };
+  const book = { id: "w", category: "noun", fills: ["this"], forms: [{ ar: "كتاب", en: "book", lat: "kitāb" }] };
+  const pool = [haad, book];
+  const fills = fillsOf(haad);
+  for (const name of [DEMONSTRATIVE_IS_SLOT, IS_DEMONSTRATIVE_SLOT, "this-is", "is-this", "this-one-is", "is-this-one"]) {
+    assert.ok(fills.includes(name), name);
+  }
+  const frame = (/** @type {string} */ slot) => ({ ar: `شو {{${slot}}}؟`, en: `what {{${slot}}}?`, lat: `shu {{${slot}}}?` });
+  const read = (/** @type {string} */ slot, /** @type {"ar" | "en" | "lat"} */ field = "en") =>
+    valuesFor(frame(slot), pool)[slot].map((v) => fillForm(frame(slot), { [slot]: v })[field]);
+
+  assert.deepEqual(read("is-this"), ["what is this?", "what are these?"], "the noun in the tag is left out");
+  assert.deepEqual(read("is-this", "ar"), ["شو هاد؟", "شو هدول؟"], "and the Arabic is the word as it is");
+  assert.deepEqual(read(IS_DEMONSTRATIVE_SLOT), ["what is this?", "what are these?"]);
+  assert.deepEqual(read("this-is"), ["what this is?", "what these are?"]);
+  assert.deepEqual(read("is-this-one"), ["what is this?", "what are these?"]);
+  assert.deepEqual(read("this").sort(), ["what book?", "what these?", "what this?"].sort(), "the plain tag is unchanged");
+
+  /* And the kind's names are spoken for, as the pronoun's are. */
+  assert.equal((refClash(DEMONSTRATIVE_IS_SLOT, []) || {}).kind, "category");
+  assert.equal((refClash(IS_DEMONSTRATIVE_SLOT, []) || {}).kind, "category");
 });
 
 /* A blank's first letter, fitted to where it stands in a Latin-written
