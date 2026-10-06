@@ -8,6 +8,57 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.366 — 6 October 2026
+
+**Bigger keys for writing numbers in Arabic numerals.**
+
+- When a question asks you to write a number in Eastern Arabic numerals
+  (١٢٣), the keys are now laid out like a phone's keypad: three across,
+  ١ ٢ ٣ on top and ٠ at the bottom, the same layout as phone diallers
+  and number keyboards in the Arab world. Before, all ten were squeezed
+  into one row and were hard to hit.
+- Delete and Clear sit in the keypad's bottom row, on either side of ٠.
+  On time questions the bottom row has a colon key instead, and Clear
+  moves to its own row underneath.
+- These questions no longer bring up your phone's keyboard. It only
+  offered 4 for ٤, and some phones raised it anyway when you tapped the
+  answer box. On a computer, you can still type the answer if your
+  keyboard has Arabic numerals.
+
+## 0.365 — 6 October 2026
+
+**Easier on your phone: less heat, less battery, less data.**
+
+- Your answers are no longer sent to the server one by one. Before, a few
+  seconds after almost every answer, the app uploaded your whole card
+  collection and downloaded it again. That kept your phone's Wi‑Fi or
+  mobile data busy for the entire session and could make the phone warm.
+- Each answer is still saved on your phone the moment you give it. Your
+  progress now goes up when the session ends, when you switch away from
+  the app, and every few minutes during a long session.
+- If you use two devices, the other one sees your latest answers once
+  you finish the session or leave the app. During a long session it can
+  be up to a few minutes behind.
+- Timed sessions: the countdown now updates once a second, and stops
+  completely while the session is paused. Before, it redrew the whole
+  question screen twice a second, even while paused.
+- Sound effects: the phone's sound system now switches off after ten
+  quiet seconds and back on for the next sound. Before, it stayed on from
+  the first sound until you closed the app.
+
+## 0.364 — 6 October 2026
+
+**Every question asking for a number in figures is worded the same way.**
+
+- Typing a number as 123 is now always asked as "Write the number in
+  Arabic numerals (123)", or "Listen, then write the number in Arabic
+  numerals (123)" when you hear it. Before, the same thing was asked
+  three different ways.
+- A number word such as ثلاثة, whose meaning is 3, no longer says
+  "Write in English": it asks for the number, as the other number
+  questions do. Which questions you get and how answers are marked are
+  unchanged.
+
 ## 0.363 — 5 October 2026
 
 **Learn to read and write numbers in Eastern Arabic numerals (١٢٣).**

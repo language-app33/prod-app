@@ -2219,10 +2219,15 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    under the box. The prompt is a sentence rather than a word, so smaller. */
 .at-answerbox .at-input.fig.own { font-family: var(--sfont), var(--mono); }
 .at-figprompt.own { font-size:15px; }
-/* The ten figures, under the box: one row, a key each, a little apart from
-   the box above. */
-.at-numpad { max-width:420px; margin-inline:auto; }
-/*
+/* The ten figures, under the box, as a phone's keypad: three across, keys
+   large enough to hit with a thumb, the pad a little wider than the box
+   above it. Two classes on the keys so the narrow-screen .at-key size
+   further down does not shrink them back. */
+.at-numpad { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;
+  max-width:300px; margin-inline:auto; }
+.at-numpad .at-key { height:56px; min-width:0; padding:0; font-size:calc(30px * var(--sscale, 1)); }
+.at-numpad .at-key.util { font-size:12px; }
+.at-numpad .at-key.wide { grid-column:1 / -1; height:44px; }/*
  * What the learner wrote, once it has been marked, standing where the box
  * they wrote it in stood.
  *

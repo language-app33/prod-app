@@ -5250,3 +5250,69 @@ it, until those are answered right twice in a row. Learners usually do
 that in a sitting. "Learnt" on a range now also waits on the ten figure
 cards' own reviews.
 
+---
+
+## A number is asked for in one wording
+
+**6 October 2026** · `WRITE_FIGURES`, `HEAR_FIGURES`, `figuresInstruction` and `instructionFor` in `src/languages.ts`; the question line in `src/ArabicTrainer.tsx`
+
+Three questions asked for the same thing — type this number in 123 — in
+three wordings: a range said "Read the number, then write it…", one of the
+ten figures said "Write this numeral…", and a number word (ثلاثة, meaning
+"3") said "Write in English", although its answer is marked as a number
+(`numeralMeanings`). Now the written ones all say "Write the number in
+Arabic numerals (123)" and the heard ones "Listen, then write the number
+in Arabic numerals (123)". The two strings are constants, used by
+`num2fig`, `dig2fig` and `rec2fig` directly, and by `ar2en` and `rec2en`
+as `figuresInstruction`, which `instructionFor` picks when every meaning
+of the card is a number. Only the line changes: which questions a card
+gets, how they are marked and their levels are as before.
+
+---
+
+## A session syncs when it stops, not after every answer
+
+**6 October 2026** · `syncAfterChange`, `SYNC_SOON_MS`, `SESSION_SYNC_MS`,
+`SESSION_END_SYNC_MS` in `src/sync.ts`; `owed`, `armSync` and the effects
+beside them in `src/ArabicTrainer.tsx`
+
+The owner asked whether the app was what made their phone warm. A sync is
+the whole document both ways: pulled, merged and pushed back, uncompressed.
+On generated collections with a handful of answered exercises a card,
+that measured about 2.3 KB a card, so roughly a megabyte each way at a few
+hundred cards. It ran four seconds after every change, and every answer is
+a change. A session was therefore a round trip per question, and the
+radio, one of the hungriest parts of a phone, never got to rest.
+
+**Answers wait, and the moments that matter send.** While a question is
+being put, the first change after a sync arms the next trip three minutes
+out (`SESSION_SYNC_MS`). Later changes leave that trip where it is rather
+than pushing it back. The session stopping (finished, out of time or left)
+sends after a second and a half (`SESSION_END_SYNC_MS`), and the app being
+put away (`visibilitychange` to hidden) sends at once. Those are the
+moments another device is likely to be picked up. Outside a session
+nothing changed: a change goes up four seconds after the last of a run of
+them.
+
+**What it costs.** During a long session the shared copy, and so a second
+device, can be up to three minutes behind instead of seconds. The device
+itself loses nothing, because every answer is written there as it is
+given, as before. A trip cut short when iOS suspends a hidden page goes at
+the next launch.
+
+**`owed`, not `unsaved`.** Whether a change still has to go up used to be
+read off the count of changes not yet on the disk. That count drops to
+nought when the disk write lands, so a change made while a trip was in
+flight was usually written down, counted as sent and left for the next
+answer (finding 11 in `docs/AUDIT-progress-durability.md`). With answers
+no longer each starting a trip, that hole would have held them for
+minutes, so it is now a flag of its own: cleared as a trip sets out, set
+by any change after that, and set back if the trip fails. A failed trip
+does not retry by itself. The next change, the session's end, putting the
+app away or the connection returning sends it.
+
+**Why not send less instead.** Sending only what changed, or skipping the
+download when the server holds nothing new, would make every trip smaller.
+Both reach into the server and the merge. Fewer trips was the bigger saving
+for the smaller change, and the other is still worth doing if collections
+grow into the thousands.

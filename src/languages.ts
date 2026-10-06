@@ -138,6 +138,13 @@ export const TYPES = [
   "dig2fig", "fig2dig",
 ];
 
+/* The one wording of "type this number in the figures English uses", read or
+   heard. Every question whose answer is that — a range, one of the ten
+   figures, the meaning of a number word — says it in these words, so the
+   same thing asked two ways is not described two ways. */
+const WRITE_FIGURES = "Write the number in Arabic numerals (123)";
+const HEAR_FIGURES = "Listen, then write the number in Arabic numerals (123)";
+
 export const EX: Record<string, ExerciseSpec> = {
   /* The gentlest question in the app, and the only one that asks nothing of
      a card beyond a word and its meaning — so it is the one exercise every
@@ -197,6 +204,7 @@ export const EX: Record<string, ExerciseSpec> = {
   ar2en: {
     level: 1,
     instruction: "Write in English",
+    figuresInstruction: WRITE_FIGURES,
     label: "{Script} → English",
     short: "{S}→E",
     needs: ["ar", "en"],
@@ -258,6 +266,7 @@ export const EX: Record<string, ExerciseSpec> = {
   rec2en: {
     level: 1,
     instruction: "Listen, then write it in English",
+    figuresInstruction: HEAR_FIGURES,
     label: "Listen → English",
     short: "L→E",
     needs: ["recs", "en"],
@@ -488,7 +497,7 @@ export const EX: Record<string, ExerciseSpec> = {
      implementation of the only screen there is. */
   num2fig: {
     level: 1,
-    instruction: "Read the number, then write it in Arabic numerals (123)",
+    instruction: WRITE_FIGURES,
     label: "{Script} → Arabic numerals",
     short: "{S}→#",
     needs: ["rangeNumbers"],
@@ -517,7 +526,7 @@ export const EX: Record<string, ExerciseSpec> = {
   },
   rec2fig: {
     level: 1,
-    instruction: "Listen, then write the number in Arabic numerals (123)",
+    instruction: HEAR_FIGURES,
     label: "Listen → Arabic numerals",
     short: "L→#",
     /* A recording somewhere in the system, which is what says a listening
@@ -726,7 +735,7 @@ export const EX: Record<string, ExerciseSpec> = {
      that ask for the figures wait on them. */
   dig2fig: {
     level: 1,
-    instruction: "Write this numeral in Arabic numerals (123)",
+    instruction: WRITE_FIGURES,
     label: "{Own} → Arabic numerals",
     short: "{O}→#",
     needs: ["digit"],
@@ -3621,7 +3630,7 @@ export function exOf(named: string, lang: Lang = activeLang()) {
       .replace(/\{O\}/g, lang.numerals ? lang.numerals(1) || "#" : "#");
 
   const out: Record<string, any> = { ...spec };
-  for (const f of ["instruction", "label", "short", "question", "placeholder", "hintLabel", "hintHideLabel"]) {
+  for (const f of ["instruction", "figuresInstruction", "label", "short", "question", "placeholder", "hintLabel", "hintHideLabel"]) {
     if (out[f]) out[f] = fill(out[f]);
   }
   EX_CACHE.set(key, out);
@@ -4011,6 +4020,17 @@ export function answersInFigures(item: Record<string, any> | null | undefined, k
   if (!spec || !item) return false;
   if (spec.answerMode === "fig") return true;
   return spec.answerMode === "en" && !!numeralMeanings(item[spec.answerField]);
+}
+
+/**
+ * The line over this question. A card whose meaning is a number — ثلاثة,
+ * "3" — is answered in figures, so the question asking for its meaning
+ * says so in the words the number questions use rather than asking for
+ * English. Which questions it gets and how they are marked do not change.
+ */
+export function instructionFor(spec: Record<string, any>, item: Record<string, any> | null | undefined): string {
+  if (spec.figuresInstruction && item && numeralMeanings(item[spec.answerField])) return spec.figuresInstruction;
+  return spec.instruction;
 }
 
 export function checkAnswer(typed: string, item: Record<string, any>, key: string, settings: Settings) {

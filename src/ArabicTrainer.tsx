@@ -124,6 +124,7 @@ import {
   activeLang,
   checkAnswer,
   answersInFigures,
+  instructionFor,
   answerFields,
   derivedValue,
   dimValues,
@@ -542,6 +543,8 @@ import {
   drainRemote,
   compactItem,
   mergeData,
+  syncAfterChange,
+  SESSION_END_SYNC_MS,
 } from "./sync.ts";
 
 /* ==================================================================
@@ -6355,7 +6358,33 @@ export const SOUNDS: Record<string, (c: AudioContext) => void> = {
   },
 };
 
-function sfx(kind: string) {
+/*
+ * How long the sound engine stays up after the last sound.
+ *
+ * A running context keeps the phone's audio hardware switched on, with a
+ * thread rendering silence into it, for as long as the page is open — and
+ * nothing ever stopped this one, so the first tick of the evening kept it
+ * running until the app was closed. Ten seconds stays up through a run of
+ * quick answers, which would otherwise wake it for every one, and lets it
+ * rest while somebody reads, thinks or leaves the app open on the home
+ * screen. Waking it is ctx()'s resume. The notes are timed against the
+ * context's own clock, which stands still while it rests, so the first
+ * one after a rest starts the moment it is awake and is never cut short.
+ */
+export const SOUND_REST_MS = 10000;
+let restTimer: ReturnType<typeof setTimeout> | null = null;
+
+function restLater(c: AudioContext) {
+  if (restTimer) clearTimeout(restTimer);
+  restTimer = setTimeout(() => {
+    restTimer = null;
+    if (c.state === "running") c.suspend().catch(() => {});
+  }, SOUND_REST_MS);
+}
+
+/* Exported so the smoke run can play one against a stand-in engine and
+   watch it rest. */
+export function sfx(kind: string) {
   if (!soundGain || !SOUNDS[kind]) return;
   // Rate limit, so a fast run of answers doesn't turn into a chirp storm.
   const t = Date.now();
@@ -6363,7 +6392,10 @@ function sfx(kind: string) {
   lastSound = t;
   try {
     const c = ctx();
-    if (c) SOUNDS[kind](c);
+    if (c) {
+      SOUNDS[kind](c);
+      restLater(c);
+    }
   } catch (e) {
     /* no audio available — carry on silently */
   }
@@ -7210,9 +7242,13 @@ function Keyboard({ onKey, onBack, onClear, onHide, lang }: {
  * Up whenever an answer is to be written in them, without being asked
  * for. A laptop keyboard has no ٤ on it and a phone's number pad has only
  * 4, so for most learners these keys are the only way to write the answer
- * at all — which is not a thing to hide behind a button. In the order the
- * figures count, left to right as a number is written, and a colon for a
- * clock.
+ * at all — which is not a thing to hide behind a button.
+ *
+ * Laid out as a phone's keypad, three by four with ١ at the top left and
+ * ٠ under ٨: what an Arabic phone's dialler and number keyboard show, so
+ * the hand already knows where ٤ is. A row of ten across the screen made
+ * every key a sliver. The bottom row is clear, ٠, backspace — and for a
+ * clock, colon, ٠, backspace, with clear on a row of its own beneath.
  */
 /* The figures a language writes numbers in, by name and with three of
    them: "Eastern Arabic numerals (١٢٣)". */
@@ -7230,29 +7266,37 @@ function NumeralPad({ lang, clock, onKey, onBack, onClear }: {
 }) {
   const write = lang.numerals;
   if (!write) return null;
-  const figures = Array.from({ length: 10 }, (_, d) => String(write(d) || "")).filter(Boolean);
+  const figure = (d: number) => {
+    const ch = String(write(d) || "");
+    return (
+      <button key={d} type="button" className="at-key" lang={lang.id} onClick={() => onKey(ch)}>
+        {ch}
+      </button>
+    );
+  };
+  const back = (
+    <button key="back" type="button" className="at-key util" onClick={onBack} aria-label="Backspace">
+      ⌫
+    </button>
+  );
+  const clear = (
+    <button key="clear" type="button" className={`at-key util${clock ? " wide" : ""}`} onClick={onClear}>
+      clear
+    </button>
+  );
   return (
     <div className="at-kb at-numpad" data-el="numeral-pad" dir="ltr">
-      <div className="at-kbrow fit">
-        {figures.map((ch) => (
-          <button key={ch} type="button" className="at-key" lang={lang.id} onClick={() => onKey(ch)}>
-            {ch}
-          </button>
-        ))}
-      </div>
-      <div className="at-kbrow">
-        {clock && (
-          <button type="button" className="at-key" onClick={() => onKey(":")} aria-label="Colon">
-            :
-          </button>
-        )}
-        <button type="button" className="at-key util" onClick={onBack} aria-label="Backspace">
-          ⌫
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(figure)}
+      {clock ? (
+        <button key="colon" type="button" className="at-key" onClick={() => onKey(":")} aria-label="Colon">
+          :
         </button>
-        <button type="button" className="at-key util" onClick={onClear}>
-          clear
-        </button>
-      </div>
+      ) : (
+        clear
+      )}
+      {figure(0)}
+      {back}
+      {clock && clear}
     </div>
   );
 }
@@ -8437,6 +8481,55 @@ function saveListenOff(until: Millis) {
   }
 }
 
+/*
+ * The countdown and the bar on a timed session.
+ *
+ * A component of its own so that the clock is all that redraws as it runs.
+ * It used to tick in the trainer itself, twice a second, which rebuilt the
+ * whole session screen — the question, the answer box, the keys — to move
+ * one number, and went on doing it while paused. Now it wakes once a
+ * second, just after the number changes, and not at all while paused.
+ * When the time is up is the trainer's business; this only shows it.
+ */
+function SessionClock({ startedAt, endsAt, pausedAt }: {
+  startedAt: Millis;
+  endsAt: Millis;
+  pausedAt: Millis;
+}) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (pausedAt) return undefined;
+    let id: ReturnType<typeof setTimeout> | undefined;
+    const wake = () => {
+      const left = endsAt - Date.now();
+      if (left <= 0) return;
+      /* To just past the next whole second, which is when the number
+         changes. An interval drifts a little each time and showed the
+         previous second for most of the next. */
+      id = setTimeout(() => {
+        tick((n) => n + 1);
+        wake();
+      }, (left % 1000) + 20);
+    };
+    wake();
+    return () => clearTimeout(id);
+  }, [endsAt, pausedAt]);
+  const clock = pausedAt || Date.now();
+  const left = Math.max(0, Math.ceil((endsAt - clock) / 1000));
+  const span = endsAt - startedAt;
+  const done = span > 0 ? Math.min(100, ((clock - startedAt) / span) * 100) : 100;
+  return (
+    <>
+      <span className="at-count" data-el="session-count">
+        {`${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`}
+      </span>
+      <div className="at-progress" data-el="session-progress">
+        <i style={{ width: `${done}%` }} />
+      </div>
+    </>
+  );
+}
+
 export default function ArabicTrainer() {
   const [data, setData] = useState(EMPTY);
   const [ready, setReady] = useState(false);
@@ -8619,9 +8712,9 @@ export default function ArabicTrainer() {
      every render would put the app in a request loop. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountKey]);
-  /* No value, only a setter: the interval below calls it twice a second
-     purely to re-render, so the time left on a timed session counts
-     down. Nothing reads the number itself. */
+  /* No value, only a setter: the timer below calls it once, when a timed
+     session's time is up, purely to re-render so the render sees that it
+     is. Nothing reads the number itself. */
   const [, setNow_] = useState(0);
   const [qi, setQi] = useState(0);
   /* Each question starts at the top. A long one — a scene, a word with its
@@ -8706,8 +8799,8 @@ export default function ArabicTrainer() {
 
   const timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
   /* How many changes are in memory and not yet on the disk. Zero means the
-     two agree — read by the flush on the way out and by the sync, which
-     runs again when this moves during a round trip. */
+     two agree — read by the flush on the way out. What the server is owed
+     is a different question, kept by `owed` below. */
   const unsaved = useRef(0);
   /* A failed write, backing off. The delay doubles to half a minute and
      the warning stays up until something lands. */
@@ -8733,9 +8826,31 @@ export default function ArabicTrainer() {
      "Offline — will retry" whatever had actually happened, including the
      two failures that never clear by themselves. */
   const [syncError, setSyncError] = useState("");
+  /* The round trip waiting to go, if one is. Emptied when it fires, so
+     "is one waiting?" can be asked of it. */
   const syncTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
   const syncing = useRef(false);
   const fromSync = useRef(false);
+  /*
+   * Whether anything has changed here since the last round trip set out.
+   *
+   * Cleared as one leaves, because it sends the document as it stands at
+   * that moment, and set again by any change after it — including one made
+   * while it is in flight, which is then owed a trip of its own. A trip
+   * that fails sets it back: nothing went up. It used to be read off
+   * `unsaved`, which counts what is not on the disk yet and drops to nought
+   * when the disk write lands, so a change made during a trip was often
+   * written down, counted as sent, and left for the next answer.
+   */
+  const owed = useRef(false);
+  /*
+   * Whether a question is being put. The sync's cadence turns on it — see
+   * syncAfterChange in sync.ts — and a session that stops putting them,
+   * whichever way it stops, sends what it did.
+   */
+  const answering = !!session && qi < session.exercises.length;
+  const answeringRef = useRef(answering);
+  answeringRef.current = answering;
   /* The document as the writers see it. Every change goes through commit()
      so the ref is current the moment it is made, not at the next render:
      two async writers finishing in the same tick — the launch sync and the
@@ -8754,6 +8869,20 @@ export default function ArabicTrainer() {
   /* So that a sync can ask for another one when something was written
      while it was in flight, without naming itself as its own dependency. */
   const runSyncRef = useRef<(token?: string) => void>(() => {});
+  /* Arm the round trip for what is owed. `keep` leaves one already
+     waiting where it is, which is what lets a session's answers ride along
+     on the next sync rather than each pushing it back. A trip with nothing
+     owed by the time it fires stays home. */
+  const armSync = useCallback((wait: number, keep: boolean) => {
+    if (syncTimer.current) {
+      if (keep) return;
+      clearTimeout(syncTimer.current);
+    }
+    syncTimer.current = setTimeout(() => {
+      syncTimer.current = null;
+      if (owed.current) runSyncRef.current();
+    }, wait);
+  }, []);
   const runSync = useCallback(
     /* Defaulted rather than required: most callers have no token in hand
        and want whatever this device is already signed in with. */
@@ -8773,13 +8902,14 @@ export default function ArabicTrainer() {
       syncing.current = true;
       setSyncState("syncing");
       setSyncError("");
-      /* What the document stood at going in. If anything is written while
-         the round trip is in flight, this moves, and the sync runs again
-         rather than leaving that change to wait for the next one — which
-         used to be the next answer or the next launch. */
-      const wasAt = unsaved.current;
+      /* Everything up to here goes in this trip, which reads the document
+         as it stands now. Anything written while it is in flight sets this
+         again, and is owed a trip of its own — see the end. */
+      owed.current = false;
+      let sent = false;
       try {
         const { merged, changed, lost } = await syncOnce(dataRef.current, key);
+        sent = true;
         if (lost) {
           /* The shared copy could not be read and this sync has replaced
              it. What is on this device is safe; anything another device
@@ -8929,13 +9059,19 @@ export default function ArabicTrainer() {
         setSyncError(said);
         if (msg === "too-large" || msg === "would-empty") flash(said, "warn");
         setSyncState("error");
+        /* Nothing went up, so everything this trip carried is still owed. */
+        if (!sent) owed.current = true;
       } finally {
         syncing.current = false;
-        /* Written to while this was in flight, so it is owed another
-           round trip. One, and only if something moved. */
-        if (unsaved.current !== wasAt) {
-          if (syncTimer.current) clearTimeout(syncTimer.current);
-          syncTimer.current = setTimeout(() => runSyncRef.current(), 1500);
+        /* Written to while this was in flight, so it is owed a trip of its
+           own, on the terms any change gets: soon outside a session, with
+           the session's next one inside it. Not after a failure, which
+           would only be asked again into the same wall — what failed goes
+           with the next change, the end of the session, the app being put
+           away or the connection coming back. */
+        if (sent && owed.current) {
+          const { wait, keep } = syncAfterChange(answeringRef.current);
+          armSync(wait, keep);
         }
       }
     },
@@ -8973,29 +9109,68 @@ export default function ArabicTrainer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, accountKey, runSync]);
 
-  // After anything changes — which covers the end of a session.
+  /* After anything changes: soon, or with the session's next trip while
+     questions are being answered. See syncAfterChange in sync.ts. */
   useEffect(() => {
     if (!ready || !syncCfg.token) return;
     if (fromSync.current) {
       fromSync.current = false;
       return;
     }
-    if (syncTimer.current) clearTimeout(syncTimer.current);
-    syncTimer.current = setTimeout(() => runSync(), 4000);
-    return () => {
-      if (syncTimer.current) clearTimeout(syncTimer.current);
-    };
-  }, [data, ready, syncCfg.token, runSync]);
+    owed.current = true;
+    const { wait, keep } = syncAfterChange(answeringRef.current);
+    armSync(wait, keep);
+  }, [data, ready, syncCfg.token, armSync]);
 
-  // Heartbeat for the countdown on a timed session.
+  /* And when a session stops asking — finished, out of time or left —
+     what it did goes up now rather than with its next few-minutely trip:
+     the end of a session is when another device is most likely to be
+     picked up. */
   useEffect(() => {
-    if (!session || !session.endsAt) return;
-    const id = setInterval(() => setNow_(Date.now()), 500);
-    return () => clearInterval(id);
-  /* When the session ends, not which object holds it: the ticking
-     clock below replaces the session object every half second. */
+    if (!answering && owed.current) armSync(SESSION_END_SYNC_MS, false);
+  }, [answering, armSync]);
+
+  /*
+   * And when the app is put away. A phone in a pocket, a tab switched
+   * away from: the other moment a learner might reach for another device,
+   * and on iOS often the last moment this page runs at all — a timer set
+   * for a few minutes from now may never fire. Nothing is lost if this
+   * trip is cut short, because everything is on this device already; it
+   * goes with the next launch instead.
+   */
+  useEffect(() => {
+    const away = () => {
+      if (document.visibilityState !== "hidden" || !owed.current) return;
+      if (syncTimer.current) {
+        clearTimeout(syncTimer.current);
+        syncTimer.current = null;
+      }
+      runSyncRef.current();
+    };
+    document.addEventListener("visibilitychange", away);
+    return () => document.removeEventListener("visibilitychange", away);
+  }, []);
+
+  /* A trip still waiting when the app goes is not this app's to make. */
+  useEffect(
+    () => () => {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+    },
+    [],
+  );
+
+  /* A timed session's time running out: one wake-up at that moment, which
+     the out-of-time check in the render then reads. Set again whenever the
+     end moves, which carrying on after a pause does, and not at all while
+     paused. The countdown on screen is SessionClock's. */
+  useEffect(() => {
+    if (!session || !session.endsAt || session.pausedAt) return undefined;
+    const id = setTimeout(() => setNow_(Date.now()), Math.max(0, session.endsAt - Date.now()) + 50);
+    return () => clearTimeout(id);
+  /* When the session ends and whether it is paused, not which object
+     holds them: a session is replaced whenever its queue is re-dealt. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session && session.endsAt]);
+  }, [session && session.endsAt, session && session.pausedAt]);
 
   /*
    * Send what has been waiting for a connection.
@@ -9158,9 +9333,13 @@ export default function ArabicTrainer() {
       if (!next || next === dataRef.current) return;
       commit(next);
       /* Something is now in memory that is not on the disk. Read by the
-         flush below and by the sync, which re-runs when this moves while a
-         round trip is in flight. */
+         flush below. */
       unsaved.current += 1;
+      /* And not on the server either. The effect that arms the sync says so
+         too, but it skips a render that also carries a sync's own result,
+         and an answer given just as a round trip came back would have
+         ridden into that render unmarked. */
+      owed.current = true;
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => {
         void writeNow();
@@ -11357,8 +11536,9 @@ export default function ArabicTrainer() {
   /* ---------------- render ---------------- */
 
   /* The time a timed session's clock reads: now, or the moment it was
-     paused. Holding it there is the whole of pausing — the countdown and
-     the bar both read from this, so neither moves until play is pressed. */
+     paused. Holding it there is the whole of pausing — SessionClock reads
+     the same moment, so neither the countdown nor the bar moves until play
+     is pressed, and here it decides whether the time is up. */
   const clock = session && session.pausedAt ? session.pausedAt : Date.now();
 
   /* Seconds remaining on a timed session, or null when it's counted.
@@ -11714,27 +11894,22 @@ export default function ArabicTrainer() {
                       nothing else. */}
                   {!session.trial && (
                     <>
-                      <span className="at-count" data-el="session-count">
-                        {timeLeft !== null
-                          ? `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, "0")}`
-                          : `${qi + 1} / ${session.exercises.length}`}
-                      </span>
-                      <div className="at-progress" data-el="session-progress">
-                        <i
-                          style={{
-                            width: `${
-                              session.endsAt && session.startedAt
-                                ? Math.min(
-                                    100,
-                                    ((clock - session.startedAt) /
-                                      (session.endsAt - session.startedAt)) *
-                                      100
-                                  )
-                                : (qi / session.exercises.length) * 100
-                            }%`,
-                          }}
+                      {timeLeft !== null ? (
+                        <SessionClock
+                          startedAt={session.startedAt}
+                          endsAt={session.endsAt}
+                          pausedAt={session.pausedAt || 0}
                         />
-                      </div>
+                      ) : (
+                        <>
+                          <span className="at-count" data-el="session-count">
+                            {`${qi + 1} / ${session.exercises.length}`}
+                          </span>
+                          <div className="at-progress" data-el="session-progress">
+                            <i style={{ width: `${(qi / session.exercises.length) * 100}%` }} />
+                          </div>
+                        </>
+                      )}
                       {/* Only a clock can be paused: a counted session
                           already waits for as long as you take. */}
                       {timeLeft !== null && (
@@ -11800,7 +11975,7 @@ export default function ArabicTrainer() {
                       ? spec.intro
                         ? "Read the text"
                         : "Read the whole text"
-                      : spec.instruction}
+                      : instructionFor(spec, item)}
                   </p>
                   <div className="at-ask" data-el="question-prompt">
                     {spec.promptField === "pairs" ? null : spec.promptField === "scene" ? (
@@ -12115,11 +12290,16 @@ export default function ArabicTrainer() {
                              these, and keeps its letters and on-screen keys. */
                           /* And in the language's own figures, the keys
                              under the box are the keyboard: a phone's own
-                             would only offer 4 for ٤, so it stays down. */
+                             would only offer 4 for ٤, so it stays down.
+                             Asking for no keyboard is not enough — some
+                             phone browsers raise one anyway when the box
+                             takes focus — so the box is read-only to the
+                             phone and the pad writes into it. A computer's
+                             own keys can still write the figures, below. */
                           inputMode={figures ? "numeric" : ownFigures ? "none" : undefined}
                           autoComplete={figures || ownFigures ? "off" : undefined}
                           value={typed}
-                          readOnly={!!checked}
+                          readOnly={!!checked || ownFigures}
                           placeholder={figures ? "Type the number" : ownFigures ? ownPrompt : spec.placeholder}
                           onChange={(e) => setTyped(e.target.value)}
                           /* Only the Check button checks. Enter — and a
@@ -12131,6 +12311,21 @@ export default function ArabicTrainer() {
                           enterKeyHint="done"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") e.preventDefault();
+                            /* The read-only box takes nothing typed, so a
+                               keyboard that does have ٤ on it — or a colon,
+                               or backspace — goes through the pad's own
+                               hands. Only the language's figures: 4 is
+                               not ٤, and accepting it would answer the
+                               question for them. */
+                            if (!ownFigures || checked || e.ctrlKey || e.metaKey || e.altKey) return;
+                            const own = Array.from({ length: 10 }, (_, d) => String(qLang.numerals?.(d) || ""));
+                            if (own.includes(e.key) || e.key === ":") {
+                              e.preventDefault();
+                              caretInsert(inputRef, typed, setTyped, e.key);
+                            } else if (e.key === "Backspace") {
+                              e.preventDefault();
+                              caretBackspace(inputRef, typed, setTyped);
+                            }
                           }}
                         />
                         )}
