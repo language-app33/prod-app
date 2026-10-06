@@ -5773,17 +5773,48 @@ export function praiseFor(n: number) {
    be read, and a tap to reach them was a tap most answers never got.
 
    Renders nothing — not even the heading — when there is nothing to put
-   in it, so "Learn more" is never a promise the box cannot keep. */
+   in it, so "Learn more" is never a promise the box cannot keep.
+
+   The short blocks share a row two at a time — how it is pronounced beside
+   how it sounds — so the box is half as tall and Continue half as far
+   down. The two that are long by nature, the phrase it turned up in and
+   the related words, keep the width to themselves. Where the short ones
+   come out odd it is the first that stands alone, so the last two, which
+   are the pronunciation and the recording, are the ones kept together. */
+function alsoIsWide(el: any) {
+  return el.type === RelatedWords || el.props["data-el"] === "also-context";
+}
 function AlsoBox({ children }: { children?: Node }) {
-  const shown = React.Children.toArray(children).filter(Boolean);
+  const shown = React.Children.toArray(children).filter(Boolean) as any[];
   if (!shown.length) return null;
+  const rows: any[] = [];
+  let run: any[] = [];
+  const flush = () => {
+    if (run.length % 2) rows.push(run.shift());
+    for (let i = 0; i < run.length; i += 2) {
+      rows.push(
+        <div className="at-alsorow" data-el="also-row" key={`row-${run[i].key}`}>
+          {run[i]}
+          {run[i + 1]}
+        </div>
+      );
+    }
+    run = [];
+  };
+  for (const el of shown) {
+    if (alsoIsWide(el)) {
+      flush();
+      rows.push(el);
+    } else run.push(el);
+  }
+  flush();
   return (
     <>
       <p className="at-alsomore" data-el="also-heading">
         Learn more
       </p>
       <div className="at-alsobox" data-el="also">
-        {shown}
+        {rows}
       </div>
     </>
   );
@@ -12635,6 +12666,21 @@ export default function ArabicTrainer() {
                             <Field value={item.ar} field="ar" kind={item.kind} name="also-script-text" />
                           </div>
                         )}
+                        {/* A number, in the figures the language writes
+                            it in: 47 is ٤٧ on a price tag. Not where the
+                            question already showed them — asked from
+                            them, or beside the figures English uses. */}
+                        {item.numeral &&
+                          spec.promptField !== "numeral" &&
+                          spec.promptField !== "en" &&
+                          spec.answerField !== "numeral" && (
+                          <div className="at-answeralso" data-el="also-figures">
+                            <p className="at-alsolabel" data-el="also-figures-label">
+                              In {qLang.numeralsLabel || `${qLang.scriptLabel} figures`}
+                            </p>
+                            <Field value={item.numeral} field="numeral" name="also-figures-text" />
+                          </div>
+                        )}
                         {/* The field the question never showed.
                             
                             It was whatever the exercise offers as a hint
@@ -12663,21 +12709,6 @@ export default function ArabicTrainer() {
                               kind={item.kind}
                               name="also-hint-text"
                             />
-                          </div>
-                        )}
-                        {/* A number, in the figures the language writes
-                            it in: 47 is ٤٧ on a price tag. Not where the
-                            question already showed them — asked from
-                            them, or beside the figures English uses. */}
-                        {item.numeral &&
-                          spec.promptField !== "numeral" &&
-                          spec.promptField !== "en" &&
-                          spec.answerField !== "numeral" && (
-                          <div className="at-answeralso" data-el="also-figures">
-                            <p className="at-alsolabel" data-el="also-figures-label">
-                              In {qLang.numeralsLabel || `${qLang.scriptLabel} figures`}
-                            </p>
-                            <Field value={item.numeral} field="numeral" name="also-figures-text" />
                           </div>
                         )}
                         {/* Was below the notes, which put it three blocks
