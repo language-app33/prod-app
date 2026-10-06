@@ -1250,11 +1250,18 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const inBox = rowsIn
       .flatMap((e) => (e.getAttribute("data-el") === "also-row" ? [...e.children] : [e]))
       .map((e) => e.getAttribute("data-el"));
-    check("a row holds two of the short blocks, never one and never a long one",
+    check("a row holds one or two of the short blocks, never the phrase",
       rowsIn.filter((e) => e.getAttribute("data-el") === "also-row").every((r) =>
-        r.children.length === 2 &&
-        [...r.children].every((c) => !["also-context", "related-words"].includes(c.getAttribute("data-el") || ""))),
+        r.children.length >= 1 && r.children.length <= 2 &&
+        [...r.children].every((c) => c.getAttribute("data-el") !== "also-context")),
       rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    check("and every short block sits in a row, the related words included",
+      rowsIn.every((e) => ["also-row", "also-context"].includes(e.getAttribute("data-el") || "")),
+      rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    const hintRow = alsoBox && alsoBox.querySelector('[data-el="also-hint"]');
+    const audioRow = alsoBox && alsoBox.querySelector('[data-el="also-audio"]');
+    check("how it's pronounced and how it sounds share a row",
+      !hintRow || !audioRow || hintRow.parentElement === audioRow.parentElement, "");
     const FAMILY = ["also-context", "also-script", "also-hint", "also-figures", "also-audio", "related-words"];
     check("and everything in it is one of the blocks that were loose on the page",
       inBox.length > 0 && inBox.every((n) => FAMILY.includes(n || "")), inBox.join(" ") || "empty");

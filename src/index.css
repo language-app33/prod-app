@@ -311,13 +311,16 @@ button {
 .at-alsorow > * { margin:0; padding:0; border:0; min-width:0; overflow-wrap:anywhere; }
 .at-alsorow > * + * { padding-left:12px; border-left:1px solid var(--line); }
 /* A recording in half the row: the button keeps its shape and its label,
-   one size down again, and starts where the label above it starts. Two
+   one size down again, centred in its half of the row. Two
    speeds that no longer fit beside each other go one under the other. */
-.at-alsorow .at-playrow { justify-content:flex-start; flex-wrap:wrap; gap:6px; }
+.at-alsorow .at-playrow { justify-content:center; flex-wrap:wrap; gap:6px; }
 .at-alsobox .at-alsorow .at-playbig { min-width:0; padding:7px 12px; gap:6px; font-size:13px; }
 .at-alsobox .at-alsorow .at-playbig .at-ic { width:20px; height:20px; }
 .at-alsobox .at-alsorow .at-playbig.twin { flex:1 1 auto; padding-inline:10px; }
 .at-alsobox .at-alsorow .at-playbig.quiet .at-ic { width:18px; height:18px; }
+/* The related words under their label sit as close to it as every other
+   block's value does to its own. */
+.at-alsorow .at-pairs .at-hint { margin-top:4px; }
 .at-flagwrap { position:relative; margin-top:14px; text-align:center; }
 /* Two quiet ways out, set identically: reporting a bad question, and
    saying you cannot hear this one. Neither is a thing to do with the

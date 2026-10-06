@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.376 — 6 October 2026
+
+**Learn more: shorter labels, a centred play button, and related words like the rest.**
+
+- "This is how it's pronounced" is now "How it's pronounced", and "This
+  is how it sounds" is now "How it sounds".
+- The play button sits in the middle of its half of the row instead of
+  against the left edge.
+- "Built on the same root" (and, for Vietnamese, "Also spelt this way,
+  with a different tone") now has the
+  same small heading as the other items and takes half a row like them,
+  instead of a larger heading across the full width. It shares a row with
+  another item where there is one; on its own it keeps to its half.
+- How it's pronounced and how it sounds are always the pair on one row.
+  Other items now come after that row instead of before it.
+
 ## 0.375 — 6 October 2026
 
 **"Learn more" under an answer is more compact: two things to a row.**

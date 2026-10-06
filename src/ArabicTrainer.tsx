@@ -5777,37 +5777,29 @@ export function praiseFor(n: number) {
 
    The short blocks share a row two at a time — how it is pronounced beside
    how it sounds — so the box is half as tall and Continue half as far
-   down. The two that are long by nature, the phrase it turned up in and
-   the related words, keep the width to themselves. Where the short ones
-   come out odd it is the first that stands alone, so the last two, which
-   are the pronunciation and the recording, are the ones kept together. */
-function alsoIsWide(el: any) {
-  return el.type === RelatedWords || el.props["data-el"] === "also-context";
+   down. Only the phrase it turned up in keeps the width to itself; the
+   related words are a short block like the rest. The pronunciation and
+   the recording are always the pair, when both are there; the others pair
+   up in order, and one left over takes half a row like everything else,
+   so no short block is ever drawn wider than its neighbours. */
+const ALSO_PAIR = ["also-hint", "also-audio"];
+function alsoName(el: any): string {
+  return el.type === RelatedWords ? "related-words" : el.props["data-el"] || "";
 }
 function AlsoBox({ children }: { children?: Node }) {
   const shown = React.Children.toArray(children).filter(Boolean) as any[];
   if (!shown.length) return null;
-  const rows: any[] = [];
-  let run: any[] = [];
-  const flush = () => {
-    if (run.length % 2) rows.push(run.shift());
-    for (let i = 0; i < run.length; i += 2) {
-      rows.push(
-        <div className="at-alsorow" data-el="also-row" key={`row-${run[i].key}`}>
-          {run[i]}
-          {run[i + 1]}
-        </div>
-      );
-    }
-    run = [];
-  };
-  for (const el of shown) {
-    if (alsoIsWide(el)) {
-      flush();
-      rows.push(el);
-    } else run.push(el);
-  }
-  flush();
+  const row = (cells: any[]) => (
+    <div className="at-alsorow" data-el="also-row" key={`row-${cells[0].key}`}>
+      {cells}
+    </div>
+  );
+  const rows: any[] = shown.filter((el) => alsoName(el) === "also-context");
+  const short = shown.filter((el) => alsoName(el) !== "also-context");
+  const pair = short.filter((el) => ALSO_PAIR.includes(alsoName(el)));
+  const rest = pair.length === 2 ? short.filter((el) => !pair.includes(el)) : short;
+  if (pair.length === 2) rows.push(row(pair));
+  for (let i = 0; i < rest.length; i += 2) rows.push(row(rest.slice(i, i + 2)));
   return (
     <>
       <p className="at-alsomore" data-el="also-heading">
@@ -5827,7 +5819,7 @@ function RelatedWords({ pairs, settings }: { pairs: any[]; settings: Settings })
   const heading = (group && group.heading) || "Related words";
   return (
     <div className="at-pairs" data-el="related-words">
-      <p className="at-answerlabel" data-el="related-words-label">
+      <p className="at-alsolabel" data-el="related-words-label">
         {heading}
       </p>
       {pairs.map((p) => (
@@ -12698,7 +12690,7 @@ export default function ArabicTrainer() {
                           <div className="at-answeralso" data-el="also-hint">
                             <p className="at-alsolabel" data-el="also-hint-label">
                               {alsoField === "lat"
-                                ? "This is how it's pronounced"
+                                ? "How it's pronounced"
                                 : alsoField === "ar"
                                 ? "This is how it's written"
                                 : "This is what it means"}
@@ -12718,7 +12710,7 @@ export default function ArabicTrainer() {
                         {spec.promptField !== "audio" && audibleOf(item).length > 0 && (
                           <div className="at-answeralso" data-el="also-audio">
                             <p className="at-alsolabel" data-el="also-audio-label">
-                              This is how it sounds
+                              How it sounds
                             </p>
                             <AudioPrompt recs={audibleOf(item)} after={chainOf(item)} lead={leadSpeed(item)} />
                           </div>
