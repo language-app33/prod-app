@@ -5398,3 +5398,26 @@ already counted passes owed and nothing it restates changed.
 **Revisit if** learners report cards marked learnt that they do not know:
 the first thing to look at is a miss that is not followed by a second.
 
+
+## A prep can aim at Cleared, and the deck picker moved to shared
+
+**6 October 2026** · `src/ArabicTrainer.tsx` (`PrepTarget`, `workloadOf`,
+`climbOf`, `towardsLearnt`'s `reach`), `src/shared.tsx` (`DeckSwitch`,
+`PickSheet`)
+
+The owner asked for a prep to aim at Cleared as well as Learnt, with the
+home tile's numbers following. The target is on the prep, defaulting to
+Learnt so a saved prep means what it meant. One number decides "far
+enough" everywhere (`reached`), so the tile's ring, its sessions a day,
+the forecast on the prep screen and whether the prep is done cannot
+disagree. Aiming at Cleared drops the passes from the work and puts the
+floor at `CLEAR_DAYS` (twice that for a card whose words come first)
+rather than `LEARN_DAYS` — the same measured figures, not new ones; the
+estimate is no better checked than the Learnt one was.
+
+The prep's decks are chosen with the card editor's `DeckSwitch`, as
+asked. It and `PickSheet` moved from `card-editor.tsx` to `shared.tsx`
+rather than the trainer importing the card editor, which loads on its own
+and would otherwise be pulled into every student's first load. The
+picker's sentences, which spoke of putting a card in a deck, became
+overridable (`words`).

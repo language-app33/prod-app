@@ -4557,3 +4557,192 @@ export function useInstallOffer() {
 
   return { show: !installed && !dismissed, prompt, dismiss };
 }
+
+/*
+ * A sheet of choices, in the mould of the one a blank is put in from.
+ *
+ * Which decks a card is in and what subtype it is used to open as lists
+ * hanging off their buttons, inside the form — where a long list ran off
+ * the bottom of a phone and a short one covered the field under it. They
+ * are sheets now, as putting in a blank and choosing custom tags already
+ * were: up from the bottom on a phone, a panel in the middle where there
+ * is room, shut by its cross, by Escape or by a tap outside it.
+ */
+export function PickSheet({ title, lede, className = "", onClose, children }: {
+  title: string;
+  lede?: string;
+  className?: string;
+  onClose: () => void;
+  children?: Node;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <Overlay>
+      <div className="at-modalback sheet" onClick={onClose}>
+        <div
+          className={`at-sheet${className ? " " + className : ""}`}
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="at-sheettop">
+            <h3 className="at-modaltitle">{title}</h3>
+            <IconButton icon="close" label="Close" onClick={onClose} />
+          </div>
+          {lede ? <p className="at-hint">{lede}</p> : null}
+          {children}
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+/*
+ * Which decks a card is in: the decks as pills, and a button that opens
+ * the list of them in a sheet.
+ *
+ * It was the last block on the editor, a full section with a heading, a
+ * paragraph and a tick per deck — so the answer to "where does this card
+ * go?" was several hundred pixels below the question. The decision is one
+ * line long and belongs near the top, beside what kind of card this is:
+ * both are facts about the card rather than about its words.
+ */
+/* What DeckSwitch says, where it is not putting a card in decks. */
+export interface DeckWords {
+  /** The button while nothing is chosen. */
+  first: string;
+  /** The way off a chosen deck's pill, for a screen reader. */
+  drop: (title: string) => string;
+  /** Under the sheet's title. */
+  lede: string;
+  /** The small print under the list, or empty for none. */
+  note: string;
+  /** Where there are no decks to choose. */
+  none: string;
+}
+
+export function DeckSwitch({ decks, chosen, onToggle, of = "card", words }: {
+  /* Only what is shown of a deck: a card's editor hands over whole decks,
+     and the number screen hands over the decks a part of the numbers can
+     go in. */
+  decks: Pick<Deck, "id" | "title" | "locked" | "cardCount">[];
+  chosen: string[];
+  onToggle: (id: string, wasOn: boolean) => void;
+  /** What is being put in decks, as the row and the sheet name it — a
+      card, or a part of a language's numbers. */
+  of?: string;
+  /** Its words where decks are being chosen rather than something put in
+      them — Prep mode picks the decks it aims at, and "Add this card to a
+      deck" would be the wrong sentence there. Each one left out is the
+      card's. */
+  words?: Partial<DeckWords>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const all = decks || [];
+  const inThese = all.filter((d) => chosen.includes(d.id));
+  const say: DeckWords = {
+    first: `Add this ${of} to a deck`,
+    drop: (title) => `Take this ${of} out of ${title}`,
+    lede: `Choose the decks this ${of} belongs to.`,
+    note: `A student sees this ${of} only where it is in a deck their course uses.`,
+    none: `You have no decks yet. Make one under Decks, then this ${of} can go in it.`,
+    ...words,
+  };
+
+  return (
+    <div className="at-chooser deckwrap">
+      {/* The decks this card is in, each as a thing you can see and take
+          off, with the way to add another on the end of the row. It was a
+          pill saying "2 decks" that had to be opened to find out which
+          two — a count is a state, and the thing a teacher wants to read
+          here is the names. */}
+      <div className="at-deckpills">
+        {inThese.map((d) => (
+          <span className="at-deckpill" key={d.id}>
+            <span className="nm">{d.title}</span>
+            {/* A locked deck keeps its cards: a padlock where the way out
+                would be, saying why there isn't one. */}
+            {d.locked ? (
+              <span className="at-decklock" title={`${d.title} is locked`} aria-label={`${d.title} is locked`}>
+                <Icon name="lock" size={14} />
+              </span>
+            ) : (
+              <button
+                className="at-deckdrop"
+                aria-label={say.drop(d.title)}
+                onClick={() => onToggle(d.id, true)}
+              >
+                <Icon name="close" size={16} />
+              </button>
+            )}
+          </span>
+        ))}
+
+        {/* Dotted, because it is the outline of a pill that is not there
+            yet: what it makes is what stands beside it. Its words are the
+            whole invitation while the card is in nothing, and shorten to
+            the bare offer once the row can speak for itself. */}
+        {all.length > 0 && (
+          <button
+            className="at-deckadd"
+            aria-expanded={open}
+            onClick={() => setOpen(true)}
+          >
+            <Icon name="add" size={17} />
+            {inThese.length ? "Another deck" : say.first}
+          </button>
+        )}
+
+        {!all.length && (
+          <Help>{say.none}</Help>
+        )}
+      </div>
+
+      {/* Stays open while decks are picked, because a card usually goes in
+          more than one; the pills behind it change as it does. */}
+      {open && (
+        <PickSheet
+          title="Decks"
+          lede={say.lede}
+          className="at-decksheet"
+          onClose={() => setOpen(false)}
+        >
+          <div className="at-deckpicks">
+            {all.map((d) => {
+              const on = chosen.includes(d.id);
+              return (
+                <button
+                  className={`at-deckpick${on ? " on" : ""}${d.locked ? " locked" : ""}`}
+                  key={d.id}
+                  aria-pressed={on}
+                  disabled={!!d.locked}
+                  onClick={() => !d.locked && onToggle(d.id, on)}
+                >
+                  <span className="at-tickbody">
+                    <b>{d.title}</b>
+                    <i>{deckSize(d)}</i>
+                  </span>
+                  {/* What tapping it does, rather than a tick saying what
+                      is already true: the row is the verb. A locked deck
+                      says so instead, since tapping it does nothing. */}
+                  <span className="at-deckmark">
+                    {d.locked ? (
+                      <span title="Locked" aria-label="Locked" role="img"><Icon name="lock" size={14} /></span>
+                    ) : on ? "Added" : "Add"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {say.note && <Help>{say.note}</Help>}
+        </PickSheet>
+      )}
+    </div>
+  );
+}
