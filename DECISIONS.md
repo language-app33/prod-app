@@ -5398,3 +5398,22 @@ already counted passes owed and nothing it restates changed.
 **Revisit if** learners report cards marked learnt that they do not know:
 the first thing to look at is a miss that is not followed by a second.
 
+
+## A comma in a meaning is part of it, when marking too
+
+A learner reported three times that "He is cold, he wants a jacket"
+(k5b6526eedb99, بردان بده جاكيت) was marked wrong, typed out in full with
+or without the comma. `checkEn` split the expected English on `/`, `;`
+and `,`, so the meaning became "He is cold" and "he wants a jacket" plus
+the whole field with every alternative in it: the full sentence matched
+nothing, and either half was marked right.
+
+**Now.** `checkEn` splits on a slash or semicolon only, as `readAlike`,
+`meaningsOf` and the other checkers already did. `normEn` drops the comma,
+so the phrase is right with or without it. The comma split had been kept
+on purpose, as generosity to a hand-written card listing two meanings with
+a comma; the owner chose the slash as the only separator.
+
+**What it costs.** A card written "big, large" no longer accepts "big"
+alone. It wants a slash. The transliteration check still splits on a
+comma; nothing has been reported there, and it was left as it was.
