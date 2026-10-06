@@ -454,6 +454,42 @@ export function agreeingBlanks(
 }
 
 /**
+ * The words a sentence's only blank is showing in their main form alone,
+ * where they have other forms the teacher could have it go through.
+ *
+ * Asked by the examples list, which is where a teacher sees "what is
+ * {{this}}?" come out as هاد and nothing else and goes looking on the
+ * wrong card: the ticks on the word are right, and what is left is the
+ * sentence's own "Which forms it uses" — see blankAdmits. Empty once that
+ * says every form, and wherever the blank has another to agree with.
+ * Each word once, as the card's own word, oldest card first.
+ */
+export function mainFormOnly(
+  form: Held | null | undefined,
+  pool: Held[],
+  lang: Lang | null | undefined,
+): { slot: string; words: string[] } | null {
+  const holes = slotsOf(form);
+  if (holes.length !== 1) return null;
+  const [slot] = holes;
+  if (linkedToNothing(form, slot)) return null;
+  const words: string[] = [];
+  const byAge = [...(pool || [])].sort((a, b) => (a.created || 0) - (b.created || 0));
+  for (const card of byAge) {
+    if (!card || (lang && card.lang && card.lang !== lang.id)) continue;
+    const spec = agreementOf(lang, str(card.category));
+    if (!spec || !fillsOf(card, kindOf(card, lang)).includes(slot) || aboutPerson(card, slot)) continue;
+    const own = str(leadOf(card) && (leadOf(card) as Held).ar);
+    const rows = rowIdsOf(spec);
+    const more = (formsOf(card) as Held[]).some(
+      (f) => rows.has(rowOf(f)) && isLent(f) && !!str(f.ar) && str(f.ar) !== own,
+    );
+    if (more && own && !words.includes(own)) words.push(own);
+  }
+  return words.length ? { slot, words } : null;
+}
+
+/**
  * The same, for every blank anywhere on the card.
  *
  * A word or a sentence leaves its holes in its own words, so its lead form
