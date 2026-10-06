@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.370 — 6 October 2026
+
+**"Learn more" under an answer is open from the start.**
+
+- Everything else worth knowing about a card — what it means, how it
+  sounds and is written, the phrase it turned up in — is now shown straight
+  away under the answer, beneath a plain "Learn more" heading. It used to
+  open on a tap.
+- The arrow beside "Learn more" is gone, and the box can no longer be
+  folded away. The trade-off: on a card with a lot to say, the Continue
+  button sits further down the page.
+
 ## 0.369 — 6 October 2026
 
 **On a number system, the counting examples wait for the word they show.**

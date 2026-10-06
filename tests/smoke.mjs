@@ -1226,18 +1226,16 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const dupes2 = answered.filter((n, i) => n !== "related-word" && answered.indexOf(n) !== i);
     check("and each of those means one thing too", dupes2.length === 0, dupes2.join(", "));
 
-    /* The extras open closed, behind one tap. The answer is what you came
-       back for; five blocks of context under it is a page to scroll past
-       rather than a thing to read. */
-    check("what is not the answer starts put away",
-      !document.querySelector('[data-el="also"]'), "the box is open before it is asked for");
-    const moreBtn = document.querySelector('[data-el="also-toggle"]');
-    check("and there is an invitation to open it",
-      !!moreBtn && /Learn more/.test(moreBtn.textContent), moreBtn ? moreBtn.textContent : "no toggle");
-    check("which says whether it is open", moreBtn && moreBtn.getAttribute("aria-expanded") === "false",
-      moreBtn ? String(moreBtn.getAttribute("aria-expanded")) : "");
-    click(moreBtn);
-    await sleep(120);
+    /* The extras are shown open, under a plain "Learn more" heading with
+       nothing to fold them away: they are there to be read. */
+    const moreHead = document.querySelector('[data-el="also-heading"]');
+    check("what is not the answer is headed Learn more",
+      !!moreHead && /^Learn more$/.test(moreHead.textContent.trim()), moreHead ? moreHead.textContent : "no heading");
+    check("and the heading is not a control that folds it away",
+      !!moreHead && moreHead.tagName !== "BUTTON" && !moreHead.querySelector("svg") && !moreHead.hasAttribute("aria-expanded"),
+      moreHead ? moreHead.outerHTML : "");
+    check("and the box is open without being asked for",
+      !!document.querySelector('[data-el="also"]'), "the box is closed");
 
     /* Everything that is not the answer, in one box. The members are each
        conditional, so what matters is that whichever turned up are inside
@@ -3728,12 +3726,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     }
 
     /* Move two: what the answer screen says about where the word lives.
-       Behind "Learn more", which is where everything that is not the
-       answer lives. */
-    const more = document.querySelector('[data-el="also-toggle"]');
+       Under "Learn more", which is where everything that is not the
+       answer lives, open from the start. */
+    const more = document.querySelector('[data-el="also"]');
     if (/Choose the meaning/.test(asked) && !alsoOnMeaning) {
-      if (more) click(more);
-      await sleep(120);
       alsoOnMeaning = {
         box: !!more,
         said: ((document.querySelector('[data-el="also-hint"]') || {}).textContent || "")
@@ -3741,8 +3737,6 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       };
     }
     if (more) {
-      click(more);
-      await sleep(120);
       const where = document.querySelector('[data-el="also-context"]');
       if (where && /الكتاب كبير/.test(where.textContent || "")) {
         sawWhereItTurnedUp += 1;

@@ -5745,34 +5745,23 @@ export function praiseFor(n: number) {
 }
 
 /* --- AlsoBox --------------------------------------------------------
-   What is worth knowing beyond the answer, behind one tap. It opens
-   closed: the answer is what you came back for, and five blocks of
-   context under it is a page to scroll past rather than a thing to
-   read. Anyone who wants them is one tap away, and the tap is the
-   signal that they are actually being read.
+   What is worth knowing beyond the answer, under a "Learn more" heading.
+   It is shown open, with nothing to fold it away: the blocks are there to
+   be read, and a tap to reach them was a tap most answers never got.
 
-   Renders nothing — not even the invitation — when there is nothing to
-   put in it, so "Learn more" is never a promise the box cannot keep. */
-function AlsoBox({ children, open, onToggle }: { children?: Node; open?: boolean; onToggle?: () => void }) {
+   Renders nothing — not even the heading — when there is nothing to put
+   in it, so "Learn more" is never a promise the box cannot keep. */
+function AlsoBox({ children }: { children?: Node }) {
   const shown = React.Children.toArray(children).filter(Boolean);
   if (!shown.length) return null;
   return (
     <>
-      <button
-        type="button"
-        className="at-alsomore"
-        data-el="also-toggle"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
+      <p className="at-alsomore" data-el="also-heading">
         Learn more
-        <Icon name={open ? "chevronUp" : "chevronDown"} size={20} />
-      </button>
-      {open && (
-        <div className="at-alsobox" data-el="also">
-          {shown}
-        </div>
-      )}
+      </p>
+      <div className="at-alsobox" data-el="also">
+        {shown}
+      </div>
     </>
   );
 }
@@ -8856,7 +8845,6 @@ export default function ArabicTrainer() {
   const [showMeaning, setShowMeaning] = useState(false);
   /* Closed for every new question. Opening it for one card is not a
      standing request to see it for the next twenty. */
-  const [alsoOpen, setAlsoOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [tally, setTally] = useState({ ok: 0, no: 0 });
   /*
@@ -10306,7 +10294,6 @@ export default function ArabicTrainer() {
     setRetried(false);
     setFlaggedNow(false);
     setEasedFor(null);
-    setAlsoOpen(false);
     setShowSaid(false);
     setShowMeaning(false);
     setHintOpen(null);
@@ -12595,7 +12582,7 @@ export default function ArabicTrainer() {
                           noticing, so each says what it is, they are set
                           smaller, and they are kept together in one box
                           rather than trailing down the page. */}
-                      <AlsoBox open={alsoOpen} onToggle={() => setAlsoOpen((v) => !v)}>
+                      <AlsoBox>
                         {/* The phrase it appeared in, whole, and what it
                             means. A gap question showed that meaning with
                             the gap; every other question held it back

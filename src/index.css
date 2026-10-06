@@ -289,11 +289,9 @@ button {
    it is an offer, not the next thing to do — the next thing to do is
    Continue, at the foot of the screen. It carries the chevron so the tap
    target says which way the box will go. */
-.at-alsomore { display:flex; align-items:center; justify-content:center; gap:4px;
-  margin: 14px auto 0; background:none; border:0; cursor:pointer;
+.at-alsomore { margin: 14px 0 0; text-align:center;
   font-family: var(--ui); font-size:15px; font-weight:700; color: var(--muted);
   padding:6px 10px; }
-.at-alsomore:hover { color: var(--text); }
 .at-alsobox { margin-top:10px; padding:14px; background: var(--well);
   border:2px solid var(--line); border-radius: var(--r); }
 /* The dividers belong to the box, not to its members: the related words
