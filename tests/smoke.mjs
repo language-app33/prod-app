@@ -5643,6 +5643,9 @@ const openPronounTables = async () => {
       check("and so is the demonstrative, which reads this, this is or is this",
         names().includes("demonstrative") && !names().includes("demonstrative-is") && !names().includes("is-demonstrative"),
         names().join(" ") || "(nothing offered)");
+      check("and the noun, whose readings are asked once it is chosen rather than listed",
+        names().includes("noun") && !names().includes("noun-is") && !names().includes("is-noun"),
+        names().join(" ") || "(nothing offered)");
       click(rowFor(/^pronoun$/));
       await sleep(300);
       const title = () => {

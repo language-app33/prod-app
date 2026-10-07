@@ -8,6 +8,31 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.387 — 7 October 2026
+
+**"My house is" and "my houses are" from one noun blank.**
+
+- A noun blank can now read three ways in English, like a pronoun blank
+  or *this*: the noun on its own (*my house*), with "to be" after it
+  (*my house is*), or as a question (*is my house*). The Arabic stays as
+  it is.
+- The app chooses between *is* and *are*, so a sentence comes out right
+  for every form in the blank: "my house is big" with بيتي and "my
+  houses are big" with بيوتي. Before, a teacher had to type "is" into the
+  English, and it read "houses is big" whenever a plural came up.
+- Plurals and pairs take *are*. The singular, and a word marked as having
+  no number (*water*), take *is*.
+- You are only asked about this when some noun in the blank has a
+  plural. For a singular noun, typing "is" yourself still works.
+- *With or without a pronoun on the end* is still its own question. It
+  is asked next, after you choose how the noun reads.
+- This works for a group tag and a card's ID with nouns in it too. In a
+  tag that also has adjectives, "with to be" still means "I am tired"
+  with no one named, and the nouns stay out of it, as before.
+- To check by hand: give a noun a plural, put a {{noun-is}} blank in
+  "{{noun-is}} big", and see that the examples read "… is big" for the
+  singular and "… are big" for the plural.
+
 ## 0.386 — 7 October 2026
 
 **Finding a custom tag by typing its name.**
