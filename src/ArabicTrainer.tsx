@@ -3,7 +3,7 @@ import type {
   Course, DayMoves, Deck, Doc, ExerciseState, FlagKind, FlagVerdict, Form, Item,
   Lang, LangId, Millis, Question, SavedSession, Settings, User,
  VerbSpec, } from "./types.ts";
-import type { Node } from "./shared.tsx";
+import type { CardViews, Node } from "./shared.tsx";
 import { say } from "./wording.ts";
 import {
   APP_COMMIT,
@@ -12,6 +12,9 @@ import {
   Button,
   CardReadout,
   CardTile,
+  cardKindLabel,
+  cardSubtypeLabel,
+  cardWords,
   DeckSwitch,
   ClipList,
   ConfirmModal,
@@ -565,7 +568,7 @@ export function mergeMoves(
 import { fillerMarks, gradeInto, verdictOf } from "./grade.ts";
 import type { Filler, Mark } from "./grade.ts";
 
-import { applyUpdate, beforeReload, holdUpdates } from "./updates.ts";
+import { applyUpdate, beforeReload, onUpdateReady, updateReady } from "./updates.ts";
 import {
   syncClips,
   clipIdsIn,
@@ -846,6 +849,45 @@ function standingShort(at: Standing | null): string {
   if (at.status === "done") return "Learnt";
   if (at.status === "cleared") return "Cleared";
   return `Level ${at.level}`;
+}
+
+/*
+ * A learner's card list as lines or a table — see CardViews. The table is
+ * what a learner compares across their cards: what each says, what kind it
+ * is, and how far they have got with it. `key` is which list, so each
+ * remembers the view it was left at.
+ */
+const STUDENT_COLUMNS = [
+  { key: "word", label: "Word" },
+  { key: "meaning", label: "Meaning" },
+  { key: "kind", label: "Kind" },
+  { key: "subtype", label: "Subtype" },
+  { key: "level", label: "Level" },
+];
+function studentViews(
+  key: string,
+  { lang, open, level }: { lang: (it: Item) => Lang; open: (it: Item) => void; level: (it: Item) => string },
+): CardViews<Item> {
+  return {
+    key,
+    columns: STUDENT_COLUMNS,
+    row: (it) => {
+      const L = lang(it);
+      const said = cardWords(it, L);
+      return {
+        word: said.word,
+        meaning: said.meaning,
+        cells: {
+          word: said.word,
+          meaning: said.en,
+          kind: cardKindLabel(it),
+          subtype: cardSubtypeLabel(it, L),
+          level: level(it),
+        },
+        open: () => open(it),
+      };
+    },
+  };
 }
 
 /* ------------------------------------------------------------------
@@ -8851,14 +8893,15 @@ export default function ArabicTrainer() {
      the unfiltered path. */
   const [deck] = useState<any[]>([]);
   const [session, setSession] = useState<any | null>(null); // { exercises, practice, items }
-  /* A newly deployed build takes the page over by itself — see updates.ts.
-     Mid-question is the one moment where that would land on top of
-     something, so a session in flight holds it until the session ends or
-     the app is put away. */
-  useEffect(() => {
-    holdUpdates(!!session);
-    return () => holdUpdates(false);
-  }, [session]);
+  /* A newly deployed build has taken charge — see updates.ts. The page
+     does not reload itself for it, since that would throw away whatever
+     is on screen and not yet saved; it says so and offers Reload, and the
+     person picks the moment. "Later" puts the bar away for this page; the
+     version line in the menu still offers Reload. */
+  const [updateWaiting, setUpdateWaiting] = useState(updateReady);
+  const [updateLater, setUpdateLater] = useState(false);
+  const [updateGoing, setUpdateGoing] = useState(false);
+  useEffect(() => onUpdateReady(setUpdateWaiting), []);
   /* Null until the person has set up or signed in; the app shows the
      welcome screens until then. */
   const [account, setAccount] = useState(() => API.loadAccount());
@@ -9679,9 +9722,9 @@ export default function ArabicTrainer() {
     };
     window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", onHidden);
-    /* And before any reload the app brings on itself, which is a service
-       worker taking over with a new build — that used to happen inside the
-       debounce and take the last answer with it. */
+    /* And before any reload the app brings on itself, which is Reload
+       pressed for a new build — that used to happen inside the debounce
+       and take the last answer with it. */
     const release = beforeReload(flush);
     return () => {
       window.removeEventListener("pagehide", flush);
@@ -13317,6 +13360,27 @@ export default function ArabicTrainer() {
       )}
 
 
+      {updateWaiting && !updateLater && !inExercise && !(lastDeleted && lastDeleted.length > 0) && (
+        /* Kept off a question in progress and out of the undo bar's way,
+           which sits in the same place. */
+        <div className="at-undo at-updatebar" role="status">
+          <span className="what">A new version is ready. Save your work, then reload.</span>
+          <Button size="sm" onClick={() => setUpdateLater(true)} disabled={updateGoing}>
+            Later
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setUpdateGoing(true);
+              void applyUpdate();
+            }}
+            disabled={updateGoing}
+          >
+            {updateGoing ? "Reloading…" : "Reload"}
+          </Button>
+        </div>
+      )}
+
       {/* The three things that float above the app. They appear and vanish
           together, so they are decided in one place rather than three. */}
       {!inExercise && (
@@ -13892,6 +13956,11 @@ function ItemsTab({
             items={byTag}
             itemKey={(it) => it.id}
             size="small"
+            views={studentViews("student-cards", {
+              lang: () => activeLang(),
+              open: (it) => setSheet({ view: it }),
+              level: (it) => standingShort(standing(cardStandings(it, settings, items))),
+            })}
             busy={false}
             onNew={OWN ? () => setSheet("single") : undefined}
             filters={
@@ -17042,6 +17111,11 @@ function DeckScreen({
         empty="No cards match."
         groups={DECK_RUNS}
         groupOf={(it: Item) => (progressOf.get(it.id) ? deckRunOf(progressOf.get(it.id)) : "waiting")}
+        views={studentViews("student-deck", {
+          lang: (it) => langOf(settingsFor(settings, it)),
+          open: (it) => onCard(it),
+          level: (it) => (progressOf.get(it.id) ? standingShort(progressOf.get(it.id) || null) : "Opens later"),
+        })}
         match={(it: Item, needle: string) =>
           (leadOf(it).ar || "").includes(needle) ||
           (leadOf(it).lat || "").toLowerCase().includes(needle) ||
@@ -17336,6 +17410,11 @@ function ProgressTab({
              under "Learnt" they are all in the one state, which the list
              notices for itself and draws without headings. */
           groups={onLevel ? STATUS_RUNS : undefined}
+          views={studentViews("student-progress", {
+            lang: (it) => langOf(settingsFor(settings, it)),
+            open: (it) => setViewing(it),
+            level: (it) => standingShort(progressOf.get(it.id) || null),
+          })}
           groupOf={(it: Item) => {
             const at = progressOf.get(it.id);
             return at ? at.status : "none";
