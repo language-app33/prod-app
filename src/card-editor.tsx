@@ -48,6 +48,7 @@ import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, dropRail, fillNames, fillsO
 import { agreeingBlanks, combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
+import { RETIRED_TAGS } from "./numbers/generate.ts";
 import { MAX_IMAGES, shrinkImage } from "./images.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -4763,6 +4764,8 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         });
       } else if (b.built === "reading") {
         /* Offered under the pronoun, above. */
+      } else if (RETIRED_TAGS.has(b.name)) {
+        /* A number part's old name: still filled, never offered. */
       } else if (b.used > 0 || b.wrote > 0) {
         rows.push({ name: b.name, kind: "group", words, note: "The cards tagged with it", ...readingsBehind(b.name) });
       }

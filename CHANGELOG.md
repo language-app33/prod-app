@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.367 — 7 October 2026
+
+**A shorter, clearer list of number blanks.**
+
+- When you add a number blank to a sentence, the list now offers only
+  the current number ranges: 0 to 9, 10 to 19, 20 to 99, 100 to 999 and
+  1,000 and over, and the same five with "count" in front for counting
+  things. The old names (0 to 10, 11 to 99, and the old counting ranges
+  1 to 2, 3 to 10 and 11 to 20) were showing up next to them, which
+  made it look like there were overlapping choices.
+- Sentences you already wrote with one of the old names still work and
+  still get filled with numbers as before. You don't need to change
+  them.
+
 ## 0.366 — 6 October 2026
 
 **Bigger keys for writing numbers in Arabic numerals.**
