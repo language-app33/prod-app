@@ -479,7 +479,7 @@ test("and so it is offered to fill the blank that means any word", () => {
      kind, and a card that reads as a word answers to `{{word}}`. */
   const vi = LANGUAGES["vi-HUE"];
   const thanks = { id: "x", lang: "vi-HUE", category: "noun", forms: [{ id: "x", ar: "cảm ơn", en: "thanks", lat: "" }] };
-  assert.deepEqual(fillsOf(thanks, kindOf(thanks, vi)).sort(), ["noun", "word"]);
+  assert.deepEqual(fillsOf(thanks, kindOf(thanks, vi)).sort(), ["is-noun", "noun", "noun-is", "word"]);
 });
 
 /* --- finding a word inside a phrase ---
