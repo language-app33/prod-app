@@ -34,6 +34,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
   [QUESTION, [
     ["question-instruction", "The line telling you what to do. The same shape in every exercise.", "Write in English"],
     ["question-form-tag", "Which form is being asked, only where the question could not otherwise say — written from its meaning, or with another form of the card among the tiles: only what tells it from the others, in whole words.", "feminine plural"],
+    ["question-clue", "Which card the question means, where another card the learner studies shows the same word or the same meaning: the teacher's clue, or the other card's answer ruled out.", "not patience"],
     ["question-fill-tag", "What a word dropped into a sentence is, where its English could be more than one form of it. Only then; nothing on most sentences.", "Your name: plural"],
     ["question-prompt", "The block being asked about. A word, a phrase with a gap in it, a play button, or a conversation, depending on the exercise.", ""],
     ["question-prompt-text", "The words inside it, when it is words. One size in every exercise.", "كِتاب"],

@@ -4231,6 +4231,9 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        the `{{pronoun-is}}` and `{{is-pronoun}}` blanks put in the English. */
     ...(card.enIs ? { enIs: String(card.enIs) } : null),
     ...(card.enAsk ? { enAsk: String(card.enAsk) } : null),
+    /* And which meaning it is, where the teacher wrote a clue: what a
+       question puts under a prompt another card shares — see clueFor. */
+    ...(card.clue ? { clue: String(card.clue) } : null),
     /* And what number it is worth, where it is a number. Carried for the
        same reason the three above are — it is the teacher's answer and
        nothing here could read it off the word — and it is what everything

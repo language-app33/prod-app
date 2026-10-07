@@ -703,6 +703,14 @@ export const CARD_FACTS: FieldRule[] = [
     shown: (value) => (str(value) ? [str(value)] : []),
   },
   {
+    key: "clue",
+    on: "card",
+    label: "Clue",
+    what: "A few words saying which meaning this card is — the plant, direction — shown under a question only where another card the student studies shows the same word or the same meaning. Absent means the question names the other card's answer instead: not patience.",
+    reader: "both",
+    shown: (value) => (str(value) ? [str(value)] : []),
+  },
+  {
     key: "enAsk",
     on: "card",
     label: "As a question",
