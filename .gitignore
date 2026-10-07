@@ -24,3 +24,4 @@ tests/.review-build/
 tests/.blank-pools-build/
 tests/.session-fill-build/
 tests/.backup-build/
+tests/.counted-faces-build/

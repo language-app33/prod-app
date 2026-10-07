@@ -8,6 +8,32 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.388 — 7 October 2026
+
+**Counting forms of numbers are practised with something to count.**
+
+- The form a number takes when it counts things — Arabic three to
+  nineteen before a noun, one with a masculine or a feminine word, the
+  Hebrew masculine and feminine forms of one to nineteen and two's paired
+  forms — is no longer asked on its own. Each time it comes round it is
+  asked as a short phrase: the number with one of your noun cards beside
+  it, in the shape that number needs, such as "3 books". A different noun
+  each time.
+- Only nouns the student has already learnt in that shape are used. Until
+  there is one, that counting form simply waits and isn't asked at all; it
+  doesn't take up a place among the new words meanwhile.
+- Arabic two and Hebrew two's plain masculine and feminine forms never
+  stand straight in front of a noun, so they are practised inside
+  "22 books"-style phrases, once twenty is learnt.
+- Hebrew's form for three to nine before "thousands" counts thousands, not
+  things, and is practised as before.
+- What students had already earned on these forms carries over. A right
+  answer also counts as practice on the noun.
+- The forms are still shown on each number's card for reading, and the
+  "3 books" question each stretch of numbers asks is unchanged.
+- Worth checking by hand: a student who has learnt a few nouns should see
+  phrases like "3 books" where they used to see "three · before a noun".
+
 ## 0.387 — 7 October 2026
 
 **"My house is" and "my houses are" from one noun blank.**

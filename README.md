@@ -1104,6 +1104,17 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   gender and which of its faces are written, never on its words, so nouns
   are checked once per kind (`countingWarnings`).
 
+  **A face that counts things is never asked bare.** *Three* before a
+  noun, *one* with a feminine word, Hebrew's gendered one to nineteen: each
+  is asked as a small sentence made under the hood and shown to nobody —
+  its number with one of the learner's nouns, cleared in the shape the
+  number puts it in, a different one each time (`faceAsk`). Which faces
+  those are is read off the composer (`countedAt`): two's gendered words
+  meet a noun only in 22, so they are asked there. The face keeps its id
+  and its schedule, is asked only to be read and written (`COUNTED_FACE_TYPES`),
+  credits the noun through its tokens (`castFace`), and is quiet while no
+  noun fits (`withFacesWaiting`).
+
   A box that has a word in it asks two more things about it — **how it
   sounds** and **a recording** — and both ride onto the card the word
   becomes, in the fields a card written by hand keeps them in. A

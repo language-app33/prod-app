@@ -5484,3 +5484,39 @@ At the same time, "Learn more" and the card's note are gone from under
 every grid. They spoke of the first word only and never said which; the
 owner preferred nothing to five times as much.
 
+## A face that counts things is asked with a thing
+
+**7 October 2026** · `src/numbers/generate.ts` (`countedAt`, `faceAsk`),
+`src/offers.ts` (`COUNTED_FACE_TYPES`), `src/ArabicTrainer.tsx`
+(`castFace`, `withFacesWaiting`, `KnownNumbers.face`)
+
+The owner's rule: the counting-things version of a number is never
+practised without a noun. Each such face is asked as a small sentence made
+under the hood — the number and one of the learner's noun cards in the
+shape the number puts it in — and shown to nobody as a card. The owner
+chose: a noun the learner has already cleared in that shape (the bar every
+building block meets), a different noun each time round, nothing asked
+while no noun fits, and the progress earned on the bare face kept.
+
+Which faces count is read off the composer, not declared: a face counts
+wherever rendering a number with a noun reaches for it (probed with a
+stand-in noun of each gender), at its own number, or failing that twenty
+above it — Arabic and Hebrew two's gendered words meet a noun only inside
+22, which the owner agreed is where they are asked. Hebrew's bound three
+to nine before *thousands* is reached for by no noun and is asked as it
+was. The card's own word is never a counting face.
+
+The face stays on its card with its own id, so its schedule is where it
+was: no new item, and nothing to hand on. It is asked only the keys it
+climbed when bare that still make sense for a phrase made fresh each time
+— read it (`ar2en`) and write it (`en2ar`, `own2ar`) — and not the
+recordings, transliterations or grids, since nobody recorded or spelled
+out the phrase whole. The ask is drawn as a range's is, on a seed that
+moves on a right answer; the cast form carries the other words as tokens,
+so the noun is credited the way a counted number credits it, and the
+face's own word is left out of them so it is not marked twice.
+
+A face with no noun to pair with is quiet, as an unopened row is: no
+question, no place among the new words, its schedule kept. And it no
+longer stands among the words whose clearing opens the next stretch,
+since counting never holds a stretch back.

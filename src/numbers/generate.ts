@@ -37,11 +37,12 @@ import type {
   FormKey,
   NumberSystem,
   Range,
+  SlotSpec,
   TimeComposer,
   TimeSystem,
   Token,
 } from "./types.ts";
-import { askFor, countable, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
+import { askFor, blocking, countable, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
 import { COUNTING_WAS, NUMBER_CEILING, NUMBER_RANGES, countingOf, partsNow } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
@@ -175,7 +176,7 @@ interface Made {
   systemId: string;
   slot: string;
   /** The card's own word, and the faces beside it. */
-  faces: { key: FormKey; text: string; label: string; lat?: string; audio?: string[] }[];
+  faces: { key: FormKey; text: string; label: string; lat?: string; audio?: string[]; countedAt?: number[] }[];
   en: string;
   note?: string;
   /** The number in the language's own figures, where it has them. */
@@ -238,6 +239,9 @@ function cardOf(made: Made): Item {
        its transliteration is ever put to this card. */
     lat: String(face.lat || "").trim(),
     ...(i === 0 ? null : { row: "number", col: face.key, note: face.label }),
+    /* A face that counts things is asked only with a thing to count —
+       see countedAt and faceAsk. */
+    ...(i > 0 && face.countedAt && face.countedAt.length ? { countedAt: face.countedAt } : null),
     /* On every face, because every face is asked: the question at the top
        of the card's ladder writes the word from these figures. */
     ...(made.numeral ? { numeral: made.numeral } : null),
@@ -294,6 +298,95 @@ function numeralCard(id: string, lang: LangId, systemId: string, digit: number, 
   } as Item;
 }
 
+/* ---- a face that counts things, asked with a thing to count ---- */
+
+/*
+ * A face of a number that is for counting things — *three* before a noun,
+ * *one* with a feminine word — is never asked bare. Practising the word a
+ * number takes in front of a noun with no noun there is practising half a
+ * phrase, so the face is asked as a small sentence of its own, made under
+ * the hood and shown to nobody as a card: the number, and one of the
+ * learner's noun cards in the shape that number puts it in. A different
+ * noun each time round, and only one the learner has already cleared in
+ * that shape. See DECISIONS.md, "A face that counts things is asked with a
+ * thing".
+ *
+ * Which faces those are is read off the composer rather than declared: a
+ * face is one wherever saying a number with a noun reaches for it. Three
+ * to nineteen's word before a noun does at once; Arabic two's gendered
+ * words never stand before a noun — two of a thing is the noun's pair
+ * form — and are met with one only inside twenty-two, so that is the
+ * number they are asked in. Hebrew's bound three before *thousands* is
+ * never reached for by a noun, and is asked as it always was.
+ */
+
+/* Stand-ins for a noun of each gender with every shape written, so
+   whether a face is reached for turns on the composer alone. */
+const PROBE_NOUNS: CountedNoun[] = (["m", "f"] as const).map((gender) => ({
+  id: "",
+  sg: "-",
+  dual: "-",
+  pl: "-",
+  gender,
+  en: "",
+}));
+
+const hasFace = (tokens: Token[], slot: string, key: FormKey): boolean =>
+  tokens.some((t) => t.slot === slot && t.formKey === key);
+
+/**
+ * The numbers one face of a slot is said in with a noun: its own number
+ * where that puts the face before a noun, and otherwise the number twenty
+ * above it where that does — or none, for a face no counted phrase uses.
+ */
+export function countedAt(composer: Composer, sys: NumberSystem, spec: SlotSpec, key: FormKey): number[] {
+  const n = figureOf(spec.label);
+  if (n == null || n < 1 || n > 19) return [];
+  for (const value of n < 10 ? [n, n + 20] : [n]) {
+    if (PROBE_NOUNS.some((noun) => hasFace(composer.render(value, sys, { noun }).tokens, spec.slot, key))) {
+      return [value];
+    }
+  }
+  return [];
+}
+
+/**
+ * The small sentence one counting face is asked as, this time round: one
+ * of the numbers it is said in, with one of the learner's nouns.
+ *
+ * Every pairing whose rendering puts this face in it, is whole, and whose
+ * other words — the noun in the shape it is shown in, *twenty* in twenty-two
+ * — the learner has cleared; then one of those on the seed, so a missed
+ * question comes back the same and a right one moves to another noun. The
+ * face itself is what is being practised and is not waited on. Null where
+ * no noun can be paired with it yet, and the face is then not asked.
+ */
+export function faceAsk(
+  slot: string,
+  key: FormKey,
+  values: number[],
+  seed: string,
+  set: { composer: Composer | null; sys: NumberSystem },
+  ids: Set<string>,
+  knows: Knows,
+): Ask | null {
+  const { composer, sys } = set;
+  if (!composer || !values.length) return null;
+  const rangeId = `face:${slot}|${key}`;
+  const fits: Ask[] = [];
+  for (const value of values) {
+    for (const noun of sys.nouns || []) {
+      const got = composer.render(value, sys, { noun });
+      if (!got.text || blocking(got.warnings).length || !hasFace(got.tokens, slot, key)) continue;
+      const others = got.tokens.filter((t) => !(t.slot === slot && t.formKey === key));
+      if (!tokensKnown(others, sys.id, "", ids, knows)) continue;
+      fits.push({ rangeId, kind: "numbers", value, nounId: noun.id });
+    }
+  }
+  if (!fits.length) return null;
+  return fits[Math.floor(seeded(`${rangeId} ${seed}`)() * fits.length)];
+}
+
 /* ---- the whole set ---- */
 
 export interface Generated {
@@ -331,6 +424,7 @@ export function generate({ composer, sys, timeComposer, timeSys, now, numerals }
         label: (spec.faceLabels && spec.faceLabels[key]) || labelForFace(key),
         lat: (lex.lat || {})[key],
         audio: (lex.audio || {})[key],
+        countedAt: key === spec.formKeys[0] ? [] : countedAt(composer, sys, spec, key),
       }))
       .filter((f) => f.text);
     if (!faces.length) continue;

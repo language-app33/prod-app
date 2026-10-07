@@ -193,7 +193,7 @@ import type { LangChoice } from "./lang-choice.ts";
    language-shaped is: through a registry keyed by language, never by
    naming one. See src/numbers/. */
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
-import type { Ask, Token } from "./numbers/types.ts";
+import type { Ask, FormKey, Token } from "./numbers/types.ts";
 import { countingOf } from "./numbers/types.ts";
 import {
   confusableTimes,
@@ -203,7 +203,7 @@ import {
   seeded,
 } from "./numbers/range.ts";
 import type { Asking, SystemSet } from "./numbers/generate.ts";
-import { askingsKnown, askKnown, cardsOfToken, fillerCards, homeStretch, isFromSystem, inOwnFigures, isNumeralCard, isRangeSkill, numeralId, stretchBefore, systemFor, systemIdOf, systemOfId } from "./numbers/generate.ts";
+import { askingsKnown, askKnown, cardsOfToken, faceAsk, fillerCards, homeStretch, isFromSystem, inOwnFigures, isNumeralCard, isRangeSkill, numeralId, stretchBefore, systemFor, systemIdOf, systemOfId } from "./numbers/generate.ts";
 import { nounsByLanguage, setsGiven } from "./numbers/nouns.ts";
 import { ClockDial, ClockFace } from "./clock.tsx";
 import {
@@ -1771,11 +1771,39 @@ function wordsCleared(stretch: Item, items: Item[], lang: Lang): boolean {
     const card = byId.get(id);
     if (!card || card.drill === false) return true;
     return unitsOf(card).every(({ unit }) => {
-      if (!isAsked(unit)) return true;
+      /* Nor a face that counts things, which is asked with a noun and
+         waits on one: counting never holds the next stretch back. */
+      if (!isAsked(unit) || unit.countedAt) return true;
       const types = availableTypes(unit, lang);
       return !types.length || cleared(types, (t) => statesOf(unit)[t]);
     });
   });
+}
+
+/*
+ * The faces that count things with no noun yet to count, added to the
+ * quiet ones.
+ *
+ * Such a face is asked only as a number with one of the learner's nouns
+ * beside it (see faceAsk), and only with a noun already cleared in the
+ * shape the number puts it in. Until there is one it is quiet rather than
+ * missing, as a row of a verb's table nobody has reached is: no question
+ * dealt, no place held among the new words, and whatever the learner had
+ * on it from when it was asked bare still there for the day a noun is.
+ * Read after the cells, since whether a noun is cleared is read off the
+ * ladder, which reads them. The same set back where nothing is waiting.
+ */
+function withFacesWaiting(quiet: Set<string>, items: Item[], settings: Settings, systems: SystemSet[]): Set<string> {
+  const faces = items.flatMap((card) =>
+    isFromSystem(card) ? formsOf(card).filter((f) => f.countedAt && !quiet.has(f.id)).map((unit) => ({ card, unit })) : [],
+  );
+  if (!faces.length) return quiet;
+  const numbers = knownNumbers(items, settings, systems);
+  const waiting = faces.filter(({ card, unit }) => !numbers.face(card, unit, "ready"));
+  if (!waiting.length) return quiet;
+  const out = new Set(quiet);
+  for (const { unit } of waiting) out.add(unit.id);
+  return out;
 }
 
 /* What a table's cells wait on, where it says nothing: the word, which is
@@ -2118,7 +2146,9 @@ export function installIndexes(items: Item[], settings: Settings, systems: Syste
   const reach = valueReachOf(lent, settings);
   setValueReach(reach.map, reach.forms);
   setValueOwner(reach.owner);
-  setQuietUnits(quietUnits(items, settings));
+  const quiet = quietUnits(items, settings);
+  setQuietUnits(quiet);
+  setQuietUnits(withFacesWaiting(quiet, items, settings, systems));
   setEasedUnits(easedUnits(items, settings));
 }
 
@@ -2608,7 +2638,9 @@ function castRange(
   ex: Question | null | undefined,
   sets: SystemSet[],
 ) {
-  if (!resolved || !ex || !ex.ask || !resolved.parent.range) return resolved;
+  if (!resolved || !ex || !ex.ask) return resolved;
+  if (resolved.unit.countedAt) return castFace(resolved, ex.ask, sets);
+  if (!resolved.parent.range) return resolved;
   const set = systemFor(resolved.parent, sets);
   if (!set) return resolved;
   const said = renderAsk(
@@ -2653,6 +2685,47 @@ function castRange(
     tokens: said.tokens,
   };
   return { ...resolved, unit, parent: withLead(resolved.parent, unit) };
+}
+
+/*
+ * A face that counts things, cast as the small sentence it was dealt as:
+ * *three books* for the word three takes before a noun.
+ *
+ * The face keeps its own id and so its own schedule — the answer is about
+ * it — and the phrase is only what is shown and marked against. The other
+ * words in it, the noun above all, ride along as tokens and are credited
+ * the way the words of a counted number are; the face's own word is left
+ * out of them, since the face is marked as itself.
+ */
+function castFace(
+  resolved: { unit: Form; parent: Item; isSub: boolean },
+  ask: Ask,
+  sets: SystemSet[],
+) {
+  const set = systemFor(resolved.parent, sets);
+  if (!set) return resolved;
+  const said = renderAsk(ask, composerFor(set.numbers.languageId), set.numbers);
+  if (!said.text) return resolved;
+  const slot = String(((resolved.parent.source || {}) as { slot?: unknown }).slot || "");
+  const col = String(resolved.unit.col || "");
+  const lang = LANGUAGES[set.numbers.languageId];
+  const figures = resolved.unit.numeral ? ownFigures(lang, said.digits) : "";
+  const unit: Form = {
+    ...resolved.unit,
+    ar: said.text,
+    en: said.en,
+    /* The number in the language's own figures, with the thing counted
+       beside it, for the question asked from those figures. */
+    ...(figures ? { numeral: `${figures} ${said.en.slice(said.digits.length).trim()}`.trim() } : null),
+    /* Nobody recorded or transliterated the phrase whole. */
+    recs: [],
+    clips: [],
+    slowClips: [],
+    lat: "",
+    note: "",
+    tokens: said.tokens.filter((t) => !(t.slot === slot && t.formKey === col)),
+  };
+  return { ...resolved, unit, parent: resolved.isSub ? resolved.parent : withLead(resolved.parent, unit) };
 }
 
 /*
@@ -3850,6 +3923,10 @@ interface KnownNumbers {
   /** One asking of it on this seed, steered towards `waiting`, or null —
       counting a noun where `counting`, see countingOf. */
   draw: (item: Item, seed: string, waiting: Set<string>, counting?: boolean, heard?: boolean) => Ask | null;
+  /** The small sentence a face that counts things is asked as on this
+      seed — the number with one of the learner's nouns — or null where no
+      noun can stand beside it yet. See faceAsk. */
+  face: (card: Item, unit: Form, seed: string) => Ask | null;
 }
 
 /* The askings each range can put, kept against the system they were read
@@ -3947,6 +4024,13 @@ function knownNumbers(items: Item[], settings: Settings, sets: SystemSet[]): Kno
       if (recorded.length) return recorded[Math.floor(seeded(`${range.id} ${seed} heard`)() * recorded.length)].ask;
       return askKnown(range, seed, set, ids, knows, known, waiting);
     },
+    face: (card, unit, seed) => {
+      const set = setOf(card);
+      const values = (unit.countedAt || []) as number[];
+      if (!set || !values.length || typeof unit.col !== "string") return null;
+      const slot = String(((card.source || {}) as { slot?: unknown }).slot || "");
+      return faceAsk(slot, unit.col as FormKey, values, seed, set, ids, knows);
+    },
   };
 }
 
@@ -4003,6 +4087,12 @@ function drawRange(
      caller drawing many, since it reads every word they hold. */
   numbers: KnownNumbers = knownNumbers(items, settings, sets),
 ): { ask?: Ask; options?: string[] } {
+  /* A face that counts things, asked with a noun beside it — drawn the
+     way a range's number is, on a seed that moves on a right answer. */
+  if (item && unit && unit.countedAt) {
+    const ask = numbers.face(item, unit, `${unit.id} ${type} ${turnOf(statesOf(unit)[type])}`);
+    return ask ? { ask } : {};
+  }
   const range = item && item.range;
   if (!range) return {};
   const set = systemFor(item, sets);
@@ -4072,11 +4162,13 @@ function drawRanges(exercises: Question[], items: Item[], sets: SystemSet[], set
   const out: Question[] = [];
   for (const ex of exercises) {
     const item = byIdOf(items).get(ex.id);
-    if (!item || !item.range || ex.ask) {
+    const unit = item && ex.subId ? formsOf(item).find((f) => f.id === ex.subId) : null;
+    const face = !!(unit && unit.countedAt);
+    if (!item || !(item.range || face) || ex.ask) {
       out.push(ex);
       continue;
     }
-    const drawn = drawRange(item, item.forms[0], ex.type, sets, items, settings, numbers);
+    const drawn = drawRange(item, unit && face ? unit : item.forms[0], ex.type, sets, items, settings, numbers);
     if (drawn.ask) out.push({ ...ex, ...drawn });
   }
   return out;
@@ -4454,7 +4546,7 @@ export function buildSession({
           const drawn = drawRange(item, p.unit, type, sets, items, settings, numbers);
           /* A range none of whose numbers its words can say yet. The pool
              has already left those out; this is a seed that found none. */
-          if (item && item.range && !drawn.ask) continue;
+          if (item && (item.range || (p.unit && p.unit.countedAt)) && !drawn.ask) continue;
           out.push({
             id: p.id,
             subId: p.subId,
@@ -9903,7 +9995,14 @@ export default function ArabicTrainer() {
      row out reads the ladder for every cell in it, and the ladder reads
      what a cell can be asked, which is the question the count above
      answers. */
-  const quiet = useMemo(() => quietUnits(asking, settings), [asking, settings]);
+  const quietCells = useMemo(() => quietUnits(asking, settings), [asking, settings]);
+  setQuietUnits(quietCells);
+  /* And a face that counts things with nothing yet to count — see
+     facesWaiting. After the cells, since it reads the ladder. */
+  const quiet = useMemo(
+    () => withFacesWaiting(quietCells, asking, settings, systems),
+    [quietCells, asking, settings, systems],
+  );
   setQuietUnits(quiet);
   /* And which of them are asked one exercise a level rather than all of
      them, because the word they are a form of is already written from its

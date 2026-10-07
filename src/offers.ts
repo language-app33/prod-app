@@ -162,8 +162,20 @@ export function canAsk(
   if ((spec.dialog || "word") !== roleOf(on.unit, on.scene)) return false;
   if (!drilledBy(spec, lang, on.unit)) return false;
   if (askedInstead(spec, on.unit)) return false;
+  if (on.unit.countedAt && !COUNTED_FACE_TYPES.includes(type)) return false;
   return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}, on.mates || 0, on.pictured || 0, on.heard || 0).length === 0;
 }
+
+/*
+ * What a face of a number that counts things is asked: the phrase read
+ * for what it means, and written from its meaning. It is asked as a
+ * number with a noun beside it, drawn when it is dealt (see faceAsk in
+ * src/numbers/generate.ts), so nothing that plays a recording, spells it
+ * out or sets it among other cards fits: the phrase is new each time and
+ * nobody recorded or transliterated it whole. The same keys the face
+ * climbed when it was asked bare, so its progress is where it was.
+ */
+export const COUNTED_FACE_TYPES = ["ar2en", "en2ar", "own2ar"];
 
 /* Whether another exercise asks this one's question of this unit — see
    `unless`. Not a thing the card is missing, so never offered as one. */
