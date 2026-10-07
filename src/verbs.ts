@@ -467,6 +467,15 @@ export function partnerOf(form: unknown, slots: string[], slot: string): string 
 export const NO_PARTNER = "-";
 
 /**
+ * Whether the teacher linked this blank to nothing. Different from a blank
+ * that merely has no partner: "the weather is {{adjective}}" has none, and
+ * wants the word as it is, where "what is {{this}}?" linked to nothing
+ * wants هاد, هاي and هدول in turn. See blankAdmits in languages.ts.
+ */
+export const linkedToNothing = (form: unknown, slot: string): boolean =>
+  slotLinks(form)[str(slot).toLowerCase()] === NO_PARTNER;
+
+/**
  * Which blank each of a sentence's blanks has been told to agree with.
  *
  * "{{noun}} {{adjective}}" needs nothing said: the first other blank is

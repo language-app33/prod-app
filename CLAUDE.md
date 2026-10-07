@@ -74,3 +74,12 @@ section at the end, clearly marked as such.
 This applies to every plan presented for approval, every proposal offered
 in conversation, and every summary of actions taken at the end of a piece
 of work.
+
+## How to ask clarifying questions
+
+Whenever there are questions for the owner, before building or at any other
+point, ask them this way, every time:
+
+- A numbered list, grouped by topic with sub-numbers: 1a, 1b, 2a, and so on.
+- One question per item, never two in the same item.
+- Concise and non-technical, in the same plain terms as above.

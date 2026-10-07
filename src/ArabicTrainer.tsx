@@ -3,7 +3,7 @@ import type {
   Course, DayMoves, Deck, Doc, ExerciseState, FlagKind, FlagVerdict, Form, Item,
   Lang, LangId, Millis, Question, SavedSession, Settings, User,
  VerbSpec, } from "./types.ts";
-import type { Node } from "./shared.tsx";
+import type { CardViews, Node } from "./shared.tsx";
 import { say } from "./wording.ts";
 import {
   APP_COMMIT,
@@ -12,7 +12,10 @@ import {
   Button,
   CardReadout,
   CardTile,
-  CheckList,
+  cardKindLabel,
+  cardSubtypeLabel,
+  cardWords,
+  DeckSwitch,
   ClipList,
   ConfirmModal,
   Empty,
@@ -137,6 +140,7 @@ import {
   inScript,
   kindOf,
   isListening,
+  isGrid,
   groupAttrOf,
   answerLabel,
   askLabel,
@@ -171,6 +175,7 @@ import {
   cellsIn,
   hasCells,
   ownSlot,
+  linkedToNothing,
   partnerOf,
   slotLinks,
   citedCell,
@@ -216,7 +221,6 @@ import {
   isAsked,
   itemDifficulty as itemDifficultyOf,
   justPractised,
-  mastered,
   maturity,
   missedTwice,
   openTypes as openTypesOf,
@@ -278,6 +282,7 @@ import {
   answersOf,
   firstOfEach,
   meaningForTurn,
+  meaningsOf,
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
@@ -304,14 +309,21 @@ const itemDifficulty = (it: Item, settings: Settings): string =>
    this, so what a learner is told and what the scheduler does are the one
    answer said twice rather than two answers that can drift. */
 /*
- * A number part is learnt only once the words it is made of are.
+ * A number part is learnt only once the words it is made of are known.
  *
  * Its own ladder says the learner is getting numbers right, which a run of
- * easy ones can say about 11 to 99 while *ninety* has never been kept. So
- * where the collection is to hand, a part whose top is done but whose words
- * are not is held at Cleared, with how many words it is waiting on. A
- * caller that cannot see the collection — one card's own line — reads the
- * part on its own ladder, which is all it ever did.
+ * easy ones can say about 11 to 99 while *ninety* has never been cleared.
+ * So where the collection is to hand, a part whose top is done but whose
+ * words are not cleared is held at Cleared, with how many words it is
+ * waiting on. A caller that cannot see the collection — one card's own
+ * line — reads the part on its own ladder, which is all it ever did.
+ *
+ * Cleared and not learnt, since 0.368. Learnt asked every one of a part's
+ * words and its ten figures — twenty cards for 0 to 9 — to have made their
+ * passes at the same moment, and a slip on any one of them took it back,
+ * so a learner drilling 0 to 9 every day was held at Cleared for weeks
+ * with the count going up as often as down. Each word keeps its own way
+ * to learnt, and shows it; the part asks that they are known.
  *
  * `keys` is laddered everywhere but towardsLearnt, which reads a number
  * still waiting on its stretch as it will stand once the stretch opens.
@@ -324,8 +336,8 @@ export const cardStandings = (
 ): Standing[] => {
   const rows = standingsOf(it, (u) => keys(u, settings));
   if (!among || !rows.length) return rows;
-  const words = it.parts ? partsOf(it, among, settings, keys).filter((p) => p.validated === false).length : 0;
-  const figures = numeralsOf(it, among, settings, keys).filter((p) => p.validated === false).length;
+  const words = it.parts ? partsOf(it, among, settings, keys).filter((p) => p.known === false).length : 0;
+  const figures = numeralsOf(it, among, settings, keys).filter((p) => p.known === false).length;
   const held = words + figures;
   if (!held) return rows;
   const top = rows[rows.length - 1];
@@ -357,12 +369,17 @@ export const cardStandings = (
  * Progress tab's decks all read this, so none of them can count a waiting
  * number differently from the others.
  */
-export function towardsLearnt(it: Item, settings: Settings, among: Item[]): { at: Standing; share: number } | null {
+export function towardsLearnt(it: Item, settings: Settings, among: Item[]): { at: Standing; share: number; reach: number } | null {
   let rows = cardStandings(it, settings, among);
   if (!rows.length) rows = cardStandings(it, settings, among, ladderedOnceOpen);
   const at = standing(rows);
   if (!at) return null;
-  return { at, share: rows.filter((r) => r.status === "done").length / rows.length };
+  return {
+    at,
+    share: rows.filter((r) => r.status === "done").length / rows.length,
+    /* The same, with a cleared top row counted in: how far towards cleared. */
+    reach: rows.filter((r) => r.status === "done" || r.status === "cleared").length / rows.length,
+  };
 }
 
 /**
@@ -380,7 +397,7 @@ export function numeralsOf(
   among: Item[],
   settings: Settings,
   keys: (unit: Form, settings: Settings) => string[] = laddered,
-): { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] {
+): PartWord[] {
   if (!isRangeSkill(it) || !(it.forms[0] && it.forms[0].rangeFigures)) return [];
   return numeralCardsOf(systemIdOf(it), among).map((card) => {
     const at = standing(standingsOf(card, (u) => keys(u, settings)));
@@ -388,9 +405,25 @@ export function numeralsOf(
       card,
       at,
       validated: at ? at.status === "done" : null,
+      known: knownCard(card, settings, keys),
       met: unitsOf(card).some(({ unit }) => keys(unit, settings).some((k) => stateOf(unit, k).phase !== "new")),
     };
   });
+}
+
+/* One word or figure a number part is built from, as the learner stands on
+   it — see partsOf. */
+type PartWord = { card: Item; at: Standing | null; validated: boolean | null; known: boolean | null; met: boolean };
+
+/* Whether a card is cleared on every form it can be asked — the bar a
+   number part holds its words to. Null where nothing on it can be asked,
+   which holds nothing back. */
+function knownCard(card: Item, settings: Settings, keys: (unit: Form, settings: Settings) => string[]): boolean | null {
+  const forms = unitsOf(card)
+    .map(({ unit }) => ({ unit, ladder: keys(unit, settings) }))
+    .filter((f) => f.ladder.length);
+  if (!forms.length) return null;
+  return forms.every(({ unit, ladder }) => cleared(ladder, (k) => stateOf(unit, k)));
 }
 
 /* The ten figure cards of one system the learner holds, ٠ to ٩. */
@@ -422,6 +455,9 @@ function byIdOf(items: Item[]): Map<string, Item> {
  * cleared and its passes made — and null for a word that cannot be asked
  * at all, which nothing could ever validate and so holds nothing back. A
  * word in no card this learner holds is left out for the same reason.
+ * `known` is the lower bar of cleared, which is what holds the part back
+ * (see cardStandings); `validated` is what the words are counted by and
+ * what a part's questions are steered towards.
  * `met` is whether any question on it has been answered, which is what
  * tells a word under way from one not started.
  *
@@ -434,9 +470,9 @@ export function partsOf(
   among: Item[],
   settings: Settings,
   keys: (unit: Form, settings: Settings) => string[] = laddered,
-): { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] {
+): PartWord[] {
   const byId = byIdOf(among);
-  const out: { card: Item; at: Standing | null; validated: boolean | null; met: boolean }[] = [];
+  const out: PartWord[] = [];
   for (const id of it.parts || []) {
     const card = byId.get(id);
     if (!card) continue;
@@ -446,6 +482,7 @@ export function partsOf(
       card,
       at,
       validated: at ? at.status === "done" : null,
+      known: knownCard(card, settings, keys),
       met: unitsOf(card).some(({ unit }) =>
         keys(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
       ),
@@ -531,7 +568,7 @@ export function mergeMoves(
 import { fillerMarks, gradeInto, verdictOf } from "./grade.ts";
 import type { Filler, Mark } from "./grade.ts";
 
-import { applyUpdate, beforeReload, holdUpdates } from "./updates.ts";
+import { applyUpdate, beforeReload, onUpdateReady, updateReady } from "./updates.ts";
 import {
   syncClips,
   clipIdsIn,
@@ -812,6 +849,45 @@ function standingShort(at: Standing | null): string {
   if (at.status === "done") return "Learnt";
   if (at.status === "cleared") return "Cleared";
   return `Level ${at.level}`;
+}
+
+/*
+ * A learner's card list as lines or a table — see CardViews. The table is
+ * what a learner compares across their cards: what each says, what kind it
+ * is, and how far they have got with it. `key` is which list, so each
+ * remembers the view it was left at.
+ */
+const STUDENT_COLUMNS = [
+  { key: "word", label: "Word" },
+  { key: "meaning", label: "Meaning" },
+  { key: "kind", label: "Kind" },
+  { key: "subtype", label: "Subtype" },
+  { key: "level", label: "Level" },
+];
+function studentViews(
+  key: string,
+  { lang, open, level }: { lang: (it: Item) => Lang; open: (it: Item) => void; level: (it: Item) => string },
+): CardViews<Item> {
+  return {
+    key,
+    columns: STUDENT_COLUMNS,
+    row: (it) => {
+      const L = lang(it);
+      const said = cardWords(it, L);
+      return {
+        word: said.word,
+        meaning: said.meaning,
+        cells: {
+          word: said.word,
+          meaning: said.en,
+          kind: cardKindLabel(it),
+          subtype: cardSubtypeLabel(it, L),
+          level: level(it),
+        },
+        open: () => open(it),
+      };
+    },
+  };
 }
 
 /* ------------------------------------------------------------------
@@ -1351,13 +1427,17 @@ function askedIn(unit: Form, slot: string, list: Value[]): Value[] {
   /* And whether the blank agrees with another — a verb beside a subject
      stands in it once per tense, since the subject picks the person. */
   const agrees = !!partnerOf(unit, slotsOf(unit), slot);
-  if (!rows.length && !agrees) return list;
+  /* And whether it was linked to nothing, which has a word whose forms
+     agree stand in it as every form in turn. Never a shortcut past the
+     filter, since such a word lends its whole table and only a blank
+     linked to nothing takes all of it — see blankAdmits. */
+  const alone = linkedToNothing(unit, slot);
   /* Worked out once while the indexes hold — see ASKED_IN. */
   const fallback = activeLang().id;
   let mine = ASKED_IN.get(unit);
   const held = mine && mine.get(slot);
   if (held && held.list === list && held.lang === fallback) return held.out;
-  const admits = (lang: Lang) => blankAdmits(lang, () => rows, () => agrees);
+  const admits = (lang: Lang) => blankAdmits(lang, () => rows, () => agrees, () => alone);
   const out = list.filter((value) => {
     const owner = VALUE_OWNER.get(refOf(value));
     if (!owner) return true;
@@ -1471,7 +1551,7 @@ function sceneOf(unitId: string): { card: Item, at: number } | null {
    other — somebody who can say what they *do* has something to hang the
    past on, and somebody handed present, past and command in one week has
    three tables to confuse — so a row opens only once the row above it is
-   mastered, which is the bar a level asks of the level below it applied
+   cleared, which is the bar a level asks of the level below it applied
    down the other axis.
 
    And the card's own word, where the language cites a cell that is the
@@ -1647,16 +1727,55 @@ export function easedUnits(items: Item[], settings: Settings): Set<string> {
   return out;
 }
 
-/* Whether a stretch of the number line has every stretch under it cleared.
-   On its numbers alone: counting a thing is a question a stretch asks too,
-   and it never holds anything back — not the stretch, and not the one
-   above it. See countingOf. */
+/*
+ * Whether a stretch of the number line is open: every stretch under it is
+ * through — its own questions cleared, or every word it is built from
+ * cleared, whichever comes first.
+ *
+ * The own questions were the only way through until 0.368, and a stretch
+ * is asked about one question in thirty of a numbers session, because it
+ * shares the session with every word it is built from; so the stretch
+ * above could stay shut for days after every one of those words was known,
+ * and shut again whenever the ten figures added two questions to the
+ * stretch below, or a slip on one of them made it miss twice. The words
+ * alone were tried and measured, and were slower for somebody whose
+ * stretch had cleared first: its questions ask only numbers whose words
+ * are cleared, so it can clear before the last spelling of the last word
+ * has. Either one lets the stretch above through — the same shape as the
+ * front door's `throughDoor` — so nobody waits longer than they did.
+ *
+ * Read through availableTypes and not laddered, because laddered reads the
+ * quiet set this is in the middle of working out. A word with nothing to
+ * ask, or one the learner does not hold, holds nothing back. A stretch that
+ * does not know its words — one filed before parts were written down —
+ * has its own questions alone. Those are its numbers: counting a thing
+ * never holds anything back. See countingOf.
+ */
 function stretchOpen(card: Item, items: Item[], lang: Lang): boolean {
   const below = stretchBefore(card, items);
   if (!below) return true;
-  const unit = below.forms[0];
+  return (stretchCleared(below, lang) || wordsCleared(below, items, lang)) && stretchOpen(below, items, lang);
+}
+
+function stretchCleared(stretch: Item, lang: Lang): boolean {
+  const unit = stretch.forms[0];
+  if (!unit) return false;
   const plain = availableTypes(unit, lang).filter((t) => !((specOf(t) && specOf(t).needs) || []).includes("rangeCounted"));
-  return !!unit && cleared(plain, (t) => statesOf(unit)[t]) && stretchOpen(below, items, lang);
+  return cleared(plain, (t) => statesOf(unit)[t]);
+}
+
+function wordsCleared(stretch: Item, items: Item[], lang: Lang): boolean {
+  if (!stretch.parts || !stretch.parts.length) return false;
+  const byId = byIdOf(items);
+  return stretch.parts.every((id) => {
+    const card = byId.get(id);
+    if (!card || card.drill === false) return true;
+    return unitsOf(card).every(({ unit }) => {
+      if (!isAsked(unit)) return true;
+      const types = availableTypes(unit, lang);
+      return !types.length || cleared(types, (t) => statesOf(unit)[t]);
+    });
+  });
 }
 
 /* What a table's cells wait on, where it says nothing: the word, which is
@@ -1666,9 +1785,9 @@ const waitsOnWord = (spec: VerbSpec): boolean => (spec.gate || "word") === "word
 /*
  * Working them out, across every card in hand.
  *
- * A row counts as mastered when every cell in it is mastered at everything
- * it is asked — read off the same open types the rest of the app uses, so
- * a cell the learner has switched every exercise off for cannot hold the
+ * A row counts as done when every cell in it is cleared at everything it
+ * is asked — read off the same open types the rest of the app uses, so a
+ * cell the learner has switched every exercise off for cannot hold the
  * rows below it shut for ever.
  */
 export function quietUnits(items: Item[], settings: Settings): Set<string> {
@@ -1771,9 +1890,9 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
 /*
  * One tense of a verb is ever new at a time.
  *
- * A row counts as mastered when every cell in it is mastered at everything
- * it is asked — read off the same open types the rest of the app uses, so
- * a cell the learner has switched every exercise off for cannot hold the
+ * A row counts as done when every cell in it is cleared at everything it
+ * is asked — read off the same open types the rest of the app uses, so a
+ * cell the learner has switched every exercise off for cannot hold the
  * rows below it shut for ever.
  */
 function quietRows(card: Item, spec: VerbSpec, lang: Lang, out: Set<string>) {
@@ -1791,10 +1910,12 @@ function quietRows(card: Item, spec: VerbSpec, lang: Lang, out: Set<string>) {
       /* Nothing to ask, so nothing to wait for: a cell the material cannot
          put a question to must not hold the rows below it shut for ever. */
       if (!climbing.length) return true;
-      return climbing.every((t) => {
-        const s = statesOf(cell)[t];
-        return !!s && mastered(s);
-      });
+      /* Cleared, since 0.368: every question it can be asked right twice
+         running. It was mastered — every one held at a four-day gap — which
+         no amount of practice could bring forward, so a verb practised
+         every day opened its past tense a week or more after its present
+         was known. Cleared is what opens the next thing everywhere else. */
+      return cleared(supported, (t) => statesOf(cell)[t]);
     });
     for (const cell of cellsIn(card, spec)) {
       /* The cited cell is the word on the front of the card and is met the
@@ -1993,6 +2114,7 @@ export function installIndexes(items: Item[], settings: Settings, systems: Syste
    */
   setMateCounts(countMates(items, settings));
   setPicturedCounts(countPictured(items, settings));
+  setHeardCounts(countHeard(items, settings));
   const reach = valueReachOf(lent, settings);
   setValueReach(reach.map, reach.forms);
   setValueOwner(reach.owner);
@@ -2057,6 +2179,35 @@ function countPictured(items: Item[], settings: Settings): Map<LangId, number> {
     const id = langIdOf(card, settings);
     for (const { unit } of unitsOf(card)) {
       if (unit.ar && !hasSlots(unit) && Array.isArray(unit.images) && unit.images.length) {
+        counts.set(id, (counts.get(id) || 0) + 1);
+      }
+    }
+  }
+  return counts;
+}
+
+/* And for recordings: how many words in each language could stand in the
+   grid of recordings, each tile being a play button. */
+let HEARD_COUNTS: Map<LangId, number> = new Map();
+
+export function setHeardCounts(map: Map<LangId, number>) {
+  HEARD_COUNTS = map || new Map();
+  forgetTypes();
+}
+
+function heardFor(unit: Form, settings?: Settings): number {
+  const id = (unit && unit.lang) || (settings && settings.language) || activeLang().id;
+  const own = unit && (unit.recs || []).length ? 1 : 0;
+  return Math.max(0, (HEARD_COUNTS.get(id) || 0) - own);
+}
+
+function countHeard(items: Item[], settings: Settings): Map<LangId, number> {
+  const counts: Map<LangId, number> = new Map();
+  for (const card of items) {
+    if (isDialog(card) || card.drill === false) continue;
+    const id = langIdOf(card, settings);
+    for (const { unit } of unitsOf(card)) {
+      if (unit.ar && !hasSlots(unit) && (unit.recs || []).length) {
         counts.set(id, (counts.get(id) || 0) + 1);
       }
     }
@@ -2608,7 +2759,11 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
  * not move: the answer is still the word, and every spelling of it still
  * counts.
  */
-function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
+function castMeaning(
+  resolved: { unit: Form, parent: Item, isSub: boolean } | null,
+  type: string,
+  exercise?: Question,
+) {
   if (!resolved) return resolved;
   const spec = specOf(type);
   /* Where the meaning is the question, and where it is the answer: a card
@@ -2625,7 +2780,7 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
     return resolved;
   }
   const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
-  const one = meaningForTurn(resolved.unit, seen);
+  const one = sentenceMeaning(resolved.unit, exercise) || meaningForTurn(resolved.unit, seen);
   /* Nothing to narrow: one meaning, or none written at all — in which case
      this exercise was never offered, and the card is left exactly as it is
      rather than having its one empty field rewritten. */
@@ -2636,6 +2791,28 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
     unit,
     parent: resolved.isSub ? resolved.parent : withLead(resolved.parent, unit),
   };
+}
+
+/*
+ * Which meaning a filled sentence shows, drawn at random for each asking.
+ *
+ * تعبان اليوم means *I am*, *you are* and *he is tired today* — see
+ * ADJECTIVE_IS_SLOT. Rotated by right answers, as a word's meanings are,
+ * a sentence new to the learner showed *I am* every time until it had been
+ * got right, which read as the only person the sentence was ever about.
+ * Drawn once per question rather than per render, so the meaning on screen
+ * does not change under the learner; a missed sentence is queued again as
+ * a new question and draws again. "" for anything that is not a filled
+ * sentence, or has one meaning, which is left to meaningForTurn.
+ */
+const MEANING_DRAWS: WeakMap<Question, number> = new WeakMap();
+function sentenceMeaning(unit: Form, exercise?: Question): string {
+  if (!exercise || !(unit as Record<string, any>).filled) return "";
+  const list = meaningsOf(unit);
+  if (list.length < 2) return "";
+  let draw = MEANING_DRAWS.get(exercise);
+  if (draw === undefined) MEANING_DRAWS.set(exercise, (draw = Math.random()));
+  return list[Math.min(list.length - 1, Math.floor(draw * list.length))];
 }
 
 /*
@@ -2864,7 +3041,7 @@ export function requeueUnaskable(exercises: Question[], from: number, items: Ite
     /* And nothing standing the word in a sentence from another deck, in a
        session kept to the numbers. */
     const options = open.filter(
-      (t) => !isListening(t) && t !== "match" && !(ex.within === "numbers" && borrowsPhrase(t))
+      (t) => !isListening(t) && !isGrid(t) && !(ex.within === "numbers" && borrowsPhrase(t))
     );
     if (!options.length) continue;
     const seen = used.get(keyOf(ex)) || new Set();
@@ -2936,7 +3113,7 @@ function availableTypes(
   const values = fillsFor(it, lang.id);
   const types = TYPES.filter((t) =>
     canAsk(
-      { unit: it, scene: at, contexts: contextsFor(it.id), values, mates: matesFor(it), pictured: picturedFor(it) },
+      { unit: it, scene: at, contexts: contextsFor(it.id), values, mates: matesFor(it), pictured: picturedFor(it), heard: heardFor(it) },
       t,
       lang
     ) && (!EX[t].afterNumerals || numeralsKnownFor(it))
@@ -4365,7 +4542,7 @@ export function buildSession({
     varyTypes(
       withGrids(exercises, gridCompany(exercises, items), settings, (unit, queued) =>
         pickableTypes(unit, settings).find(
-          (t) => t !== "match" && !queued.has(t) && (!onlyNumbers || !borrowsPhrase(t))
+          (t) => !isGrid(t) && !queued.has(t) && (!onlyNumbers || !borrowsPhrase(t))
         ) || null
       )
     );
@@ -4468,64 +4645,82 @@ function withGrids(
 
   /* Where a form lives, for turning a grid back into questions. */
   const placeOf: Map<string, { id: string; subId: string | null }> = new Map();
-  const wanting: Map<LangId, Form[]> = new Map();
+  /* Each kind of grid is dealt on its own — a word asked in the grid of
+     meanings and the grid of recordings in one session stands in one of
+     each — so what was wanted, dealt and dropped is kept per kind. */
+  const gridKey = (type: string, id: string) => `${type} ${id}`;
+  const wanting: Map<string, Map<LangId, Form[]>> = new Map();
   for (const ex of list) {
-    if (ex.type !== "match") continue;
+    if (!isGrid(ex.type)) continue;
     const r = resolveUnit(items, ex);
-    if (!r || placeOf.has(r.unit.id)) continue;
-    placeOf.set(r.unit.id, { id: ex.id, subId: ex.subId || null });
+    if (!r) continue;
+    const byLang = wanting.get(ex.type) || new Map<LangId, Form[]>();
+    wanting.set(ex.type, byLang);
     const lang = langIdOf(r.unit, settings);
-    wanting.set(lang, (wanting.get(lang) || []).concat([r.unit]));
+    const already = byLang.get(lang) || [];
+    if (already.some((u) => u.id === r.unit.id)) continue;
+    placeOf.set(r.unit.id, { id: ex.id, subId: ex.subId || null });
+    byLang.set(lang, already.concat([r.unit]));
   }
   if (!wanting.size) return list;
 
-  const leadOf: Map<string, Form[]> = new Map(); // first word -> the rest
+  const leadOf: Map<string, Form[]> = new Map(); // type + first word -> the rest
   const dealt: Set<string> = new Set();
   const dropped: Set<string> = new Set();
-  for (const [lang, asked] of wanting) {
-    const spares: Form[] = [];
-    for (const card of items) {
-      if (!isDrillable(card, settings) || langIdOf(card, settings) !== lang) continue;
-      if (isDialog(card) || hasSlots(card)) continue;
-      for (const { unit, isSub } of unitsOf(card)) {
-        if (!unit.ar || !unit.en || placeOf.has(unit.id)) continue;
-        const st = statesOf(unit).match;
-        if (!st || st.phase === "new" || !openTypes(unit, settings).includes("match")) continue;
-        placeOf.set(unit.id, { id: card.id, subId: isSub ? unit.id : null });
-        spares.push(unit);
+  for (const [type, byLang] of wanting) {
+    const heard = specOf(type).tiles === "audio";
+    for (const [lang, asked] of byLang) {
+      const mine = new Set(asked.map((u) => u.id));
+      const spares: Form[] = [];
+      for (const card of items) {
+        if (!isDrillable(card, settings) || langIdOf(card, settings) !== lang) continue;
+        if (isDialog(card) || hasSlots(card)) continue;
+        for (const { unit, isSub } of unitsOf(card)) {
+          if (!unit.ar || (!heard && !unit.en) || mine.has(unit.id)) continue;
+          /* A word on the left of the grid of recordings is a play button,
+             so a spare standing there has to be one that can be heard. */
+          if (heard && (!(unit.recs || []).length || !typeAllowedNow(type, unit))) continue;
+          const st = statesOf(unit)[type];
+          if (!st || st.phase === "new" || !openTypes(unit, settings).includes(type)) continue;
+          if (!placeOf.has(unit.id)) placeOf.set(unit.id, { id: card.id, subId: isSub ? unit.id : null });
+          spares.push(unit);
+        }
       }
+      const lg = langOf(settingsFor(settings, asked[0]));
+      const { grids, dropped: out } = matchGroups({
+        wanting: asked,
+        spares: inOrder(spares, (u) => dueRank(statesOf(u)[type].due || 0)),
+        textOf: (u) => u.ar,
+        /* What the other column shows: the meaning, or in the grid of
+           recordings the word itself. */
+        meaningOf: (u) => (heard ? u.ar : u.en),
+        likeness: (a, b) => wordLikeness(a.ar, b.ar, lg),
+        familyOf: (u) => placeOf.get(u.id)?.id || u.id,
+      });
+      for (const grid of grids) {
+        leadOf.set(gridKey(type, grid[0].id), grid.slice(1));
+        for (const u of grid) dealt.add(gridKey(type, u.id));
+      }
+      for (const u of out) dropped.add(gridKey(type, u.id));
     }
-    const lg = langOf(settingsFor(settings, asked[0]));
-    const { grids, dropped: out } = matchGroups({
-      wanting: asked,
-      spares: inOrder(spares, (u) => dueRank(statesOf(u).match.due || 0)),
-      textOf: (u) => u.ar,
-      meaningOf: (u) => u.en,
-      likeness: (a, b) => wordLikeness(a.ar, b.ar, lg),
-      familyOf: (u) => placeOf.get(u.id)?.id || u.id,
-    });
-    for (const grid of grids) {
-      leadOf.set(grid[0].id, grid.slice(1));
-      for (const u of grid) dealt.add(u.id);
-    }
-    for (const u of out) dropped.add(u.id);
   }
 
   const result: Question[] = [];
   for (const ex of list) {
-    if (ex.type !== "match") {
+    if (!isGrid(ex.type)) {
       result.push(ex);
       continue;
     }
     const r = resolveUnit(items, ex);
     if (!r) continue;
-    const rest = leadOf.get(r.unit.id);
+    const key = gridKey(ex.type, r.unit.id);
+    const rest = leadOf.get(key);
     if (rest) {
-      leadOf.delete(r.unit.id); // once, whatever the queue asked twice
+      leadOf.delete(key); // once, whatever the queue asked twice
       result.push({ ...ex, mates: rest.map((u) => placeOf.get(u.id) as { id: string; subId: string | null }) });
       continue;
     }
-    if (dealt.has(r.unit.id) || !dropped.has(r.unit.id)) continue;
+    if (dealt.has(key) || !dropped.has(key)) continue;
     const pick = substitute(r.unit, queued.get(keyOf(ex)) || new Set());
     if (!pick) continue;
     const ctx = specOf(pick).needs.includes("contexts") ? pickContext(r.unit, pick) : null;
@@ -4817,7 +5012,7 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
       drawRanges(
         withGrids(shuffle(keptFirst).concat(shuffle(keptMore)), gridCompany(kept, items), settings, (unit, queued) =>
           shuffle(usableFor(unit)).find(
-            (t) => t !== "match" && !queued.has(t) && !(numbersOnly && borrowsPhrase(t))
+            (t) => !isGrid(t) && !queued.has(t) && !(numbersOnly && borrowsPhrase(t))
           ) || null
         ),
         items,
@@ -4912,6 +5107,13 @@ export function weakness(s: ExerciseState | null | undefined): number {
  * deck forecast, which marks the same words the screen would.
  */
 export function gridFor(item: Form, exercise: Question, asking: Item[], settings: Settings, qLang: Lang) {
+  /* The grid of recordings: a play button for each word, and the words
+     themselves down the other side where the meanings would be. Its
+     spare tiles are words, so they need no recording; every word asked
+     does. */
+  const heard = specOf(exercise.type)?.tiles === "audio";
+  const other = (u: Form) => String((heard ? u.ar : u.en) || "");
+  const fits = (u: Form) => !!u.ar && !!other(u);
   /* Two units a learner would read as one tile: the same word, or the
      same meaning, after both have been narrowed to the one the question
      shows. matchSet is the gate that refuses them; this is the same
@@ -4919,7 +5121,7 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
      not spend its four places filling up with them. */
   const sameTile = (a: Form, b: Form) =>
     String(a.ar || "").trim() === String(b.ar || "").trim() ||
-    String(a.en || "").trim().toLowerCase() === String(b.en || "").trim().toLowerCase();
+    other(a).trim().toLowerCase() === other(b).trim().toLowerCase();
   const ownerOf = new Map<string, string>();
   for (const card of asking) {
     for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card.id);
@@ -4931,10 +5133,10 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
     /* Narrowed here rather than at the tile, because the grid is marked
        against the word's own `en` — a tile showing one meaning and a
        mark expecting two would call every right answer wrong. */
-    if (r && r.unit.ar && r.unit.en) answers.push(oneOf(r.unit, exercise.type));
+    if (r && fits(r.unit)) answers.push(oneOf(r.unit, exercise.type));
   }
   const pool = wordPool(companyOf(asking, exercise), settings, qLang.id, item)
-    .filter((u) => u.ar && u.en)
+    .filter(fits)
     .map((u) => oneOf(u, exercise.type));
   const reps = (statesOf(item)[exercise.type] || {}).reps || 0;
   const likeness = (u: Form) => Math.max(...answers.map((a) => wordLikeness(a.ar, u.ar, qLang)));
@@ -4947,6 +5149,9 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
     for (const u of ranked) {
       if (answers.length >= PAIR_WORDS) break;
       if (answers.some((a) => a.id === u.id)) continue;
+      /* A word standing on the left of the grid of recordings is played,
+         so it has to have something to play. */
+      if (heard && !(u.recs || []).length) continue;
       /* And nothing that reads the same as what is already there. Two
          tiles a learner cannot tell apart make the pairing a guess —
          matchSet refuses them below, and a trial that handed it four
@@ -4960,7 +5165,7 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
     pool: ranked,
     seed: `${item.id} ${reps}`,
     textOf: (u) => u.ar,
-    meaningOf: (u) => u.en,
+    meaningOf: other,
     familyOf,
   });
 }
@@ -5153,7 +5358,7 @@ export function tokenCards(
  */
 export function resolveQuestion(asking: Item[], exercise: Question, trial: boolean, systems: SystemSet[]) {
   return castRange(
-    castMeaning(castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type), exercise.type),
+    castMeaning(castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type), exercise.type, exercise),
     exercise,
     systems,
   );
@@ -5231,7 +5436,8 @@ function dayOf(t: Millis): Millis {
 }
 
 export interface Workload {
-  /** Cards that can be asked about and are not yet learnt. */
+  /** Cards that can be asked about and are not yet learnt — or cleared,
+      where that is the target. */
   left: number;
   /** Right answers still needed to take all of them to learnt. */
   questions: number;
@@ -5257,20 +5463,31 @@ export interface Workload {
  * the last. Ten even for a keen learner, whose door is wider (see
  * frontDoorFor): a wider door clears each word more slowly, and measured,
  * a hundred cards were all met at about the same day either way.
+ *
+ * With Cleared as the target (a prep can aim there — see PrepTarget), a
+ * cleared card needs nothing, the passes are left out of the questions, and
+ * the fewest days are CLEAR_DAYS where they were LEARN_DAYS: the passes are
+ * what make learning a card take days rather than an evening.
  */
-export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()): Workload {
+export function workloadOf(cards: Item[], settings: Settings, at: Millis = now(), target: PrepTarget = "learnt"): Workload {
+  const toClear = target === "cleared";
   let left = 0;
   let questions = 0;
   let unseen = 0;
   let floor = 0;
   for (const it of cards) {
-    const where = standing(cardStandings(it, settings, cards));
-    if (!where || where.status === "done") continue;
+    /* A number waiting on its stretch is asked nothing yet, but it is in
+       the deck and has all of its ladder ahead of it: counted as it will
+       stand once the stretch opens, as towardsLearnt counts it. */
+    const now_ = standing(cardStandings(it, settings, cards));
+    const ladder = now_ ? laddered : ladderedOnceOpen;
+    const where = now_ || standing(cardStandings(it, settings, cards, ladderedOnceOpen));
+    if (!where || reached(where, target)) continue;
     left += 1;
     let fresh = true;
     let passesLeft = 0;
     for (const { unit } of unitsOf(it)) {
-      const keys = laddered(unit, settings);
+      const keys = ladder(unit, settings);
       if (!keys.length) continue;
       for (const k of keys) {
         const st = stateOf(unit, k);
@@ -5279,23 +5496,29 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
         const hist = st.hist || [];
         questions += hist.length && hist[hist.length - 1] ? 1 : 2;
       }
+      if (toClear) continue;
       const top = topLevelOf(keys);
       const owed = Math.max(0, PASSES_TO_LEARN - passesMade(keys, (k) => stateOf(unit, k)));
       questions += owed * keys.filter((k) => levelOf(k) === top).length;
       passesLeft = Math.max(passesLeft, owed);
     }
     if (fresh) unseen += 1;
-    if (where.status === "cleared" && passesLeft > 0) {
+    /* Waiting on the stretch below it, a number starts its climb only once
+       that is cleared — the same wait as a sentence's words. */
+    const behind = !now_ || blocksAhead(it, settings);
+    if (toClear) {
+      floor = Math.max(floor, behind ? 2 * CLEAR_DAYS : CLEAR_DAYS);
+    } else if (where.status === "cleared" && passesLeft > 0) {
       const next = nextPassAt(it, settings);
       const wait = next > at ? Math.ceil((dayOf(next) - dayOf(at)) / 86400000) : 0;
       floor = Math.max(floor, wait + (passesLeft - 1) * 2);
-    } else if (blocksAhead(it, settings)) {
+    } else if (behind) {
       floor = Math.max(floor, CLEAR_DAYS + LEARN_DAYS);
     } else {
       floor = Math.max(floor, LEARN_DAYS);
     }
   }
-  if (unseen) floor = Math.max(floor, Math.ceil(unseen / FRONT_DOOR_CAP) - 1 + LEARN_DAYS);
+  if (unseen) floor = Math.max(floor, Math.ceil(unseen / FRONT_DOOR_CAP) - 1 + (toClear ? CLEAR_DAYS : LEARN_DAYS));
   return {
     left,
     questions,
@@ -5463,7 +5686,7 @@ export function buildWeakSession({ items, settings, inDeck, budget: budgetIn, sy
       drawRanges(
         withGrids(kept, gridCompany(kept, items), settings, (unit, queued) =>
           pickableTypes(unit, settings).find(
-            (t) => t !== "match" && !queued.has(t) && !(kept !== plans && borrowsPhrase(t))
+            (t) => !isGrid(t) && !queued.has(t) && !(kept !== plans && borrowsPhrase(t))
           ) || null
         ),
         items,
@@ -5670,6 +5893,9 @@ export const WRONG_VERDICT = "Incorrect. The correct answer is:";
 /* A grid marks itself: the meaning each wrong word wanted is shown under
    it, so the verdict says only that there were some. */
 export const GRID_VERDICT = "Not all of them — the right meanings are shown.";
+/* And the grid of recordings, where what is shown under a sound is the
+   word it was. */
+export const HEARD_GRID_VERDICT = "Not all of them — the right words are shown.";
 /* Giving up is not getting it wrong: nothing was offered to be incorrect.
    The answer is simply handed over. */
 export const SKIPPED_VERDICT = "The answer is:";
@@ -5678,34 +5904,46 @@ export function praiseFor(n: number) {
 }
 
 /* --- AlsoBox --------------------------------------------------------
-   What is worth knowing beyond the answer, behind one tap. It opens
-   closed: the answer is what you came back for, and five blocks of
-   context under it is a page to scroll past rather than a thing to
-   read. Anyone who wants them is one tap away, and the tap is the
-   signal that they are actually being read.
+   What is worth knowing beyond the answer, under a "Learn more" heading.
+   It is shown open, with nothing to fold it away: the blocks are there to
+   be read, and a tap to reach them was a tap most answers never got.
 
-   Renders nothing — not even the invitation — when there is nothing to
-   put in it, so "Learn more" is never a promise the box cannot keep. */
-function AlsoBox({ children, open, onToggle }: { children?: Node; open?: boolean; onToggle?: () => void }) {
-  const shown = React.Children.toArray(children).filter(Boolean);
+   Renders nothing — not even the heading — when there is nothing to put
+   in it, so "Learn more" is never a promise the box cannot keep.
+
+   The short blocks share a row two at a time — how it is pronounced beside
+   how it sounds — so the box is half as tall and Continue half as far
+   down. Only the phrase it turned up in keeps the width to itself; the
+   related words are a short block like the rest. The pronunciation and
+   the recording are always the pair, when both are there; the others pair
+   up in order, and one left over takes half a row like everything else,
+   so no short block is ever drawn wider than its neighbours. */
+const ALSO_PAIR = ["also-hint", "also-audio"];
+function alsoName(el: any): string {
+  return el.type === RelatedWords ? "related-words" : el.props["data-el"] || "";
+}
+function AlsoBox({ children }: { children?: Node }) {
+  const shown = React.Children.toArray(children).filter(Boolean) as any[];
   if (!shown.length) return null;
+  const row = (cells: any[]) => (
+    <div className="at-alsorow" data-el="also-row" key={`row-${cells[0].key}`}>
+      {cells}
+    </div>
+  );
+  const rows: any[] = shown.filter((el) => alsoName(el) === "also-context");
+  const short = shown.filter((el) => alsoName(el) !== "also-context");
+  const pair = short.filter((el) => ALSO_PAIR.includes(alsoName(el)));
+  const rest = pair.length === 2 ? short.filter((el) => !pair.includes(el)) : short;
+  if (pair.length === 2) rows.push(row(pair));
+  for (let i = 0; i < rest.length; i += 2) rows.push(row(rest.slice(i, i + 2)));
   return (
     <>
-      <button
-        type="button"
-        className="at-alsomore"
-        data-el="also-toggle"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
+      <p className="at-alsomore" data-el="also-heading">
         Learn more
-        <Icon name={open ? "chevronUp" : "chevronDown"} size={20} />
-      </button>
-      {open && (
-        <div className="at-alsobox" data-el="also">
-          {shown}
-        </div>
-      )}
+      </p>
+      <div className="at-alsobox" data-el="also">
+        {rows}
+      </div>
     </>
   );
 }
@@ -5717,7 +5955,7 @@ function RelatedWords({ pairs, settings }: { pairs: any[]; settings: Settings })
   const heading = (group && group.heading) || "Related words";
   return (
     <div className="at-pairs" data-el="related-words">
-      <p className="at-answerlabel" data-el="related-words-label">
+      <p className="at-alsolabel" data-el="related-words-label">
         {heading}
       </p>
       {pairs.map((p) => (
@@ -7244,11 +7482,16 @@ function Keyboard({ onKey, onBack, onClear, onHide, lang }: {
  * 4, so for most learners these keys are the only way to write the answer
  * at all — which is not a thing to hide behind a button.
  *
- * Laid out as a phone's keypad, three by four with ١ at the top left and
- * ٠ under ٨: what an Arabic phone's dialler and number keyboard show, so
- * the hand already knows where ٤ is. A row of ten across the screen made
- * every key a sliver. The bottom row is clear, ٠, backspace — and for a
- * clock, colon, ٠, backspace, with clear on a row of its own beneath.
+ * Laid out as a phone's keypad, three by four: a row of ten across the
+ * screen made every key a sliver. The bottom row is clear, a figure,
+ * backspace — and for a clock, colon, a figure, backspace, with clear on a
+ * row of its own beneath.
+ *
+ * Which figure sits on which of the ten keys is shuffled for each
+ * question. In counting order the pad answered for the learner: the
+ * fourth key was ٤ whether or not they knew ٤, and the question became
+ * where to tap rather than which figure to pick. The shape stays the
+ * same; only the figures move, and they stay put while the question is up.
  */
 /* The figures a language writes numbers in, by name and with three of
    them: "Eastern Arabic numerals (١٢٣)". */
@@ -7257,14 +7500,18 @@ const ownNamed = (lang: Lang): string => {
   return lang.numerals ? `${name} (${lang.numerals(123)})` : name;
 };
 
-function NumeralPad({ lang, clock, onKey, onBack, onClear }: {
+function NumeralPad({ lang, clock, deal, onKey, onBack, onClear }: {
   lang: Lang;
   clock: boolean;
+  /* The question the pad is up for; a new one deals the figures again. */
+  deal: number;
   onKey: (key: string) => void;
   onBack: () => void;
   onClear: () => void;
 }) {
   const write = lang.numerals;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const order = useMemo(() => shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), [deal]);
   if (!write) return null;
   const figure = (d: number) => {
     const ch = String(write(d) || "");
@@ -7286,7 +7533,7 @@ function NumeralPad({ lang, clock, onKey, onBack, onClear }: {
   );
   return (
     <div className="at-kb at-numpad" data-el="numeral-pad" dir="ltr">
-      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(figure)}
+      {order.slice(0, 9).map(figure)}
       {clock ? (
         <button key="colon" type="button" className="at-key" onClick={() => onKey(":")} aria-label="Colon">
           :
@@ -7294,7 +7541,7 @@ function NumeralPad({ lang, clock, onKey, onBack, onClear }: {
       ) : (
         clear
       )}
-      {figure(0)}
+      {figure(order[9])}
       {back}
       {clock && clear}
     </div>
@@ -7902,6 +8149,8 @@ function MatchGrid({
   onChange,
   onPairs,
   checked,
+  field = "en",
+  heard = false,
 }: {
   words: Form[];
   meanings: string[];
@@ -7919,6 +8168,20 @@ function MatchGrid({
   /** The whole pairing, once complete — every word is marked on it. */
   onPairs?: (pairs: Record<string, string>) => void;
   checked?: boolean;
+  /**
+   * What the right-hand column is, and so what a word is paired against:
+   * its meaning, or — in the grid of recordings — the word in the script.
+   */
+  field?: "en" | "ar";
+  /**
+   * Whether the words are heard rather than read: a play button on each
+   * tile where the word would be. The tile is otherwise the same tile,
+   * tapped the same way — so tapping it plays it **and** does what a tap
+   * on a word does, freeing a pairing included. That was the owner's call:
+   * one card that behaves like every other card, over a second target on
+   * it that would play without touching the pairing.
+   */
+  heard?: boolean;
 }) {
   /*
    * Which meaning is against which word. Keyed by word id, so a meaning can
@@ -8037,12 +8300,73 @@ function MatchGrid({
   const numberOf = (id: string) =>
     words.filter((w) => pairedAt(w.id) !== null).findIndex((w) => w.id === id) + 1;
 
+  /* One player for the whole grid, so a second tile tapped stops the
+     first rather than talking over it. Which tile it is playing is what
+     turns that tile's button to Pause. */
+  const [sounding, setSounding] = useState<string | null>(null);
+  const player = useRef<HTMLAudioElement | null>(null);
+  const clip = useRef("");
+  /* A fresh element per clip, the old one silenced and cut loose first:
+     reusing one, the pause of the clip being stopped arrived after the
+     next clip's handlers were on it, and turned the new tile's button
+     back to Play while it played. */
+  const hush = () => {
+    const el = player.current;
+    if (el) {
+      el.onended = el.onpause = el.onerror = null;
+      el.pause();
+    }
+    player.current = null;
+    if (clip.current) URL.revokeObjectURL(clip.current);
+    clip.current = "";
+  };
+  useEffect(() => hush, []);
+  const sound = async (w: Form) => {
+    const recs = w.recs || [];
+    /* The ordinary take: a grid is the word at speed, among others. */
+    const rec = recs.find((r) => r.speed !== "slow") || recs[0];
+    hush();
+    setSounding(null);
+    if (!rec) return;
+    const el = new Audio();
+    player.current = el;
+    setSounding(w.id);
+    const url = await clipUrl(rec.id);
+    /* Another tile tapped while this one was loading has the player now. */
+    if (player.current !== el) {
+      if (url) URL.revokeObjectURL(url);
+      return;
+    }
+    if (!url) {
+      setSounding((v) => (v === w.id ? null : v));
+      return;
+    }
+    clip.current = url;
+    el.src = url;
+    el.onended = () => setSounding((v) => (v === w.id ? null : v));
+    el.onpause = () => setSounding((v) => (v === w.id ? null : v));
+    el.onerror = () => setSounding((v) => (v === w.id ? null : v));
+    try {
+      await el.play();
+    } catch (e) {
+      setSounding((v) => (v === w.id ? null : v));
+    }
+  };
+  /* Checked, a sound tile still plays: it is how the words are gone over
+     once the grid is marked. */
+  const tapTile = (w: Form) => {
+    if (heard) sound(w);
+    tapWord(w.id);
+  };
+  /* What the tile should have been paired with, under one paired wrong. */
+  const wantedOf = (w: Form) => String((field === "ar" ? w.ar : w.en) || "");
+
   return (
     <div className="at-match" data-el="answer-match">
       <div className="at-matchcol">
         {words.map((w, i) => {
           const mine = meaningFor(w.id);
-          const right = checked && !!mine && mine === w.en;
+          const right = checked && !!mine && mine === wantedOf(w);
           return (
             <button
               type="button"
@@ -8052,7 +8376,8 @@ function MatchGrid({
                 checked ? (right ? " right" : " wrong") : ""
               }`}
               aria-pressed={heldWord === w.id}
-              onClick={() => tapWord(w.id)}
+              aria-label={heard ? `Recording ${i + 1}${mine ? `, pair ${numberOf(w.id)}` : ""}` : undefined}
+              onClick={() => tapTile(w)}
             >
               {/* Always there, empty until paired: a number arriving in
                   space nobody kept for it pushed the word along. */}
@@ -8062,7 +8387,16 @@ function MatchGrid({
                 <span className="at-matchnum empty" aria-hidden="true" />
               )}
               <span className="at-matchword">
-                <Arabic text={w.ar} kind="word" lang={lang} />
+                {heard ? (
+                  /* Drawn as the play button drawn wherever a recording
+                     is, but not a button of its own: the whole tile is the
+                     button, and one inside another is not allowed. */
+                  <span className="at-clipplay at-matchplay" data-el="match-sound" aria-hidden="true">
+                    <Icon name={sounding === w.id ? "pause" : "play"} />
+                  </span>
+                ) : (
+                  <Arabic text={w.ar} kind="word" lang={lang} />
+                )}
                 {/* Which form of its card this is, where another form of
                     the same card is in the grid and nothing else would say
                     which meaning belongs to which. */}
@@ -8072,7 +8406,15 @@ function MatchGrid({
                 {/* What it should have been, under a word paired wrong: the
                     verdict below speaks of the first word only, and a grid
                     of five has four others to be told about. */}
-                {checked && !right ? <span className="at-matchfix">{w.en}</span> : null}
+                {checked && !right ? (
+                  field === "ar" ? (
+                    <span className="at-matchfix ar">
+                      <Arabic text={w.ar} kind="word" lang={lang} />
+                    </span>
+                  ) : (
+                    <span className="at-matchfix">{w.en}</span>
+                  )
+                ) : null}
               </span>
             </button>
           );
@@ -8081,7 +8423,7 @@ function MatchGrid({
       <div className="at-matchcol">
         {meanings.map((m, at) => {
           const owner = takenBy(at);
-          const right = checked && owner && owner.en === m;
+          const right = checked && owner && wantedOf(owner) === m;
           return (
             <button
               type="button"
@@ -8092,7 +8434,7 @@ function MatchGrid({
               data-el="match-meaning"
               /* Held looks the same on both sides, because it is the same
                  thing: a tile waiting for its other half. */
-              className={`at-matchtile en${heldMeaning === at ? " on" : ""}${
+              className={`at-matchtile${field === "ar" ? "" : " en"}${heldMeaning === at ? " on" : ""}${
                 owner ? " paired" : ""
               }${checked && owner ? (right ? " right" : " wrong") : ""}`}
               aria-pressed={heldMeaning === at}
@@ -8108,7 +8450,16 @@ function MatchGrid({
                   as on the words, because it is the meanings a learner
                   cannot tell apart: the tag on the word alone would name
                   the form without saying which English is its. */}
-              {meaningTags[at] ? (
+              {field === "ar" ? (
+                /* The words in the script, as the word grid shows them on
+                   its left. */
+                <span className="at-matchword">
+                  <Arabic text={m} kind="word" lang={lang} />
+                  {meaningTags[at] ? (
+                    <span className="at-matchtag" data-el="match-form-tag">{meaningTags[at]}</span>
+                  ) : null}
+                </span>
+              ) : meaningTags[at] ? (
                 <span className="at-matchword">
                   <span>{m}</span>
                   <span className="at-matchtag" data-el="match-form-tag">{meaningTags[at]}</span>
@@ -8542,14 +8893,15 @@ export default function ArabicTrainer() {
      the unfiltered path. */
   const [deck] = useState<any[]>([]);
   const [session, setSession] = useState<any | null>(null); // { exercises, practice, items }
-  /* A newly deployed build takes the page over by itself — see updates.ts.
-     Mid-question is the one moment where that would land on top of
-     something, so a session in flight holds it until the session ends or
-     the app is put away. */
-  useEffect(() => {
-    holdUpdates(!!session);
-    return () => holdUpdates(false);
-  }, [session]);
+  /* A newly deployed build has taken charge — see updates.ts. The page
+     does not reload itself for it, since that would throw away whatever
+     is on screen and not yet saved; it says so and offers Reload, and the
+     person picks the moment. "Later" puts the bar away for this page; the
+     version line in the menu still offers Reload. */
+  const [updateWaiting, setUpdateWaiting] = useState(updateReady);
+  const [updateLater, setUpdateLater] = useState(false);
+  const [updateGoing, setUpdateGoing] = useState(false);
+  useEffect(() => onUpdateReady(setUpdateWaiting), []);
   /* Null until the person has set up or signed in; the app shows the
      welcome screens until then. */
   const [account, setAccount] = useState(() => API.loadAccount());
@@ -8780,7 +9132,6 @@ export default function ArabicTrainer() {
   const [showMeaning, setShowMeaning] = useState(false);
   /* Closed for every new question. Opening it for one card is not a
      standing request to see it for the next twenty. */
-  const [alsoOpen, setAlsoOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [tally, setTally] = useState({ ok: 0, no: 0 });
   /*
@@ -9371,9 +9722,9 @@ export default function ArabicTrainer() {
     };
     window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", onHidden);
-    /* And before any reload the app brings on itself, which is a service
-       worker taking over with a new build — that used to happen inside the
-       debounce and take the last answer with it. */
+    /* And before any reload the app brings on itself, which is Reload
+       pressed for a new build — that used to happen inside the debounce
+       and take the last answer with it. */
     const release = beforeReload(flush);
     return () => {
       window.removeEventListener("pagehide", flush);
@@ -9531,6 +9882,8 @@ export default function ArabicTrainer() {
   setMateCounts(mateCounts);
   const picturedCounts = useMemo(() => countPictured(asking, settings), [asking, settings]);
   setPicturedCounts(picturedCounts);
+  const heardCounts = useMemo(() => countHeard(asking, settings), [asking, settings]);
+  setHeardCounts(heardCounts);
 
   /*
    * And whether the learner has cleared each of them.
@@ -10087,6 +10440,14 @@ export default function ArabicTrainer() {
     for (const ex of built.exercises || []) {
       const r = resolveUnit(items, ex);
       if (r && r.unit) for (const rec of r.unit.recs || []) ids.push(rec.id);
+      /* And every word standing beside it in a grid of recordings, each of
+         which is played from its own tile. */
+      if (specOf(ex.type) && specOf(ex.type).tiles === "audio") {
+        for (const mate of ex.mates || []) {
+          const m = resolveUnit(items, { ...mate, type: ex.type });
+          if (m && m.unit) for (const rec of m.unit.recs || []) ids.push(rec.id);
+        }
+      }
       if (r && r.unit && Array.isArray(r.unit.images)) pictures.push(...r.unit.images.slice(0, 1));
       if (specOf(ex.type) && specOf(ex.type).picks === "image") choosesPictures = true;
     }
@@ -10230,7 +10591,6 @@ export default function ArabicTrainer() {
     setRetried(false);
     setFlaggedNow(false);
     setEasedFor(null);
-    setAlsoOpen(false);
     setShowSaid(false);
     setShowMeaning(false);
     setHintOpen(null);
@@ -10614,7 +10974,9 @@ export default function ArabicTrainer() {
    */
   const gaveAnswer = useMemo(() => {
     if (!item || !checked || !spec || skipped) return null;
-    if (spec.answerField !== "ar") return null;
+    /* Nor in the grid of recordings, whose answer is a tile tapped, not a
+       word written. */
+    if (spec.answerField !== "ar" || spec.picks === "pair") return null;
     return answerGiven(typed, item, (given, want) => qLang.check(given, want, qSettings).ok, answerFields());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item && item.id, checked, typed, skipped, spec && spec.answerField]);
@@ -10701,7 +11063,10 @@ export default function ArabicTrainer() {
   /* Each word of the grid against what was put to it. The grid's own
      verdict is the whole of it: right when every pair is. */
   const gridMarks = () =>
-    grid.words.map((w) => ({ unit: w, right: (matched[w.id] || "") === String(w.en || "") }));
+    grid.words.map((w) => ({
+      unit: w,
+      right: (matched[w.id] || "") === String((spec && spec.answerField === "ar" ? w.ar : w.en) || ""),
+    }));
 
   /*
    * Whether this answer is a slip of the finger rather than a miss.
@@ -11751,7 +12116,7 @@ export default function ArabicTrainer() {
                     learner set themselves. */}
                 {homePrep && (
                   <div className="at-card at-preptile at-mb3">
-                    <Climb items={shown.filter(prepDeckOf(homePrep.decks))} settings={settings} />
+                    <Climb items={shown.filter(prepDeckOf(homePrep.decks))} settings={settings} target={homePrep.target} />
                     <div className="at-row">
                       <Button variant="primary" onClick={() => begin(false, prepDeckOf(homePrep.decks))}>
                         Prep for {homePrep.name}
@@ -12206,6 +12571,8 @@ export default function ArabicTrainer() {
                           checked={!!checked}
                           onChange={setTyped}
                           onPairs={setMatched}
+                          field={spec.answerField === "ar" ? "ar" : "en"}
+                          heard={spec.tiles === "audio"}
                         />
                         {/* A grid half done is not an answer, and a Check
                             that sits dead without saying why is the button
@@ -12363,6 +12730,7 @@ export default function ArabicTrainer() {
                     <NumeralPad
                       lang={qLang}
                       clock={String(item[spec.answerField] || "").includes(":")}
+                      deal={qi}
                       onKey={(ch) => caretInsert(inputRef, typed, setTyped, ch)}
                       onBack={() => caretBackspace(inputRef, typed, setTyped)}
                       onClear={() => setTyped("")}
@@ -12391,7 +12759,9 @@ export default function ArabicTrainer() {
                           : skipped
                           ? SKIPPED_VERDICT
                           : spec.picks === "pair"
-                          ? GRID_VERDICT
+                          ? spec.tiles === "audio"
+                            ? HEARD_GRID_VERDICT
+                            : GRID_VERDICT
                           : WRONG_VERDICT}
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
@@ -12518,7 +12888,13 @@ export default function ArabicTrainer() {
                           noticing, so each says what it is, they are set
                           smaller, and they are kept together in one box
                           rather than trailing down the page. */}
-                      <AlsoBox open={alsoOpen} onToggle={() => setAlsoOpen((v) => !v)}>
+                      {/* Not under a grid. Everything in the box is about
+                          one card, and a grid is five: it spoke of the
+                          first word alone, without saying which. The
+                          owner's call was to leave it out rather than
+                          make it five times as long. */}
+                      {spec.picks !== "pair" && (
+                      <AlsoBox>
                         {/* The phrase it appeared in, whole, and what it
                             means. A gap question showed that meaning with
                             the gap; every other question held it back
@@ -12543,9 +12919,24 @@ export default function ArabicTrainer() {
                         {spec.promptField === "audio" && spec.answerField !== "ar" && item.ar && (
                           <div className="at-answeralso" data-el="also-script">
                             <p className="at-alsolabel" data-el="also-script-label">
-                              This is how it's written
+                              How it's written
                             </p>
                             <Field value={item.ar} field="ar" kind={item.kind} name="also-script-text" />
+                          </div>
+                        )}
+                        {/* A number, in the figures the language writes
+                            it in: 47 is ٤٧ on a price tag. Not where the
+                            question already showed them — asked from
+                            them, or beside the figures English uses. */}
+                        {item.numeral &&
+                          spec.promptField !== "numeral" &&
+                          spec.promptField !== "en" &&
+                          spec.answerField !== "numeral" && (
+                          <div className="at-answeralso" data-el="also-figures">
+                            <p className="at-alsolabel" data-el="also-figures-label">
+                              In {qLang.numeralsLabel || `${qLang.scriptLabel} figures`}
+                            </p>
+                            <Field value={item.numeral} field="numeral" name="also-figures-text" />
                           </div>
                         )}
                         {/* The field the question never showed.
@@ -12565,9 +12956,9 @@ export default function ArabicTrainer() {
                           <div className="at-answeralso" data-el="also-hint">
                             <p className="at-alsolabel" data-el="also-hint-label">
                               {alsoField === "lat"
-                                ? "This is how it's pronounced"
+                                ? "How it's pronounced"
                                 : alsoField === "ar"
-                                ? "This is how it's written"
+                                ? "How it's written"
                                 : "This is what it means"}
                             </p>
                             <Field
@@ -12578,21 +12969,6 @@ export default function ArabicTrainer() {
                             />
                           </div>
                         )}
-                        {/* A number, in the figures the language writes
-                            it in: 47 is ٤٧ on a price tag. Not where the
-                            question already showed them — asked from
-                            them, or beside the figures English uses. */}
-                        {item.numeral &&
-                          spec.promptField !== "numeral" &&
-                          spec.promptField !== "en" &&
-                          spec.answerField !== "numeral" && (
-                          <div className="at-answeralso" data-el="also-figures">
-                            <p className="at-alsolabel" data-el="also-figures-label">
-                              In {qLang.numeralsLabel || `${qLang.scriptLabel} figures`}
-                            </p>
-                            <Field value={item.numeral} field="numeral" name="also-figures-text" />
-                          </div>
-                        )}
                         {/* Was below the notes, which put it three blocks
                             away from its own siblings. It belongs with
                             them. A time is its hour and its minutes, one
@@ -12600,7 +12976,7 @@ export default function ArabicTrainer() {
                         {spec.promptField !== "audio" && audibleOf(item).length > 0 && (
                           <div className="at-answeralso" data-el="also-audio">
                             <p className="at-alsolabel" data-el="also-audio-label">
-                              This is how it sounds
+                              How it sounds
                             </p>
                             <AudioPrompt recs={audibleOf(item)} after={chainOf(item)} lead={leadSpeed(item)} />
                           </div>
@@ -12612,7 +12988,10 @@ export default function ArabicTrainer() {
                           <RelatedWords pairs={pairs} settings={qSettings} />
                         )}
                       </AlsoBox>
-                      {item.note && (
+                      )}
+                      {/* The teacher's note, for the same reason: under a
+                          grid it was the first word's, unnamed. */}
+                      {item.note && spec.picks !== "pair" && (
                         <p className="at-note" data-el="card-note">
                           {item.note}
                         </p>
@@ -12981,6 +13360,27 @@ export default function ArabicTrainer() {
       )}
 
 
+      {updateWaiting && !updateLater && !inExercise && !(lastDeleted && lastDeleted.length > 0) && (
+        /* Kept off a question in progress and out of the undo bar's way,
+           which sits in the same place. */
+        <div className="at-undo at-updatebar" role="status">
+          <span className="what">A new version is ready. Save your work, then reload.</span>
+          <Button size="sm" onClick={() => setUpdateLater(true)} disabled={updateGoing}>
+            Later
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setUpdateGoing(true);
+              void applyUpdate();
+            }}
+            disabled={updateGoing}
+          >
+            {updateGoing ? "Reloading…" : "Reload"}
+          </Button>
+        </div>
+      )}
+
       {/* The three things that float above the app. They appear and vanish
           together, so they are decided in one place rather than three. */}
       {!inExercise && (
@@ -13086,7 +13486,7 @@ export default function ArabicTrainer() {
  *
  * Exported for the tests, which hold a deck of numbers to it.
  */
-export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
+export function climbOf(cards: Item[], settings: Settings, all: Item[], target: PrepTarget = "learnt") {
   /* The four levels, then the cards with nothing above them left to open
      — the same five buckets the tiles in Progress count. */
   const spread = [0, 0, 0, 0, 0];
@@ -13102,8 +13502,10 @@ export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
     const toward = towardsLearnt(it, settings, all);
     if (!toward) continue;
     n++;
-    got += toward.share;
-    if (toward.at.status === "done") {
+    /* Aiming at Cleared, the top row counts once it is cleared: the passes
+       are the part of the climb a prep for Cleared leaves out. */
+    got += target === "cleared" && toward.at.status === "cleared" ? toward.reach : toward.share;
+    if (reached(toward.at, target)) {
       learnt++;
       spread[4]++;
     } else spread[toward.at.level - 1]++;
@@ -13111,8 +13513,8 @@ export function climbOf(cards: Item[], settings: Settings, all: Item[]) {
   return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
 }
 
-function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
-  const climb = useMemo(() => climbOf(items, settings, items), [items, settings]);
+function Climb({ items, settings, target = "learnt" }: { items: Item[]; settings: Settings; target?: PrepTarget }) {
+  const climb = useMemo(() => climbOf(items, settings, items, target), [items, settings, target]);
 
   /* Nothing practisable, nothing to draw. The card below still offers what
      it can, and the reason there is nothing is the Cards tab's to give. */
@@ -13150,7 +13552,7 @@ function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
       </div>
       <div className="at-climbside">
         <p className="at-climbsay">
-          {learnt} of {plural(n, "card")} learnt
+          {learnt} of {plural(n, "card")} {target === "cleared" ? "cleared" : "learnt"}
         </p>
         <span className="at-climbband" aria-hidden="true">
           {spread.map((count, i) =>
@@ -13554,6 +13956,11 @@ function ItemsTab({
             items={byTag}
             itemKey={(it) => it.id}
             size="small"
+            views={studentViews("student-cards", {
+              lang: () => activeLang(),
+              open: (it) => setSheet({ view: it }),
+              level: (it) => standingShort(standing(cardStandings(it, settings, items))),
+            })}
             busy={false}
             onNew={OWN ? () => setSheet("single") : undefined}
             filters={
@@ -16175,15 +16582,16 @@ function Lately({ moves }: { moves?: Record<string, DayMoves> }) {
    Prep mode
 
    A learner preparing for something on a date — the start of a class, an
-   exam — names it, sets the date and picks the decks that have to be
-   learnt by then. The home screen then offers a session drawn from those
+   exam — names it, sets the date, picks the decks that have to be ready by
+   then and how far: cleared, or learnt. The home screen then offers a session drawn from those
    decks alone, which is the fastest way to finish them, and says how many
    days are left and whether their pace gets them there. The one prep is
    kept in the settings, so it follows the learner to their other devices
    the way the rest of their settings do, and it is theirs to edit or clear.
 
-   Being ready means every card in the chosen decks learnt before the day
-   itself starts: on the morning of an exam is too late to be learning.
+   Being ready means every card in the chosen decks at the target before
+   the day itself starts: on the morning of an exam is too late to be
+   learning.
    ------------------------------------------------------------------ */
 
 export interface Prep {
@@ -16191,8 +16599,24 @@ export interface Prep {
   name: string;
   /** The day of it, as a date input writes one: YYYY-MM-DD. */
   date: string;
-  /** The decks to have learnt by then. */
+  /** The decks to have learnt, or cleared, by then. */
   decks: string[];
+  /** How far those decks have to be by then. */
+  target: PrepTarget;
+}
+
+/**
+ * How far a prep's decks have to get: every card learnt — cleared and its
+ * two passes made, days apart — or only cleared, which is up the whole
+ * ladder and can be done in days rather than the better part of a week.
+ * Learnt for a prep saved before there was a choice, since that is what it
+ * was aiming at.
+ */
+export type PrepTarget = "cleared" | "learnt";
+
+/** Whether a card standing here has got as far as the target. */
+function reached(at: Standing, target: PrepTarget): boolean {
+  return at.status === "done" || (target === "cleared" && at.status === "cleared");
 }
 
 /** The prep in the settings, if there is a whole one. */
@@ -16203,7 +16627,7 @@ export function prepOf(settings: Settings | null | undefined): Prep | null {
   const date = String(p.date || "");
   const decks = Array.isArray(p.decks) ? p.decks.map((d: unknown) => String(d)).filter(Boolean) : [];
   if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !decks.length) return null;
-  return { name, date, decks };
+  return { name, date, decks, target: p.target === "cleared" ? "cleared" : "learnt" };
 }
 
 /** The first moment of the prep's day: the deadline for being ready. */
@@ -16239,7 +16663,8 @@ export function prepDaysLeft(date: string, at: Millis = now()): number {
 
 /**
  * Where a prep stands: still to come, its day come, every card in it
- * learnt already, or nothing in its decks to learn in this language.
+ * learnt (or cleared) already, or nothing in its decks to learn in this
+ * language.
  */
 export function prepStatus(
   prep: Prep,
@@ -16250,13 +16675,13 @@ export function prepStatus(
   if (at >= prepStart(prep.date)) return "past";
   const cards = items.filter(prepDeckOf(prep.decks)).filter((it) => standing(cardStandings(it, settings, items)));
   if (!cards.length) return "empty";
-  return workloadOf(cards, settings, at).left ? "active" : "done";
+  return workloadOf(cards, settings, at, prep.target).left ? "active" : "done";
 }
 
 /** What a prep's forecast says, in a sentence. */
-export function readyWords(answer: ReadyAnswer, date: string, perDay: number): string {
+export function readyWords(answer: ReadyAnswer, date: string, perDay: number, target: PrepTarget = "learnt"): string {
   const day = new Date(prepStart(date)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-  if (answer.kind === "already") return "Every card in these decks is already learnt.";
+  if (answer.kind === "already") return `Every card in these decks is already ${target === "cleared" ? "cleared" : "learnt"}.`;
   if (answer.kind === "late") {
     return answer.earliest === null
       ? `You can't be ready before ${day}: however much you practise, it would take more than two years.`
@@ -16287,6 +16712,7 @@ function PrepScreen({
   const [name, setName] = useState(prep ? prep.name : "");
   const [date, setDate] = useState(prep ? prep.date : "");
   const [chosen, setChosen] = useState<string[]>(prep ? prep.decks.filter((d) => decks.some((x) => x.name === d)) : []);
+  const [target, setTarget] = useState<PrepTarget>(prep ? prep.target : "learnt");
   const tomorrow = dayKey(now() + 86400000);
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= tomorrow;
   const ready = name.trim() !== "" && dateOk && chosen.length > 0;
@@ -16294,15 +16720,35 @@ function PrepScreen({
   const answer = useMemo(
     () =>
       dateOk && chosen.length
-        ? readyFor(workloadOf(collection.filter(prepDeckOf(chosen)), settings), prepStart(date))
+        ? readyFor(workloadOf(collection.filter(prepDeckOf(chosen)), settings, now(), target), prepStart(date))
         : null,
-    [dateOk, chosen, date, collection, settings],
+    [dateOk, chosen, date, collection, settings, target],
   );
   return (
-    <Screen title="Prep mode" onBack={onBack}>
+    <Screen
+      title="Prep mode"
+      onBack={onBack}
+      /* Save at the foot of the screen, as every other form keeps it, and
+         the way to delete the prep at the other end of the same bar —
+         an icon, so it is there without competing with Save. */
+      footer={
+        <>
+          {prep && (
+            <IconButton icon="delete" label="Delete this prep" danger onClick={() => onSave(null)} />
+          )}
+          <Button
+            variant="primary"
+            disabled={!ready}
+            onClick={() => ready && onSave({ name: name.trim(), date, decks: chosen, target })}
+          >
+            {prep ? "Save changes" : "Start prepping"}
+          </Button>
+        </>
+      }
+    >
       <Lede>
-        Preparing for something on a set date? Pick the decks you need fully learnt by then. The home screen will
-        offer sessions drawn only from those decks, and tell you whether you're on track.
+        Preparing for something on a set date? Pick the decks you need ready by then. The home screen will offer
+        sessions drawn only from those decks, and tell you whether you're on track.
       </Lede>
       <FormField label="What are you preparing for?" htmlFor="at-prep-name">
         <input
@@ -16329,36 +16775,43 @@ function PrepScreen({
           onChange={(e) => setDate(e.target.value)}
         />
       </FormField>
-      <FormField label="Decks to have fully learnt by then">
-        <CheckList
-          options={decks.map((d) => ({ id: d.name, title: d.name, note: `${d.learnt} of ${plural(d.n, "card")} learnt` }))}
+      {/* The decks as a card's editor puts a card in them: pills, and a
+          sheet to add more from. */}
+      <FormField label="Decks to target">
+        <DeckSwitch
+          decks={decks.map((d) => ({ id: d.name, title: d.name, cardCount: d.n }))}
           chosen={chosen}
           onToggle={(id, wasOn) => setChosen((c) => (wasOn ? c.filter((x) => x !== id) : c.concat([id])))}
-          empty="No decks to prepare yet."
+          words={{
+            first: "Choose decks",
+            drop: (title) => `Stop targeting ${title}`,
+            lede: "Choose the decks to have ready by then.",
+            note: "",
+            none: "No decks to prepare yet.",
+          }}
+        />
+      </FormField>
+      <FormField
+        label="Target level"
+        hint={
+          target === "cleared"
+            ? "Every card answered right all the way up its levels. Quicker to reach."
+            : "Every card cleared, then remembered on two reviews a few days apart."
+        }
+      >
+        <Segmented
+          label="Target level"
+          options={[{ value: "cleared", label: "Cleared" }, { value: "learnt", label: "Learnt" }]}
+          value={target}
+          onChange={(v) => setTarget(v as PrepTarget)}
         />
       </FormField>
       {answer && (
         <div className="at-forecast at-prepready" aria-live="polite">
           <p>
-            <span className="at-forecastpace">{readyWords(answer, date, perDay)}</span>
+            <span className="at-forecastpace">{readyWords(answer, date, perDay, target)}</span>
           </p>
           <p className="at-forecastnote">An estimate, assuming you get every answer right, so allow a little more.</p>
-        </div>
-      )}
-      <div className="at-row">
-        <Button
-          variant="primary"
-          disabled={!ready}
-          onClick={() => ready && onSave({ name: name.trim(), date, decks: chosen })}
-        >
-          {prep ? "Save changes" : "Start prepping"}
-        </Button>
-      </div>
-      {prep && (
-        <div className="at-row at-mt3">
-          <Button variant="ghost" onClick={() => onSave(null)}>
-            Stop prepping
-          </Button>
         </div>
       )}
     </Screen>
@@ -16393,10 +16846,10 @@ function PrepLine({
 }) {
   const left = prepDaysLeft(prep.date);
   const answer = useMemo(
-    () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings), prepStart(prep.date)),
+    () => readyFor(workloadOf(collection.filter(prepDeckOf(prep.decks)), settings, now(), prep.target), prepStart(prep.date)),
     [collection, settings, prep],
   );
-  const g = prepGlance(left, answer, perDay, today);
+  const g = prepGlance(left, answer, perDay, today, prep.target);
   /* Dots while they can be counted at a glance; past that, the number. */
   const dots = g.goal !== null && g.goal <= PREP_DOTS ? g.goal : 0;
   return (
@@ -16453,7 +16906,13 @@ export function prepToday(left: number, answer: ReadyAnswer, questionsToday: num
  * day it takes when it does not, and as the earliest they could be ready
  * when no amount of practice makes the day.
  */
-export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, questionsToday: number): {
+export function prepGlance(
+  left: number,
+  answer: ReadyAnswer,
+  perDay: number,
+  questionsToday: number,
+  target: PrepTarget = "learnt",
+): {
   done: number;
   goal: number | null;
   days: number;
@@ -16465,15 +16924,17 @@ export function prepGlance(left: number, answer: ReadyAnswer, perDay: number, qu
 } {
   const { done, goal } = prepToday(left, answer, questionsToday);
   const base = { done, goal, days: Math.max(0, left) };
-  if (answer.kind === "already") return { ...base, tone: "good", status: "All learnt", detail: "" };
+  const toClear = target === "cleared";
+  if (answer.kind === "already") return { ...base, tone: "good", status: toClear ? "All cleared" : "All learnt", detail: "" };
   if (answer.kind === "late") {
+    const all = toClear ? "Too soon to clear it all" : "Too soon to learn it all";
     return {
       ...base,
       tone: "late",
       status: "Too soon",
       detail: answer.earliest === null
-        ? "Too soon to learn it all — it would take more than two years"
-        : `Too soon to learn it all — the earliest you could be ready is ${forecastWords(answer.earliest)}`,
+        ? `${all} — it would take more than two years`
+        : `${all} — the earliest you could be ready is ${forecastWords(answer.earliest)}`,
     };
   }
   /* This morning's rate, which today's goal is also made from — see
@@ -16514,6 +16975,9 @@ const DECK_RUNS = [
   { key: "l4", label: LEVEL_NAME[4] },
   { key: "cleared", label: "Cleared" },
   { key: "done", label: "Learnt" },
+  /* A number whose stretch has not opened: nothing to ask it yet, so last,
+     after everything there is something to do about. */
+  { key: "waiting", label: "Opens later" },
 ];
 
 /** Which of DECK_RUNS a card goes under. */
@@ -16562,230 +17026,11 @@ export function forecastWords(at: Millis | null, from: Millis = now()): string {
   return `${date} (${off})`;
 }
 
-/*
- * Numbers, word by word.
- *
- * A number part is one skill on the ladder, and the ladder can say it is
- * going well while one of its words has never been kept: a learner can be
- * right about 11 to 99 a dozen times without meeting *ninety*. So each part
- * is shown here with every word it is built from — each unit, ten and
- * hundred, and the word that joins them — and whether that word is
- * validated, which is the app's standard for any card: learnt. The part
- * itself is learnt only once all of them are (see `cardStandings`), and its
- * questions are steered towards the ones that are not (see `drawRange`), so
- * this is the same answer the scheduler is acting on, drawn.
- */
-type WordState = "done" | "going" | "new";
-const WORD_STATE_LABEL: Record<WordState, string> = {
-  done: "Learnt",
-  going: "Learning",
-  new: "Not started",
-};
-
-/* Where a word stands, in the three states the page draws. */
-const wordStateOf = (p: { validated: boolean | null; met: boolean }): WordState =>
-  p.validated ? "done" : p.met ? "going" : "new";
-
-/* The figure a word stands for, for ordering: one before ten before a
-   hundred, and the words that are not a number — *and*, *hundred* — after
-   them all. */
-const figureOf = (card: Item): number => {
-  const n = Number(String(leadOf(card).en || "").replace(/,/g, ""));
-  return Number.isFinite(n) && String(leadOf(card).en || "").trim() !== "" ? n : Infinity;
-};
-
-function NumberParts({
-  items,
-  settings,
-  progressOf,
-  onCard,
-}: {
-  items: Item[];
-  settings: Settings;
-  progressOf: Map<string, Standing | null>;
-  onCard: (it: Item) => void;
-}) {
-  const parts = useMemo(
-    () =>
-      items
-        .filter((it) => isRangeSkill(it) && (it.parts || []).length)
-        .map((it) => {
-          const words = partsOf(it, items, settings)
-            .filter((p) => p.validated !== null)
-            .sort((a, b) => figureOf(a.card) - figureOf(b.card));
-          return {
-            it,
-            name: String(it.name || (it.range && it.range.label) || ""),
-            words,
-            learnt: words.filter((p) => p.validated).length,
-          };
-        })
-        .filter((p) => p.words.length),
-    [items, settings],
-  );
-  /* And the ten figures each system writes its numbers in, first: every
-     part is written in them, and a part is learnt only once they are. */
-  const figureSets = useMemo(() => {
-    const systems = [...new Set(items.filter(isNumeralCard).map((it) => systemIdOf(it)))];
-    return systems
-      .map((system) => {
-        const cards = numeralCardsOf(system, items).filter((card) => isDrillable(card, settings));
-        const words = cards.map((card) => {
-          const at = standing(cardStandings(card, settings, items));
-          return {
-            card,
-            at,
-            validated: at ? at.status === "done" : null,
-            met: unitsOf(card).some(({ unit }) =>
-              laddered(unit, settings).some((k) => stateOf(unit, k).phase !== "new"),
-            ),
-          };
-        }).filter((p) => p.validated !== null);
-        const lang = LANGUAGES[(cards[0] && cards[0].lang) as LangId] || langOf(settings);
-        return {
-          id: `numerals:${system}`,
-          name: lang.numeralsLabel || "Numerals",
-          note: lang.numeralsNote || "",
-          words,
-          learnt: words.filter((p) => p.validated).length,
-        };
-      })
-      .filter((f) => f.words.length);
-  }, [items, settings]);
-  const [open, setOpen] = useState<string>("");
-  if (!parts.length && !figureSets.length) return null;
-  const showing = parts.find((p) => p.it.id === open);
-  const figuresShowing = figureSets.find((f) => f.id === open);
-  return (
-    <Section
-      title="Numbers"
-      lede="Each part of the numbers you're studying, and how many of the words it is built from you have learnt. A part counts as learnt only once every one of its words is."
-    >
-      <div className="at-deckprog">
-        {figureSets.map((f) => {
-          const all = f.learnt === f.words.length;
-          const state: WordState = all ? "done" : f.words.some((p) => p.met) ? "going" : "new";
-          return (
-            <button
-              type="button"
-              className={`at-deckstat${all ? " done" : ""}`}
-              key={f.id}
-              aria-haspopup="dialog"
-              onClick={() => setOpen(f.id)}
-            >
-              <span className="at-deckstatname">{f.name}</span>
-              <b>
-                {f.learnt}
-                <i>/{f.words.length}</i>
-              </b>
-              <span className="at-deckbar" aria-hidden="true">
-                <span style={{ width: `${Math.round((f.learnt / f.words.length) * 100)}%` }} />
-              </span>
-              <span className="at-deckstatnote">
-                {plural(f.words.length, "numeral")} · {WORD_STATE_LABEL[state]}
-              </span>
-            </button>
-          );
-        })}
-        {parts.map((p) => {
-          const at = progressOf.get(p.it.id) || null;
-          const all = p.learnt === p.words.length;
-          return (
-            <button
-              type="button"
-              className={`at-deckstat${all && at && at.status === "done" ? " done" : ""}`}
-              key={p.it.id}
-              aria-haspopup="dialog"
-              onClick={() => setOpen(p.it.id)}
-            >
-              <span className="at-deckstatname">{p.name}</span>
-              <b>
-                {p.learnt}
-                <i>/{p.words.length}</i>
-              </b>
-              <span className="at-deckbar" aria-hidden="true">
-                <span style={{ width: `${Math.round((p.learnt / p.words.length) * 100)}%` }} />
-              </span>
-              <span className="at-deckstatnote">
-                {plural(p.words.length, "word")} · {standingLabel(at)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {figuresShowing && (
-        <Screen title={figuresShowing.name} onBack={() => setOpen("")}>
-          <Lede>
-            {figuresShowing.learnt === figuresShowing.words.length
-              ? `All ${figuresShowing.words.length} are learnt.`
-              : `${figuresShowing.learnt} of ${figuresShowing.words.length} learnt. Every number is written with these, so each part of the numbers counts as learnt only once they all are.`}
-          </Lede>
-          {figuresShowing.note && <Help>{figuresShowing.note}</Help>}
-          <div className="at-numwords">
-            {figuresShowing.words.map((p) => {
-              const state = wordStateOf(p);
-              const lead = leadOf(p.card);
-              return (
-                <button
-                  type="button"
-                  className={`at-numword ${state}`}
-                  key={p.card.id}
-                  aria-haspopup="dialog"
-                  aria-label={`${p.card.numeral || ""} (${lead.en}): ${WORD_STATE_LABEL[state]}`}
-                  onClick={() => onCard(p.card)}
-                >
-                  <span className="at-numwordfig">{p.card.numeral}</span>
-                  <span className="at-numwordsaid" dir="ltr">
-                    {lead.en}
-                  </span>
-                  <span className="at-numwordstate">{WORD_STATE_LABEL[state]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Screen>
-      )}
-      {showing && (
-        <Screen title={showing.name} onBack={() => setOpen("")}>
-          <Lede>
-            {showing.learnt === showing.words.length
-              ? `Every word in ${showing.name} is learnt.`
-              : `${showing.learnt} of ${plural(showing.words.length, "word")} learnt. The numbers you are asked here lean towards the ones still to learn.`}
-          </Lede>
-          <Help>Where the part itself stands: {standingLabel(progressOf.get(showing.it.id) || null)}.</Help>
-          <div className="at-numwords">
-            {showing.words.map((p) => {
-              const state = wordStateOf(p);
-              const lead = leadOf(p.card);
-              return (
-                <button
-                  type="button"
-                  className={`at-numword ${state}`}
-                  key={p.card.id}
-                  aria-haspopup="dialog"
-                  aria-label={`${lead.en || lead.ar}: ${WORD_STATE_LABEL[state]}`}
-                  onClick={() => onCard(p.card)}
-                >
-                  <span className="at-numwordfig">{p.card.numeral || lead.en}</span>
-                  <span className="at-numwordsaid" dir="auto">
-                    {lead.ar}
-                  </span>
-                  <span className="at-numwordstate">{WORD_STATE_LABEL[state]}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Screen>
-      )}
-    </Section>
-  );
-}
-
 function DeckScreen({
   name,
   cards,
   progressOf,
+  towardOf,
   settings,
   perDay,
   onBack,
@@ -16794,14 +17039,25 @@ function DeckScreen({
   name: string;
   cards: Item[];
   progressOf: Map<string, Standing | null>;
+  /** How far each card is towards learnt — see towardsLearnt. */
+  towardOf: Map<string, { at: Standing; share: number } | null>;
   settings: Settings;
   perDay: number;
   onBack: () => void;
   onCard: (it: Item) => void;
 }) {
-  const shown = cards.filter((it) => progressOf.get(it.id));
-  const learnt = shown.filter((it) => progressOf.get(it.id)?.status === "done").length;
-  const pct = shown.length ? Math.round((learnt / shown.length) * 100) : 0;
+  /* Every card of the deck that can be asked, now or once what it waits on
+     opens: a number whose stretch is still ahead is in the deck and not
+     yet learnt, and the deck's tile on Progress counts it, so this screen
+     lists it too. It used to list only the cards on a level, so a deck of
+     numbers opened on the handful being worked on and none of the rest. */
+  const shown = cards.filter((it) => towardOf.get(it.id));
+  const learnt = shown.filter((it) => towardOf.get(it.id)?.at.status === "done").length;
+  const pct = deckPercent({
+    n: shown.length,
+    learnt,
+    got: shown.reduce((sum, it) => sum + (towardOf.get(it.id)?.share || 0), 0),
+  });
   const allDone = shown.length > 0 && learnt === shown.length;
   /* What is left and how soon it could be done — see workloadOf. */
   const work = useMemo(() => workloadOf(cards, settings), [cards, settings]);
@@ -16854,7 +17110,12 @@ function DeckScreen({
         size="small"
         empty="No cards match."
         groups={DECK_RUNS}
-        groupOf={(it: Item) => deckRunOf(progressOf.get(it.id))}
+        groupOf={(it: Item) => (progressOf.get(it.id) ? deckRunOf(progressOf.get(it.id)) : "waiting")}
+        views={studentViews("student-deck", {
+          lang: (it) => langOf(settingsFor(settings, it)),
+          open: (it) => onCard(it),
+          level: (it) => (progressOf.get(it.id) ? standingShort(progressOf.get(it.id) || null) : "Opens later"),
+        })}
         match={(it: Item, needle: string) =>
           (leadOf(it).ar || "").includes(needle) ||
           (leadOf(it).lat || "").toLowerCase().includes(needle) ||
@@ -16864,7 +17125,7 @@ function DeckScreen({
           <CardTile
             card={it}
             lang={langOf(settingsFor(settings, it))}
-            meta={standingShort(progressOf.get(it.id) || null)}
+            meta={progressOf.get(it.id) ? standingShort(progressOf.get(it.id) || null) : "Opens later"}
             className="whole"
             onClick={() => onCard(it)}
           />
@@ -17038,25 +17299,30 @@ function ProgressTab({
   return (
     <>
       <Lately moves={moves} />
-      {/* Prep mode: getting a set of decks learnt by a date. The button
-          says what is being prepped for, once something is. */}
-      <div className="at-prepbar">
-        <Button variant="ghost" onClick={() => setPrepOpen(true)} aria-haspopup="dialog">
-          Prep mode
-        </Button>
-        {prep && (
-          <Help className="at-prepnote">
-            {prepNow === "past"
-              ? `${prep.name} has come — edit the prep or clear it.`
-              : prepNow === "done"
-              ? `Ready for ${prep.name}: every card is learnt.`
-              : `Prepping for ${prep.name} · ${
-                  prepDaysLeft(prep.date) === 1 ? "1 day left" : `${prepDaysLeft(prep.date)} days left`
-                }`}
-          </Help>
-        )}
-      </div>
+      {/* Prep mode: getting a set of decks ready by a date, under a heading
+          of its own like the other parts of the screen. The button starts
+          one, or opens the one there is; the line beside it says what is
+          being prepped for. */}
+      <Section head title="Prep mode" lede="Get some decks ready by a set date, like an exam or the start of a class.">
+        <div className="at-prepbar">
+          <Button variant="ghost" onClick={() => setPrepOpen(true)} aria-haspopup="dialog">
+            {prep ? "Edit prep mode" : "Start prep mode"}
+          </Button>
+          {prep && (
+            <Help className="at-prepnote">
+              {prepNow === "past"
+                ? `${prep.name} has come — edit the prep or delete it.`
+                : prepNow === "done"
+                ? `Ready for ${prep.name}: every card is ${prep.target === "cleared" ? "cleared" : "learnt"}.`
+                : `Prepping for ${prep.name} · ${
+                    prepDaysLeft(prep.date) === 1 ? "1 day left" : `${prepDaysLeft(prep.date)} days left`
+                  }`}
+            </Help>
+          )}
+        </div>
+      </Section>
       <Section
+        head
         title="The ladder"
         lede="Where your cards are on the learning ladder. A card moves up a level once you have answered everything below it right twice running — and counts as learnt once it has come back twice since and you were right."
       >
@@ -17144,6 +17410,11 @@ function ProgressTab({
              under "Learnt" they are all in the one state, which the list
              notices for itself and draws without headings. */
           groups={onLevel ? STATUS_RUNS : undefined}
+          views={studentViews("student-progress", {
+            lang: (it) => langOf(settingsFor(settings, it)),
+            open: (it) => setViewing(it),
+            level: (it) => standingShort(progressOf.get(it.id) || null),
+          })}
           groupOf={(it: Item) => {
             const at = progressOf.get(it.id);
             return at ? at.status : "none";
@@ -17200,8 +17471,6 @@ function ProgressTab({
       )}
       </Section>
 
-      <NumberParts items={items} settings={settings} progressOf={progressOf} onCard={(it) => setViewing(it)} />
-
       {/* ---- the decks, as how far each one is from finished ----
 
           The ladder above says where the cards are; this says where the
@@ -17211,7 +17480,7 @@ function ProgressTab({
           how many are left, and a bar beside it because a number alone is
           read and a bar is seen. */}
       {deckRows.length > 0 && (
-        <Section title="Decks" lede="How you're doing on each deck you're studying.">
+        <Section head title="Decks" lede="How you're doing on each deck you're studying.">
           <div className="at-deckprog">
             {deckRows.map((d) => (
               /* A button: the whole tile opens the deck's own screen. */
@@ -17271,6 +17540,7 @@ function ProgressTab({
           name={deckOpen}
           cards={items.filter((it) => (it.tags || []).includes(deckOpen))}
           progressOf={progressOf}
+          towardOf={progress.toward}
           settings={settings}
           perDay={perDay}
           onBack={() => setDeckOpen("")}

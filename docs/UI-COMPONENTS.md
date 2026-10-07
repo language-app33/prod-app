@@ -161,10 +161,10 @@ The standard list frame: two rows of controls, bulk-action tray, empty state,
 and paging at 120 items.
 
 `noun, plural, items, itemKey, match, groups, groupOf, size="large"|"small",
-resizable, onNew, renderItem, selected, onSelectedChange, bulkActions, tools,
+views, onNew, renderItem, selected, onSelectedChange, bulkActions, tools,
 menus, filters, count, empty, busy`
 
-The controls are **two rows**: New, the search box, `tools` and the size
+The controls are **two rows**: New, the search box, `tools` and the view
 button on the first; Select and the `menus` on the second. Whichever menu is
 open renders under them, then `filters`, then the tiles.
 
@@ -173,10 +173,14 @@ two panels can never give two answers to "why is this list short". `busy` is
 the count the button carries; `narrowing(groups)` works it out for a
 `FilterBar`'s groups.
 
-`resizable` adds the size button, which steps the tiles through three sizes —
-the grid's columns and the type inside a tile together. Only a grid of tiles
-has anything to do with it. The choice is kept on the device, so it holds
-across screens and launches.
+`views` adds the view button, which steps the list through four views —
+small grid, large grid, list and table — with an icon for each. It is
+`{ key, columns, row(item) }`: `row` gives a card's `word` and `meaning` for
+the list view, its `cells` by column key for the table, and the `open` and
+`actions` a tile would have. `key` names the list, and each list keeps the
+view it was left at on the device. `cardWords`, `cardKindLabel` and
+`cardSubtypeLabel` say a card's words, kind and subtype the same way in
+every list.
 
 `match` is `(item, lowercasedQuery) => boolean`. `bulkActions` is
 `[{ label, danger, icon, onClick(ids) }]`, and **`ids` is an array, not the

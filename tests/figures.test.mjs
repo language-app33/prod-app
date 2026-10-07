@@ -70,8 +70,8 @@ test("every question asking for a number in figures says so in the same words", 
   const ask = (/** @type {string} */ type, /** @type {any} */ item) => instructionFor(must(exOf(type, AR)), item);
   const written = ask("num2fig", meaning(""));
   const heard = ask("rec2fig", meaning(""));
-  assert.equal(written, "Write the number in Arabic numerals (123)");
-  assert.equal(heard, "Listen, then write the number in Arabic numerals (123)");
+  assert.equal(written, "Write in Arabic numerals (123)");
+  assert.equal(heard, "Write in Arabic numerals (123)");
   assert.equal(ask("dig2fig", { numeral: "٤", en: "4" }), written, "one of the ten figures");
   /* A number word's meaning is a number, so asking for it is the same
      question. */

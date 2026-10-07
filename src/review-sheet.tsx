@@ -33,7 +33,7 @@ import {
 import type { PartSentences, ReviewState, Sentence } from "./review.ts";
 import { fillNames, refClash, refOf, slotName, slotsOf, WORD_SLOT } from "./variables.ts";
 import { ownSlot } from "./verbs.ts";
-import { Button, CheckList, Field, Help, Notice, Screen, Section, Segmented, plural } from "./shared.tsx";
+import { AskedMeanings, Button, CheckList, Field, Help, Notice, Screen, Section, Segmented, plural } from "./shared.tsx";
 
 type Mark = "ok" | "no" | null;
 
@@ -110,7 +110,7 @@ function SentenceText({ line, lang }: { line: Sentence; lang: Lang }) {
         </span>
       )}
       {line.lat && <span className="at-askedsaid">{line.lat}</span>}
-      {line.en && <span className="at-askedmeans">{line.en}</span>}
+      <AskedMeanings en={line.en} />
       {/* Which form stands in a blank, where the English reads the same
           for several — the word a student is shown beside the sentence. */}
       {line.tags && Object.keys(line.tags).length > 0 && (
