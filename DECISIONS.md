@@ -5598,3 +5598,19 @@ A face with no noun to pair with is quiet, as an unopened row is: no
 question, no place among the new words, its schedule kept. And it no
 longer stands among the words whose clearing opens the next stretch,
 since counting never holds a stretch back.
+
+## The play button in the grid of recordings is a target of its own
+
+**7 October 2026** · `src/ArabicTrainer.tsx` (`MatchGrid`), `src/index.css`
+(`.at-matchplay`)
+
+Reverses the 6 October call that a sound tile is one target. The owner
+asked for the play button to be its own tap target, drawn wider than tall:
+it plays and does nothing else, and the rest of the tile picks the tile up,
+pairs it or frees it as a word tile does. Listening along the column to
+find a word should not disturb the pairs already made.
+
+A button cannot hold a button, so a sound tile is a `div` with
+`role="button"`, focusable, taking Enter and Space as a tap; the play
+button stops its click and keys reaching the tile. Word tiles stay plain
+buttons. Pressing play on the tile already playing stops it.

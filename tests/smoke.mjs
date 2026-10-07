@@ -9234,7 +9234,7 @@ const openPronounTables = async () => {
       chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0,
       /* The grid of recordings, where one comes up. */
       soundGrids: 0, soundTiles: 0, wordsInScript: false, noEnglish: false,
-      unpairs: false, soundVerdict: "", learnMore: false, marked: false,
+      unpairs: false, playOnly: false, soundVerdict: "", learnMore: false, marked: false,
     };
     for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
       const pics = host.querySelector(".at-picchoices");
@@ -9272,6 +9272,11 @@ const openPronounTables = async () => {
              again, it lets go — and is left held, so one more tap puts it
              down before the grid is played through. */
           const w0 = () => /** @type {Element} */ (host.querySelector('[data-el="match-word"]'));
+          /* Its play button is a target of its own: pressing it plays the
+             word and leaves the tile neither held nor paired. */
+          click(w0().querySelector('[data-el="match-sound"]'));
+          await sleep(25);
+          met.playOnly = !w0().classList.contains("on") && !w0().classList.contains("paired");
           click(w0());
           await sleep(25);
           click(host.querySelector('[data-el="match-meaning"]'));
@@ -9357,6 +9362,8 @@ const openPronounTables = async () => {
     heardGrid.wordsInScript && heardGrid.noEnglish, JSON.stringify(heardGrid));
   check("tapping a paired recording lets go of its pair, as a word tile does",
     heardGrid.unpairs, JSON.stringify(heardGrid));
+  check("and its play button only plays: the tile is neither picked up nor paired",
+    heardGrid.playOnly, JSON.stringify(heardGrid));
   check("the grid is marked, and a miss is told the right words are shown",
     heardGrid.marked && !/meanings/.test(heardGrid.soundVerdict), JSON.stringify(heardGrid));
   check("and there is no Learn more under it",

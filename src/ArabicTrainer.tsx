@@ -8305,11 +8305,12 @@ function MatchGrid({
   field?: "en" | "ar" | "numeral";
   /**
    * Whether the words are heard rather than read: a play button on each
-   * tile where the word would be. The tile is otherwise the same tile,
-   * tapped the same way — so tapping it plays it **and** does what a tap
-   * on a word does, freeing a pairing included. That was the owner's call:
-   * one card that behaves like every other card, over a second target on
-   * it that would play without touching the pairing.
+   * tile where the word would be. The play button is a target of its own:
+   * tapping it only plays the word, and tapping the rest of the tile picks
+   * it up, pairs it or frees it as a tap on a word does. The owner first
+   * had one tap do both, then asked for them apart — a learner listening
+   * through the column to find the one they want kept picking tiles up and
+   * undoing pairs they had meant to keep.
    */
   heard?: boolean;
 }) {
@@ -8483,10 +8484,14 @@ function MatchGrid({
     }
   };
   /* Checked, a sound tile still plays: it is how the words are gone over
-     once the grid is marked. */
-  const tapTile = (w: Form) => {
-    if (heard) sound(w);
-    tapWord(w.id);
+     once the grid is marked. Pressed again while it plays, it stops. */
+  const play = (w: Form) => {
+    if (sounding === w.id) {
+      hush();
+      setSounding(null);
+      return;
+    }
+    sound(w);
   };
   /* What the tile should have been paired with, under one paired wrong. */
   const wantedOf = (w: Form) => String((w as Record<string, unknown>)[field] || "");
@@ -8500,18 +8505,15 @@ function MatchGrid({
         {words.map((w, i) => {
           const mine = meaningFor(w.id);
           const right = checked && !!mine && mine === wantedOf(w);
-          return (
-            <button
-              type="button"
-              key={w.id}
-              data-el="match-word"
-              className={`at-matchtile${heldWord === w.id ? " on" : ""}${mine ? " paired" : ""}${
-                checked ? (right ? " right" : " wrong") : ""
-              }`}
-              aria-pressed={heldWord === w.id}
-              aria-label={heard ? `Recording ${i + 1}${mine ? `, pair ${numberOf(w.id)}` : ""}` : undefined}
-              onClick={() => tapTile(w)}
-            >
+          const tile = {
+            className: `at-matchtile${heldWord === w.id ? " on" : ""}${mine ? " paired" : ""}${
+              checked ? (right ? " right" : " wrong") : ""
+            }`,
+            "aria-pressed": heldWord === w.id,
+            onClick: () => tapWord(w.id),
+          };
+          const inside = (
+            <>
               {/* Always there, empty until paired: a number arriving in
                   space nobody kept for it pushed the word along. */}
               {mine ? (
@@ -8521,12 +8523,22 @@ function MatchGrid({
               )}
               <span className={`at-matchword${heard ? " heard" : ""}`}>
                 {heard ? (
-                  /* Drawn as the play button drawn wherever a recording
-                     is, but not a button of its own: the whole tile is the
-                     button, and one inside another is not allowed. */
-                  <span className="at-clipplay at-matchplay" data-el="match-sound" aria-hidden="true">
+                  /* The play button drawn wherever a recording is, drawn
+                     long here, and a button of its own: it plays and does
+                     nothing else, the tap never reaching the tile. */
+                  <button
+                    type="button"
+                    className={`at-clipplay at-matchplay${sounding === w.id ? " on" : ""}`}
+                    data-el="match-sound"
+                    aria-label={sounding === w.id ? `Stop recording ${i + 1}` : `Play recording ${i + 1}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      play(w);
+                    }}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
                     <Icon name={sounding === w.id ? "pause" : "play"} />
-                  </span>
+                  </button>
                 ) : (
                   <Arabic text={w.ar} kind="word" lang={lang} />
                 )}
@@ -8549,6 +8561,30 @@ function MatchGrid({
                   )
                 ) : null}
               </span>
+            </>
+          );
+          /* A tile with a play button in it cannot be a button itself — one
+             inside another is not allowed — so it is a tile that acts as
+             one: focusable, and Enter or Space pick it up as a tap does. */
+          return heard ? (
+            <div
+              key={w.id}
+              data-el="match-word"
+              {...tile}
+              role="button"
+              tabIndex={0}
+              aria-label={`Recording ${i + 1}${mine ? `, pair ${numberOf(w.id)}` : ""}`}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                tapWord(w.id);
+              }}
+            >
+              {inside}
+            </div>
+          ) : (
+            <button type="button" key={w.id} data-el="match-word" {...tile}>
+              {inside}
             </button>
           );
         })}

@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.394 — 7 October 2026
+
+**In the matching grid of recordings, the play button is a button of its own.**
+
+- The play button on each recording is now wider — a long rounded button
+  rather than a small circle — so it is easier to hit.
+- Tapping the play button only plays the recording. Tapping anywhere else
+  on the card picks it up to be matched, as with any other card. Before,
+  every tap on the card both played it and picked it up (or undid its
+  pair), so listening through the column to find the right one kept
+  disturbing pairs already made.
+- Pressing the play button again while it is playing stops it.
+- To check by hand: on a phone, that the play button is comfortable to
+  tap and the rest of the card still selects it.
+
 ## 0.393 — 7 October 2026
 
 **Counting forms of numbers are practised with something to count.**
