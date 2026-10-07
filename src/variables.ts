@@ -1177,7 +1177,7 @@ export function lentBy(
   formsOf(card).forEach((form, at) => {
     if (!isLent(form as WithSlots)) return;
     if (!lends(form as WithSlots)) return;
-    const lent = valueOf(form as WithSlots, fields);
+    const lent = withHost(card, form as WithSlots, valueOf(form as WithSlots, fields), fields);
     if (!lent.ar) return;
     /* The card's own word carries the card's person, where it has one —
        the form handed in above cannot know it. */
@@ -1194,6 +1194,33 @@ export function lentBy(
     out.push({ form: form as WithSlots, value: named });
   });
   return out;
+}
+
+/*
+ * What a noun is, it is in every form: أختي is as feminine as أخت, and
+ * خوات as much a word for people. The teacher says it once, on the card's
+ * own word — the editor writes whether it is people there and nowhere
+ * else — and the other forms say only what is their own: a plural box its
+ * number, a pronoun on the end nothing at all. Until 0.404 that is all
+ * they lent, so a demonstrative beside "my sister" stood as هاد rather
+ * than هاي, and beside "sisters" as هاد rather than هدول. A form takes
+ * what it leaves unsaid from the form it is on the end of (`of`), and then
+ * from the card's own word — the reading nounNumberOf already gives a
+ * pronoun on the end its number.
+ */
+function withHost(card: WithSlots | null | undefined, form: WithSlots, value: Value, fields: string[]): Value {
+  const forms = formsOf(card) as WithSlots[];
+  if (!fields.length || form === forms[0]) return value;
+  const of = text(form, "row") && text(form, "col") ? text(form, "of").trim() : "";
+  const hosts = [of && forms.find((f) => text(f, "id") === of), forms[0]].filter(
+    (f): f is WithSlots => !!f && f !== form,
+  );
+  const grammar: Record<string, string> = { ...(value.grammar || {}) };
+  for (const host of hosts) {
+    const said = valueOf(host, fields).grammar || {};
+    for (const field of fields) if (!grammar[field] && said[field]) grammar[field] = said[field];
+  }
+  return Object.keys(grammar).length ? { ...value, grammar } : value;
 }
 
 /** The same, as the values alone — which is what a pool wants. */

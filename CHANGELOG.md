@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.404 — 7 October 2026
+
+**"This" agrees with "my sister".**
+
+- A word like *this* in a sentence now takes the right form beside a
+  noun with a pronoun on the end: هاي أختي, not هاد أختي. The noun's
+  gender is set once, on its own word, and the forms with a pronoun on
+  the end did not pass it on, so *this* fell back to its masculine form.
+- The same for a noun's other forms: a plural of people such as خوات
+  now takes هدول. Whether a noun is people is set on its own word, and
+  the plural did not pass that on either.
+- Adjectives and verbs beside these forms agree the same way.
+- Nothing stored changes. A sentence card already reviewed lists the
+  corrected sentences as new ones waiting to be approved; the old wrong
+  ones drop away.
+
 ## 0.401 — 7 October 2026
 
 **A noun's forms go one, two, many.**

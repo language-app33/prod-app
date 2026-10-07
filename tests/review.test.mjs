@@ -244,6 +244,47 @@ test("a lone demonstrative is its own word, and every form in turn once linked t
   assert.deepEqual(house.list.map((s) => s.ar), ["البيت كبير"]);
 });
 
+/*
+ * A pronoun on the end of a noun leaves its gender where the teacher said
+ * it, on the noun's own word: هاد أختي was what "{{this-is}} {{relative}}"
+ * made of *my sister* until 0.404, and هاي is what it should.
+ */
+test("a noun with a pronoun on the end agrees as the noun it is on the end of", () => {
+  const thisCard = {
+    id: "this", lang: "ar-PS", category: "demonstrative", fills: ["this"], created: 3,
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "had" },
+      { id: "this-f", ar: "هاي", en: "this", lat: "hay", row: "agreement", col: "feminine" },
+      { id: "this-pl", ar: "هدول", en: "these", lat: "hadol", row: "agreement", col: "plural" },
+    ],
+  };
+  const sister = {
+    id: "sister", lang: "ar-PS", category: "noun", fills: ["relative"], created: 4,
+    forms: [
+      { id: "sister", ar: "أخت", en: "sister", lat: "okht", gender: "feminine", number: "singular", human: "person" },
+      { id: "sisters", ar: "خوات", en: "sisters", lat: "khawat", number: "plural" },
+      { id: "my-sister", ar: "أختي", en: "my sister", lat: "okhti", row: "attached", col: "me" },
+      { id: "my-sisters", ar: "خواتي", en: "my sisters", lat: "khawati", row: "attached", col: "me", of: "sisters" },
+    ],
+  };
+  const brother = {
+    id: "brother", lang: "ar-PS", category: "noun", fills: ["relative"], created: 5,
+    forms: [
+      { id: "brother", ar: "أخ", en: "brother", lat: "akh", gender: "masculine", number: "singular" },
+      { id: "my-brother", ar: "أخوي", en: "my brother", lat: "akhuy", row: "attached", col: "me" },
+    ],
+  };
+  const frame = { id: "s", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "s", ar: "{{this}} {{relative}}", en: "{{this}} {{relative}}", lat: "", agrees: { this: "relative" } }] };
+  const [part] = cardSentences(frame, [thisCard, sister, brother, frame], ar);
+  const made = part.list.map((s) => s.ar);
+  assert.ok(made.includes("هاي أختي"), made.join(" | "));
+  assert.ok(made.includes("هدول خوات"), "a plural of people, said once on the card's own word");
+  assert.ok(made.includes("هدول خواتي"), "on the end of the plural, the plural");
+  assert.ok(made.includes("هاد أخوي"), "and a masculine stays masculine");
+  assert.ok(!made.includes("هاد أختي"), made.join(" | "));
+});
+
 test("where a card stands: never reviewed, reviewed with sentences waiting, and too many to read", () => {
   const pool = [noun("house", "بيت", "house", "masculine", 1), noun("car", "سيارة", "car", "feminine", 2), big, frame];
   const legacy = reviewState(frame, pool, ar);
