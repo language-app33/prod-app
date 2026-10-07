@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.388 — 7 October 2026
+
+**Two new matching grids for numbers you can hear.**
+
+- Beside "Match each recording to its word", sessions can now ask
+  "Match each recording to its Arabic numeral": a play button for each
+  number down one side, and figures like 40 down the other.
+- And, in Arabic, "Match each recording to its Eastern Arabic numeral":
+  the same, with ٤٠ on the other side. Like the other questions that use
+  these figures, it only starts once the ten figures ٠ to ٩ have been
+  learnt.
+- Only numbers your teacher has recorded are used, and only ones that
+  are a single number — "forty" can be in the grid, "hundred" or "and"
+  cannot. A grid needs at least three recorded numbers, and everything
+  on the right-hand side is a number, never an ordinary word.
+- Both sit on the second level of the ladder, next to the other
+  matching grids.
+
 ## 0.387 — 7 October 2026
 
 **"My house is" and "my houses are" from one noun blank.**
