@@ -239,3 +239,33 @@ test("with no noun learnt yet, a counting face is not dealt at all", () => {
   const items = [...numberCards(), ...AR.nouns.map((/** @type {any} */ n) => nounCard(n, false))];
   assert.equal(faceQuestions(items, 6).length, 0);
 });
+
+/* ---- the English a counted phrase is asked in ---- */
+
+const { readNounCard } = await import(path.join(here, "..", "src", "numbers", "nouns.ts"));
+const { renderAsk } = await import(path.join(here, "..", "src", "numbers", "range.ts"));
+
+/** "10 books", from a card whose singular and plural say these meanings. */
+const englishOf = (/** @type {string} */ sg, /** @type {string} */ pl, /** @type {number} */ value) => {
+  const book = AR.nouns.find((/** @type {any} */ n) => n.id === "book");
+  const card = { id: "book", category: "noun", forms: [
+    { id: "a", ar: book.sg, en: sg, number: "singular", gender: "masculine" },
+    { id: "b", ar: book.pl, en: pl, number: "plural", gender: "masculine" },
+  ] };
+  const noun = must(must(readNounCard(card), "read").noun, "countable");
+  return renderAsk({ rangeId: "x", kind: "numbers", value, nounId: "book" }, arComposer, { ...AR, nouns: [noun] }).en;
+};
+
+test("a meaning that already ends in s is not given another ending", () => {
+  assert.equal(englishOf("Books", "Books", 10), "10 Books");
+  assert.equal(englishOf("Books", "", 10), "10 Books");
+  assert.equal(englishOf("Book", "Book", 10), "10 Books");
+  assert.equal(englishOf("Glass", "", 10), "10 Glasses");
+  assert.equal(englishOf("Child", "Children", 10), "10 Children");
+});
+
+test("English counts in the plural from two up, though Arabic counts eleven and up with its singular", () => {
+  assert.equal(englishOf("book", "books", 1), "1 book");
+  assert.equal(englishOf("book", "books", 11), "11 books");
+  assert.equal(englishOf("book", "books", 25), "25 books");
+});
