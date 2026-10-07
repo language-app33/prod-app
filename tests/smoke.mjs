@@ -1768,14 +1768,18 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const updates = readFileSync(path.resolve("src/updates.ts"), "utf8");
     const watching = updates.slice(updates.indexOf("export function watchForUpdates"));
     const applying = updates.slice(updates.indexOf("export function applyUpdate"));
-    check("the page takes the handover itself, without being asked",
-      /addEventListener\("controllerchange"/.test(watching) && /reloadOnce\(\)/.test(watching),
-      "nothing reloads when a new worker takes over");
+    check("the page takes the handover itself only when nobody has touched it",
+      /addEventListener\("controllerchange"/.test(watching) && /!touched/.test(watching),
+      "a reload could land on a page somebody is working on");
     check("but not on a first install, which updates nothing",
       /wasControlled/.test(watching), "a first install would reload for nothing");
-    check("and not on top of a question being answered",
-      /held/.test(watching) && /holdUpdates/.test(updates),
-      "a reload could land mid-session");
+    check("otherwise it says an update is ready instead of reloading",
+      /markReady\(\)/.test(watching) && /onUpdateReady/.test(src) && /at-updatebar/.test(src),
+      "nothing tells the person an update is waiting");
+    check("and never reloads just because the app is put away",
+      !/document\.hidden\)\s*\{[^}]*reload/.test(watching), "a reload on leaving the app loses unsaved work");
+    check("a reload asked for still saves what is owed first",
+      /runBeforeReloads\(\)/.test(applying), "Reload skips the last write");
     check("Reload waits for the new worker to take control",
       /addEventListener\("controllerchange"/.test(applying), "no controllerchange listener");
     check("and it does not reload the moment it is pressed",
