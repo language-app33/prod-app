@@ -35,6 +35,7 @@
  */
 import { ALT_SEP, splitAlternatives } from "./answers.ts";
 import { formsOf, leadOf } from "./cards.ts";
+import { mixed, spansThrough } from "./numbers/spans.ts";
 
 /*
  * What a slot looks like: {{name}}, and nothing cleverer.
@@ -125,8 +126,33 @@ export const DEMONSTRATIVE_IS_SLOT = "demonstrative-is";
 export const IS_DEMONSTRATIVE_SLOT = "is-demonstrative";
 export const DEMONSTRATIVE_READING_SLOTS = [DEMONSTRATIVE_IS_SLOT, IS_DEMONSTRATIVE_SLOT];
 
-/** Whether a kind of word reads with *to be* — a pronoun or a demonstrative. */
-export const readsWithBe = (kind: string): boolean => kind === PRONOUN_SLOT || kind === DEMONSTRATIVE_SLOT;
+/*
+ * And a noun, read the same three ways, for its plural.
+ *
+ * بيتي كبير is *my house is big* and بيوتي كبار *my houses are big*. A
+ * teacher can write the *is* into the English for a singular, since it
+ * never changes after one; what they cannot write is a word that is *is*
+ * beside بيتي and *are* beside بيوتي in the same blank. So a noun fills a
+ * reading of every name that reaches it, and the verb follows the form:
+ *
+ *     {{noun}}      my house     · my houses
+ *     {{noun-is}}   my house is  · my houses are
+ *     {{is-noun}}   is my house  · are my houses
+ *
+ * Read off the form's number — see nounReadings — rather than its English,
+ * which for a noun says nothing about it. Whether a pronoun is on the end
+ * of the noun is the blank's other question, asked the same as before.
+ * Added in 0.387.
+ */
+export const NOUN_SLOT = "noun";
+export const NOUN_IS_SLOT = "noun-is";
+export const IS_NOUN_SLOT = "is-noun";
+export const NOUN_READING_SLOTS = [NOUN_IS_SLOT, IS_NOUN_SLOT];
+
+/** Whether a kind of word reads with *to be* — a pronoun, a demonstrative
+    or a noun. */
+export const readsWithBe = (kind: string): boolean =>
+  kind === PRONOUN_SLOT || kind === DEMONSTRATIVE_SLOT || kind === NOUN_SLOT;
 
 /*
  * An adjective, said about somebody with the pronoun left out.
@@ -152,7 +178,7 @@ export const readsWithBe = (kind: string): boolean => kind === PRONOUN_SLOT || k
 export const ADJECTIVE_SLOT = "adjective";
 export const ADJECTIVE_IS_SLOT = "adjective-is";
 /** Every blank name that reads a kind of word some other way. */
-export const RESERVED_READINGS = [...READING_SLOTS, ...DEMONSTRATIVE_READING_SLOTS, ADJECTIVE_IS_SLOT];
+export const RESERVED_READINGS = [...READING_SLOTS, ...DEMONSTRATIVE_READING_SLOTS, ...NOUN_READING_SLOTS, ADJECTIVE_IS_SLOT];
 
 /**
  * The two readings of a pronoun's English, worked out from the English.
@@ -169,21 +195,56 @@ export const RESERVED_READINGS = [...READING_SLOTS, ...DEMONSTRATIVE_READING_SLO
  * teacher who prefers *I'm* writes that instead. Empty for empty English.
  */
 export function beReadings(en: string | null | undefined): { is: string; ask: string } {
+  return withBe(en, (first) => (first === "i" ? "am" : ["he", "she", "it", "this", "that"].includes(first) ? "is" : "are"));
+}
+
+/* Some English with *to be* after it and before it, the verb chosen from
+   its first word; a note in brackets stays on the end. */
+function withBe(en: string | null | undefined, beOf: (first: string) => string): { is: string; ask: string } {
   const whole = String(en || "").trim();
   if (!whole) return { is: "", ask: "" };
   const m = whole.match(/^(.*?)\s*(\([^)]*\))?$/);
   const base = ((m && m[1]) || whole).trim() || whole;
   const note = m && m[2] && base !== whole ? ` ${m[2]}` : "";
-  const first = base.split(/\s+/)[0].toLowerCase();
-  const be = first === "i" ? "am" : ["he", "she", "it", "this", "that"].includes(first) ? "is" : "are";
+  const be = beOf(base.split(/\s+/)[0].toLowerCase());
   return { is: `${base} ${be}${note}`, ask: `${be} ${base}${note}` };
 }
+
+/* The numbers a noun takes *are* in: more than one, however many. */
+const MANY = ["plural", "dual", "counted"];
+
+/**
+ * Which number one form of a noun is, as English counts: "plural" for a
+ * plural, a dual or the plural after three to ten, and "" for anything
+ * else — the singular, and a word whose number does not apply, which is
+ * *water is* as much as *house is*.
+ *
+ * Read off the form, or off its first answer where the form says none.
+ * A pronoun on the end is a cell of the form it is on the end of, and
+ * that form's number is its own: بيوتي is *my houses*.
+ */
+export function nounNumberOf(card: WithSlots | null | undefined, form: WithSlots | null | undefined): "plural" | "" {
+  const forms = formsOf(card) as WithSlots[];
+  let at = form || forms[0];
+  if (at && text(at, "row") && text(at, "col")) {
+    const of = text(at, "of").trim();
+    at = (of && forms.find((f) => text(f, "id") === of)) || forms[0] || at;
+  }
+  const answers = at && Array.isArray(at.answers) ? (at.answers as WithSlots[]) : [];
+  const said = text(at, "number").trim() || text(answers[0], "number").trim();
+  return MANY.includes(said) ? "plural" : "";
+}
+
+/** A noun form's two readings: *my house is*, *are my houses*. */
+export const nounReadings = (en: string | null | undefined, plural: boolean): { is: string; ask: string } =>
+  withBe(en, () => (plural ? "are" : "is"));
 
 /**
  * The English a pronoun lends each of the two reading blanks: what the
  * teacher wrote on the Pronouns screen, or what beReadings makes of its
  * English where they wrote nothing. A demonstrative the same, under its
- * own kind's names — see DEMONSTRATIVE_SLOT.
+ * own kind's names — see DEMONSTRATIVE_SLOT — and a noun, whose verb
+ * follows its number — see NOUN_SLOT.
  *
  * Empty for a card that is neither, which lends its plain English
  * everywhere. `form` is the form being lent — the card's own word, almost
@@ -199,8 +260,11 @@ export function readingsOf(
   if (!card || !readsWithBe(kind)) return {};
   const [isSlot, askSlot] = readingNames(kind, kind);
   const en = (splitAlternatives(text(form, "en"))[0] || "").trim();
-  const made = beReadings(en);
-  const said = (field: string) => (lead ? text(card, field).trim() : "");
+  /* A noun's verb follows its number, and nobody writes its readings by
+     hand: there is nowhere to. */
+  const noun = kind === NOUN_SLOT;
+  const made = noun ? nounReadings(en, !!nounNumberOf(card, form)) : beReadings(en);
+  const said = (field: string) => (lead && !noun ? text(card, field).trim() : "");
   const out: Record<string, string> = {};
   const is = said("enIs") || made.is;
   const ask = said("enAsk") || made.ask;
@@ -261,6 +325,11 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
   if (kind === WORD_SLOT && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
   const said = String((card && card.category) || "").toLowerCase();
   if (said && !out.includes(said)) out.push(said);
+  /* And a number filler the runs of stretches its own is inside: a filler
+     from 10 to 19 stands in `{{0-99}}` and `{{10-999}}`. See spans.ts. */
+  for (const name of [...out]) {
+    for (const span of spansThrough(name)) if (!out.includes(span)) out.push(span);
+  }
   /* And a pronoun fills the blanks that read it with *to be*, and an
      adjective the one that says it about a person — the same cards, with
      a different English — under every name that reaches it: its kind,
@@ -283,11 +352,10 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
  * three built-in names are this rule applied to the kind, and read exactly
  * as before.
  *
- * A pronoun reads `-is` as *I am* and `is-` as *am I*, and a
- * demonstrative as *this is* and *is this*; an adjective reads
- * `-is` about each person in turn; nothing else reads either, so a tag
- * with nouns and adjectives in it lends only its adjectives to
- * `{{feelings-is}}`. `{{word}}` has no readings: every word fills it, and
+ * A pronoun reads `-is` as *I am* and `is-` as *am I*, a
+ * demonstrative as *this is* and *is this*, and a noun as *my house is*
+ * and *is my house*; an adjective reads `-is` about each person in turn;
+ * nothing else reads either. `{{word}}` has no readings: every word fills it, and
  * a reading of it would be a kind of word under another name.
  */
 export function readingNames(kind: string, name: string): string[] {
@@ -991,6 +1059,7 @@ export function valuesFor(
   const out: Record<string, Value[]> = {};
   for (const slot of wanted) out[slot] = [];
   if (!wanted.length) return out;
+  const beside = besideAdjectives();
   for (const card of pool || []) {
     if (lang && card.lang && card.lang !== lang) continue;
     const slots = fillsOf(card, kindOf ? kindOf(card) : "");
@@ -1006,11 +1075,48 @@ export function valuesFor(
       for (const slot of slots) {
         if (!out[slot]) continue;
         if (admits && !admits(card, lent.form, slot)) continue;
-        out[slot].push(...(into ? into(card, lent.value, slot) : [readAs(card, lent.value, slot)]));
+        const made = into ? into(card, lent.value, slot) : [readAs(card, lent.value, slot)];
+        beside.saw(card, slot, made);
+        out[slot].push(...made);
       }
     }
   }
-  return out;
+  return beside.sift(out);
+}
+
+/*
+ * A reading a noun and an adjective both answer to, and mean two things
+ * by.
+ *
+ * `{{feelings-is}}` over a tag holding تعبان and حفلة: the adjective reads
+ * it as *I am tired*, with nobody named, and the noun as *the party is*.
+ * The first is what a tag of adjectives is read that way for, and was the
+ * whole of it before nouns read with *to be* (0.387) — so where any
+ * adjective says the blank about a person, the nouns in it stand aside,
+ * as they always did. Kept as values are gathered, and applied once at
+ * the end, since which cards are in a blank is known only then.
+ */
+export function besideAdjectives() {
+  const about = new Set<string>();
+  const nouns = new Map<string, Set<Value>>();
+  return {
+    saw(card: WithSlots | null | undefined, slot: string, made: Value[]) {
+      const kind = String((card && card.category) || "").toLowerCase();
+      if (aboutPerson(card, slot)) about.add(slot);
+      else if (kind === NOUN_SLOT && readingOf(card, slot) === "is") {
+        const had = nouns.get(slot) || new Set<Value>();
+        for (const v of made) had.add(v);
+        nouns.set(slot, had);
+      }
+    },
+    sift(out: Record<string, Value[]>): Record<string, Value[]> {
+      for (const slot of about) {
+        const drop = nouns.get(slot);
+        if (drop && out[slot]) out[slot] = out[slot].filter((v) => !drop.has(v));
+      }
+      return out;
+    },
+  };
 }
 
 /**
@@ -1172,7 +1278,9 @@ export function valuesForTurn(
   const out: Record<string, Value> = {};
   let rolled = at;
   for (const slot of slots) {
-    const list = (have && have[slot]) || [];
+    /* A number blank over several stretches takes them in turn — see
+       mixed. */
+    const list = mixed(slot, (have && have[slot]) || []);
     if (!list.length) return null;
     out[slot] = list[rolled % list.length];
     rolled = Math.floor(rolled / list.length);

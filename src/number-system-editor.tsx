@@ -46,7 +46,7 @@ import type {
   TimeStyle,
   TwoWords,
 } from "./numbers/types.ts";
-import { MINUTE_MARKS, countingOf, partsNow } from "./numbers/types.ts";
+import { MINUTE_MARKS, NUMBER_CEILING, countingOf, partsNow } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { blocking, countable, countingWarnings, probeOf, rangeChecks, renderAsk, seeded } from "./numbers/range.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
@@ -1988,11 +1988,15 @@ function TryItScreen({ lang, draft, labels, render, onWrite, onClose }: {
   onClose: () => void;
 }) {
   const [typed, setTyped] = useState("");
-  /* Digits only, and no more of them than the app will ever ask about —
-     read off what was typed rather than refused, so a stray comma or a
-     space is simply not a number and never an error message. */
-  const digits = typed.replace(/[^0-9]/g, "").slice(0, 7);
-  const value = digits === "" ? null : Number(digits);
+  /* Digits only, read off what was typed rather than refused, so a stray
+     comma or a space is simply not a number and never an error message.
+     More digits than the app will ever ask about is said, not cut: taking
+     the first seven of 800,413,901 answered for 8,004,139, a number
+     nobody typed, with nothing on the screen to say so. Eleven is
+     NUMBER_CEILING, the most anything here is asked. */
+  const digits = typed.replace(/[^0-9]/g, "");
+  const tooLong = digits.length > String(NUMBER_CEILING).length;
+  const value = digits === "" || tooLong ? null : Number(digits);
   /* The number, not what was typed: an override is keyed by the number it
      corrects, so writing one out after typing 007 has to file it under 7
      or it would be a correction the composer never looks up. */
@@ -2019,7 +2023,7 @@ function TryItScreen({ lang, draft, labels, render, onWrite, onClose }: {
   return (
     <Screen title="Check a number" onBack={onClose}>
       <Help>
-        Type any number up to seven digits and see exactly what a student would be asked. It is
+        Type any number up to eleven digits and see exactly what a student would be asked. It is
         the same words the app would use in a question — nothing here is a preview of something
         else.
       </Help>
@@ -2036,7 +2040,13 @@ function TryItScreen({ lang, draft, labels, render, onWrite, onClose }: {
         />
       </Section>
 
-      {value === null ? (
+      {tooLong ? (
+        <Notice kind="warn">
+          That is {digits.length} digits. The app never asks about a number longer than eleven
+          digits, so there is nothing to show for it — the biggest it goes to is{" "}
+          {NUMBER_CEILING.toLocaleString("en")}.
+        </Notice>
+      ) : value === null ? (
         <Help>Nothing typed yet.</Help>
       ) : (
         <>

@@ -42,7 +42,7 @@ import type {
   Token,
 } from "./types.ts";
 import { askFor, countable, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
-import { COUNTING_WAS, NUMBER_CEILING, countingOf, partsNow } from "./types.ts";
+import { COUNTING_WAS, NUMBER_CEILING, countingOf, partsNow, stretchTag } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
 const safe = (s: string) => String(s).replace(/\|/g, "~");
@@ -1208,7 +1208,7 @@ export const COUNT_TAG = "count";
  * would make a different sentence of it.
  */
 export function partTags(range: Range): string[] {
-  const tag = (id: string) => id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
+  const tag = stretchTag;
   if (range.counted) return [`count-${tag(range.id)}`, COUNT_TAG];
   /* And the tag of the part it was split out of, so a sentence written
      with `{{11-99}}` before the split is still filled — from 10 to 19

@@ -44,10 +44,13 @@ import type { SceneKind } from "./dialogs.ts";
 import { castFill, castOf, castReport, filledScene, memberBase, memberLabel, newMember, recast, roleIn } from "./cast.ts";
 import { reviewPool, sentencesOf } from "./review.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, DEMONSTRATIVE_READING_SLOTS, DEMONSTRATIVE_SLOT, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
+import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, DEMONSTRATIVE_READING_SLOTS, DEMONSTRATIVE_SLOT, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, NOUN_READING_SLOTS, NOUN_SLOT, nounNumberOf, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, renameSlot, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
 import { agreeingBlanks, combosOf, mainFormOnly, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
+import { readSpan, spanTag } from "./numbers/spans.ts";
+import type { Span } from "./numbers/spans.ts";
+import { NUMBER_RANGES } from "./numbers/types.ts";
 import { MAX_IMAGES, shrinkImage } from "./images.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -74,6 +77,7 @@ import {
   Overlay,
   PickSheet,
   DeckSwitch,
+  AskedMeanings,
 } from "./shared.tsx";
 
 /* A blank form carries every grammatical value any language might use, so a
@@ -778,6 +782,13 @@ interface BlankBox {
   focus: () => void;
 }
 
+/*
+ * What tapping a blank in a field does, where the card has a say: a number
+ * blank opens on its ranges, to change them. Nothing anywhere else — the
+ * Numbers screen draws these boxes too, and a pill there is only moved.
+ */
+const BlankTap = createContext<((name: string) => void) | null>(null);
+
 /**
  * A card's field, with the blanks in it drawn where they stand.
  *
@@ -820,6 +831,7 @@ function BlankText({ value, onChange, onRemove, className = "", style, dir, lang
   const carrying = useRef<{ name: string; x: number; y: number; moved: boolean } | null>(null);
   const preview = useRef<string | null>(null);
   const [moving, setMoving] = useState(false);
+  const tapBlank = useContext(BlankTap);
   const text = value || "";
   /* The string as the box draws it: a hole written `{{ Name }}` is one
      pill named `name`, and every offset below is counted against what is
@@ -1006,10 +1018,13 @@ function BlankText({ value, onChange, onRemove, className = "", style, dir, lang
     const end = (keep: boolean) => {
       const carried = carrying.current;
       const next = keep && carried && carried.moved ? String(preview.current || shown) : shown;
+      /* A press that never moved is a tap on the blank. */
+      const tapped = keep && carried && !carried.moved ? carried.name : "";
       carrying.current = null;
       preview.current = null;
       setMoving(false);
       rewrite(next, next.length);
+      if (tapped && tapBlank) tapBlank(tapped);
     };
     const drop = () => end(true);
     const stop = () => end(false);
@@ -2043,14 +2058,20 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
  * stops a teacher typing "Name Is!" and being handed "nameis" by a save
  * they have already forgotten about.
  */
-function BlankNameBox({ label, placeholder, taken, onName }: {
+function BlankNameBox({ label, placeholder, taken, onName, value, onType }: {
   label: string;
   placeholder: string;
   /** Names already on this list, which are chosen rather than typed again. */
   taken: string[];
   onName: (name: string) => void;
+  /** What is typed, where the box is also a search and whatever it sits
+      over needs to read it — see TagSheet. Held here otherwise. */
+  value?: string;
+  onType?: (typed: string) => void;
 }) {
-  const [made, setMade] = useState("");
+  const [own, setOwn] = useState("");
+  const made = value ?? own;
+  const setMade = (next: string) => (onType ? onType(next) : setOwn(next));
   const name = made.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24);
   const add = () => {
     if (!name || taken.includes(name)) return;
@@ -2111,7 +2132,12 @@ interface BlankOffer {
   note: string;
   /** How many words are behind it today — nothing is a hole that starves. */
   words: number;
-  kind: "any" | "category" | "group" | "card";
+  kind: "any" | "category" | "group" | "card" | "numbers";
+  /** What the row is called, where that is not its name — Numbers, and
+      Counting things, whose names are the blank that is every stretch. */
+  label?: string;
+  /** On a numbers row, whether it counts things. */
+  counted?: boolean;
   /**
    * The ways this blank can be read, where it can be read more than one —
    * a pronoun as *I*, *I am* or *am I*. Choosing the blank then asks which,
@@ -2121,6 +2147,9 @@ interface BlankOffer {
   readings?: Reading[];
   /** What the second step says above the ways it can be read. */
   readingsHint?: string;
+  /** Whether those are a noun's, which ask about a pronoun on the end
+      afterwards rather than instead — see endsReadings. */
+  nounReads?: boolean;
 }
 
 /**
@@ -2139,6 +2168,11 @@ interface Reading {
   /** How many words stand in the blank read this way, where that is fewer
       than stand in the blank. */
   words?: number;
+  /** A further question once this one is chosen — a noun read with *to
+      be* is then asked whether it has a pronoun on the end — and what
+      that screen says above it. */
+  next?: Reading[];
+  nextHint?: string;
 }
 
 /** What a field needs in order to have blanks put into it. */
@@ -2452,6 +2486,34 @@ const demonstrativeReadings = (name: string, words?: number): Reading[] => {
 };
 
 /*
+ * And a noun's three, offered where a plural is behind the blank: the
+ * *is* or *are* follows the form — see NOUN_SLOT. Whether it has a pronoun
+ * on the end is asked after, not instead.
+ */
+const nounWithBe = (name: string, words?: number): Reading[] => {
+  const [is, ask] = readingNames(NOUN_SLOT, name);
+  const counted = words === undefined ? null : { words };
+  return [
+    { name, label: "Noun", note: "house, houses \u2014 I want my house" },
+    {
+      name: is,
+      label: "Noun with \u201cto be\u201d",
+      note: "house is, houses are \u2014 my house is big",
+      ...counted,
+    },
+    {
+      name: ask,
+      label: "Noun with \u201cto be\u201d, as a question",
+      note: "is house, are houses \u2014 is my house big?",
+      ...counted,
+    },
+  ];
+};
+
+const NOUN_HINT =
+  "Choose what it reads as in English. With \u201cto be\u201d, the app writes \u201cis\u201d after one and \u201care\u201d after more than one \u2014 my house is, my houses are. The Arabic is the same in all three.";
+
+/*
  * The two ways an adjective blank reads: the word as it is — *a tired
  * man*, *the house is big* — and the word said about a person with no
  * pronoun, which goes through every person and puts in the form each one
@@ -2500,41 +2562,78 @@ const ABOUT_HINT =
  * be read and puts in the one picked. Typing one of those names in the box
  * puts it straight in, since the teacher has already said which.
  */
-function BlankScreen({ lang, offers, onPick, onClose }: {
+function BlankScreen({ lang, offers, onPick, onClose, behindOf, start = null, taken = [] }: {
   lang: Lang;
   offers: BlankOffer[];
   /** The blank to put in, and what to narrow it to where the way it is
       read says — see Reading. */
   onPick: (name: string, rows?: string[]) => void;
   onClose: () => void;
+  /** How many words are behind a blank of any name — for the number
+      ranges, whose blanks are not rows of their own. */
+  behindOf: (name: string) => number;
+  /** A number blank already in the sentence, being changed: the screen
+      opens on its ranges, ticked, rather than on the list. */
+  start?: Span | null;
+  /** The blanks the sentence already has, which a changed number blank
+      may not turn into — that would make two blanks one. */
+  taken?: string[];
 }) {
   const [typed, setTyped] = useState("");
   /* The blank whose readings are being asked, once one with any is chosen. */
   const [asking, setAsking] = useState<BlankOffer | null>(null);
+  /* Numbers or counting things, once one is chosen: which ranges. */
+  const [ranging, setRanging] = useState<{ counted: boolean; picked: Span | null } | null>(
+    start ? { counted: start.counted, picked: start } : null,
+  );
   const name = slotName(typed);
   const readingsOf = (o: BlankOffer) => o.readings || [];
+  /* A number row answers to any number blank typed, and to its own label. */
   const matches = (o: BlankOffer) =>
-    o.name.includes(name) || readingsOf(o).some((r) => r.name.includes(name));
+    o.name.includes(name) || readingsOf(o).some((r) => r.name.includes(name)) ||
+    (o.kind === "numbers" && (String(o.label || "").toLowerCase().includes(name) ||
+      (!!readSpan(name) && readSpan(name)!.counted === !!o.counted)));
   const shown = name ? offers.filter(matches) : offers;
   /* A name the list already answers to — its own, or one of the ways a
      row can be read — is not offered again as a new tag. */
-  const exact = offers.some((o) => o.name === name || readingsOf(o).some((r) => r.name === name));
+  const exact = !!readSpan(name) || offers.some((o) => o.name === name || readingsOf(o).some((r) => r.name === name));
   const put = (chosen: string, rows?: string[]) => {
     onPick(chosen, rows);
     onClose();
   };
-  const choose = (offer: BlankOffer) => (readingsOf(offer).length ? setAsking(offer) : put(offer.name));
+  const choose = (offer: BlankOffer) =>
+    offer.kind === "numbers"
+      ? setRanging({ counted: !!offer.counted, picked: null })
+      : readingsOf(offer).length
+        ? setAsking(offer)
+        : put(offer.name);
   const KINDS: Record<BlankOffer["kind"], string> = {
     any: "Any word",
     category: "Kind of word",
     group: "Tag",
     card: "One card",
+    numbers: "Number ranges",
   };
   const behind = (words: number) => (
     <em className={words ? "" : "unmet"}>
       {words ? `${plural(words, "word")} behind it` : "nothing fills it yet"}
     </em>
   );
+
+  if (ranging) {
+    return (
+      <RangeTicks
+        counted={ranging.counted}
+        picked={ranging.picked}
+        onChange={(picked) => setRanging({ ...ranging, picked })}
+        behindOf={behindOf}
+        taken={taken}
+        changing={!!start}
+        onBack={start ? onClose : () => setRanging(null)}
+        onDone={(name) => put(name)}
+      />
+    );
+  }
 
   if (asking) {
     return (
@@ -2557,7 +2656,14 @@ function BlankScreen({ lang, offers, onPick, onClose }: {
         <ul className="at-blanklist">
           {readingsOf(asking).map((r) => (
             <li key={`${r.name}:${(r.rows || []).join(",")}`}>
-              <button onClick={() => put(r.name, r.rows)} data-blank={r.name} data-rows={(r.rows || []).join(",")}>
+              <button
+                onClick={() =>
+                  r.next && r.next.length
+                    ? setAsking({ ...asking, name: r.name, readings: r.next, readingsHint: r.nextHint })
+                    : put(r.name, r.rows)}
+                data-blank={r.name}
+                data-rows={(r.rows || []).join(",")}
+              >
                 <b>{r.label}</b>
                 <span className="at-sheetnote">{r.name}</span>
                 <span>{r.note}</span>
@@ -2587,7 +2693,9 @@ function BlankScreen({ lang, offers, onPick, onClose }: {
           if (e.key !== "Enter" || !name) return;
           /* The row's own name asks how it reads, as tapping it does. */
           const row = offers.find((o) => o.name === name);
-          if (row) choose(row);
+          /* A number blank typed out in full — `0-99` — is the teacher
+             having said which ranges already. */
+          if (row && !(row.kind === "numbers" && readSpan(name))) choose(row);
           else put(name);
         }}
       />
@@ -2614,7 +2722,7 @@ function BlankScreen({ lang, offers, onPick, onClose }: {
                 lang={offer.kind === "card" ? lang.id : undefined}
                 dir={offer.kind === "card" ? lang.direction : undefined}
               >
-                {offer.name}
+                {offer.label || offer.name}
               </b>
               <span className="at-sheetnote">{KINDS[offer.kind]}</span>
               <span>{offer.note}</span>
@@ -2630,6 +2738,88 @@ function BlankScreen({ lang, offers, onPick, onClose }: {
           becomes a tag, which cards can then be given.
         </Help>
       )}
+    </Screen>
+  );
+}
+
+/*
+ * Which ranges a number blank covers, as ticks.
+ *
+ * One blank, however many are ticked: 0 to 9, 10 to 19 and 20 to 99 is
+ * `{{0-99}}`, and each of the three comes up as often as the others — see
+ * spans.ts. The ticks are kept together, because a blank is one unbroken
+ * stretch of numbers and its name has to read as one: ticking a range past
+ * a gap ticks the ones in between, and only an end can be taken off.
+ */
+function RangeTicks({ counted, picked, onChange, behindOf, taken, changing, onBack, onDone }: {
+  counted: boolean;
+  picked: Span | null;
+  onChange: (picked: Span | null) => void;
+  behindOf: (name: string) => number;
+  taken: string[];
+  /** Whether this is a blank already in the sentence being changed. */
+  changing: boolean;
+  onBack: () => void;
+  onDone: (name: string) => void;
+}) {
+  const toggle = (at: number) => {
+    if (!picked) return onChange({ counted, from: at, to: at });
+    const { from, to } = picked;
+    if (at < from || at > to) return onChange({ counted, from: Math.min(from, at), to: Math.max(to, at) });
+    if (from === to) return onChange(null);
+    if (at === from) return onChange({ counted, from: from + 1, to });
+    if (at === to) return onChange({ counted, from, to: to - 1 });
+  };
+  const options = NUMBER_RANGES.map((r, at) => {
+    const inner = !!picked && at > picked.from && at < picked.to;
+    const words = behindOf(spanTag({ counted, from: at, to: at }));
+    /* Nobody counts nought books, so counting starts at one. */
+    const low = counted ? Math.max(1, r.from) : r.from;
+    return {
+      id: String(at),
+      title: r.to >= NUMBER_RANGES[NUMBER_RANGES.length - 1].to
+        ? `${low.toLocaleString("en")} and over`
+        : `${low.toLocaleString("en")} to ${r.to.toLocaleString("en")}`,
+      note: inner
+        ? "Between two ranges you ticked, so it stays in"
+        : words ? `${plural(words, counted ? "phrase" : "number")} ready` : "nothing ready yet",
+      disabled: inner,
+    };
+  });
+  const name = picked ? spanTag(picked) : "";
+  const clash = !!name && taken.includes(name);
+  const words = name ? behindOf(name) : 0;
+  return (
+    <Screen
+      title={counted ? "Counting things" : "Numbers"}
+      onBack={onBack}
+      backLabel={changing ? "Back to the card" : "Back to the blanks"}
+      rise
+      className="blanks"
+    >
+      <p className="at-hint">
+        {counted
+          ? "Tick the ranges the number can come from. The blank is filled with a number and a thing counted, such as 3 books, in the right form."
+          : "Tick the ranges the number can come from. Each range comes up about as often as the others."}{" "}
+        Ranges next to each other only, so the blank covers one unbroken stretch.
+      </p>
+      <CheckList
+        options={options}
+        chosen={picked ? options.filter((_, at) => at >= picked.from && at <= picked.to).map((o) => o.id) : []}
+        onToggle={(id) => toggle(Number(id))}
+      />
+      {name && (
+        <p className={`at-formneed at-mt3${clash || !words ? " unmet" : ""}`}>
+          {clash
+            ? <>This sentence already has a <BlankNames names={[name]} /> blank. Choose other ranges, or take that one out first.</>
+            : <>The blank will be <BlankNames names={[name]} />, with {words ? plural(words, counted ? "phrase" : "number") : "nothing"} behind it.</>}
+        </p>
+      )}
+      <div className="at-row">
+        <Button variant="primary" disabled={!name || clash} onClick={() => onDone(name)}>
+          {changing ? "Change the blank" : "Put in the blank"}
+        </Button>
+      </div>
     </Screen>
   );
 }
@@ -4336,6 +4526,26 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     return out;
   }, [allCards, lang]);
 
+  /* How many nouns are behind each name, and how many of those lend a
+     plural: a noun blank asks whether it reads with *to be* only where
+     the *is* could be an *are* — see readingsBehind. */
+  const nounsBehind = useMemo(() => {
+    const all = new Map<string, number>();
+    const many = new Map<string, number>();
+    for (const c of allCards || []) {
+      if (lang && c.lang && c.lang !== lang.id) continue;
+      if (String(c.category || "").toLowerCase() !== NOUN_SLOT || isSentence(c)) continue;
+      const plural = formsOf(c).some(
+        (f) => !(f.row && f.col) && isLent(f) && String(f.ar || "").trim() && nounNumberOf(c, f),
+      );
+      for (const name of fillsOf(c, kindOf(c, lang))) {
+        all.set(name, (all.get(name) || 0) + 1);
+        if (plural) many.set(name, (many.get(name) || 0) + 1);
+      }
+    }
+    return { all, many };
+  }, [allCards, lang]);
+
   /*
    * The blanks with a word behind them that takes the pronouns on its end,
    * and what those look like on one of them.
@@ -4469,6 +4679,14 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
       })),
       /* And a demonstrative the same, where the language has them. */
       ...(categoriesOf(lang).some((c) => c.id === DEMONSTRATIVE_SLOT) ? DEMONSTRATIVE_READING_SLOTS : []).map((name) => ({
+        name,
+        words: behind.get(name) || 0,
+        used: used.get(name) || 0,
+        wrote: named.get(name) || 0,
+        built: "reading" as const,
+      })),
+      /* And a noun the same, where the language has them. */
+      ...(categoriesOf(lang).some((c) => c.id === NOUN_SLOT) ? NOUN_READING_SLOTS : []).map((name) => ({
         name,
         words: behind.get(name) || 0,
         used: used.get(name) || 0,
@@ -4615,11 +4833,16 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
       if (adjectives > 0 && saysAboutPersons(lang)) {
         return { readings: adjectiveReadings(name, adjectives), readingsHint: ABOUT_HINT };
       }
-      if (withBe > 0 && pronounKind) {
+      const nouns = nounsBehind.all.get(name) || 0;
+      if (withBe - nouns > 0 && pronounKind) {
         /* Worded as *this* where every word read with *to be* is a
            demonstrative, and as a pronoun otherwise. */
-        const thisOnly = withBe === (demonstrativesBehind.get(name) || 0);
+        const thisOnly = withBe - nouns === (demonstrativesBehind.get(name) || 0);
         return { readings: thisOnly ? demonstrativeReadings(name, withBe) : pronounReadings(name, withBe) };
+      }
+      /* And nouns, where one of them has a plural to say *are* after. */
+      if (nouns > 0 && (nounsBehind.many.get(name) || 0) > 0) {
+        return { readings: nounWithBe(name, nouns), readingsHint: NOUN_HINT, nounReads: true };
       }
       return {};
     };
@@ -4640,6 +4863,10 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         /* And an adjective is one blank too, asked once chosen whether it
            is the word or the word said about a person. */
         const about = b.name === ADJECTIVE_SLOT && blanksAround.find((r) => r.name === ADJECTIVE_IS_SLOT);
+        /* And a noun, where a plural is behind it — see readingsBehind. */
+        const nouns = b.name === NOUN_SLOT && blanksAround.some((r) => r.built === "reading" && NOUN_READING_SLOTS.includes(r.name))
+          ? readingsBehind(b.name)
+          : {};
         rows.push({
           name: b.name,
           kind: "category",
@@ -4650,16 +4877,50 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
               ? "Any demonstrative \u2014 then choose how it reads in English"
               : about
               ? "Any adjective \u2014 then choose whether it says who"
-              : `Any ${named(b.name).toLowerCase()}`,
+              : nouns.readings
+                ? "Any noun \u2014 then choose how it reads in English"
+                : `Any ${named(b.name).toLowerCase()}`,
           ...(reads ? { readings: pronounReadings(b.name) } : null),
           ...(these ? { readings: demonstrativeReadings(b.name) } : null),
           ...(about ? { readings: adjectiveReadings(b.name, about.words), readingsHint: ABOUT_HINT } : null),
+          ...nouns,
         });
       } else if (b.built === "reading") {
-        /* Offered under the pronoun or the demonstrative, above. */
+        /* Offered under the pronoun, the demonstrative or the noun, above. */
+      } else if (readSpan(b.name)) {
+        /* A number blank, of any stretch or run of them: offered as the two
+           rows below, which ask which stretches once chosen. */
       } else if (b.used > 0 || b.wrote > 0) {
         rows.push({ name: b.name, kind: "group", words, note: "The cards tagged with it", ...readingsBehind(b.name) });
       }
+    }
+    /* Numbers, and counting things: one row each, where the language has
+       numbers to put in a sentence — which stretches is asked once chosen,
+       as ticks. Named by the blank that is all of them. */
+    const numbersHere = (counted: boolean) =>
+      blanksAround.some((b) => {
+        const span = readSpan(b.name);
+        return !!span && span.counted === counted && (b.used > 0 || b.wrote > 0);
+      });
+    if (numbersHere(false)) {
+      rows.push({
+        name: spanTag({ counted: false, from: 0, to: NUMBER_RANGES.length - 1 }),
+        label: "Numbers",
+        kind: "numbers",
+        counted: false,
+        words: behind.get("number") || 0,
+        note: "A number, written out — then choose which ranges",
+      });
+    }
+    if (numbersHere(true)) {
+      rows.push({
+        name: spanTag({ counted: true, from: 0, to: NUMBER_RANGES.length - 1 }),
+        label: "Counting things",
+        kind: "numbers",
+        counted: true,
+        words: behind.get("count") || 0,
+        note: "A number and a thing counted, such as 3 books — then choose which ranges",
+      });
     }
     for (const c of allCards || []) {
       if (lang && c.lang && c.lang !== lang.id) continue;
@@ -4680,29 +4941,47 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
        once chosen, whether the sentence wants the word or those forms —
        see endsBehind. The pronoun's own question is its own. */
     const endRow = [...endRowsOf(lang)][0];
-    for (const row of rows) {
-      const seen = endRow ? endsBehind.get(row.name) : undefined;
-      if (!seen || row.readings) continue;
-      row.readings = [
+    const ENDS_HINT =
+      "Some words in this blank have a pronoun on the end written out. Choose whether this sentence uses the word itself or those forms \u2014 for every word in the blank. A form kept out of sentences on its own card stays out either way.";
+    const endsReadings = (name: string): Reading[] | null => {
+      const seen = endRow ? endsBehind.get(name) : undefined;
+      if (!seen) return null;
+      return [
         {
-          name: row.name,
+          name,
           label: "Main form",
           note: `${seen.word || "the word"} \u2014 the word itself, and its other forms such as the plural`,
           rows: [BARE_ROW],
         },
         {
-          name: row.name,
+          name,
           label: "With a pronoun on the end",
           note: seen.ends.length ? `${seen.ends.join(", ")}\u2026` : "my \u2026, your \u2026, his \u2026",
           rows: [endRow],
           words: seen.cards,
         },
       ];
-      row.readingsHint =
-        "Some words in this blank have a pronoun on the end written out. Choose whether this sentence uses the word itself or those forms \u2014 for every word in the blank. A form kept out of sentences on its own card stays out either way.";
+    };
+    for (const row of rows) {
+      /* A noun read with *to be* or without is then asked the same, as a
+         second step: the two are separate questions. */
+      if (row.nounReads && row.readings) {
+        row.readings = row.readings.map((r) => {
+          const next = endsReadings(r.name);
+          return next ? { ...r, next, nextHint: ENDS_HINT } : r;
+        });
+        continue;
+      }
+      const ends = endsReadings(row.name);
+      if (!ends || row.readings) continue;
+      row.readings = ends;
+      row.readingsHint = ENDS_HINT;
     }
-    return rows.sort((a, b) => a.name.localeCompare(b.name));
-  }, [blanksAround, behind, demonstrativesBehind, allCards, lang, card, endsBehind]);
+    /* Numbers and counting things together, at the top, numbers first;
+       the rest by name. */
+    const rank = (r: BlankOffer) => (r.kind === "numbers" ? (r.counted ? 1 : 0) : 2);
+    return rows.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  }, [blanksAround, behind, demonstrativesBehind, nounsBehind, allCards, lang, card, endsBehind]);
 
   /*
    * The words each of this card's blanks can be filled with, today.
@@ -4901,6 +5180,36 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
    * withoutSlot is what closes the gap it leaves, as it does for every
    * other writer of a blank.
    */
+  /*
+   * One blank changed for another, everywhere the card has it: every
+   * field of every form, and what was said about it — the tenses it asks
+   * for, and which blank it agrees with or is agreed with by. What a number
+   * blank's ranges are changed through; renameSlot leaves every other
+   * blank as it was.
+   */
+  const renameBlank = (from: string, to: string) => {
+    if (!from || !to || from === to) return;
+    setForms((f) =>
+      f.map((form) => ({
+        ...form,
+        ar: renameSlot(form.ar, from, to),
+        en: renameSlot(form.en, from, to),
+        lat: renameSlot(form.lat, from, to),
+      })),
+    );
+    setBlankRows((was) => {
+      if (!(from in was)) return was;
+      const next = { ...was, [to]: was[from] };
+      delete next[from];
+      return next;
+    });
+    setBlankLinks((was) => {
+      const next: Record<string, string> = {};
+      for (const [slot, other] of Object.entries(was)) next[slot === from ? to : slot] = other === from ? to : other;
+      return next;
+    });
+  };
+
   const dropBlank = (at: number, name: string) => {
     setForms((f) =>
       f.map((form, i) =>
@@ -5158,6 +5467,8 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     trouble,
     blanksAround,
     blankOffer,
+    behindOf: (name: string) => behind.get(name) || 0,
+    renameBlank,
     dropBlank,
     combos,
     starved,
@@ -7364,8 +7675,9 @@ function IdBox({ word }: { word: WordDraft }) {
 function TagList({ word, rows, maker, full, open, onOpen, onClose }: {
   word: WordDraft;
   rows: { name: string; used: number; wrote: number }[];
-  /** The box that creates a custom tag, drawn at the top of the sheet. */
-  maker?: Node;
+  /** The box that creates a custom tag, drawn at the top of the sheet. It
+      is the sheet's search as well, so the sheet holds what is typed. */
+  maker?: (typed: string, onType: (typed: string) => void) => Node;
   /** Whether the card already carries as many tags as it may. */
   full: boolean;
   open: boolean;
@@ -7452,12 +7764,20 @@ function TagList({ word, rows, maker, full, open, onOpen, onClose }: {
 function TagSheet({ word, rows, maker, full, onClose }: {
   word: WordDraft;
   rows: { name: string; used: number; wrote: number }[];
-  maker?: Node;
+  maker?: (typed: string, onType: (typed: string) => void) => Node;
   full: boolean;
   onClose: () => void;
 }) {
   const { fills, addFill, dropFill, renameFill, nameHeld, askStrip, asking, dropping } = word;
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  /* The box at the top names a new tag and finds an old one: what is typed
+     there narrows the list under it, as the blank screen's box does, so a
+     tag that exists already is found before a second one is made. Only
+     while the box is there — on a full card it is not, and neither is the
+     narrowing. */
+  const [typed, setTyped] = useState("");
+  const find = maker ? slotName(typed) : "";
+  const shown = find ? rows.filter((b) => b.name.includes(find)) : rows;
   /* Escape shuts the sheet — unless it is shutting something inside it
      first: a rename being typed, or one of the two questions. */
   useEffect(() => {
@@ -7488,9 +7808,10 @@ function TagSheet({ word, rows, maker, full, onClose }: {
             <IconButton icon="close" label="Close" onClick={onClose} />
           </div>
           <p className="at-hint">
-            Tick the tags this card should have, or create a new one.
+            Tick the tags this card should have. Type to find one, or to
+            create a new one.
           </p>
-          {maker}
+          {maker && maker(typed, setTyped)}
           {full && (
             <Notice kind="warn">
               That is as many tags as one card may have. Take one off to
@@ -7504,7 +7825,12 @@ function TagSheet({ word, rows, maker, full, onClose }: {
                 somebody.
               </p>
             )}
-            {rows.map((b) => {
+            {rows.length > 0 && !shown.length && (
+              <p className="at-hint">
+                No tag has &ldquo;{find}&rdquo; in its name.
+              </p>
+            )}
+            {shown.map((b) => {
               const on = fills.includes(b.name);
               if (renaming && renaming.from === b.name) {
                 return (
@@ -8184,7 +8510,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                           </span>
                         )}
                         {line.lat && <span className="at-askedsaid">{line.lat}</span>}
-                        {line.en && <span className="at-askedmeans">{line.en}</span>}
+                        <AskedMeanings en={line.en} />
                       </span>
                     </li>
                   ))}
@@ -8277,10 +8603,12 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                  was at the top of the section, over the default tags it
                  has nothing to do with. */
               maker={
-                !holes.length && !full ? (
+                !holes.length && !full ? (typed, onType) => (
                   <BlankNameBox
-                    label="Create a custom tag"
-                    placeholder="A new tag, like colours"
+                    label="Find or create a custom tag"
+                    placeholder="Find a tag, or name a new one"
+                    value={typed}
+                    onType={onType}
                     /* Every name already on the list, the default tags
                        included — a tag called `noun` would be a second
                        thing answering to `{{noun}}` — and every ID a card
@@ -8292,7 +8620,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                       .concat(word.refName ? [word.refName] : [])}
                     onName={addFill}
                   />
-                ) : null
+                ) : undefined
               }
             />
 
@@ -8831,8 +9159,13 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
     names: word.holes,
     onNew: (put) => setPutting({ put }),
   };
+  /* A number blank already in the sentence, tapped: its ranges, to change. */
+  const [changing, setChanging] = useState<string | null>(null);
+  const tapBlank = (name: string) => {
+    if (readSpan(name)) setChanging(name);
+  };
   return (
-    <>
+    <BlankTap.Provider value={tapBlank}>
       {word.forms.map((f, i) => (
         <FormBlock
           key={i}
@@ -8849,10 +9182,22 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
           blanks={wiring}
         />
       ))}
+      {changing && (
+        <BlankScreen
+          lang={lang}
+          offers={word.blankOffer}
+          behindOf={word.behindOf}
+          start={readSpan(changing)}
+          taken={word.holes.filter((h) => h !== changing)}
+          onPick={(name) => word.renameBlank(changing, name)}
+          onClose={() => setChanging(null)}
+        />
+      )}
       {putting && (
         <BlankScreen
           lang={lang}
           offers={word.blankOffer}
+          behindOf={word.behindOf}
           onPick={(name, rows) => {
             putting.put(name);
             /* And where the way it is read narrows the blank — a noun with
@@ -8873,7 +9218,7 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
         chosen={word.uses}
         onChange={word.setUses}
       />
-    </>
+    </BlankTap.Provider>
   );
 }
 

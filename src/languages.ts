@@ -119,7 +119,7 @@ export const TYPES = [
   /* 1: what does it mean */
   "ar2pick", "ar2en", "rec2en", "rec2img",
   /* 2: which one is it */
-  "match", "recmatch", "en2pick", "img2pick", "ctx2pick",
+  "match", "recmatch", "recfig", "recown", "en2pick", "img2pick", "ctx2pick",
   /* 3: write it from a cue */
   "tr2ar", "rec2ar", "rec2attr",
   /* 4: write it from its meaning */
@@ -202,6 +202,49 @@ export const EX: Record<string, ExerciseSpec> = {
     placeholder: "",
     promptField: "pairs",
     answerField: "ar",
+    answerMode: "choice",
+    picks: "pair",
+    tiles: "audio",
+    gentle: true,
+  },
+  /* The grid of recordings again, asked of a number system's own cards:
+     the same play buttons down the left, and down the right the number
+     each one is, in figures — 47 rather than the word for it. The figures
+     English uses here, and the language's own below, where it has them.
+
+     Only a card that is one number can stand in it: *hundred* or *and*
+     has no figures to be paired with (`figure`), and each word in it
+     needs company that is a recorded number too (`heardFigures`). */
+  recfig: {
+    level: 2,
+    instruction: "Match each recording to its Arabic numeral",
+    label: "Match the recordings to Arabic numerals",
+    short: "Sounds→#",
+    needs: ["recs", "figure", "heardFigures"],
+    question: "Match each recording to its Arabic numeral",
+    placeholder: "",
+    promptField: "pairs",
+    answerField: "en",
+    answerMode: "choice",
+    picks: "pair",
+    tiles: "audio",
+    gentle: true,
+  },
+  /* And in the language's own figures — ٤٧ — which only a card that has
+     them carries (`numeral`). After the ten figures are cleared, as every
+     question that asks for them is: a miss on ٤٧ should be a miss on the
+     sound, not on ٤. */
+  recown: {
+    level: 2,
+    instruction: "Match each recording to its {own1}",
+    label: "Match the recordings to {own}",
+    short: "Sounds→{O}",
+    needs: ["recs", "numeral", "figure", "heardFigures"],
+    afterNumerals: true,
+    question: "Match each recording to its {own1}",
+    placeholder: "",
+    promptField: "pairs",
+    answerField: "numeral",
     answerMode: "choice",
     picks: "pair",
     tiles: "audio",
@@ -1657,6 +1700,8 @@ export function needLabel(need: string, lang: Partial<Lang>) {
     images: "a picture",
     pictured: "a few more cards with a picture",
     heard: "a few more cards with a recording",
+    figure: "a number written in figures",
+    heardFigures: "a few more numbers with a recording",
     /* Not a field to fill in: a card whose words vary cannot be the one on
        a recording, so hearing it is the one thing a variable costs. */
     fixed: "words that don't change — neither a recording, a picture nor a grid can follow a variable",
@@ -3234,6 +3279,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* By the names they go by in English: these are Eastern Arabic
        numerals, and 123 are Arabic numerals. */
     numeralsLabel: "Eastern Arabic numerals",
+    numeralLabel: "Eastern Arabic numeral",
     numeralsNote: "Arabic speakers often call these “Indian numerals”: أرقام هندية.",
     numerals: (n) =>
       Number.isInteger(n) && n >= 0
@@ -3661,6 +3707,8 @@ export function exOf(named: string, lang: Lang = activeLang()) {
   const attr = quizAttrOf(lang);
   const ownName = lang.numeralsLabel || "its own numerals";
   const ownEg = lang.numerals ? `${ownName} (${lang.numerals(123)})` : ownName;
+  /* One of them, for an instruction about a single tile. */
+  const ownOne = lang.numeralLabel || "own numeral";
   /*
    * The two labels are different parts of speech, and that — not where they
    * land in a sentence — decides their case.
@@ -3688,6 +3736,7 @@ export function exOf(named: string, lang: Lang = activeLang()) {
       .replace(/\{Own\}/g, cap(ownName))
       .replace(/\{own\}/g, ownName)
       .replace(/\{ownEg\}/g, ownEg)
+      .replace(/\{own1\}/g, ownOne)
       .replace(/\{O\}/g, lang.numerals ? lang.numerals(1) || "#" : "#");
 
   const out: Record<string, any> = { ...spec };

@@ -8,6 +8,207 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.392 — 7 October 2026
+
+**Play buttons sit in the middle of their cards.**
+
+- In "Match each recording to its word", the play button on each card
+  on the left now sits in the middle of the space beside the pairing
+  number, instead of pressed up against the number with the rest of the
+  card empty. The correction shown under a wrongly paired card after
+  checking is centred with it. The same goes for the grids that match
+  number recordings to their figures.
+
+## 0.391 — 7 October 2026
+
+**Numbers up to eleven digits, in Check a number and in practice.**
+
+- Check a number now says every number up to 99,999,999,999 as typed.
+  Before, it kept only the first seven digits without saying so:
+  800,413,901 came back as 8,004,139. A number longer than eleven digits
+  now gets a message saying so, instead of an answer for part of it.
+- A language's numbers have a new part, **Numbers 1,000,000,000 and
+  over**, with boxes for the word for a billion (one, two, and the
+  plural where the language has one). It opens for students once the
+  teacher has written those words, like any other part.
+- The part that was "Numbers 1,000 and over" is now **Numbers 1,000 to
+  999,999,999** and asks numbers up to nine digits. It needs no new
+  words, so it stays open wherever it was open. Most of its questions are
+  now nine-digit numbers, where most were seven. Any question a student
+  already had from it comes back once as a different number.
+- Number blanks in sentences have the new range to tick too. A sentence
+  already written with the 1,000-and-over blank keeps meaning 1,000 and
+  up, so it is now filled from the billions as well. Ticking only 1,000
+  to 999,999,999 gives a blank of its own, called 1000-999999999.
+
+## 0.390 — 7 October 2026
+
+**Two new matching grids for numbers you can hear.**
+
+- Beside "Match each recording to its word", sessions can now ask
+  "Match each recording to its Arabic numeral": a play button for each
+  number down one side, and figures like 40 down the other.
+- And, in Arabic, "Match each recording to its Eastern Arabic numeral":
+  the same, with ٤٠ on the other side. Like the other questions that use
+  these figures, it only starts once the ten figures ٠ to ٩ have been
+  learnt.
+- Only numbers your teacher has recorded are used, and only ones that
+  are a single number — "forty" can be in the grid, "hundred" or "and"
+  cannot. A grid needs at least three recorded numbers, and everything
+  on the right-hand side is a number, never an ordinary word.
+- Both sit on the second level of the ladder, next to the other
+  matching grids.
+
+## 0.389 — 7 October 2026
+
+**Number blanks: pick Numbers or Counting things, then tick the ranges.**
+
+- In the list of blanks for a sentence, numbers are now two entries at
+  the top: **Numbers** and **Counting things**. The separate ranges are
+  no longer listed one by one.
+- Choosing either one shows the ranges with tick boxes: 0 to 9, 10 to
+  19, 20 to 99, 100 to 999, and 1,000 and over. Tick as many as you
+  like and they make one blank. Ticking 0 to 9, 10 to 19 and 20 to 99
+  gives a blank called 0-99, and counting things gives count-0-99.
+- The ranges you tick must touch, so a blank always covers one unbroken
+  stretch of numbers. If you tick two ranges with a gap between them,
+  the ranges in between are ticked for you.
+- In a blank that covers several ranges, the ranges take turns, so each
+  comes up about as often as the others. A 0-99 blank gives a number
+  from 0 to 9 a third of the time, not one time in ten.
+- Tap a number blank that is already in a sentence to change its
+  ranges. Its ticks open as they are.
+- Ticking all five is the same blank as "any number" (or "any number of
+  things") was before.
+- Sentences you already wrote keep working as they were, including ones
+  using the old names such as 11-99.
+- **Trade-off:** a blank can't skip ranges. For example, 0 to 9 together
+  with 100 to 999 isn't possible.
+
+## 0.388 — 7 October 2026
+
+**A lone block under "Learn more" sits in the middle.**
+
+- After you answer, the things under "Learn more" sit two to a row. When
+  one is left over on a row of its own, it used to sit in the left half
+  with an empty gap beside it. It now sits centred in the row, so the box
+  looks finished rather than as if something were missing.
+
+## 0.387 — 7 October 2026
+
+**"My house is" and "my houses are" from one noun blank.**
+
+- A noun blank can now read three ways in English, like a pronoun blank
+  or *this*: the noun on its own (*my house*), with "to be" after it
+  (*my house is*), or as a question (*is my house*). The Arabic stays as
+  it is.
+- The app chooses between *is* and *are*, so a sentence comes out right
+  for every form in the blank: "my house is big" with بيتي and "my
+  houses are big" with بيوتي. Before, a teacher had to type "is" into the
+  English, and it read "houses is big" whenever a plural came up.
+- Plurals and pairs take *are*. The singular, and a word marked as having
+  no number (*water*), take *is*.
+- You are only asked about this when some noun in the blank has a
+  plural. For a singular noun, typing "is" yourself still works.
+- *With or without a pronoun on the end* is still its own question. It
+  is asked next, after you choose how the noun reads.
+- This works for a group tag and a card's ID with nouns in it too. In a
+  tag that also has adjectives, "with to be" still means "I am tired"
+  with no one named, and the nouns stay out of it, as before.
+- To check by hand: give a noun a plural, put a {{noun-is}} blank in
+  "{{noun-is}} big", and see that the examples read "… is big" for the
+  singular and "… are big" for the plural.
+
+## 0.386 — 7 October 2026
+
+**Finding a custom tag by typing its name.**
+
+- In the sheet where you add custom tags to a card, the box at the top
+  now also searches. As you type, the list underneath narrows to the tags
+  whose names contain what you typed, so with a long list you can find
+  the tag you want instead of scrolling for it — and see that a tag
+  already exists before making a second one like it.
+- If nothing matches, the sheet says so, and Add still creates a new tag
+  with that name. Clearing the box brings the whole list back.
+
+## 0.385 — 7 October 2026
+
+**A shorter, clearer list of number blanks.**
+
+- When you add a number blank to a sentence, the list now offers only
+  the current number ranges: 0 to 9, 10 to 19, 20 to 99, 100 to 999 and
+  1,000 and over, and the same five with "count" in front for counting
+  things. The old names (0 to 10, 11 to 99, and the old counting ranges
+  1 to 2, 3 to 10 and 11 to 20) were showing up next to them, which
+  made it look like there were overlapping choices.
+- Sentences you already wrote with one of the old names still work and
+  still get filled with numbers as before. You don't need to change
+  them.
+
+## 0.384 — 7 October 2026
+
+**"I am tired" sentences show the other persons too.**
+
+- Practising a sentence like تعبان اليوم from English, the person shown
+  is now picked at random each time: *I am tired today*, *you are tired
+  today* or *he is tired today*. Before, a new sentence always showed
+  *I am* until you had got it right, so it looked as if that was all it
+  meant. Any of them is still accepted when turning it into English.
+- In a card's examples, and in the list of sentences to approve, each
+  meaning now has its own line instead of being joined by slashes on one
+  line, which read like a single sentence starting with "I am".
+- Trade-off: other generated sentences with more than one meaning also
+  show one picked at random, rather than repeating the one you missed.
+- To check by hand: open a sentence card with an "I am tired" blank,
+  look at its examples and its review list, then practise it a few times
+  from English.
+## 0.383 — 7 October 2026
+
+**Every card list has a view button: small grid, large grid, list or table. Teachers can filter cards by kind and subtype.**
+
+- The card-size button over a card list is now a view button. Each press
+  moves to the next view: small grid, large grid, list, then table, and
+  back to the start. Its icon is a picture of the view the list is in.
+- The large grid is the size that used to be called Medium. The old
+  Large size has gone.
+- The list shows one line per card: the word and its meaning, or how it
+  sounds where it has no meaning written.
+- The table shows the word, transliteration, meaning, kind, subtype,
+  decks, whether it has a recording, its review status, and when it was
+  created and last modified. On a phone it scrolls sideways inside its
+  own frame.
+- Students get the view button on all three of their card lists: their
+  cards, a deck's cards, and the cards on Progress. Their table shows the
+  word, meaning, kind, subtype and level.
+- Each list remembers its own view on the device, so the Cards tab can
+  stay a table while decks stay a grid. A device that had chosen Medium
+  or Large starts on the large grid.
+- On the teacher's Cards tab and in a deck, Filter starts with *Kind*:
+  tick any of Word or phrase, Sentence and Scene. Ticking Word or phrase
+  offers its subtypes (Noun, Verb and so on, plus *No subtype*). Ticking
+  Scene offers Text and Conversation. Several can be ticked at once, and
+  a kind's subtypes narrow only that kind, so "nouns and every sentence"
+  works.
+- To check by hand: on a phone, press the view button through all four
+  views on the Cards tab, open a deck and see that it kept its own view,
+  and select a few cards in the table view.
+## 0.382 — 7 October 2026
+
+**A new version no longer restarts the app while you are using it.**
+
+- When a new version was put out, the app restarted itself onto it — at
+  the end of a session, when you switched away from the app, or straight
+  away if you were not in a session. Anything typed and not yet saved,
+  such as a card half written in the editor, was lost.
+- Now a bar at the bottom says a new version is ready, with Reload and
+  Later. Save what you are doing, then press Reload. Later hides the bar;
+  the version line in the top-right menu still offers Reload.
+- If you open or refresh the app and the new version arrives before you
+  have tapped or typed anything, the app still switches to it by itself,
+  so you do not have to refresh twice. Nothing can be lost at that point.
+- Until you reload, you keep using the version you had open. Your answers
+  are saved as before.
+
 ## 0.381 — 6 October 2026
 
 **"What is this?" and "what are these?" from one sentence card.**

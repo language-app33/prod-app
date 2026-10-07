@@ -5484,3 +5484,81 @@ At the same time, "Learn more" and the card's note are gone from under
 every grid. They spoke of the first word only and never said which; the
 owner preferred nothing to five times as much.
 
+## A number blank is a run of stretches
+
+**7 October 2026** · `src/numbers/spans.ts` (`spanTag`, `readSpan`, `spansThrough`, `mixed`), `src/variables.ts` (`fillsOf`, `valuesForTurn`), `src/card-editor.tsx` (`RangeTicks`, `BlankTap`, `renameBlank`)
+
+The blank list offered every stretch's tag, the old tags kept for sentences
+written before the split, and the general `number` and `count` — a dozen
+rows for one question. The owner asked for two rows, Numbers and Counting
+things, and ticks for the stretches, any number of them making one blank.
+
+**Ticks that touch, named bottom to top.** A run is written from its first
+stretch's bottom to its last one's top — `0-99`, `10-999`, `20-plus` — so
+the name reads as what it holds. One stretch is its own tag and all five is
+`number` or `count`, so nothing written before means anything new. Runs
+with a gap were ruled out with the owner: the name would have to list them.
+
+**Nothing is written on the fillers.** `fillsOf` adds the runs a filler's
+own stretch is inside, off the name alone, so a filler carries no more
+`fills` than it did (they are capped at twelve) and a run nobody writes
+costs nothing.
+
+**Stretches in turn, not numbers.** The rotation walks a blank's values in
+order, and they arrive a stretch at a time, so `{{0-99}}` would be ten
+digits before any teen. `mixed` deals the stretches round in turn, the same
+order for the same list, so a count is still a sentence — and each stretch
+comes up about as often as the others, which the owner chose over every
+number equally (eight times in ten 20 to 99).
+
+**Changed by renaming.** Tapping a number pill opens its ticks; the new run
+replaces the old name in every field, and the tenses and agreement said
+about it move with it.
+
+## Eleven digits, and the billions a part of their own
+
+**7 October 2026** · `src/numbers/types.ts` (`NUMBER_CEILING`, `NUMBER_RANGES`), the three composers, `src/numbers/range.ts` (`askFor`)
+
+Check a number read the first seven digits of whatever was typed, so a
+teacher who typed 800,413,901 was shown 8,004,139, said in full, as if
+that were what they had asked. The owner asked for numbers under twelve
+digits to be said as typed, by the check and in what students are asked.
+The ceiling is now 99,999,999,999.
+
+**Why a sixth part rather than a longer fifth.** Up to 999,999,999 is
+said with the words for a million and below: the count in front of
+*million* is just a number under a thousand. Past that needs a word no
+system had: *billion*. A part opens only when everything in it can be
+said, and its probe always includes its top number, so stretching
+"1,000 and over" to eleven digits would have closed it for every
+language until a teacher wrote that word, and taken it away from every
+learner on it. So 1,000 to 999,999,999 keeps its id and stays open.
+1,000,000,000 and over is new, and waits on its words the way any part
+does.
+
+**What it costs.** A part is a stretch drawn evenly, so most questions in
+the thousands part are now nine-digit numbers, where they were mostly
+seven. Because its top changed, every question already drawn from it
+comes back as a different number once. Neither is new in kind: the part
+was already mostly its biggest numbers.
+
+**What a sentence calls it.** A stretch's tag was read off its id, and
+the thousands keep the id `numbers:1000+` so nobody's progress or deck
+loses them. Read that way, its tag and the run of it with the billions
+would both have been `1000-plus`. Tags are now read off a stretch's ends
+(`stretchTag`): the thousands answer to `1000-999999999`, and
+`1000-plus` is the run from 1,000 to the top, which is what a sentence
+written with it before meant. Such a sentence is now filled from the
+billions too.
+
+**The draw.** One draw from the seeded generator is 32 bits, about four
+billion values, and the billions span about a hundred billion. Taken
+alone it would only land on every twenty-third number or so. A range
+wider than one draw takes a second one below it. Every range that fits
+in one draw does exactly what it did, so no other question changes.
+
+**The words in the golden tables.** مليار, מיליארד and tỷ were added to
+the three golden systems so the tests can reach the ceiling. No reviewer
+has read them, and no table row says how a billion should come out. They
+are the tests' words, not the app's: each teacher writes their own.
+

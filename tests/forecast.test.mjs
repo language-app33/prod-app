@@ -62,6 +62,7 @@ const {
   buildSession,
   climbOf,
   gridFor,
+  gridOther,
 } = await import(path.join(out, "trainer.js"));
 const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
 const { FRONT_DOOR_CAP, PASSES_TO_LEARN } = await import(path.join(here, "..", "src", "scheduler.ts"));
@@ -217,6 +218,35 @@ test("a grid of recordings pairs each recorded word with the word in the script"
   /* A teacher trying it on one card is given company that can be played. */
   const trial = gridFor(a.forms[0], { id: a.id, subId: null, type: "recmatch" }, heard, settings, { id: "ar-PS" });
   assert.deepEqual(trial.words.map((/** @type {any} */ w) => w.id).sort(), [a.id, b.id, c.id].sort());
+  installIndexes(collection, settings);
+});
+
+test("a grid of recorded numbers pairs each recording with its figures", () => {
+  /* Four recorded numbers of a system, and the words of the deck beside
+     them. Only the numbers stand in the grid; the right-hand column is
+     their figures, the English way or the language's own. */
+  const own = (/** @type {number} */ n) => String(n).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]);
+  const numbers = [3, 4, 5, 40].map((n) => ({
+    id: `sys:s1:n.${n}`,
+    lang: "ar-PS",
+    kind: "word",
+    tags: ["deck"],
+    forms: [{ id: `sys:s1:n.${n}-f~standalone`, ar: `عدد ${n}`, en: String(n), lat: "", numeral: own(n), recs: [{ id: `clip${n}` }], s: {} }],
+    locked: true,
+    drill: true,
+  }));
+  const held = /** @type {any[]} */ ([...collection, ...numbers]);
+  installIndexes(held, settings);
+  const [a, b, c] = numbers;
+  for (const type of ["recfig", "recown"]) {
+    const exercise = { id: a.id, subId: null, type, mates: [{ id: b.id, subId: null }, { id: c.id, subId: null }] };
+    const { words, meanings } = gridFor(a.forms[0], exercise, held, settings, { id: "ar-PS" });
+    assert.deepEqual(words.map((/** @type {any} */ w) => w.id).sort(), [a, b, c].map((it) => it.forms[0].id).sort(), type);
+    const field = type === "recfig" ? "en" : "numeral";
+    for (const w of words) assert.ok(meanings.includes(w[field]), `${type}: ${w[field]} is there to pair with`);
+    assert.ok(meanings.every((/** @type {string} */ m) => numbers.some((it) => it.forms[0][field] === m)), `${type}: nothing but numbers on the right`);
+    assert.equal(gridOther(type, a.forms[0]), a.forms[0][field]);
+  }
   installIndexes(collection, settings);
 });
 

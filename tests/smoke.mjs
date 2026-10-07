@@ -1259,6 +1259,14 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
         r.children.length >= 1 && r.children.length <= 2 &&
         [...r.children].every((c) => c.getAttribute("data-el") !== "also-context")),
       rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    /* A block alone on its row sits in the middle of it, not the left half. */
+    const lone = rowsIn.filter((e) => e.getAttribute("data-el") === "also-row" && e.children.length === 1);
+    check("a block alone on its row is centred in it",
+      lone.every((r) => {
+        const a = r.getBoundingClientRect(), b = r.children[0].getBoundingClientRect();
+        return Math.abs((b.left - a.left) - (a.right - b.right)) <= 2;
+      }),
+      lone.map((r) => r.children[0].getAttribute("data-el")).join(" "));
     check("and every short block sits in a row, the related words included",
       rowsIn.every((e) => ["also-row", "also-context"].includes(e.getAttribute("data-el") || "")),
       rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
@@ -1768,14 +1776,18 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const updates = readFileSync(path.resolve("src/updates.ts"), "utf8");
     const watching = updates.slice(updates.indexOf("export function watchForUpdates"));
     const applying = updates.slice(updates.indexOf("export function applyUpdate"));
-    check("the page takes the handover itself, without being asked",
-      /addEventListener\("controllerchange"/.test(watching) && /reloadOnce\(\)/.test(watching),
-      "nothing reloads when a new worker takes over");
+    check("the page takes the handover itself only when nobody has touched it",
+      /addEventListener\("controllerchange"/.test(watching) && /!touched/.test(watching),
+      "a reload could land on a page somebody is working on");
     check("but not on a first install, which updates nothing",
       /wasControlled/.test(watching), "a first install would reload for nothing");
-    check("and not on top of a question being answered",
-      /held/.test(watching) && /holdUpdates/.test(updates),
-      "a reload could land mid-session");
+    check("otherwise it says an update is ready instead of reloading",
+      /markReady\(\)/.test(watching) && /onUpdateReady/.test(src) && /at-updatebar/.test(src),
+      "nothing tells the person an update is waiting");
+    check("and never reloads just because the app is put away",
+      !/document\.hidden\)\s*\{[^}]*reload/.test(watching), "a reload on leaving the app loses unsaved work");
+    check("a reload asked for still saves what is owed first",
+      /runBeforeReloads\(\)/.test(applying), "Reload skips the last write");
     check("Reload waits for the new worker to take control",
       /addEventListener\("controllerchange"/.test(applying), "no controllerchange listener");
     check("and it does not reload the moment it is pressed",
@@ -5639,6 +5651,9 @@ const openPronounTables = async () => {
       check("and so is the demonstrative, which reads this, this is or is this",
         names().includes("demonstrative") && !names().includes("demonstrative-is") && !names().includes("is-demonstrative"),
         names().join(" ") || "(nothing offered)");
+      check("and the noun, whose readings are asked once it is chosen rather than listed",
+        names().includes("noun") && !names().includes("noun-is") && !names().includes("is-noun"),
+        names().join(" ") || "(nothing offered)");
       click(rowFor(/^pronoun$/));
       await sleep(300);
       const title = () => {
@@ -6086,6 +6101,33 @@ const openPronounTables = async () => {
         !!newBox() && !!fillList().length &&
           !!(newBox().compareDocumentPosition(fillList()[0]) & 4),
         newBox() && fillList().length ? "above" : "(nothing to compare)");
+      /* And the same box finds a tag as it names one: what is typed there
+         narrows the list under it, so a tag that exists is found before a
+         second one like it is made. */
+      {
+        const findBox = () => /** @type {any} */ (inSheet(".at-blanknew input")[0] || null);
+        const addNew = () => /** @type {any} */ (inSheet(".at-blanknew button")[0] || null);
+        const all = fillNames();
+        typeInto(findBox(), "fri");
+        await sleep(200);
+        const narrowed = fillNames();
+        check("typing in the box narrows the tags to the ones that match",
+          narrowed.includes("friend") && narrowed.every((n) => n.includes("fri")),
+          `${all.join(", ")} → ${narrowed.join(", ") || "(none)"}`);
+        typeInto(findBox(), "zzqq");
+        await sleep(200);
+        const none = inSheet(".at-tagsheetlist .at-hint")
+          .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" ");
+        check("and says so when none matches, with Add still there to make it",
+          !fillList().length && /No tag has .zzqq. in its name/.test(none) &&
+            !!addNew() && !addNew().disabled,
+          none || "(nothing said)");
+        typeInto(findBox(), "");
+        await sleep(200);
+        check("and emptying it brings every tag back",
+          JSON.stringify(fillNames()) === JSON.stringify(all),
+          fillNames().join(", "));
+      }
       /* And the button that opens it is under the Custom tags heading, not
          over the default tags it has nothing to do with. */
       {
@@ -7788,9 +7830,9 @@ const openPronounTables = async () => {
   check("the Cards tab's controls are three rows: buttons, search, then Select and the menus",
     rows().length === 3, `${rows().length} rows`);
   const top = /** @type {any} */ (rows()[0]);
-  check("the first row is New card and the size button, with no search box in it",
+  check("the first row is New card and the view button, with no search box in it",
     !!top && /New card/.test(top.textContent || "") &&
-      !top.querySelector("input.at-search") && !!top.querySelector(".at-sizebtn"),
+      !top.querySelector("input.at-search") && !!top.querySelector(".at-viewbtn"),
     top ? (top.textContent || "").replace(/\s+/g, " ").trim() + ` · ${top.querySelectorAll("input, button").length} controls` : "no row");
   const searchRow = /** @type {any} */ (rows()[1]);
   check("and the search box is on a line of its own under it",
@@ -7799,11 +7841,11 @@ const openPronounTables = async () => {
       !!searchRow.querySelector("input.at-search[placeholder='Search cards']"),
     searchRow ? searchRow.className : "no row");
   const sizeName = () => {
-    const btn = one(".at-sizebtn", null);
-    return btn ? btn.getAttribute("aria-label") || "" : "(no size button)";
+    const btn = one(".at-viewbtn", null);
+    return btn ? btn.getAttribute("aria-label") || "" : "(no view button)";
   };
-  check("and the size button says which size it is at and what pressing it does",
-    /^Card size: Small — press for medium$/.test(sizeName()), sizeName());
+  check("and the view button says which view it is in and what pressing it does",
+    /^View: Small grid — press for large grid$/.test(sizeName()), sizeName());
   check("the row of menus is Select, Sort and Filter, in that order",
     named(subRow()).join(" | ") === "Select | Sort | Filter",
     named(subRow()).join(" | ") || "(no second row)");
@@ -7820,8 +7862,30 @@ const openPronounTables = async () => {
   await sleep(200);
   check("and Filter replaces it rather than standing beside it",
     frame.querySelectorAll(".at-listmenu").length === 1 &&
-      sortLabels().join(" | ") === "Recordings | Forms | Decks | Blanks | Review",
+      sortLabels().join(" | ") === "Kind | Recordings | Forms | Decks | Blanks | Review",
     `${frame.querySelectorAll(".at-listmenu").length} panels · ${sortLabels().join(" | ")}`);
+
+  /* ---- and by kind, with each kind's subtypes under it ----
+     Offered once the kind is ticked and only then: "verbs" says nothing
+     about a sentence. */
+  const tickRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
+      .find((r) => re.test((((r.querySelector("b") || {}).textContent) || "").trim())) || null);
+  check("the filter offers the three kinds of card",
+    !!tickRow(/^Word or phrase$/) && !!tickRow(/^Sentence$/) && !!tickRow(/^Scene$/),
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow b")].map((b) => (b.textContent || "").trim()).join(" | "));
+  check("and no subtypes before a kind is ticked", !tickRow(/^No subtype$/) && !tickRow(/^Conversation$/), "");
+  const tilesBefore = tiles();
+  click(tickRow(/^Word or phrase$/) && tickRow(/^Word or phrase$/).querySelector("input"));
+  await sleep(250);
+  check("ticking words and phrases offers their subtypes, and no scene's",
+    !!tickRow(/^Noun$/) && !!tickRow(/^No subtype$/) && !tickRow(/^Conversation$/),
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow b")].map((b) => (b.textContent || "").trim()).join(" | "));
+  check("and narrows the list to them", tiles() <= tilesBefore, `${tiles()} of ${tilesBefore}`);
+  click(tickRow(/^Word or phrase$/) && tickRow(/^Word or phrase$/).querySelector("input"));
+  await sleep(250);
+  check("and letting go of the kind gives the list back", tiles() === tilesBefore && !tickRow(/^No subtype$/),
+    `${tiles()} of ${tilesBefore}`);
 
   /* ---- and by a blank, from either side of it ----
      A blank has two sides and a teacher wants both: the sentences it is a
@@ -7970,31 +8034,49 @@ const openPronounTables = async () => {
     !!document.querySelector(".at-menubtn.on"),
     [...document.querySelectorAll(".at-menubtn")].map((b) => (b.textContent || "").trim()).join(" | "));
 
-  /* Bigger cards: fewer to a row, each with its words set larger. The grid
-     carries the scale, so one variable moves both. */
+  /* Four views, in turn: small tiles, bigger tiles — fewer to a row, each
+     with its words set larger, the grid carrying the scale so one variable
+     moves both — a line per card, and a table. */
   const scale = () => {
     const g = one(".at-cardgrid", null);
     return g ? g.style.getPropertyValue("--tile") : "";
   };
-  const sizeBtn = () => one(".at-sizebtn", null);
+  const sizeBtn = () => one(".at-viewbtn", null);
+  const viewIcon = () => {
+    const p = one(".at-viewbtn path", null);
+    return p ? p.getAttribute("d") || "" : "";
+  };
   check("the tiles start at the size they have always been", !scale(), scale() || "(no scale set)");
+  const smallIcon = viewIcon();
   click(sizeBtn());
   await sleep(200);
-  check("pressing the size button draws them bigger", Number(scale()) > 1, scale() || "(no scale set)");
-  check("and the button now offers the next size up",
-    /Medium — press for large/.test(sizeName()), sizeName());
-  /* Kept on the device: a teacher who wants big cards wants them on the next
-     screen too, and on the next visit. */
-  check("the size is remembered on the device, not in the document",
-    localStorage.getItem("arabic-trainer-tile-size") === "1",
-    String(localStorage.getItem("arabic-trainer-tile-size")));
+  check("pressing the view button draws them bigger", Number(scale()) > 1, scale() || "(no scale set)");
+  check("and the button now offers the list",
+    /Large grid — press for list/.test(sizeName()), sizeName());
+  check("and its icon changes with the view", !!viewIcon() && viewIcon() !== smallIcon, viewIcon().slice(0, 20));
+  /* Kept on the device, and per list: the deck's view is not the Cards tab's. */
+  check("the view is remembered on the device, for this list",
+    localStorage.getItem("arabic-trainer-view:teacher-deck") === "large",
+    String(localStorage.getItem("arabic-trainer-view:teacher-deck")));
   click(sizeBtn());
   await sleep(150);
+  const lines = [...document.querySelectorAll(".at-cardline")];
+  check("the list view is a line per card, with no tiles",
+    lines.length > 0 && !one(".at-cardgrid .at-minicard", null),
+    `${lines.length} lines`);
+  click(sizeBtn());
+  await sleep(150);
+  const heads = [...document.querySelectorAll(".at-cardtable thead th")].map((th) => (th.textContent || "").trim()).filter(Boolean);
+  check("the table view has a column for everything the teacher compares",
+    heads.join(" | ") === "Word | Transliteration | Meaning | Kind | Subtype | Decks | Recording | Review | Created | Modified",
+    heads.join(" | ") || "(no table)");
+  check("and a row per card", document.querySelectorAll(".at-cardtable tbody tr[data-card]").length > 0,
+    String(document.querySelectorAll(".at-cardtable tbody tr").length));
   click(sizeBtn());
   await sleep(150);
   check("and it comes back round to where it started rather than running out",
-    !scale() && localStorage.getItem("arabic-trainer-tile-size") === "0",
-    `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-tile-size")}`);
+    !scale() && localStorage.getItem("arabic-trainer-view:teacher-deck") === "small",
+    `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-view:teacher-deck")}`);
 
   /* ---- and what a deck holds besides cards ----
      Numbers are one document per language, so a deck takes them in parts,
@@ -8284,7 +8366,8 @@ const openPronounTables = async () => {
   const tiles = [...panel().querySelectorAll(".at-numparts .at-deckcard")];
   check("the number system's editor opens on its parts, one button each",
     tiles.length >= 8 && !!tileNamed("Numbers 0 to 9") && !!tileNamed("Numbers 10 to 19") &&
-      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 and over"),
+      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 to 999,999,999") &&
+      !!tileNamed("Numbers 1,000,000,000 and over"),
     tiles.map((t) => (t.textContent || "").trim()).join(" | "));
   check("and each says what it is waiting for",
     /waiting on/.test((tileNamed("Numbers 0 to 9") || {}).textContent || ""),
@@ -8546,6 +8629,16 @@ const openPronounTables = async () => {
     await sleep(200);
     check("a number it cannot say yet says what it is waiting for instead",
       /waiting on/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "800,413,901");
+    await sleep(200);
+    check("a nine-digit number is answered for itself, not for its first seven digits",
+      /800,413,901/.test(up().textContent || "") && !/8,004,139/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "123,456,789,012");
+    await sleep(200);
+    check("and one longer than eleven digits says so, rather than answering for part of it",
+      /12 digits/.test(up().textContent || "") && !/12,345,678,901/.test(up().textContent || ""),
       (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
   await goBack();

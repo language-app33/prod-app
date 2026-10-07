@@ -191,6 +191,7 @@ const PLACES: Record<string, [string, string]> = {
   BlankChip: [TEACH, "Editing a card · one blank, and the words that fill it"],
   BlankBar: [TEACH, "Editing a card · putting a blank into a field"],
   BlankScreen: [TEACH, "Editing a card · choosing which blank to put in"],
+  RangeTicks: [TEACH, "Editing a card · choosing which number ranges a blank covers"],
   IdBox: [TEACH, "Editing a card · the ID it answers to"],
   TagList: [TEACH, "Editing a card · its tags"],
   TagSheet: [TEACH, "Editing a card · the sheet custom tags are chosen in"],
@@ -215,6 +216,7 @@ const PLACES: Record<string, [string, string]> = {
   NumberSystemEditor: [TEACH, "A language's number system"],
   ReviewLine: [TEACH, "A card · where its sentences stand with review"],
   ReviewScreen: [TEACH, "Reviewing a card's sentences"],
+  SentenceText: [TEACH, "Reviewing a card's sentences · one sentence"],
   OverCeiling: [TEACH, "Reviewing a card's sentences · too many to read"],
   NarrowBlank: [TEACH, "Reviewing a card's sentences · narrowing a blank"],
   ReportsScreen: [TEACH, "Reports from students"],
@@ -991,8 +993,8 @@ export function ComponentGallery() {
 
       <Row
         name="ItemList"
-        what="The standard list frame: New button, search and tile size on one row; Select and the menus on the next; bulk actions, empty state, paging at 120."
-        note="match is (item, lowercasedQuery) => boolean. bulkActions is [{ label, danger, onClick(ids) }]. menus is [{ key, label, icon, busy, content }] — one open at a time, drawn under the row. resizable adds the size button, which only a grid of tiles has anything to do with."
+        what="The standard list frame: New button, search and the view button on one row; Select and the menus on the next; bulk actions, empty state, paging at 120."
+        note="match is (item, lowercasedQuery) => boolean. bulkActions is [{ label, danger, onClick(ids) }]. menus is [{ key, label, icon, busy, content }] — one open at a time, drawn under the row. views adds the view button — small grid, large grid, list, table — with { key, columns, row(item) } saying what a line and a table row show; key is where the list remembers its view."
       >
         <V label="items + renderItem" wide>
           <ItemList
@@ -1002,7 +1004,11 @@ export function ComponentGallery() {
             itemKey={(d) => d.id}
             match={(d, q) => d.title.toLowerCase().includes(q)}
             size="small"
-            resizable
+            views={{
+              key: "gallery",
+              columns: [{ key: "title", label: "Title" }],
+              row: (d) => ({ word: d.title, meaning: null, cells: { title: d.title } }),
+            }}
             menus={[
               {
                 key: "sort",

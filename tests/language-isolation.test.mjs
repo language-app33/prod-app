@@ -250,8 +250,9 @@ test("a composer is reached through the registry, never by its language's name",
     const bad = [...source.matchAll(/from\s*["']\.\/numbers\/([\w.-]+)\.tsx?["']/g)]
       .map((m) => m[1])
       /* `nouns` reads a teacher's noun cards for the counting questions:
-         word-free, and no composer in it. */
-      .filter((mod) => !["index", "types", "schema", "range", "generate", "nouns"].includes(mod));
+         word-free, and no composer in it. `spans` names runs of the
+         stretches, which are the same in every language. */
+      .filter((mod) => !["index", "types", "schema", "range", "generate", "nouns", "spans"].includes(mod));
     assert.deepEqual(
       bad,
       [],

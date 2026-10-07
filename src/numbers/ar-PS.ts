@@ -146,6 +146,16 @@ export const AR_SLOTS: SlotSpec[] = [
     optional: true,
     hint: "The plural, as in three million.",
   },
+  { slot: "billion.1", formKeys: COUNTING, label: "1,000,000,000", group: "billions" },
+  { slot: "billion.2", formKeys: COUNTING, label: "2,000,000,000", group: "billions" },
+  {
+    slot: "billion.n",
+    formKeys: COUNTING,
+    label: "billions",
+    group: "billions",
+    optional: true,
+    hint: "The plural, as in three billion.",
+  },
   {
     slot: "connector",
     formKeys: COUNTING,
@@ -505,8 +515,9 @@ function numeral(b: Build, n: number, gender: "m" | "f" | undefined, counted: bo
      building starts rather than falling through it and coming out empty. */
   if (n === 0) return b.word("unit.0", "standalone");
 
-  const { millions, thousands, rest } = chunksOf(n);
+  const { billions, millions, thousands, rest } = chunksOf(n);
   const pieces = [
+    scale(b, billions, 1000000000, "billion"),
     scale(b, millions, 1000000, "million"),
     scale(b, thousands, 1000, "thousand"),
     rest ? under1000(b, rest, gender) : "",

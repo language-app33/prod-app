@@ -362,7 +362,7 @@ test("the listening exercises are exactly the ones prompted by audio, or made of
      and the "can't listen right now" button all picked it up unprompted,
      which is what deriving this from the prompt rather than a flag buys. */
   assert.deepEqual(byHelper, [
-    "rec2en", "rec2img", "recmatch", "rec2ar", "rec2attr", "rec2ctx",
+    "rec2en", "rec2img", "recmatch", "recfig", "recown", "rec2ar", "rec2attr", "rec2ctx",
     /* And the two that play a number or a time. They were picked up by
        the quiet window and the "can't listen right now" button without
        being told, which is what deriving this from the prompt buys. */
@@ -479,7 +479,7 @@ test("and so it is offered to fill the blank that means any word", () => {
      kind, and a card that reads as a word answers to `{{word}}`. */
   const vi = LANGUAGES["vi-HUE"];
   const thanks = { id: "x", lang: "vi-HUE", category: "noun", forms: [{ id: "x", ar: "cảm ơn", en: "thanks", lat: "" }] };
-  assert.deepEqual(fillsOf(thanks, kindOf(thanks, vi)).sort(), ["noun", "word"]);
+  assert.deepEqual(fillsOf(thanks, kindOf(thanks, vi)).sort(), ["is-noun", "noun", "noun-is", "word"]);
 });
 
 /* --- finding a word inside a phrase ---
@@ -653,7 +653,7 @@ test("the gentle types are read off the definitions, not kept beside them", () =
      recognising what a word means, then which word it is. Every one of
      them puts the answer on the screen — nothing here is written out. */
   assert.deepEqual(EASY_TYPES, [
-    "ar2pick", "ar2en", "rec2en", "rec2img", "match", "recmatch", "en2pick", "img2pick", "ctx2pick", "dlgwhole",
+    "ar2pick", "ar2en", "rec2en", "rec2img", "match", "recmatch", "recfig", "recown", "en2pick", "img2pick", "ctx2pick", "dlgwhole",
     /* Reading a number or a time and saying what it is, and picking one
        out of four, are recognition in exactly the sense the six above
        are: the answer is on the screen and nothing is written out. */

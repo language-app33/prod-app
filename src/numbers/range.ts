@@ -373,7 +373,12 @@ export function askFor(range: Range, seed: string, sys: NumberSystem, composer?:
     };
   }
   const span = Math.max(0, Math.min(range.to, NUMBER_CEILING) - range.from);
-  const value = range.from + Math.floor(rnd() * (span + 1));
+  /* One draw is 32 bits, which the billions outrun: on its own it would
+     land every twenty-third number or so, and never on the rest. A second
+     draw fills in below it there — and only there, so every range that
+     fits in one draw asks exactly what it always asked. */
+  const fine = span + 1 > 4294967296 ? rnd() + rnd() / 4294967296 : rnd();
+  const value = range.from + Math.floor(fine * (span + 1));
   if (!range.counted) return { rangeId: range.id, kind: "numbers", value };
   /* Only the nouns this part can say whole, where the composer is to hand
      to say which — see countable. */
