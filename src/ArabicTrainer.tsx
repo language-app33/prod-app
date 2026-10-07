@@ -5917,7 +5917,9 @@ export function praiseFor(n: number) {
    related words are a short block like the rest. The pronunciation and
    the recording are always the pair, when both are there; the others pair
    up in order, and one left over takes half a row like everything else,
-   so no short block is ever drawn wider than its neighbours. */
+   so no short block is ever drawn wider than its neighbours. That half is
+   the middle one, not the left: a block alone on its row sits centred
+   under the pairs above it rather than leaving a hole beside it. */
 const ALSO_PAIR = ["also-hint", "also-audio"];
 function alsoName(el: any): string {
   return el.type === RelatedWords ? "related-words" : el.props["data-el"] || "";
@@ -5926,7 +5928,11 @@ function AlsoBox({ children }: { children?: Node }) {
   const shown = React.Children.toArray(children).filter(Boolean) as any[];
   if (!shown.length) return null;
   const row = (cells: any[]) => (
-    <div className="at-alsorow" data-el="also-row" key={`row-${cells[0].key}`}>
+    <div
+      className={cells.length === 1 ? "at-alsorow single" : "at-alsorow"}
+      data-el="also-row"
+      key={`row-${cells[0].key}`}
+    >
       {cells}
     </div>
   );
