@@ -3544,7 +3544,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     grammar: ["number", "gender", "human"],
     /* Two genders, and a dual for the nouns that have one — שעתיים. */
     grammarOptions: {
-      number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
+      number: [["singular", "singular"], ["dual", "dual"], ["plural", "plural"], ["na", "N/A"]],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
       human: [["thing", "a thing"], ["person", "a person"], ["animal", "an animal"]],
     },
