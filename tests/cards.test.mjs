@@ -94,6 +94,7 @@ const { leadSpeed, deckPercent, levelPercent, nextReviewAt, reviewLine, nextPass
   await import(path.join(out, "trainer.js"));
 const { TYPES, LANGUAGES, verbOf, attachedOf, specOf, levelOf, askLabel } = await import(path.join(here, "..", "src", "languages.ts"));
 const { leadsOf } = await import(path.join(here, "..", "src", "review.ts"));
+const { fillText } = await import(path.join(here, "..", "src", "variables.ts"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -1577,6 +1578,32 @@ test("a card carrying two tables is gated on both", () => {
 });
 
 /*
+ * The next tense opens when the one before it is cleared.
+ *
+ * Since 0.368. It waited until every cell of the row above was held at a
+ * four-day gap, which no amount of practice could bring forward, so a verb
+ * practised every day opened its past a week or more after its present
+ * was known. Cleared is what opens the next thing everywhere else.
+ */
+test("a verb's next tense opens once the tense before it is cleared, not once it has been held for days", () => {
+  const verb = (/** @type {any} */ present) => ({
+    id: "eat", ar: "أكل", en: "to eat", lat: "", lang: "ar-PS", kind: "word", category: "verb", s: {},
+    subs: [
+      { id: "eat-p-he", ar: "بوكل", en: "he eats", lat: "", lang: "ar-PS", row: "present", col: "he", s: present },
+      { id: "eat-p-she", ar: "بتوكل", en: "she eats", lat: "", lang: "ar-PS", row: "present", col: "she", s: present },
+      { id: "eat-c-he", ar: "كول", en: "eat!", lat: "", lang: "ar-PS", row: "command", col: "he", s: {} },
+    ],
+  });
+  /* Right twice running on everything, a day apart: cleared, nowhere near
+     a four-day gap. */
+  const clearedToday = quietUnits([verb(allAt(state("review", 1)))], settings);
+  assert.equal(clearedToday.has("eat-c-he"), false, "the next tense waits although the present is cleared");
+  /* One right answer on each: not cleared, so it still waits. */
+  const halfway = quietUnits([verb(allAt(state("review", 1, { hist: [1] })))], settings);
+  assert.ok(halfway.has("eat-c-he"), "the next tense opened before the present was cleared");
+});
+
+/*
  * A sentence puts the agreeing form beside its noun.
  *
  * The values a sentence was filled with, after the draw: an adjective's
@@ -1640,6 +1667,28 @@ test("a demonstrative drawn into a sentence takes هاد, هاي or هدول fro
   const people = beside({ number: "plural", gender: "masculine", human: "person" });
   assert.equal(people.ar, "هدول");
   assert.equal(people.en, "these", "and the English the teacher wrote for that form");
+});
+
+test("a demonstrative read with to be reads is or are off the form the noun chose", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const card = /** @type {any} */ ({
+    id: "this", lang: "ar-PS", category: "demonstrative", fills: ["this"],
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "" },
+      { id: "this-plural", ar: "هدول", en: "these", lat: "", row: "agreement", col: "plural" },
+    ],
+  });
+  const ownerOf = (/** @type {any} */ v) => (v.id === "this" ? { card, form: card.forms[0] } : null);
+  const own = { id: "this", ar: "هاد", en: "this", lat: "", readings: { "this-is": "this is" } };
+  const took = (/** @type {Record<string, string>} */ grammar, /** @type {string} */ en) =>
+    must(agreeTook({ "this-is": own, noun: { id: "n", ar: "x", en, lat: "", grammar } },
+      ["this-is", "noun"], ownerOf, () => ar), "filled");
+  const many = took({ number: "plural", gender: "masculine", human: "person" }, "friends");
+  assert.equal(many["this-is"].ar, "هدول");
+  assert.equal(fillText("{{this-is}} my {{noun}}", many, "en"), "These are my friends");
+  const one = took({ number: "singular", gender: "masculine", human: "thing" }, "book");
+  assert.equal(one["this-is"].ar, "هاد");
+  assert.equal(fillText("{{this-is}} my {{noun}}", one, "en"), "This is my book");
 });
 
 test("a verb drawn into a sentence beside a pronoun is swapped for the person the pronoun names", () => {
@@ -2889,4 +2938,31 @@ test("a deck's size says when its number parts are not ready", () => {
   /* A part no longer on the deck is not counted against it — the deck
      can change before the next look says which parts wait. */
   assert.equal(deckSize({ cardCount: 0, parts: ["numbers:0-9"], partsWaiting: ["numbers:10-19"] }), "1 number part");
+});
+
+test("filtering by kind of card, and by the subtypes of each kind", () => {
+  /* A teacher asks for nouns and every sentence in one go: each kind's
+     subtypes narrow only that kind. */
+  const list = [
+    card({ id: "noun", category: "noun" }),
+    card({ id: "verb", category: "verb" }),
+    card({ id: "bare" }),
+    card({ id: "sentence", sentence: true }),
+    card({ id: "chat", lines: [{ ar: "a", en: "a" }] }),
+    card({ id: "prose", sceneKind: "text", lines: [{ ar: "b", en: "b" }] }),
+  ];
+  const ids = (/** @type {Record<string, any>} */ f) =>
+    filterCards(list, f).map((/** @type {any} */ c) => c.id);
+
+  assert.deepEqual(ids({ kinds: [] }), ["noun", "verb", "bare", "sentence", "chat", "prose"]);
+  assert.deepEqual(ids({ kinds: ["word"] }), ["noun", "verb", "bare"]);
+  assert.deepEqual(ids({ kinds: ["word", "sentence"], subtypes: ["noun"] }), ["noun", "sentence"]);
+  /* A word nobody has said a subtype for is "none". */
+  assert.deepEqual(ids({ kinds: ["word"], subtypes: ["none", "verb"] }), ["verb", "bare"]);
+  assert.deepEqual(ids({ kinds: ["scene"], sceneKinds: ["text"] }), ["prose"]);
+  assert.deepEqual(ids({ kinds: ["scene"], sceneKinds: ["conversation"] }), ["chat"]);
+  /* Subtypes of a kind not ticked narrow nothing — and no kind ticked
+     narrows nothing at all. */
+  assert.deepEqual(ids({ kinds: ["sentence"], subtypes: ["noun"] }), ["sentence"]);
+  assert.deepEqual(ids({ subtypes: ["noun"] }), ["noun", "verb", "bare", "sentence", "chat", "prose"]);
 });

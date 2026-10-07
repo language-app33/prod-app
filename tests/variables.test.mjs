@@ -32,6 +32,11 @@ import {
   readingsOf,
   PRONOUN_IS_SLOT,
   IS_PRONOUN_SLOT,
+  DEMONSTRATIVE_IS_SLOT,
+  IS_DEMONSTRATIVE_SLOT,
+  IS_NOUN_SLOT,
+  NOUN_IS_SLOT,
+  nounNumberOf,
   cardRef,
   refClash,
   renameSlot,
@@ -324,7 +329,10 @@ test("a card says which blanks it fills, one name or several", () => {
   const both = { id: "n1", ar: "Raphael", en: "Raphael", lat: "", fills: ["name", "greeting"] };
   assert.deepEqual(fillsOf(both, ""), ["name", "greeting"]);
   assert.deepEqual(fillsOf(both, "word"), ["name", "greeting", WORD_SLOT]);
-  assert.deepEqual(fillsOf({ ...both, category: "noun" }, ""), ["name", "greeting", "noun"]);
+  /* A noun reads every one of them with *to be* as well — see NOUN_SLOT. */
+  assert.deepEqual(fillsOf({ ...both, category: "noun" }, ""), [
+    "name", "greeting", "noun", "name-is", "is-name", "greeting-is", "is-greeting", "noun-is", "is-noun",
+  ]);
 
   /* A frame still fills none of them, however many it names. */
   const frame = { id: "f1", ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" };
@@ -387,7 +395,7 @@ test("a blank named after a kind of word is filled by the words of that kind", (
   const noun = { id: "n1", ar: "kitaab", en: "book", lat: "", category: "noun" };
   /* It stands in {{noun}} because it says it is one, and in {{word}}
      because everything does. */
-  assert.deepEqual(fillsOf(noun, "word"), ["word", "noun"]);
+  assert.deepEqual(fillsOf(noun, "word"), ["word", "noun", "noun-is", "is-noun"]);
   /* And it is asked of the card, not of this module: which names a
      language declares is the language pack's business, so a category
      nobody declares still fills a hole of its own name. */
@@ -396,9 +404,9 @@ test("a blank named after a kind of word is filled by the words of that kind", (
   assert.deepEqual(fillsOf({ id: "x", ar: "kitaab", en: "book" }, ""), []);
   /* A name the teacher wrote by hand and a kind of word are two answers
      and both are kept, in that order. */
-  assert.deepEqual(fillsOf({ ...noun, fills: "thing" }, ""), ["thing", "noun"]);
+  assert.deepEqual(fillsOf({ ...noun, fills: "thing" }, ""), ["thing", "noun", "thing-is", "is-thing", "noun-is", "is-noun"]);
   /* Saying it fills the kind it is adds nothing: it already did. */
-  assert.deepEqual(fillsOf({ ...noun, fills: "noun" }, ""), ["noun"]);
+  assert.deepEqual(fillsOf({ ...noun, fills: "noun" }, ""), ["noun", "noun-is", "is-noun"]);
 
   /* A frame is not a filler, whatever it says it is: a sentence dropped
      into somebody else's hole is a sentence with a gap in it. */
@@ -1069,7 +1077,7 @@ test("the English readings of a pronoun are worked out from its English", () => 
   assert.deepEqual(beReadings(""), { is: "", ask: "" });
 });
 
-test("every pronoun fills the two reading blanks, and nothing else does", () => {
+test("every pronoun fills the two reading blanks, and no other kind's", () => {
   const ana = { id: "p-i", person: "i", category: "pronoun", forms: [{ ar: "أنا", en: "I", lat: "ana" }] };
   const fills = fillsOf(ana);
   assert.ok(fills.includes("pronoun"));
@@ -1077,7 +1085,9 @@ test("every pronoun fills the two reading blanks, and nothing else does", () => 
   assert.ok(fills.includes(IS_PRONOUN_SLOT));
   const book = { id: "w", category: "noun", forms: [{ ar: "كتاب", en: "book", lat: "kitāb" }] };
   assert.ok(!fillsOf(book).includes(PRONOUN_IS_SLOT));
-  assert.deepEqual(readingsOf(book, book.forms[0]), {});
+  assert.deepEqual(Object.keys(readingsOf(book, book.forms[0])).sort(), ["is-noun", "noun-is"], "a noun's own, not a pronoun's");
+  const go = { id: "v", category: "verb", forms: [{ ar: "راح", en: "to go", lat: "raaH" }] };
+  assert.deepEqual(readingsOf(go, go.forms[0]), {});
   /* And the names are spoken for, as {{word}} is. */
   assert.equal((refClash("pronoun-is", []) || {}).kind, "category");
   assert.equal((refClash("is-pronoun", []) || {}).kind, "category");
@@ -1156,6 +1166,46 @@ test("a teacher's own reading wins over the worked-out one, and the person still
   assert.equal(must(valueOf(ana).readings, "readings")[IS_PRONOUN_SLOT], "am I");
 });
 
+/* شو هاد؟ is "what is this?" and شو هدول؟ "what are these?": the *is* and
+   the *are* follow the demonstrative as they follow a pronoun. */
+
+test("this and that take is, these and those are", () => {
+  assert.deepEqual(beReadings("this"), { is: "this is", ask: "is this" });
+  assert.deepEqual(beReadings("that"), { is: "that is", ask: "is that" });
+  assert.deepEqual(beReadings("these"), { is: "these are", ask: "are these" });
+  assert.deepEqual(beReadings("those"), { is: "those are", ask: "are those" });
+});
+
+test("a demonstrative reads three ways by the blank it fills, each form off its own English", () => {
+  const haad = {
+    id: "this", category: "demonstrative", ref: "this-one", fills: ["this"],
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "haad" },
+      { id: "these", ar: "هدول", en: "these", lat: "hadool" },
+    ],
+  };
+  const book = { id: "w", category: "verb", fills: ["this"], forms: [{ ar: "قرا", en: "read", lat: "ʔara" }] };
+  const pool = [haad, book];
+  const fills = fillsOf(haad);
+  for (const name of [DEMONSTRATIVE_IS_SLOT, IS_DEMONSTRATIVE_SLOT, "this-is", "is-this", "this-one-is", "is-this-one"]) {
+    assert.ok(fills.includes(name), name);
+  }
+  const frame = (/** @type {string} */ slot) => ({ ar: `شو {{${slot}}}؟`, en: `what {{${slot}}}?`, lat: `shu {{${slot}}}?` });
+  const read = (/** @type {string} */ slot, /** @type {"ar" | "en" | "lat"} */ field = "en") =>
+    valuesFor(frame(slot), pool)[slot].map((v) => fillForm(frame(slot), { [slot]: v })[field]);
+
+  assert.deepEqual(read("is-this"), ["what is this?", "what are these?"], "the verb in the tag is left out");
+  assert.deepEqual(read("is-this", "ar"), ["شو هاد؟", "شو هدول؟"], "and the Arabic is the word as it is");
+  assert.deepEqual(read(IS_DEMONSTRATIVE_SLOT), ["what is this?", "what are these?"]);
+  assert.deepEqual(read("this-is"), ["what this is?", "what these are?"]);
+  assert.deepEqual(read("is-this-one"), ["what is this?", "what are these?"]);
+  assert.deepEqual(read("this").sort(), ["what read?", "what these?", "what this?"].sort(), "the plain tag is unchanged");
+
+  /* And the kind's names are spoken for, as the pronoun's are. */
+  assert.equal((refClash(DEMONSTRATIVE_IS_SLOT, []) || {}).kind, "category");
+  assert.equal((refClash(IS_DEMONSTRATIVE_SLOT, []) || {}).kind, "category");
+});
+
 /* A blank's first letter, fitted to where it stands in a Latin-written
    language: a capital at the start of a sentence, small anywhere else
    unless the word is a person or a place. */
@@ -1184,4 +1234,37 @@ test("a person or a place says so on the value it lends", () => {
   assert.equal(valueOf(card).proper, true);
   assert.equal(lentBy(card)[0].value.proper, true);
   assert.equal(valueOf({ id: "w", category: "noun", ar: "sách", en: "book" }).proper, undefined);
+});
+
+test("a noun reads with is or are by its number, and a pronoun on its end keeps its form's", () => {
+  const house = {
+    id: "house", category: "noun", fills: ["home"],
+    forms: [
+      { id: "house", ar: "بيت", en: "house", lat: "beet", number: "singular" },
+      { id: "houses", ar: "بيوت", en: "houses", lat: "byuut", number: "plural" },
+      { id: "my-house", ar: "بيتي", en: "my house", lat: "beeti", row: "attached", col: "me" },
+      { id: "my-houses", ar: "بيوتي", en: "my houses", lat: "byuuti", row: "attached", col: "me", of: "houses" },
+    ],
+  };
+  assert.equal(nounNumberOf(house, house.forms[0]), "");
+  assert.equal(nounNumberOf(house, house.forms[1]), "plural");
+  assert.equal(nounNumberOf(house, house.forms[2]), "", "on the end of the singular");
+  assert.equal(nounNumberOf(house, house.forms[3]), "plural", "on the end of the plural");
+  /* A pair is more than one, and a word whose number does not apply is
+     one: *water is*. The number may be on the form's first answer. */
+  assert.equal(nounNumberOf({}, { number: "dual" }), "plural");
+  assert.equal(nounNumberOf({}, { number: "na" }), "");
+  assert.equal(nounNumberOf({}, { answers: [{ number: "plural" }] }), "plural");
+
+  const frame = (/** @type {string} */ slot) => ({ ar: `{{${slot}}} كبير`, en: `{{${slot}}} big`, lat: `{{${slot}}} kbiir` });
+  const read = (/** @type {string} */ slot, /** @type {"ar" | "en"} */ field = "en") =>
+    valuesFor(frame(slot), [house])[slot].map((v) => fillForm(frame(slot), { [slot]: v })[field]);
+  assert.deepEqual(read(NOUN_IS_SLOT), ["House is big", "Houses are big", "My house is big", "My houses are big"]);
+  assert.deepEqual(read(IS_NOUN_SLOT), ["Is house big", "Are houses big", "Is my house big", "Are my houses big"]);
+  assert.deepEqual(read("home-is"), read(NOUN_IS_SLOT), "a tag reads the same");
+  assert.deepEqual(read(IS_NOUN_SLOT, "ar"), ["بيت كبير", "بيوت كبير", "بيتي كبير", "بيوتي كبير"], "the Arabic is the word as it is");
+  assert.deepEqual(read("noun"), ["House big", "Houses big", "My house big", "My houses big"], "the plain blank is unchanged");
+  /* And the names are spoken for. */
+  assert.equal((refClash(NOUN_IS_SLOT, []) || {}).kind, "category");
+  assert.equal((refClash(IS_NOUN_SLOT, []) || {}).kind, "category");
 });

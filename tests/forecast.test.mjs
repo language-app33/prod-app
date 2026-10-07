@@ -60,6 +60,8 @@ const {
   prepStatus,
   prepDeckOf,
   buildSession,
+  climbOf,
+  gridFor,
 } = await import(path.join(out, "trainer.js"));
 const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
 const { FRONT_DOOR_CAP, PASSES_TO_LEARN } = await import(path.join(here, "..", "src", "scheduler.ts"));
@@ -196,6 +198,28 @@ test("an answer is marked by the one function the question screen uses", () => {
   assert.ok(marks.every((/** @type {any} */ m) => m.correct), "a right grid marked a word wrong");
 });
 
+test("a grid of recordings pairs each recorded word with the word in the script", () => {
+  /* Three words with recordings among sixty without. The words asked are
+     the recorded ones; the spare tiles on the right are words in the
+     script, and need nothing to play. */
+  const heard = collection.map((it, i) =>
+    i < 3 ? { ...it, forms: [{ ...it.forms[0], recs: [{ id: `clip${i}` }] }] } : it);
+  installIndexes(heard, settings);
+  const [a, b, c] = heard;
+  const exercise = { id: a.id, subId: null, type: "recmatch", mates: [{ id: b.id, subId: null }, { id: c.id, subId: null }] };
+  const { words, meanings } = gridFor(a.forms[0], exercise, heard, settings, { id: "ar-PS" });
+  assert.deepEqual(words.map((/** @type {any} */ w) => w.id).sort(), [a.id, b.id, c.id].sort());
+  assert.ok(words.every((/** @type {any} */ w) => (w.recs || []).length), "every word asked can be played");
+  assert.ok(meanings.length > words.length, "spare words, so the last pair is never free");
+  for (const w of words) assert.ok(meanings.includes(w.ar), `${w.ar} is among the words to pair it with`);
+  assert.ok(!meanings.some((/** @type {string} */ m) => /^word /.test(m)), "no meaning on the screen");
+
+  /* A teacher trying it on one card is given company that can be played. */
+  const trial = gridFor(a.forms[0], { id: a.id, subId: null, type: "recmatch" }, heard, settings, { id: "ar-PS" });
+  assert.deepEqual(trial.words.map((/** @type {any} */ w) => w.id).sort(), [a.id, b.id, c.id].sort());
+  installIndexes(collection, settings);
+});
+
 /* ------------------------------------------------------------------
    Prep mode
    ------------------------------------------------------------------ */
@@ -209,7 +233,10 @@ test("a prep is read only when it is whole", () => {
     name: "Exam",
     date: "2026-10-20",
     decks: ["deck"],
-  });
+    target: "learnt",
+  }, "a prep from before the choice aims at learnt");
+  assert.equal(prepOf({ prep: { name: "Exam", date: "2026-10-20", decks: ["deck"], target: "cleared" } }).target, "cleared");
+  assert.equal(prepOf({ prep: { name: "Exam", date: "2026-10-20", decks: ["deck"], target: "nonsense" } }).target, "learnt");
 });
 
 test("a prep's deadline is the start of its day, and its days are counted to it", () => {
@@ -323,4 +350,35 @@ test("a sentence whose words are not cleared yet starts after them", () => {
   const cleared = withStates(noun, { ...learntState, passes: 0, hist: [1, 1] });
   installIndexes([frame, cleared], settings);
   assert.equal(workloadOf([frame], settings, FROM).earliestDays, LEARN_DAYS, "and no later once they are");
+});
+
+/* Up the whole ladder, the two passes still to make. */
+const clearedState = { ...learntState, passes: 0 };
+
+test("aiming at cleared: less work, a nearer floor, and a cleared card needs nothing", () => {
+  installIndexes(collection, settings);
+  const learnt = workloadOf(deck(), settings, FROM);
+  const cleared = workloadOf(deck(), settings, FROM, "cleared");
+  assert.equal(cleared.left, 12);
+  assert.ok(cleared.questions < learnt.questions, `${cleared.questions} against ${learnt.questions}`);
+  assert.equal(cleared.earliestDays, CLEAR_DAYS + Math.ceil(12 / FRONT_DOOR_CAP) - 1);
+
+  const up = deck().map((it) => withStates(it, clearedState));
+  assert.equal(workloadOf(up, settings, FROM).left, 12, "cleared is not learnt");
+  assert.deepEqual(workloadOf(up, settings, FROM, "cleared"), { left: 0, questions: 0, sessions: 0, earliestDays: 0 });
+});
+
+test("a prep for cleared is done once its decks are cleared, and its ring says so", () => {
+  const up = collection.map((it) => (deckOf(it) ? withStates(it, clearedState) : it));
+  installIndexes(up, settings);
+  const prep = { name: "Exam", date: "2026-10-20", decks: ["deck"] };
+  assert.equal(prepStatus({ ...prep, target: "learnt" }, up, settings, FROM), "active");
+  assert.equal(prepStatus({ ...prep, target: "cleared" }, up, settings, FROM), "done");
+  const cards = up.filter(deckOf);
+  assert.equal(climbOf(cards, settings, up, "cleared").pct, 100);
+  assert.equal(climbOf(cards, settings, up, "cleared").learnt, 12);
+  assert.ok(climbOf(cards, settings, up).pct < 100, "cleared is short of learnt");
+  assert.equal(prepGlance(5, { kind: "already" }, 0, 0, "cleared").status, "All cleared");
+  assert.match(prepGlance(3, { kind: "late", earliest: null }, 0, 0, "cleared").detail, /^Too soon to clear it all/);
+  assert.match(readyWords({ kind: "already" }, "2026-10-20", 0, "cleared"), /already cleared/);
 });

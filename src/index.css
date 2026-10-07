@@ -289,11 +289,9 @@ button {
    it is an offer, not the next thing to do — the next thing to do is
    Continue, at the foot of the screen. It carries the chevron so the tap
    target says which way the box will go. */
-.at-alsomore { display:flex; align-items:center; justify-content:center; gap:4px;
-  margin: 14px auto 0; background:none; border:0; cursor:pointer;
+.at-alsomore { margin: 14px 0 0; text-align:center;
   font-family: var(--ui); font-size:15px; font-weight:700; color: var(--muted);
   padding:6px 10px; }
-.at-alsomore:hover { color: var(--text); }
 .at-alsobox { margin-top:10px; padding:14px; background: var(--well);
   border:2px solid var(--line); border-radius: var(--r); }
 /* The dividers belong to the box, not to its members: the related words
@@ -304,6 +302,30 @@ button {
 .at-alsobox > * { margin-top:0; padding-top:0; border-top:0; }
 .at-alsobox > * + * { margin-top:14px; padding-top:12px;
   border-top:1px solid var(--line); }
+/* Two of the short blocks to a row: how it is pronounced beside how it
+   sounds. Two equal columns with a hairline between them, the same line
+   that divides the rows, so the box reads as a table of things to look up
+   rather than a list to scroll. Each half lets a long word break rather
+   than push the other off the screen. */
+.at-alsorow { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 12px; }
+.at-alsorow > * { margin:0; padding:0; border:0; min-width:0; overflow-wrap:anywhere; }
+.at-alsorow > * + * { padding-left:12px; border-left:1px solid var(--line); }
+/* One block left over keeps the width of half a row, but the middle half,
+   its contents centred in it, so it reads as belonging to the box rather
+   than as a pair with its other half missing. */
+.at-alsorow.single { grid-template-columns:minmax(0, calc((100% - 12px) / 2));
+  justify-content:center; text-align:center; }
+/* A recording in half the row: the button keeps its shape and its label,
+   one size down again, centred in its half of the row. Two
+   speeds that no longer fit beside each other go one under the other. */
+.at-alsorow .at-playrow { justify-content:center; flex-wrap:wrap; gap:6px; }
+.at-alsobox .at-alsorow .at-playbig { min-width:0; padding:7px 12px; gap:6px; font-size:13px; }
+.at-alsobox .at-alsorow .at-playbig .at-ic { width:20px; height:20px; }
+.at-alsobox .at-alsorow .at-playbig.twin { flex:1 1 auto; padding-inline:10px; }
+.at-alsobox .at-alsorow .at-playbig.quiet .at-ic { width:18px; height:18px; }
+/* The related words under their label sit as close to it as every other
+   block's value does to its own. */
+.at-alsorow .at-pairs .at-hint { margin-top:4px; }
 .at-flagwrap { position:relative; margin-top:14px; text-align:center; }
 /* Two quiet ways out, set identically: reporting a bad question, and
    saying you cannot hear this one. Neither is a thing to do with the
@@ -1465,6 +1487,49 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
   display:flex; align-items:center; justify-content:center; }
 .at-ckbox.pick.on { border-color: var(--accent); }
 .at-item .at-ckbox.pick { position:static; margin-right:10px; flex:none; }
+
+/* A card list drawn as lines: the word and what it means, one card to a
+   line, for reading down a long list. The word keeps its script's size
+   and direction; the meaning takes what is left and is cut short rather
+   than wrapped, so every line is one line. */
+.at-cardlines { display:flex; flex-direction:column; gap:4px; margin-top:4px; }
+.at-cardlines > .at-grouphead { display:flex; align-items:baseline; gap:8px; margin:10px 0 2px;
+  font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; color: var(--muted); }
+.at-cardline { display:flex; align-items:center; gap:12px; min-width:0; cursor:pointer;
+  background: var(--surface); border:2px solid var(--line); border-radius: var(--r-sm);
+  padding:6px 10px; color: var(--text); }
+.at-cardline.picked { border-color: var(--accent); }
+.at-cardline .at-ckbox.pick, .at-cardtable .at-ckbox.pick { position:static; flex:none; }
+.at-cardline-word { flex:0 1 auto; max-width:55%; min-width:0; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; }
+.at-cardline-word .ar { font-size:calc(18px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
+.at-cardline-meaning { flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-size:13px; font-weight:600; color: var(--muted); }
+.at-cardline-meaning .at-lat { font-weight:500; font-style:italic; }
+.at-cardline-acts { display:flex; gap:6px; flex:none; }
+
+/* And as a table: everything the list knows about each card, side by side.
+   It scrolls sideways inside its own frame where it is wider than the
+   screen, rather than taking the page with it. */
+.at-tablewrap { overflow-x:auto; margin-top:4px; border:2px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface); }
+.at-cardtable { width:100%; border-collapse:collapse; font-size:13px; color: var(--text); }
+.at-cardtable th, .at-cardtable td { padding:7px 10px; text-align:start; vertical-align:middle;
+  border-bottom:1px solid var(--line); white-space:nowrap; }
+.at-cardtable thead th { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; color: var(--muted); background: var(--raised); position:sticky; top:0; }
+.at-cardtable tbody tr:last-child > * { border-bottom:none; }
+.at-cardtable tr.opens { cursor:pointer; }
+.at-cardtable tr.opens:hover > td { background: var(--raised); }
+.at-cardtable tr.picked > td { background: var(--tag-bg); }
+.at-cardtable .at-cardtable-word .ar { font-size:calc(17px * var(--sscale, 1)); }
+.at-cardtable .at-cardtable-meaning { white-space:normal; min-width:140px; }
+.at-cardtable .at-cardtable-acts { width:1%; }
+.at-cardtable .at-cardtable-acts > * + * { margin-inline-start:6px; }
+.at-cardtable .at-grouprow > th { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; color: var(--muted); padding-top:12px; }
+.at-cardtable .at-grouprow span { font-weight:700; letter-spacing:0; color: var(--faint); }
 .at-item.picked { border-color: var(--accent); }
 .at-ck { display:flex; align-items:center; gap:11px; width:100%; cursor:pointer; text-align:left;
   background: var(--raised); border:2px solid var(--line); border-radius: var(--r-sm);
@@ -1789,6 +1854,10 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
   padding:10px 14px; display:flex; align-items:center; gap:14px;
   box-shadow: var(--nav-shadow); max-width: calc(100% - 24px); font-size:13px; }
 .at-undo .what { color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* The same floating bar, saying a new version is ready. Its sentence is the
+   whole point, so it wraps rather than being cut short on a phone. */
+.at-updatebar { gap:10px; }
+.at-updatebar .what { white-space:normal; color: var(--text); }
 /* The snackbar: the undo bar's shape, because that is already this app's
    way of saying "something floating, and temporary". It sits above
    everything (--z-toast) — a confirmation hidden behind the screen that
@@ -1880,7 +1949,8 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 /* In or out, then which decks. The list is capped and scrolls: every deck a
    teacher has ever made can be in here, and a filter panel taller than the
    screen puts the cards it is narrowing out of sight. */
-.at-deckfilter { display:flex; flex-direction:column; gap:8px; }
+.at-deckfilter, .at-kindfilter { display:flex; flex-direction:column; gap:8px; }
+.at-kindfilter .at-hint { margin:0; }
 .at-deckfilter .at-ticklist { max-height:40vh; overflow-y:auto; }
 .at-deckfilter .at-hint { margin:0; }
 .at-filterlabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
@@ -2685,31 +2755,8 @@ button.at-deckstat { width:100%; font:inherit; color:inherit; text-align:start; 
   button.at-deckstat:hover { border-color: var(--ink); }
 }
 button.at-deckstat:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
-/*
- * A number part's words, one tile each: the figure, the word, and where the
- * learner stands on it. Learnt wears the jade Learnt owns everywhere else;
- * under way the brass of work in progress; not started is plain.
- */
-.at-numwords { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; margin-top:14px; }
-.at-numword { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0;
-  width:100%; font:inherit; color:inherit; text-align:start; cursor:pointer;
-  border:2px solid var(--line); border-radius: var(--r-sm); background: var(--surface); padding:9px 10px; }
-.at-numwordfig { font-family: var(--ui); font-size:17px; font-weight:800; color: var(--text);
-  font-variant-numeric: tabular-nums; overflow-wrap:anywhere; }
-.at-numwordsaid { font-size:15px; color: var(--text-soft); overflow-wrap:anywhere; }
-.at-numwordstate { font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.06em;
-  text-transform:uppercase; color: var(--muted); }
-.at-numword.going { border-color: var(--brass); }
-.at-numword.going .at-numwordstate { color: var(--brass); }
-.at-numword.done { background: var(--jade-bg); border-color: var(--jade-soft); }
-.at-numword.done .at-numwordstate { color: var(--jade); }
-@media (hover:hover) {
-  .at-numword { transition: border-color 140ms ease; }
-  .at-numword:hover { border-color: var(--ink); }
-}
-.at-numword:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
 /* Prep mode, above the ladder: the button, and what is being prepped for. */
-.at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:16px; }
+.at-prepbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; }
 .at-prepbar .at-prepnote { margin:0; }
 /* The deck's own screen: how far it has got, then the two dates. */
 .at-deckhead { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
@@ -2933,7 +2980,8 @@ button.at-stat { transition: border-color 140ms ease; }
 
 /* --- Section: an eyebrow and an optional lede, the standard opener --- */
 .at-section > .at-sectiontop { display:flex; align-items:baseline; justify-content:space-between; gap: var(--s3); }
-.at-section > .at-sectiontop > .at-eyebrow { margin:0; }
+.at-section > .at-sectiontop > .at-eyebrow,
+.at-section > .at-sectiontop > .at-sectionhead { margin:0; }
 .at-section .at-sectioncount { font-family: var(--ui); font-size: var(--fs-xs); font-weight:800; letter-spacing:.04em; text-transform:uppercase; color: var(--muted); white-space:nowrap; }
 .at-section .at-sectionlede { margin: var(--s2) 0 0; }
 .at-section .at-sectionbody { margin-top: var(--s3); }
@@ -3450,6 +3498,15 @@ body.at-screening .at-chromebar { display:none; }
    columns — it is a note about the word, never a second word. */
 .at-matchtag { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted);
   line-height:1.3; }
+/* The grid of recordings: the play button stands where the word would, a
+   little larger than in a list of clips because it is the whole of what
+   the tile says. Drawn, not pressed — the tile is the button. */
+.at-matchplay { width:34px; height:34px; display:inline-flex; align-items:center;
+  justify-content:center; font-size:13px; }
+.at-matchtile:hover .at-matchplay { background: var(--raised-hover); }
+/* Under a recording paired wrong, the word it was: in the script, and set
+   small like the meaning under a word is. */
+.at-matchfix.ar .at-arabic { font-size: calc(var(--ask) * .42); color: var(--rose); }
 /* On a phone the two columns still share the row; what gives is the type
    and the padding inside a tile, not the shape of the exercise. */
 @media (max-width: 480px) {
@@ -3847,3 +3904,8 @@ body.at-screening .at-chromebar { display:none; }
 .at-reportmeans { font-size: var(--fs-sm); color: var(--text); }
 .at-reportnote { font-size: var(--fs-sm); color: var(--text-soft); }
 .at-reportwho { font-size: var(--fs-xs); color: var(--muted); }
+/* An icon in the footer is a square the height of the button beside it —
+   the prep's delete next to its save — drawn as the icons beside New card
+   in the Cards tab are, rather than stretching to a share of the row. */
+.at-screenfoot > .at-icon { flex:0 0 auto; width:52px; height:52px; min-height:52px;
+  padding:0; box-sizing:border-box; }

@@ -602,13 +602,44 @@ test("practice never makes a pass either, however due the question was", () => {
   assert.equal(keyOf(out[0].forms[0], "en2ar").passes || 0, 0);
 });
 
-test("a miss puts the passes back to nought", () => {
+const missNow = (/** @type {any[]} */ items, /** @type {any} */ at = clock) =>
+  wrote(items, [{ id: "k", subId: null, rating: "again", correct: false, advance: true }],
+    { type: "en2ar", clock: at, keysOf: () => RUNGS });
+
+test("one miss keeps the passes: a slip is forgiven, as it is on the ladder", () => {
+  const made = climber();
+  made.forms[0].s.en2ar = up({ passes: 2 });
+  const out = missNow([made]);
+  assert.equal(keyOf(out[0].forms[0], "en2ar").passes, 2, "one miss, passes kept");
+  assert.deepEqual(keyOf(out[0].forms[0], "en2ar").hist.slice(-1), [0], "and the miss is still on the record");
+});
+
+test("and a miss while practising early keeps them too", () => {
+  /* Practice before a question is due cannot make a pass, so a single slip
+     in it must not take one: that made every extra sitting a risk with
+     nothing to win, and a small set drilled all day lost passes faster
+     than the calendar gave them back. */
   const made = climber();
   made.forms[0].s.en2ar = up({ passes: 1 });
-  const out = wrote([made],
-    [{ id: "k", subId: null, rating: "again", correct: false, advance: true }],
-    { type: "en2ar", clock, keysOf: () => RUNGS });
-  assert.equal(keyOf(out[0].forms[0], "en2ar").passes, 0);
+  const out = missNow([made], { now: () => T - 2 * DAY, random: () => 0.5 });
+  assert.equal(keyOf(out[0].forms[0], "en2ar").passes, 1);
+});
+
+test("two misses running put the passes back to nought", () => {
+  const made = climber();
+  made.forms[0].s.en2ar = up({ passes: 2 });
+  const once = missNow([made]);
+  const twice = missNow(once);
+  assert.equal(keyOf(twice[0].forms[0], "en2ar").passes, 0);
+});
+
+test("a miss, then right, then a miss is two slips and not a gap", () => {
+  const made = climber();
+  made.forms[0].s.en2ar = up({ passes: 1 });
+  let out = missNow([made]);
+  out = rightNow("en2ar", out, { now: () => T + 30 * DAY, random: () => 0.5 });
+  out = missNow(out, { now: () => T + 31 * DAY, random: () => 0.5 });
+  assert.ok((keyOf(out[0].forms[0], "en2ar").passes || 0) > 0, "the passes survive two separate slips");
 });
 
 test("two passes and no more: the count stops where the badge does", () => {

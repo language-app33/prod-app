@@ -562,14 +562,14 @@ test("the selected tab has a stroke, in a colour that exists in both themes", ()
   assert.match(rule(".at-tab2"), /border:\s*2px solid/, "the tab has no border for the stroke to take");
 });
 
-test("what is not the answer opens on a tap, not by default", () => {
-  /* The answer is what you came back for; five blocks of context under it
-     is a page to scroll past. The invitation is small and centred, and
-     carries the chevron that says which way the box will go. */
+test("what is not the answer is headed, not hidden behind a tap", () => {
+  /* The blocks are shown open under a plain "Learn more" heading. It is
+     text, not a control: no pointer, no hover, nothing to fold the box. */
   const more = rule(".at-alsomore");
-  assert.ok(more, "there is no rule for the invitation");
-  assert.match(more, /background:\s*none/);
-  assert.match(more, /border:\s*0/);
+  assert.ok(more, "there is no rule for the heading");
+  assert.match(more, /text-align:\s*center/);
+  assert.doesNotMatch(more, /cursor:\s*pointer/, "the heading still looks pressable");
+  assert.equal(rule(".at-alsomore:hover"), "", "the heading still changes colour under the pointer");
 });
 
 test("the foot is not cut in two by a rule between its parts", () => {

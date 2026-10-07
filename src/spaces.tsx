@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
-import type { FilterGroup, Node } from "./shared.tsx";
+import type { CardRow, CardViews, FilterGroup, Node } from "./shared.tsx";
 import { CardEditor, NewCardKind } from "./card-editor.tsx";
 import type { CardShape } from "./card-editor.tsx";
 import { formsOf, leadOf } from "./cards.ts";
@@ -54,8 +54,9 @@ import {
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
+  categoriesOf,
   scriptVars } from "./languages.ts";
-import { isDialog, linesOf } from "./dialogs.ts";
+import { isDialog, linesOf, sceneKindOf } from "./dialogs.ts";
 import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
 import { fillersFor, groupPronouns, isPronounCard, isPronounGroup, pickedCardIds } from "./card-facts.ts";
 import type { PronounGroup } from "./card-facts.ts";
@@ -92,6 +93,11 @@ import {
   Button,
   CardReadout,
   CardTile,
+  CARD_KINDS,
+  cardKindOf,
+  cardKindLabel,
+  cardSubtypeLabel,
+  cardWords,
   CheckList,
   ClipList,
   clipHashes,
@@ -3693,6 +3699,13 @@ function TryExercises({ card, cards, lang, onTry, back }: {
           (c) => !isDialog(c) && !hasSlots(c) && c.drill !== false &&
             formsOf(c).some((f: any) => f.ar && Array.isArray(f.images) && f.images.length)
         ).length - (Array.isArray(unit.images) && unit.images.length ? 1 : 0),
+      /* And how many have a recording and could stand in a grid, which is
+         the company the grid of recordings needs. */
+      heardFor: (unit) =>
+        material.filter(
+          (c) => !isDialog(c) && !hasSlots(c) && c.drill !== false &&
+            formsOf(c).some((f: any) => f.ar && (f.recs || []).length)
+        ).length - ((unit.recs || []).length ? 1 : 0),
     });
   }, [mine, lang, contexts, scenes, values, material]);
 
@@ -4154,6 +4167,20 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
  * A card list's filter as it starts, narrowing nothing — and what "Clear
  * all filters" puts it back to.
  */
+/* The table view of a teacher's card lists, column by column. */
+const TEACHER_COLUMNS = [
+  { key: "word", label: "Word" },
+  { key: "lat", label: "Transliteration" },
+  { key: "meaning", label: "Meaning" },
+  { key: "kind", label: "Kind" },
+  { key: "subtype", label: "Subtype" },
+  { key: "decks", label: "Decks" },
+  { key: "audio", label: "Recording" },
+  { key: "review", label: "Review" },
+  { key: "created", label: "Created" },
+  { key: "modified", label: "Modified" },
+];
+
 export const NO_CARD_FILTER = {
   audio: "any",
   forms: "any",
@@ -4168,6 +4195,10 @@ export const NO_CARD_FILTER = {
   blankNames: [] as string[],
   /* And where a card stands with review — see filterCards. */
   review: "any",
+  /* What kind of card, and which of its kind: see filterCards. */
+  kinds: [] as string[],
+  subtypes: [] as string[],
+  sceneKinds: [] as string[],
 };
 
 /*
@@ -4198,10 +4229,21 @@ export const NO_CARD_FILTER = {
  * asked from whichever side. It does not narrow "none": "cards that do not
  * fill {{name}}" is a question nobody asks, and the list is not offered
  * there.
+ *
+ * `kinds` keeps the cards of any of the kinds ticked — word or phrase,
+ * sentence, scene — and none ticked narrows nothing. Each kind's own
+ * subtypes narrow only that kind: `subtypes` the words, by their part of
+ * speech ("none" for a word nobody has said one for), and `sceneKinds` the
+ * scenes, text or conversation. So "nouns, and every sentence" is a thing
+ * the filter can say. A subtype of a kind that is not ticked narrows
+ * nothing, which is also what the filter clears it to.
  */
 export function filterCards(
   cards: Card[],
-  { audio = "any", forms = "any", deckMode = "any", deckIds = [], blankMode = "any", blankNames = [], review = "any" }: {
+  {
+    audio = "any", forms = "any", deckMode = "any", deckIds = [], blankMode = "any", blankNames = [], review = "any",
+    kinds = [], subtypes = [], sceneKinds = [],
+  }: {
     audio?: string;
     forms?: string;
     deckMode?: string;
@@ -4212,6 +4254,9 @@ export function filterCards(
        a teacher has still to read — never reviewed, or with new sentences
        since — and "sentences" keeps every card that makes any. */
     review?: string;
+    kinds?: string[];
+    subtypes?: string[];
+    sceneKinds?: string[];
   } = {},
   /* The ids of the cards waiting for review, worked out by the caller —
      it takes the whole collection to know what a frame makes. */
@@ -4225,6 +4270,12 @@ export function filterCards(
     if (review === "waiting" && !waiting.has(c.id)) return false;
     if (review === "sentences" && !needsReview(c)) return false;
     if (forms === "several" && cardFormCount(c) < 2) return false;
+    if (kinds.length) {
+      const kind = cardKindOf(c);
+      if (!kinds.includes(kind)) return false;
+      if (kind === "word" && subtypes.length && !subtypes.includes(String(c.category || "") || "none")) return false;
+      if (kind === "scene" && sceneKinds.length && !sceneKinds.includes(sceneKindOf(c as any))) return false;
+    }
     if (deckMode === "none" && (c.decks || []).length) return false;
     if (byDeck) {
       const inOne = (c.decks || []).some((id) => deckIds.includes(id));
@@ -4737,6 +4788,85 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       }
     />
   );
+  /* Edit and Delete, on a card's tile and at the end of its row. */
+  const cardActions = (c: Card) => (
+    <>
+      <IconButton
+        icon="edit"
+        label="Edit"
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation();
+          setEditing({ card: c, decks: c.decks || [] });
+        }}
+      />
+      <IconButton
+        icon="delete"
+        label="Delete"
+        danger
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation();
+          setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
+        }}
+      />
+    </>
+  );
+  /* One card of the Cards tab or of a deck, as a tile. */
+  const cardTile = (c: Card | PronounGroup) => isPronounGroup(c) ? pronounTile(c) : (
+    <CardTile
+      card={c}
+      lang={langOfCard(c)}
+      meta={shortDate(cardAdded(c))}
+      onClick={() => setViewing(c)}
+      actions={cardActions(c)}
+    />
+  );
+  /*
+   * And as a line or a row of the table. The table is everything a teacher
+   * might want to compare across their cards: what each says, what kind it
+   * is, where it is, whether it has a recording and has been read, and when
+   * it was made and last changed.
+   *
+   * The pronouns are one entry here as on the tiles, opening the screen
+   * they are written on; what is about one card — its decks, its dates —
+   * is left empty for them rather than said eight times over.
+   */
+  const cardViews = (key: string): CardViews<Card | PronounGroup> => ({
+    key,
+    columns: TEACHER_COLUMNS,
+    row: (c): CardRow => {
+      if (isPronounGroup(c)) {
+        const said = cardWords(c, languages[c.lang as LangId]);
+        return {
+          word: said.word,
+          meaning: said.meaning,
+          cells: { word: said.word, meaning: said.en, kind: cardKindLabel(c), subtype: "Pronouns" },
+          open: () => setPronouning(c.lang as LangId),
+        };
+      }
+      const said = cardWords(c, langOfCard(c));
+      const titles = (c.decks || [])
+        .map((id) => (decks.find((d) => d.id === id) || { title: "" }).title)
+        .filter(Boolean);
+      return {
+        word: said.word,
+        meaning: said.meaning,
+        cells: {
+          word: said.word,
+          lat: said.lat,
+          meaning: said.en,
+          kind: cardKindLabel(c),
+          subtype: cardSubtypeLabel(c, langOfCard(c)),
+          decks: titles.join(", "),
+          audio: cardHasAudio(c) ? "Yes" : "",
+          review: waitingIds.has(c.id) ? "Waiting" : needsReview(c) ? "Reviewed" : "",
+          created: shortDate(c.created),
+          modified: shortDate(c.updated),
+        },
+        open: () => setViewing(c),
+        actions: cardActions(c),
+      };
+    },
+  });
   /* The ones waiting that the switch leaves on screen, which is what the
      banner over the list can promise to show. */
   const waitingOn = useMemo(
@@ -4749,6 +4879,44 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
      leaves one or says it fills one, and goes when the last of them
      stops. */
   const blanksHere = useMemo(() => blanksInUse(cards), [cards]);
+
+  /* How many cards of each kind, and of each kind of scene, for the
+     filter to say beside each choice. Over the cards in the languages
+     switched on, which are the ones the filter is narrowing. */
+  const kindCounts = useMemo(() => {
+    const n: Map<string, number> = new Map();
+    const add = (k: string) => n.set(k, (n.get(k) || 0) + 1);
+    for (const c of onCards) {
+      const kind = cardKindOf(c);
+      add(kind);
+      if (kind === "scene") add(`scene:${sceneKindOf(c as any)}`);
+    }
+    return n;
+  }, [onCards]);
+  /* And the subtypes a word can be, for the same filter: every part of
+     speech the languages switched on declare, in the order they ask them,
+     each once — Noun in Arabic and Noun in Hebrew are one choice — and
+     then the words nobody has said one for. A kind a language no longer
+     offers is listed only while some card is still of it. */
+  const subtypesHere = useMemo(() => {
+    const words = onCards.filter((c) => cardKindOf(c) === "word");
+    const used: Map<string, number> = new Map();
+    for (const c of words) {
+      const id = String(c.category || "") || "none";
+      used.set(id, (used.get(id) || 0) + 1);
+    }
+    const out: { id: string; label: string; n: number }[] = [];
+    const langs = new Set(onCards.map((c) => langOfCard(c)).filter(Boolean) as Lang[]);
+    for (const L of langs) {
+      for (const k of categoriesOf(L)) {
+        if (out.some((o) => o.id === k.id)) continue;
+        if (k.retired && !used.get(k.id)) continue;
+        out.push({ id: k.id, label: k.label, n: used.get(k.id) || 0 });
+      }
+    }
+    out.push({ id: "none", label: "No subtype", n: used.get("none") || 0 });
+    return out;
+  }, [onCards, langOfCard]);
 
   /*
    * The menus over a list of cards: how to order it, and what to leave out.
@@ -4786,6 +4954,69 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     },
   ];
   const filterGroups: FilterGroup[] = [
+    {
+      key: "kinds",
+      label: "Kind",
+      value: cardFilter.kinds.length ? "some" : "any",
+      quiet: "any",
+      wide: true,
+      /* Ticked rather than pressed, because several at once is the point:
+         words and sentences, without the scenes. A kind's subtypes are
+         offered under it once it is ticked, and only then — "verbs" says
+         nothing about a sentence. */
+      custom: (
+        <div className="at-kindfilter">
+          <CheckList
+            options={CARD_KINDS.map((k) => ({ id: k.id, title: k.label, note: kindCounts.get(k.id) || 0 }))}
+            chosen={cardFilter.kinds}
+            onToggle={(id, on) =>
+              setCardFilter((f) => ({
+                ...f,
+                kinds: on ? f.kinds.filter((x) => x !== id) : f.kinds.concat([id]),
+                /* A kind let go of takes its subtypes with it, so nothing
+                   out of sight is left narrowing the next time it is ticked. */
+                subtypes: on && id === "word" ? [] : f.subtypes,
+                sceneKinds: on && id === "scene" ? [] : f.sceneKinds,
+              }))
+            }
+          />
+          {cardFilter.kinds.includes("word") && (
+            <>
+              <p className="at-hint">Which words or phrases</p>
+              <CheckList
+                options={subtypesHere.map((t) => ({ id: t.id, title: t.label, note: t.n }))}
+                chosen={cardFilter.subtypes}
+                onToggle={(id, on) =>
+                  setCardFilter((f) => ({
+                    ...f,
+                    subtypes: on ? f.subtypes.filter((x) => x !== id) : f.subtypes.concat([id]),
+                  }))
+                }
+              />
+            </>
+          )}
+          {cardFilter.kinds.includes("scene") && (
+            <>
+              <p className="at-hint">Which scenes</p>
+              <CheckList
+                options={[
+                  { id: "text", title: "Text", note: kindCounts.get("scene:text") || 0 },
+                  { id: "conversation", title: "Conversation", note: kindCounts.get("scene:conversation") || 0 },
+                ]}
+                chosen={cardFilter.sceneKinds}
+                onToggle={(id, on) =>
+                  setCardFilter((f) => ({
+                    ...f,
+                    sceneKinds: on ? f.sceneKinds.filter((x) => x !== id) : f.sceneKinds.concat([id]),
+                  }))
+                }
+              />
+            </>
+          )}
+          {!cardFilter.kinds.length && <p className="at-hint">Tick a kind. Until you do, this narrows nothing.</p>}
+        </div>
+      ),
+    },
     {
       key: "audio",
       label: "Recordings",
@@ -6081,7 +6312,6 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               items={listed}
               count={mine.length === held.length ? null : `${mine.length} of ${plural(held.length, "card")}`}
               menus={cardMenus}
-              resizable
               size="small"
               busy={busy}
               empty={
@@ -6151,35 +6381,8 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   onClick: (ids) => setConfirm({ kind: "cards", ids: pickedIds(ids), action: () => {} }),
                 },
               ]}
-              renderItem={(c) => isPronounGroup(c) ? pronounTile(c) : (
-                <CardTile
-                  card={c}
-                  lang={langOfCard(c)}
-                  meta={shortDate(cardAdded(c))}
-                  onClick={() => setViewing(c)}
-                  actions={
-                    <>
-                      <IconButton
-                        icon="edit"
-                        label="Edit"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          setEditing({ card: c, decks: c.decks || [] });
-                        }}
-                      />
-                      <IconButton
-                        icon="delete"
-                        label="Delete"
-                        danger
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
-                        }}
-                      />
-                    </>
-                  }
-                />
-              )}
+              views={cardViews("teacher-deck")}
+              renderItem={cardTile}
             />
 
         {viewing && (
@@ -6736,7 +6939,6 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   </>
                 }
                 menus={cardMenus}
-                resizable
                 searchBelow
                 size="small"
                 busy={busy}
@@ -6784,35 +6986,8 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                     onClick: (ids) => setConfirm({ kind: "cards", ids: pickedIds(ids), action: () => {} }),
                   },
                 ]}
-                renderItem={(c) => isPronounGroup(c) ? pronounTile(c) : (
-                  <CardTile
-                    card={c}
-                    lang={langOfCard(c)}
-                    meta={shortDate(cardAdded(c))}
-                    onClick={() => setViewing(c)}
-                    actions={
-                      <>
-                        <IconButton
-                          icon="edit"
-                          label="Edit"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setEditing({ card: c, decks: c.decks || [] });
-                          }}
-                        />
-                        <IconButton
-                          icon="delete"
-                          label="Delete"
-                          danger
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
-                          }}
-                        />
-                      </>
-                    }
-                  />
-                )}
+                views={cardViews("teacher-cards")}
+                renderItem={cardTile}
               />
 
             </>
