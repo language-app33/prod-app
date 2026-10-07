@@ -473,7 +473,7 @@ export interface Ask {
  *
  * It was seven, from before this directory existed, until a teacher
  * checking a number typed nine digits and was answered for the first
- * seven of them. Eleven is what the owner asked for in 0.389 — the
+ * seven of them. Eleven is what the owner asked for in 0.390 — the
  * billions, which every language here has one more word for, and no
  * further.
  */
@@ -491,7 +491,7 @@ export const NUMBER_CEILING = 99999999999;
  * two old parts are named in `was`, so nothing anybody had on them is lost.
  *
  * The billions are a part of their own rather than the top of the
- * thousands, because they need a word no system had before 0.389: a part
+ * thousands, because they need a word no system had before 0.390: a part
  * opens only when everything in it can be said, and the thousands
  * reaching to the ceiling would have closed for every language until its
  * teacher wrote *billion*. Up to 999,999,999 is said with the words for
@@ -511,6 +511,24 @@ export const NUMBER_RANGES: Range[] = [
     to: NUMBER_CEILING,
   },
 ];
+
+/**
+ * The tag a stretch answers to in a sentence: its own two ends, or its
+ * bottom and `-plus` where it is the open one at the top.
+ *
+ * Read off the ends rather than the id, because the id of 1,000 to
+ * 999,999,999 is still `numbers:1000+` from when it was the top: written
+ * the old way, its tag and the run of it with the billions above would
+ * both have been `1000-plus`, and the name would not say which a sentence
+ * meant. `1000-plus` is the run — 1,000 to the top, which is what it
+ * meant when it was written. A part no longer in the list, which only a
+ * `was` names, keeps the tag it had.
+ */
+export function stretchTag(id: string): string {
+  const range = NUMBER_RANGES.find((r) => r.id === id);
+  if (!range) return id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
+  return range.to >= NUMBER_CEILING ? `${range.from}-plus` : `${range.from}-${range.to}`;
+}
 
 /*
  * Counting things, inside the stretches rather than beside them.
