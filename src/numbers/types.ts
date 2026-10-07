@@ -469,13 +469,15 @@ export interface Ask {
 /* ---- the ceiling ---- */
 
 /**
- * The largest number anything here will reach for.
+ * The largest number anything here will reach for: eleven digits.
  *
- * Above this is not a language's problem but a typing one, and no
- * exercise is improved by eight digits. It was the ceiling before this
- * directory existed and it is unchanged.
+ * It was seven, from before this directory existed, until a teacher
+ * checking a number typed nine digits and was answered for the first
+ * seven of them. Eleven is what the owner asked for in 0.367 — the
+ * billions, which every language here has one more word for, and no
+ * further.
  */
-export const NUMBER_CEILING = 9999999;
+export const NUMBER_CEILING = 99999999999;
 
 /*
  * The stretches of the number line, the same in every language.
@@ -487,13 +489,27 @@ export const NUMBER_CEILING = 9999999;
  * because it is the first number with two figures, and where a language
  * builds its teens on it (Hebrew, Vietnamese) it is where they start. The
  * two old parts are named in `was`, so nothing anybody had on them is lost.
+ *
+ * The billions are a part of their own rather than the top of the
+ * thousands, because they need a word no system had before 0.367: a part
+ * opens only when everything in it can be said, and the thousands
+ * reaching to the ceiling would have closed for every language until its
+ * teacher wrote *billion*. Up to 999,999,999 is said with the words for
+ * a million and below, so the thousands stay as open as they were.
  */
 export const NUMBER_RANGES: Range[] = [
   { id: "numbers:0-9", kind: "numbers", label: "Numbers 0 to 9", from: 0, to: 9, was: "numbers:0-10" },
   { id: "numbers:10-19", kind: "numbers", label: "Numbers 10 to 19", from: 10, to: 19, was: "numbers:11-99" },
   { id: "numbers:20-99", kind: "numbers", label: "Numbers 20 to 99", from: 20, to: 99, was: "numbers:11-99" },
   { id: "numbers:100-999", kind: "numbers", label: "Numbers 100 to 999", from: 100, to: 999 },
-  { id: "numbers:1000+", kind: "numbers", label: "Numbers 1,000 and over", from: 1000, to: NUMBER_CEILING },
+  { id: "numbers:1000+", kind: "numbers", label: "Numbers 1,000 to 999,999,999", from: 1000, to: 999999999 },
+  {
+    id: "numbers:1000000000+",
+    kind: "numbers",
+    label: "Numbers 1,000,000,000 and over",
+    from: 1000000000,
+    to: NUMBER_CEILING,
+  },
 ];
 
 /*

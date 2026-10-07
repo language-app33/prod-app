@@ -8193,7 +8193,8 @@ const openPronounTables = async () => {
   const tiles = [...panel().querySelectorAll(".at-numparts .at-deckcard")];
   check("the number system's editor opens on its parts, one button each",
     tiles.length >= 8 && !!tileNamed("Numbers 0 to 9") && !!tileNamed("Numbers 10 to 19") &&
-      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 and over"),
+      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 to 999,999,999") &&
+      !!tileNamed("Numbers 1,000,000,000 and over"),
     tiles.map((t) => (t.textContent || "").trim()).join(" | "));
   check("and each says what it is waiting for",
     /waiting on/.test((tileNamed("Numbers 0 to 9") || {}).textContent || ""),
@@ -8446,6 +8447,16 @@ const openPronounTables = async () => {
     await sleep(200);
     check("a number it cannot say yet says what it is waiting for instead",
       /waiting on/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "800,413,901");
+    await sleep(200);
+    check("a nine-digit number is answered for itself, not for its first seven digits",
+      /800,413,901/.test(up().textContent || "") && !/8,004,139/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "123,456,789,012");
+    await sleep(200);
+    check("and one longer than eleven digits says so, rather than answering for part of it",
+      /12 digits/.test(up().textContent || "") && !/12,345,678,901/.test(up().textContent || ""),
       (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
   await goBack();

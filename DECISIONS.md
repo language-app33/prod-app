@@ -5316,3 +5316,44 @@ download when the server holds nothing new, would make every trip smaller.
 Both reach into the server and the merge. Fewer trips was the bigger saving
 for the smaller change, and the other is still worth doing if collections
 grow into the thousands.
+
+---
+
+## Eleven digits, and the billions a part of their own
+
+**7 October 2026** · `src/numbers/types.ts` (`NUMBER_CEILING`, `NUMBER_RANGES`), the three composers, `src/numbers/range.ts` (`askFor`)
+
+Check a number read the first seven digits of whatever was typed, so a
+teacher who typed 800,413,901 was shown 8,004,139, said in full, as if
+that were what they had asked. The owner asked for numbers under twelve
+digits to be said as typed, by the check and in what students are asked.
+The ceiling is now 99,999,999,999.
+
+**Why a sixth part rather than a longer fifth.** Up to 999,999,999 is
+said with the words for a million and below: the count in front of
+*million* is just a number under a thousand. Past that needs a word no
+system had: *billion*. A part opens only when everything in it can be
+said, and its probe always includes its top number, so stretching
+"1,000 and over" to eleven digits would have closed it for every
+language until a teacher wrote that word, and taken it away from every
+learner on it. So 1,000 to 999,999,999 keeps its id and stays open.
+1,000,000,000 and over is new, and waits on its words the way any part
+does.
+
+**What it costs.** A part is a stretch drawn evenly, so most questions in
+the thousands part are now nine-digit numbers, where they were mostly
+seven. Because its top changed, every question already drawn from it
+comes back as a different number once. Neither is new in kind: the part
+was already mostly its biggest numbers.
+
+**The draw.** One draw from the seeded generator is 32 bits, about four
+billion values, and the billions span about a hundred billion. Taken
+alone it would only land on every twenty-third number or so. A range
+wider than one draw takes a second one below it. Every range that fits
+in one draw does exactly what it did, so no other question changes.
+
+**The words in the golden tables.** مليار, מיליארד and tỷ were added to
+the three golden systems so the tests can reach the ceiling. No reviewer
+has read them, and no table row says how a billion should come out. They
+are the tests' words, not the app's: each teacher writes their own.
+

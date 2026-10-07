@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.367 — 7 October 2026
+
+**Numbers up to eleven digits, in Check a number and in practice.**
+
+- Check a number now says every number up to 99,999,999,999 as typed.
+  Before, it kept only the first seven digits without saying so:
+  800,413,901 came back as 8,004,139. A number longer than eleven digits
+  now gets a message saying so, instead of an answer for part of it.
+- A language's numbers have a new part, **Numbers 1,000,000,000 and
+  over**, with boxes for the word for a billion (one, two, and the
+  plural where the language has one). It opens for students once the
+  teacher has written those words, like any other part.
+- The part that was "Numbers 1,000 and over" is now **Numbers 1,000 to
+  999,999,999** and asks numbers up to nine digits. It needs no new
+  words, so it stays open wherever it was open. Most of its questions are
+  now nine-digit numbers, where most were seven. Any question a student
+  already had from it comes back once as a different number.
+
 ## 0.366 — 6 October 2026
 
 **Bigger keys for writing numbers in Arabic numerals.**

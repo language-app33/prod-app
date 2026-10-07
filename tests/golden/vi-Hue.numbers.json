@@ -116,6 +116,12 @@
         "forms": {
           "standalone": "triệu"
         }
+      },
+      "billion.n": {
+        "slot": "billion.n",
+        "forms": {
+          "standalone": "tỷ"
+        }
       }
     }
   },
