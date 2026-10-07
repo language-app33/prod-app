@@ -3499,6 +3499,10 @@ body.at-screening .at-chromebar { display:none; }
 .at-matchplay { width:34px; height:34px; display:inline-flex; align-items:center;
   justify-content:center; font-size:13px; }
 .at-matchtile:hover .at-matchplay { background: var(--raised-hover); }
+/* And it stands in the middle of the room the tile has beside its number,
+   not hard up against the number with the rest of the tile empty. What
+   comes under it once checked is centred with it. */
+.at-matchword.heard { flex:1 1 auto; align-items:center; text-align:center; }
 /* Under a recording paired wrong, the word it was: in the script, and set
    small like the meaning under a word is. */
 .at-matchfix.ar .at-arabic { font-size: calc(var(--ask) * .42); color: var(--rose); }

@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.387 — 7 October 2026
+
+**Play buttons sit in the middle of their cards.**
+
+- In "Match each recording to its word", the play button on each card
+  on the left now sits in the middle of the space beside the pairing
+  number, instead of pressed up against the number with the rest of the
+  card empty. The correction shown under a wrongly paired card after
+  checking is centred with it.
+
 ## 0.386 — 7 October 2026
 
 **Finding a custom tag by typing its name.**

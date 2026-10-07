@@ -8386,7 +8386,7 @@ function MatchGrid({
               ) : (
                 <span className="at-matchnum empty" aria-hidden="true" />
               )}
-              <span className="at-matchword">
+              <span className={`at-matchword${heard ? " heard" : ""}`}>
                 {heard ? (
                   /* Drawn as the play button drawn wherever a recording
                      is, but not a button of its own: the whole tile is the
