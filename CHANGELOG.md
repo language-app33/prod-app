@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.389 — 7 October 2026
+## 0.390 — 7 October 2026
 
 **Two new matching grids for numbers you can hear.**
 
@@ -25,6 +25,32 @@ and moves once per batch of work you would notice, not once per commit.
   on the right-hand side is a number, never an ordinary word.
 - Both sit on the second level of the ladder, next to the other
   matching grids.
+
+## 0.389 — 7 October 2026
+
+**Number blanks: pick Numbers or Counting things, then tick the ranges.**
+
+- In the list of blanks for a sentence, numbers are now two entries at
+  the top: **Numbers** and **Counting things**. The separate ranges are
+  no longer listed one by one.
+- Choosing either one shows the ranges with tick boxes: 0 to 9, 10 to
+  19, 20 to 99, 100 to 999, and 1,000 and over. Tick as many as you
+  like and they make one blank. Ticking 0 to 9, 10 to 19 and 20 to 99
+  gives a blank called 0-99, and counting things gives count-0-99.
+- The ranges you tick must touch, so a blank always covers one unbroken
+  stretch of numbers. If you tick two ranges with a gap between them,
+  the ranges in between are ticked for you.
+- In a blank that covers several ranges, the ranges take turns, so each
+  comes up about as often as the others. A 0-99 blank gives a number
+  from 0 to 9 a third of the time, not one time in ten.
+- Tap a number blank that is already in a sentence to change its
+  ranges. Its ticks open as they are.
+- Ticking all five is the same blank as "any number" (or "any number of
+  things") was before.
+- Sentences you already wrote keep working as they were, including ones
+  using the old names such as 11-99.
+- **Trade-off:** a blank can't skip ranges. For example, 0 to 9 together
+  with 100 to 999 isn't possible.
 
 ## 0.388 — 7 October 2026
 
