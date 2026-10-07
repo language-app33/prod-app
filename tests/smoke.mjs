@@ -7257,6 +7257,61 @@ const openPronounTables = async () => {
   takeSaves = false;
 }
 
+/* ---- one card per meaning ----
+
+   The fixture's word carries two meanings on one card ("book /
+   notebook"), so the Cards tab offers it for splitting. Its editor has a
+   Meanings section, and "Another meaning of this word" saves it and opens
+   a copy with the word kept and the meaning emptied, which names the
+   original as sharing its word. */
+{
+  takeSaves = true;
+  const frameNow = () => /** @type {any} */ (document.querySelector(".at-screen.bare") || document);
+  const banner = [...frameNow().querySelectorAll(".at-reviewbanner")]
+    .find((b) => /more than one meaning/.test(b.textContent || ""));
+  check("the Cards tab says which cards have more than one meaning on them",
+    !!banner, banner ? (banner.textContent || "").trim() : "(no banner)");
+  click(banner && [...banner.querySelectorAll("button")].find((b) => /^Review$/.test((b.textContent || "").trim())));
+  await sleep(300);
+  const splits = [...document.querySelectorAll(".at-screen")]
+    .find((sc) => /^More than one meaning$/.test(((sc.querySelector(".at-screenhead h2") || {}).textContent || "").trim()));
+  check("and lists each with a way to split it or keep it",
+    !!splits && /book · notebook/.test(splits.textContent || "") && /Split into 2 cards/.test(splits.textContent || "") &&
+      /Keep as one card/.test(splits.textContent || ""),
+    splits ? (splits.textContent || "").slice(0, 160) : "(no screen)");
+  click(splits && [...splits.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+
+  const tile = [...frameNow().querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === "كتاب");
+  click(tile);
+  await sleep(450);
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+  const text = () => document.body.textContent || "";
+  check("the editor has a Meanings section with a clue",
+    /Meanings/.test(text()) && !!document.querySelector('input[aria-label="Clue"]'),
+    /Meanings/.test(text()) ? "there" : "(no section)");
+  const before = savedCards.length;
+  const another = /** @type {any} */ ([...document.querySelectorAll("button")].find((b) => /Another meaning of this word/.test(b.textContent || "")) || null);
+  click(another);
+  await sleep(600);
+  const sent = savedCards[before] || {};
+  check("another meaning saves this card first", sent.id === "k111111111111", sent.id || "(nothing saved)");
+  const heading = (([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim();
+  const inputs = [...document.querySelectorAll("input")];
+  const values = inputs.map((i) => /** @type {any} */ (i).value);
+  const meanings = values.filter((v) => /^(book|notebook|books)/.test(v));
+  check("then opens a new card with the word and its forms in it and every meaning empty",
+    /^New /.test(heading) && values.includes("كتاب") && values.includes("كتب") && meanings.length === 0,
+    `${heading} · ${values.filter(Boolean).join(" | ")}`);
+  check("which names the original as sharing its word",
+    /Same word:\s*book/.test(text()), (text().match(/Same word:[^.]{0,30}/) || ["(no line)"])[0]);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  takeSaves = false;
+}
+
 /* ---- a saved adjective opens on the table it agrees out of ----
 
    The first table that is neither a verb's nor the pronouns, so the first

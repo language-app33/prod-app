@@ -1445,6 +1445,15 @@ export default async (req) => {
            was written, which reads as the other card's answer ruled out.
            See clueFor in src/meanings.ts. */
         clue: String(card.clue || "").trim().slice(0, 80) || undefined,
+        /* Which card this one was split out of, where it was — see
+           splitByMeaning. Written once, by the save that makes the card,
+           and kept through every later save, which does not send it: so
+           only ever set here, never cleared by saying nothing. */
+        ...(idish(card.splitFrom) ? { splitFrom: idish(card.splitFrom) } : {}),
+        /* And the teacher's answer that its meanings are learnt together,
+           where they gave one. Kept the same way: an editor that does not
+           ask the question does not undo the answer. */
+        ...(typeof card.together === "boolean" ? { together: card.together } : {}),
         /* No `value` here, and none taken from a save.
            It was what made a card one of the parts a number was built out
            of, and there are no parts any more: a language's numbers are

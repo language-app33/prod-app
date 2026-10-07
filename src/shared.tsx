@@ -4234,6 +4234,9 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
     /* And which meaning it is, where the teacher wrote a clue: what a
        question puts under a prompt another card shares — see clueFor. */
     ...(card.clue ? { clue: String(card.clue) } : null),
+    /* And the card it was split out of, as this device names cards: what
+       starts it where the original stood — see foldCourses. */
+    ...(card.splitFrom ? { splitFrom: localIdFor(String(card.splitFrom)) } : null),
     /* And what number it is worth, where it is a number. Carried for the
        same reason the three above are — it is the teacher's answer and
        nothing here could read it off the word — and it is what everything
@@ -4629,6 +4632,26 @@ const uncarried = (item: Item): Item =>
       }
     : item;
 
+/*
+ * A card split out of another, with the original's progress copied onto
+ * it — its own word from the original's own word, and each other form
+ * from the original's form of the same name, which is what a split keeps.
+ * Only into a form with nothing of its own; the original keeps its own.
+ */
+export function splitFromHeld(fresh: Item, byId: Map<string, Item>): Item {
+  const from = fresh.splitFrom ? byId.get(fresh.splitFrom) : null;
+  if (!from) return fresh;
+  const had = formsOf(from);
+  const name = (id: string | undefined) => String(id || "").split("-f~")[1] || "";
+  const forms = formsOf(fresh).map((f, i) => {
+    const mate = i === 0 ? had[0] : had.find((h, j) => j > 0 && name(h.id) && name(h.id) === name(f.id));
+    const theirs = compactStates(mate && mate.s);
+    if (!Object.keys(theirs).length || Object.keys(compactStates(f.s)).length) return f;
+    return { ...f, s: { ...(f.s || {}), ...theirs } };
+  });
+  return { ...fresh, forms };
+}
+
 /* Fold fresh course cards into the person's cards: progress kept, wording
    taken from the teacher, withdrawn cards named so they can be tombstoned —
    and their progress set aside rather than thrown away. */
@@ -4678,8 +4701,10 @@ export function foldCourses(items: Item[], incoming: Item[], parked: Record<stri
       });
     } else {
       /* A card the device has never held — or one that went away and has
-         come back, whose work was set aside rather than thrown out. */
-      kept.push(withProgress(uncarried(fresh), parked[fresh.id]));
+         come back, whose work was set aside rather than thrown out. And a
+         card split out of one this device holds starts where that one
+         stood: the learner knew it as part of the original. */
+      kept.push(withProgress(uncarried(splitFromHeld(fresh, byId)), parked[fresh.id]));
     }
   }
 

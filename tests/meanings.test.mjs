@@ -122,3 +122,114 @@ test("the note for giving the other card's answer", () => {
   );
   assert.equal(siblingAnswerNote("meaning", { card: sahh, unit: unit(sahh) }, "ar"), "Yes, صح means that too. Now the other one.");
 });
+
+/* ------------------------------------------------------------------
+   For the teacher
+   ------------------------------------------------------------------ */
+
+import path from "node:path";
+import { build } from "esbuild";
+import {
+  anotherMeaningOf,
+  anotherWordDraft,
+  cardsSharingChange,
+  carryWordChanges,
+  meaningsOnCard,
+  sharedWith,
+  splitByMeaning,
+  wordChanges,
+} from "../src/meanings.ts";
+
+/** @returns {any} */
+const teacherCard = () => ({
+  id: "c1",
+  lang: "ar-PS",
+  ref: "sabir",
+  clue: "the plant",
+  decks: ["d1"],
+  category: "noun",
+  forms: [
+    { id: "", ar: "صَبِر", en: "cactus", lat: "sabir", clips: ["a"], images: ["pic"] },
+    { id: "pl", ar: "صبر", en: "cacti", lat: "subur", clips: ["b"] },
+  ],
+});
+
+test("another meaning keeps the word, its forms and recordings, and empties what it means", () => {
+  const copy = /** @type {any} */ (anotherMeaningOf(teacherCard()));
+  assert.equal(copy.id, "");
+  assert.equal(copy.ref, undefined, "the ID belongs to the original");
+  assert.equal(copy.clue, undefined, "so does the clue");
+  assert.equal(copy.decks, undefined, "and it starts in no deck");
+  assert.equal(copy.category, "noun");
+  assert.deepEqual(copy.forms.map((/** @type {any} */ f) => [f.ar, f.lat, f.en, f.clips, f.images]), [
+    ["صَبِر", "sabir", "", ["a"], undefined],
+    ["صبر", "subur", "", ["b"], undefined],
+  ]);
+});
+
+test("another word for the meaning starts with the meaning only", () => {
+  assert.deepEqual(anotherWordDraft(teacherCard(), teacherCard().forms[0]), { en: "cactus" });
+});
+
+test("the cards sharing a word or a meaning, as the teacher types", () => {
+  const cards = [card("p", "صَبِر", "patience"), card("s", "صح", "right"), card("k", "كتاب", "book")];
+  const both = sharedWith(cards, { id: "", lang: "ar-PS" }, { id: "", ar: "صَبِر", en: "right", lat: "" });
+  assert.deepEqual(both.word.map((c) => c.id), ["p"]);
+  assert.deepEqual(both.meaning.map((c) => c.id), ["s"]);
+  assert.deepEqual(sharedWith(cards, { id: "p", lang: "ar-PS" }, cards[0].forms[0]).word, [], "never itself");
+});
+
+test("a spelling fix is offered to the cards still saying the old thing, and carried there", () => {
+  const before = teacherCard();
+  const after = before.forms.map((/** @type {any} */ f, /** @type {number} */ i) => (i === 0 ? { ...f, ar: "صَبْر" } : f));
+  const changes = wordChanges(before, after);
+  assert.deepEqual(changes.map((c) => c.to), [{ ar: "صَبْر" }]);
+  const copy = { ...anotherMeaningOf(before), id: "c2", forms: anotherMeaningOf(before).forms.map((/** @type {any} */ f) => ({ ...f, en: "patience" })) };
+  const unrelated = card("k", "كتاب", "book");
+  assert.deepEqual(cardsSharingChange([before, copy, unrelated], { id: "c1", lang: "ar-PS" }, changes).map((c) => c.id), ["c2"]);
+  const moved = /** @type {any} */ (carryWordChanges(copy, changes));
+  assert.equal(moved.forms[0].ar, "صَبْر");
+  assert.equal(moved.forms[0].en, "patience", "what it means is untouched");
+  assert.equal(carryWordChanges(unrelated, changes), null);
+});
+
+test("a card with two meanings is offered for splitting, and split into one card each", () => {
+  const two = { ...teacherCard(), forms: [{ id: "", ar: "صَبِر", en: "cactus / patience", lat: "sabir", images: ["pic"] }] };
+  assert.deepEqual(meaningsOnCard(two), ["cactus", "patience"]);
+  assert.deepEqual(meaningsOnCard({ ...two, together: true }), [], "not once the teacher said to keep it");
+  assert.deepEqual(meaningsOnCard({ ...two, sentence: true }), [], "nor a sentence");
+  const { kept, made } = splitByMeaning(two);
+  assert.equal(kept.forms[0].en, "cactus");
+  assert.deepEqual(kept.forms[0].images, ["pic"]);
+  assert.equal(made.length, 1);
+  assert.equal(made[0].id, "");
+  assert.equal(made[0].splitFrom, "c1");
+  assert.equal(made[0].forms[0].en, "patience");
+  assert.equal(made[0].forms[0].images, undefined);
+  assert.deepEqual(made[0].decks, ["d1"], "in the same decks");
+});
+
+test("a learner's device starts a split card where the original stood", async () => {
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  const out = path.join(here, ".meanings-build");
+  await build({
+    entryPoints: [path.join(here, "..", "src", "shared.tsx")],
+    outfile: path.join(out, "shared.js"),
+    bundle: true,
+    format: "esm",
+    jsx: "automatic",
+    external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
+    logLevel: "silent",
+  });
+  const { cardToItem, foldCourses } = await import(path.join(out, "shared.js"));
+  const original = cardToItem({ id: "orig1", lang: "ar-PS", forms: [{ ar: "صَبِر", en: "cactus" }] }, "Deck", "c", "d", () => ({}));
+  const learnt = { phase: "review", step: 0, ease: 2.5, interval: 9, due: 1, reps: 4, lapses: 0, right: 4, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1, 1] };
+  original.forms[0].s = { ar2en: learnt };
+  const split = cardToItem({ id: "new1", lang: "ar-PS", splitFrom: "orig1", forms: [{ ar: "صَبِر", en: "patience" }] }, "Deck", "c", "d", () => ({}));
+  const keptOriginal = cardToItem({ id: "orig1", lang: "ar-PS", forms: [{ ar: "صَبِر", en: "cactus" }] }, "Deck", "c", "d", () => ({}));
+  const { items } = foldCourses([original], [keptOriginal, split]);
+  const arrived = items.find((/** @type {any} */ i) => i.id === split.id);
+  assert.equal(arrived.forms[0].s.ar2en.interval, 9);
+  const stays = items.find((/** @type {any} */ i) => i.id === original.id);
+  assert.equal(stays.forms[0].s.ar2en.interval, 9, "and the original keeps its own");
+});

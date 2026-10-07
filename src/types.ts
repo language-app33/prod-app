@@ -936,6 +936,18 @@ export type Card = {
    * "not patience". Absent on every card written before 0.393.
    */
   clue?: string;
+  /**
+   * The card this one was split out of, where a card holding two
+   * meanings was made into one card each — see splitByMeaning. A
+   * learner's device that held the original starts this one where the
+   * original stood rather than from nothing. Absent on every other card.
+   */
+  splitFrom?: string;
+  /**
+   * The teacher's answer that the meanings on this card are learnt
+   * together — *big / large* — so it is not offered for splitting again.
+   */
+  together?: boolean;
   uses?: string[];
   lines?: (CardForm & { who?: number; uses?: string[]; from?: string; roles?: Record<string, string>; review?: import("./review.ts").Review })[];
   speakers?: string[];
@@ -1274,6 +1286,8 @@ export type Item = {
   drill?: boolean;
   /** Which meaning this card is, where another card shares its prompt. See Card. */
   clue?: string;
+  /** The card it was split out of, by this device's id. See Card. */
+  splitFrom?: string;
   /** What a teacher approved of the sentences it makes, where they have
       reviewed it. Absent means asked as it always was. See Card. */
   review?: import("./review.ts").Review;

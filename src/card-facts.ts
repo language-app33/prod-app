@@ -711,6 +711,22 @@ export const CARD_FACTS: FieldRule[] = [
     shown: (value) => (str(value) ? [str(value)] : []),
   },
   {
+    key: "splitFrom",
+    on: "card",
+    label: "Split from",
+    what: "The card this one was split out of, where a card with two meanings on it was made into one card per meaning. A student who had the original starts this card where the original stood.",
+    reader: "both",
+    shown: (value) => (str(value) ? [str(value)] : []),
+  },
+  {
+    key: "together",
+    on: "card",
+    label: "Meanings kept together",
+    what: "The teacher said the meanings written on this card are learnt together — two ways of saying one thing — so it is not offered for splitting again.",
+    reader: "teacher",
+    shown: (value) => (value === true ? ["Yes"] : []),
+  },
+  {
     key: "enAsk",
     on: "card",
     label: "As a question",

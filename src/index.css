@@ -1174,6 +1174,10 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
 .at-tickbody i { font-size:11px; font-style:normal; color: var(--muted); }
 /* What a form still needs, shown beside its fields. */
 .at-formneed { margin:0 0 12px; font-size:12px; color: var(--muted); }
+/* The other cards that share this one's word or meaning, at the top of the
+   Meanings block: a line each, the names tappable. */
+.at-sharedline { margin:0 0 10px; font-size:14px; color: var(--text); }
+.at-sharedline b { font-weight:600; margin-right:4px; }
 .at-formneed.unmet { color: var(--brass); }
 .at-formneed.unmet { color: var(--brass); }
 /* Decks a card belongs to: chips that tick, rather than a stack of rows. */
