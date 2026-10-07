@@ -298,7 +298,7 @@ import {
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
-import { fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
+import { fieldsLost, fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
 import { agreeTook, countTook, finishTook, leadsOf, lineGate, passes, reviewOf, sentenceKey, SCAN_LIMIT } from "./review.ts";
 import { castFill as castScene, filledScene, hasCast } from "./cast.ts";
@@ -2510,7 +2510,7 @@ function fillFor(
    * which is what trying it out is for.
    */
   const gate = preview ? null : REVIEW_GATE.get(unit.id) || null;
-  if (gate) return gatedFill(unit, gate, drawn, pool, seen);
+  if (gate) return gatedFill(unit, gate, drawn, pool, seen, type);
   /*
    * Forward from the turn to the first combination that makes a sentence
    * the learner can be put — the same walk a reviewed card takes.
@@ -2529,9 +2529,27 @@ function fillFor(
     if (!turned) return null;
     const took = tookFor(unit, card, turned, slots, drawn, own);
     if (!took) continue;
+    if (!keepsNeeds(unit, took, type)) continue;
     if (preview || drawn.every((slot) => standsAsShown(took[slot]))) return took;
   }
   return null;
+}
+
+/*
+ * Whether this filling leaves the sentence with every line this exercise
+ * asks for.
+ *
+ * A word in a blank with no transliteration, or no English, leaves the
+ * sentence without that line — see fieldsLost — and the sentence is still
+ * shown, without it. What cannot be asked of it is a question made of the
+ * missing line: the English to translate from, a transliteration to type.
+ * Those walk on to the next filling, as a filling that makes no sentence
+ * does; every other question is asked of this one.
+ */
+function keepsNeeds(unit: Form, took: Record<string, Value>, type: string): boolean {
+  const spec = specOf(type);
+  if (!spec) return true;
+  return !fieldsLost(unit, took).some((field) => spec.needs.includes(field));
 }
 
 /* One combination of values, agreed — the form that agrees with the blank
@@ -2582,6 +2600,7 @@ function gatedFill(
   drawn: string[],
   pool: Record<string, Value[]>,
   seen: number,
+  type: string,
 ): Record<string, Value> | null {
   const combos = drawn.length ? drawn.reduce((n, slot) => n * (pool[slot] || []).length, 1) : 0;
   const walk = Math.min(combos, SCAN_LIMIT);
@@ -2592,6 +2611,7 @@ function gatedFill(
     if (!turned) return null;
     const took = finishTook(unit, gate.card, turned, drawn, ownerOf, langFor);
     if (!took) continue;
+    if (!keepsNeeds(unit, took, type)) continue;
     /* And every word in the form it is shown in cleared — see fillFor. */
     if (!drawn.every((slot) => standsAsShown(took[slot]))) continue;
     if (passes(gate.review, sentenceKey(fillForm(unit, took, false)))) return took;

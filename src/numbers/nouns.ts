@@ -71,6 +71,9 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
   const counteds: { text: string; gender: string }[] = [];
   let gender = "";
   let human = "";
+  /* How each word is said, where the card says: the first transliteration
+     written for it. */
+  const lat: Record<string, string> = {};
   formsOf(card).forEach((form: Held, at: number) => {
     for (const answer of answersOf(form, FIELDS)) {
       const text = str(answer.text);
@@ -81,6 +84,8 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
       if (g && !gender) gender = g;
       if (h && !human) human = h;
       const en = firstOf(form.en);
+      const said = firstOf(answer.lat);
+      if (said && !lat[text]) lat[text] = said;
       if (number === "plural") {
         pls.push({ text, en, gender: g });
       } else if (number === "dual") {
@@ -133,6 +138,7 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
     /* As written, even where it is the singular's own word. */
     enPl: many.en,
     ...((one.human || human) ? { human: one.human || human } : null),
+    ...(Object.keys(lat).length ? { lat } : null),
   };
   return { id, en, noun, missing: [] };
 }

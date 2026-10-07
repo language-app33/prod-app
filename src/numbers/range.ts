@@ -493,6 +493,14 @@ function facesLike(sys: NumberSystem | TimeSystem, t: Token): FormKey[] {
 function latOfToken(t: Token, systems: (NumberSystem | TimeSystem | null | undefined)[]): string {
   for (const sys of systems) {
     if (!sys) continue;
+    /* A noun counted in the phrase is the teacher's card, and says itself
+       the way that card does. */
+    if (t.noun) {
+      const noun = ((sys as NumberSystem).nouns || []).find((n) => n.id === t.noun);
+      const lat = noun && noun.lat ? trimmed(noun.lat[t.text]) : "";
+      if (lat) return lat;
+      continue;
+    }
     if (t.override) {
       const over = (sys.overrides || {})[t.override];
       if (over && trimmed(over.text) === t.text) return trimmed(over.lat);
