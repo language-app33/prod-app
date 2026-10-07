@@ -3355,20 +3355,23 @@ export function nounBoxes(lang: Lang | null | undefined, layout: NounLayout): No
   const dim = dims.find((d) => d.field === "number");
   const numbers = ((dim || { options: [] }).options as [string, string][]).filter(([v]) => v !== "na");
   /* What a value says about its box — Arabic's plural after three to ten
-     has a line under it and is not asked on its own. */
+     has a name longer than its radio's, a line under it, and is not asked
+     on its own. */
+  const ruleOf = (v: string) => (dim && dim.optionRules && dim.optionRules[v]) || {};
   const extra = (v: string) => {
-    const rule = (dim && dim.optionRules && dim.optionRules[v]) || {};
+    const rule = ruleOf(v);
     return { ...(rule.help ? { help: rule.help } : null), ...(rule.unasked ? { unasked: true } : null) };
   };
+  const named = (v: string, label: string) => ruleOf(v).box || label;
   if (layout === "single") {
-    return numbers.map(([v, label]) => ({ key: v, number: v, gender: "", title: cap(label), ...extra(v) }));
+    return numbers.map(([v, label]) => ({ key: v, number: v, gender: "", title: cap(named(v, label)), ...extra(v) }));
   }
   return sidesOf(dims).flatMap(([g, side]) =>
     numbers.map(([v, label]) => ({
       key: `${g}:${v}`,
       number: v,
       gender: g,
-      title: cap(`${side} ${label}`),
+      title: cap(`${side} ${named(v, label)}`),
       ...extra(v),
     })),
   );

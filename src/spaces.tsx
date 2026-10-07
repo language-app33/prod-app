@@ -1383,6 +1383,15 @@ const CARD_STATES: Record<string, { label: string, tone: string, what: string, o
     what: "The site did not hold this card even when the report was sent. There is nothing to open.",
     openable: false,
   },
+  /* A number, a time or a thing counted: the app makes the question from
+     the number system, and no card is ever stored for it. Nothing is
+     missing, so it is not told as though something were. */
+  made: {
+    label: "Made by the app",
+    tone: "stale",
+    what: "The app makes this question itself from the number system, so there is no card to open. The report says what was asked and what was expected.",
+    openable: false,
+  },
 };
 
 /*

@@ -1919,17 +1919,19 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        a stored value already means. */
     options: [
       ["singular", "singular"],
-      ["plural", "plural"],
       /* A pair, where a language counts one. Arabic and Hebrew both do —
          كتابين, שעתיים — and Huế declares no axes at all, so nobody is
          offered it who has no use for it.
 
          Added here rather than appended after "na" because the list is
-         also the order the radios read in, and "one, several, doesn't
-         apply, two" is not an order. Safe to insert: normDimValue matches
-         the whole word first, and its two prefix passes only reach "du",
-         which no value stored under the old list begins with. */
+         also the order the radios read in, and a noun's boxes too: one,
+         two, several, which is the order the owner asked them in (0.401)
+         and the order a number counts them. Safe to move: normDimValue
+         matches the whole word first, and every value here starts with
+         letters no other does, so its two prefix passes reach one value
+         whatever the order. */
       ["dual", "dual"],
+      ["plural", "plural"],
       ["na", "N/A"],
     ],
     /* Most words a teacher writes are not usefully singular or plural, and
@@ -1939,8 +1941,11 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     /* What the editor falls back to where three words will not fit on one
        line. The same abbreviations the card list uses, except that "na"
        has one here: a tag saying nothing is right, and a radio button
-       labelled nothing is not. */
-    brief: { singular: "sg.", plural: "pl.", dual: "du.", counted: "pl. 3–10", na: "N/A" },
+       labelled nothing is not. Not "pl. 3–10" for the plural a few nouns
+       take after three to ten: beside a plain "pl." it reads as the
+       plural for three to ten, leaving "pl." to be the one above ten —
+       which is the singular. */
+    brief: { singular: "sg.", plural: "pl.", dual: "du.", counted: "special pl.", na: "N/A" },
     /* And on a tag, a number that does not apply names nothing — not the
        letters "N/A". */
     short: { na: "" },
@@ -1952,7 +1957,8 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     optionRules: {
       counted: {
         onlyOn: ["noun"],
-        help: "Only for the few nouns whose plural changes after three to ten, like days or months. Leave it empty for every other noun: the plural is used.",
+        help: "Only for the few nouns whose plural changes after three to ten, like days or months. Leave it empty for every other noun: three to ten take the plural, and eleven up the singular.",
+        box: "special plural after 3–10 (days, months)",
         unasked: true,
       },
     },
@@ -3228,9 +3234,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
          beside أيام — which is a box on a noun card, under the plural. */
       number: [
         ["singular", "singular"],
-        ["plural", "plural"],
-        ["counted", "plural after 3 to 10"],
         ["dual", "dual"],
+        ["plural", "plural"],
+        ["counted", "special plural after 3–10"],
         ["na", "N/A"],
       ],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
@@ -3538,7 +3544,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     grammar: ["number", "gender", "human"],
     /* Two genders, and a dual for the nouns that have one — שעתיים. */
     grammarOptions: {
-      number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
+      number: [["singular", "singular"], ["dual", "dual"], ["plural", "plural"], ["na", "N/A"]],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
       human: [["thing", "a thing"], ["person", "a person"], ["animal", "an animal"]],
     },

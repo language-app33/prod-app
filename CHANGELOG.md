@@ -8,6 +8,58 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.401 — 7 October 2026
+
+**A noun's forms go one, two, many.**
+
+- On a noun card the boxes are now in the order **singular, dual,
+  plural, special plural after 3–10**. Before, the dual came last. A
+  person or an animal has that order on each side.
+- The same order is used wherever a word's number is picked, for every
+  kind of word, so it reads the same everywhere.
+- Nothing stored changes. Every form stays in the box it was in, only
+  the boxes have moved.
+
+## 0.400 — 7 October 2026
+
+**Three fixes from learners' reports: counting says what is counted, match
+boards stop marking right pairs wrong, and reports on number questions are
+clearer.**
+
+- **A counting question now names the thing being counted.** It used to
+  show only the number, "1", then expect "one dog" in Arabic, leaving the
+  learner to guess the dog. It now shows "1 dog".
+- **Match the pairs never puts two words that share a meaning on one
+  board.** A board could show مبسوط as "Content" beside another word
+  shown as "happy". Pairing مبسوط with "happy" was marked wrong, though
+  the card accepts "happy" too. Words that share any meaning, and two
+  forms of the same card, now go on different boards.
+- **Reports on number, time and counting questions say the app made the
+  question.** They used to say the card was "not on the site any more",
+  which read as though it had been deleted. The app builds these
+  questions itself and never stores them as cards.
+- **Every report now records the answer the app expected**, and what was
+  asked is now the question as it was shown ("عشرة كتب", not "عشرة").
+  This only applies to reports sent from this release on.
+- Worth checking by hand: practise counting and see that the noun is
+  shown beside the number.
+
+## 0.399 — 7 October 2026
+
+**A noun's "special plural" box says what it is for.**
+
+- On a noun card, the box that used to be called "Plural after 3 to 10" is
+  now **"Special plural after 3–10 (days, months)"**. Next to "Plural" the
+  old name made it look like there was one plural for 3 to 10 and another
+  for counts above 10. There isn't: 3 to 10 take the plural, and 11 up take
+  the singular. This box is only for the few nouns whose plural changes
+  after 3 to 10, like خمس تيام. Every other noun leaves it empty.
+- Its short tag, shown on narrow screens and in the card list, is now
+  "special pl." instead of "pl. 3–10".
+- The line under the box now also says what every other noun does: 3 to
+  10 take the plural, and 11 up the singular.
+- Nothing about existing cards changes. Only the names are different.
+
 ## 0.398 — 8 October 2026
 
 **The English of a counted noun comes only from its card.**

@@ -148,6 +148,7 @@ export type FlagReport = Pick<
   | "deckId"
   | "answer"
   | "verdict"
+  | "expected"
   | "release"
   | "sentence"
 > & {
