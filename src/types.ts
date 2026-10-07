@@ -521,7 +521,19 @@ export interface Lang {
   formsLabel: string;
   fontStack: string;
   keys: LangKeys;
-  check: (given: string, expected: string, settings?: any) => any;
+  /** `ctx` is what the card means and whether the question was heard, for
+   *  a language whose marking depends on it — see checkArPS. */
+  check: (given: string, expected: string, settings?: any, ctx?: { meaning?: string | null; heard?: boolean }) => any;
+  /** Marks a romanisation, where the language has more to accept than
+   *  checkTr does. */
+  checkTranslit?: (given: string, expected: string, ctx?: { meaning?: string | null; heard?: boolean }) => any;
+  /** The card's Arabic and romanisation as a question shows them, where
+   *  the language teaches a form other than the one written — see
+   *  taughtInAt. Null when it is shown as written. */
+  taught?: (form: { ar?: unknown; lat?: unknown; en?: unknown }) => { ar: string; lat: string } | null;
+  /** Other ways of writing a sentence that are marked right, for the
+   *  teacher's lists — see alsoAcceptedInAt. */
+  alsoAccepted?: (ar: string, meaning?: string | null) => string[];
   /**
    * One character, folded the way this language's marking folds it when it
    * is deciding whether two spellings are the same word.
@@ -923,6 +935,31 @@ export type Card = {
    * else's sentence, and asking what it means is not a question.
    */
   drill?: boolean;
+  /**
+   * A few words saying which meaning this card is, for the questions
+   * that could mean another card as well: *the plant* on صَبِر = cactus,
+   * beside صَبِر = patience; *direction* on يمين = right, beside صح =
+   * right. Written in the language the learner learns from, like the
+   * meaning itself.
+   *
+   * Shown only where a question's prompt is shared with another card the
+   * learner studies — see siblingsOf in src/meanings.ts. Absent means
+   * the question says which by naming the other card's answer instead:
+   * "not patience". Absent on every card written before 0.395.
+   */
+  clue?: string;
+  /**
+   * The card this one was split out of, where a card holding two
+   * meanings was made into one card each — see splitByMeaning. A
+   * learner's device that held the original starts this one where the
+   * original stood rather than from nothing. Absent on every other card.
+   */
+  splitFrom?: string;
+  /**
+   * The teacher's answer that the meanings on this card are learnt
+   * together — *big / large* — so it is not offered for splitting again.
+   */
+  together?: boolean;
   uses?: string[];
   lines?: (CardForm & { who?: number; uses?: string[]; from?: string; roles?: Record<string, string>; review?: import("./review.ts").Review })[];
   speakers?: string[];
@@ -1259,6 +1296,10 @@ export type Item = {
   category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
+  /** Which meaning this card is, where another card shares its prompt. See Card. */
+  clue?: string;
+  /** The card it was split out of, by this device's id. See Card. */
+  splitFrom?: string;
   /** What a teacher approved of the sentences it makes, where they have
       reviewed it. Absent means asked as it always was. See Card. */
   review?: import("./review.ts").Review;

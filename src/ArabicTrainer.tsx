@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type {
-  Course, DayMoves, Deck, Doc, ExerciseState, FlagKind, FlagVerdict, Form, Item,
+  Course, DayMoves, Deck, Doc, ExerciseSpec, ExerciseState, FlagKind, FlagVerdict, Form, Item,
   Lang, LangId, Millis, Question, SavedSession, Settings, User,
  VerbSpec, } from "./types.ts";
 import type { CardViews, Node } from "./shared.tsx";
@@ -248,6 +248,18 @@ import {
 } from "./scheduler.ts";
 import type { Move, Standing } from "./scheduler.ts";
 import { PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "./chance.ts";
+import {
+  EMPTY_SIBLINGS,
+  answersAlike,
+  clueFor,
+  leavesWordToSibling,
+  onlyAboutWord,
+  siblingAnswerNote,
+  siblingIndexOf,
+  siblingsOf,
+  sideOf as promptSide,
+} from "./meanings.ts";
+import type { Sibling, SiblingIndex } from "./meanings.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { canAsk, isFigureForm } from "./offers.ts";
 import { isOffline } from "./net.ts";
@@ -2140,6 +2152,7 @@ export function installIndexes(items: Item[], settings: Settings, systems: Syste
    * do not depend on each other, so the order is free, and putting the
    * last of the setters first means the answers are worked out once.
    */
+  setSiblingState(siblingStateOf(items, settings));
   setMateCounts(countMates(items, settings));
   setPicturedCounts(countPictured(items, settings));
   setHeardCounts(countHeard(items, settings));
@@ -2162,6 +2175,60 @@ export function installIndexes(items: Item[], settings: Settings, systems: Syste
    the two indexes above are: availableTypes is a pure function of a unit,
    and cannot be handed the rest of the cards as well.
    ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------
+   Cards that share a side
+
+   One card per meaning, so two cards can show the same word (صَبِر =
+   cactus, صَبِر = patience) or the same meaning (صح = right, يمين =
+   right). Which of the learner's cards do is a fact about the deck rather
+   than about either card — see meanings.ts — and is held here for the
+   reason the counts below are: availableTypes is a function of a unit and
+   cannot be handed the rest of the cards as well.
+
+   `WORD_LEFT` is the units whose questions about the word alone — reading
+   it, writing it from a recording — are asked on another card with the
+   same word, so a learner does not practise spelling صَبِر twice.
+   ------------------------------------------------------------------ */
+
+let SIBLINGS: SiblingIndex = EMPTY_SIBLINGS;
+let WORD_LEFT: Set<string> = new Set();
+
+/* Which of these cards share a side, and which units leave the word to
+   another card: worked out once per change of cards. */
+export function siblingStateOf(items: Item[], settings: Settings): { index: SiblingIndex; left: Set<string> } {
+  const index = siblingIndexOf(items, (card) => langIdOf(card, settings));
+  const left: Set<string> = new Set();
+  for (const card of items) {
+    const lang = langIdOf(card, settings);
+    for (const { unit } of unitsOf(card)) {
+      if (unit && unit.id && leavesWordToSibling(index, card, unit, lang)) left.add(unit.id);
+    }
+  }
+  return { index, left };
+}
+
+/* Exported for the tests, which say "this learner has both cards" through
+   it, as they say what else is in the deck through setMateCounts. */
+export function setSiblingState(state: { index: SiblingIndex; left: Set<string> }) {
+  SIBLINGS = state.index;
+  WORD_LEFT = state.left;
+  forgetTypes();
+}
+
+/* The other cards the learner has that this question cannot tell from the
+   one it asks: those showing the same thing in the prompt and wanting a
+   different answer. Empty where the prompt carries its own context — a
+   picture, a phrase with a gap — or nothing is shared. */
+export function siblingsAsked(card: Item | null | undefined, unit: Form | null | undefined, spec: ExerciseSpec | null | undefined, settings: Settings): Sibling[] {
+  if (!card || !unit || !spec || spec.picks === "pair") return [];
+  const side = promptSide(spec.promptField);
+  if (!side) return [];
+  const answerField = spec.answerField || "";
+  return siblingsOf(SIBLINGS, card, unit, side, langIdOf(card, settings)).filter(
+    (s) => !answersAlike(unit, s.unit, answerField),
+  );
+}
 
 let MATE_COUNTS: Map<LangId, number> = new Map();
 
@@ -2832,6 +2899,56 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
 }
 
 /*
+ * And which form of the words it teaches.
+ *
+ * A language may teach a form other than the one written: Palestinian
+ * shows بالشغل where a card says في الشغل and means a place, because that
+ * is what people say — see taughtInAt. The card's own wording stays an
+ * accepted answer (`taughtFrom`, read by checkAnswer).
+ *
+ * Not on a question that is heard, and not on a card with a recording:
+ * the recording says the card's words, and text that disagrees with the
+ * voice beside it teaches neither. Done before the meaning is narrowed,
+ * so "at work / busy" is still read as a place when "busy" is the meaning
+ * shown.
+ */
+function taughtForm(unit: Form, type: string): Form {
+  const lang = activeLang();
+  if (!lang.taught || !unit) return unit;
+  const spec = specOf(type);
+  const needs: string[] = (spec && spec.needs) || [];
+  if (needs.includes("recs") || needs.includes("contextAudio")) return unit;
+  if (Array.isArray(unit.recs) && unit.recs.length) return unit;
+  const en = meaningsOf(unit).join(" / ");
+  const taught = lang.taught({ ar: unit.ar, lat: unit.lat, en });
+  if (!taught) return unit;
+  const answers = Array.isArray(unit.answers)
+    ? unit.answers.map((a: any) => {
+        const one = a && lang.taught ? lang.taught({ ar: a.text, lat: a.lat, en }) : null;
+        return one ? { ...a, text: one.ar, ...(a.lat ? { lat: one.lat } : {}) } : a;
+      })
+    : unit.answers;
+  return {
+    ...unit,
+    ar: taught.ar,
+    lat: taught.lat || unit.lat,
+    answers,
+    taughtFrom: { ar: String(unit.ar || ""), lat: String(unit.lat || "") },
+  } as Form;
+}
+
+function castTaught(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
+  if (!resolved) return resolved;
+  const unit = taughtForm(resolved.unit, type);
+  if (unit === resolved.unit) return resolved;
+  return {
+    ...resolved,
+    unit,
+    parent: resolved.isSub ? resolved.parent : withLead(resolved.parent, unit),
+  };
+}
+
+/*
  * And which meaning a question made of the meaning asks about.
  *
  * A card may mean more than one thing — "office / desk" — and asked what it
@@ -2921,7 +3038,7 @@ function oneOf(unit: Form, type: string): Form {
   const seen = turnOf(unit.s && unit.s[type]);
   const answer = answerAt(unit, seen, answerFields());
   const meaning = meaningForTurn(unit, seen);
-  const out = answer ? (oneAnswer(unit, answer) as Form) : unit;
+  const out = taughtForm(answer ? (oneAnswer(unit, answer) as Form) : unit, type);
   return meaning && meaning !== String(out.en || "").trim() ? { ...out, en: meaning } : out;
 }
 
@@ -3205,6 +3322,9 @@ function availableTypes(
       t,
       lang
     ) && (!EX[t].afterNumerals || numeralsKnownFor(it))
+      /* Reading or spelling a word another card of the learner's has
+         too is asked on that card — see siblingStateOf. */
+      && !(WORD_LEFT.has(it.id) && onlyAboutWord(EX[t]))
   );
   if (own) TYPE_CACHE.set(it, { lang: lang.id, types });
   return types;
@@ -5478,7 +5598,11 @@ export function tokenCards(
  */
 export function resolveQuestion(asking: Item[], exercise: Question, trial: boolean, systems: SystemSet[]) {
   return castRange(
-    castMeaning(castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type), exercise.type, exercise),
+    castMeaning(
+      castTaught(castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type), exercise.type),
+      exercise.type,
+      exercise,
+    ),
     exercise,
     systems,
   );
@@ -8305,11 +8429,12 @@ function MatchGrid({
   field?: "en" | "ar" | "numeral";
   /**
    * Whether the words are heard rather than read: a play button on each
-   * tile where the word would be. The tile is otherwise the same tile,
-   * tapped the same way — so tapping it plays it **and** does what a tap
-   * on a word does, freeing a pairing included. That was the owner's call:
-   * one card that behaves like every other card, over a second target on
-   * it that would play without touching the pairing.
+   * tile where the word would be. The play button is a target of its own:
+   * tapping it only plays the word, and tapping the rest of the tile picks
+   * it up, pairs it or frees it as a tap on a word does. The owner first
+   * had one tap do both, then asked for them apart — a learner listening
+   * through the column to find the one they want kept picking tiles up and
+   * undoing pairs they had meant to keep.
    */
   heard?: boolean;
 }) {
@@ -8483,10 +8608,14 @@ function MatchGrid({
     }
   };
   /* Checked, a sound tile still plays: it is how the words are gone over
-     once the grid is marked. */
-  const tapTile = (w: Form) => {
-    if (heard) sound(w);
-    tapWord(w.id);
+     once the grid is marked. Pressed again while it plays, it stops. */
+  const play = (w: Form) => {
+    if (sounding === w.id) {
+      hush();
+      setSounding(null);
+      return;
+    }
+    sound(w);
   };
   /* What the tile should have been paired with, under one paired wrong. */
   const wantedOf = (w: Form) => String((w as Record<string, unknown>)[field] || "");
@@ -8500,18 +8629,15 @@ function MatchGrid({
         {words.map((w, i) => {
           const mine = meaningFor(w.id);
           const right = checked && !!mine && mine === wantedOf(w);
-          return (
-            <button
-              type="button"
-              key={w.id}
-              data-el="match-word"
-              className={`at-matchtile${heldWord === w.id ? " on" : ""}${mine ? " paired" : ""}${
-                checked ? (right ? " right" : " wrong") : ""
-              }`}
-              aria-pressed={heldWord === w.id}
-              aria-label={heard ? `Recording ${i + 1}${mine ? `, pair ${numberOf(w.id)}` : ""}` : undefined}
-              onClick={() => tapTile(w)}
-            >
+          const tile = {
+            className: `at-matchtile${heldWord === w.id ? " on" : ""}${mine ? " paired" : ""}${
+              checked ? (right ? " right" : " wrong") : ""
+            }`,
+            "aria-pressed": heldWord === w.id,
+            onClick: () => tapWord(w.id),
+          };
+          const inside = (
+            <>
               {/* Always there, empty until paired: a number arriving in
                   space nobody kept for it pushed the word along. */}
               {mine ? (
@@ -8521,12 +8647,22 @@ function MatchGrid({
               )}
               <span className={`at-matchword${heard ? " heard" : ""}`}>
                 {heard ? (
-                  /* Drawn as the play button drawn wherever a recording
-                     is, but not a button of its own: the whole tile is the
-                     button, and one inside another is not allowed. */
-                  <span className="at-clipplay at-matchplay" data-el="match-sound" aria-hidden="true">
+                  /* The play button drawn wherever a recording is, drawn
+                     long here, and a button of its own: it plays and does
+                     nothing else, the tap never reaching the tile. */
+                  <button
+                    type="button"
+                    className={`at-clipplay at-matchplay${sounding === w.id ? " on" : ""}`}
+                    data-el="match-sound"
+                    aria-label={sounding === w.id ? `Stop recording ${i + 1}` : `Play recording ${i + 1}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      play(w);
+                    }}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
                     <Icon name={sounding === w.id ? "pause" : "play"} />
-                  </span>
+                  </button>
                 ) : (
                   <Arabic text={w.ar} kind="word" lang={lang} />
                 )}
@@ -8549,6 +8685,30 @@ function MatchGrid({
                   )
                 ) : null}
               </span>
+            </>
+          );
+          /* A tile with a play button in it cannot be a button itself — one
+             inside another is not allowed — so it is a tile that acts as
+             one: focusable, and Enter or Space pick it up as a tap does. */
+          return heard ? (
+            <div
+              key={w.id}
+              data-el="match-word"
+              {...tile}
+              role="button"
+              tabIndex={0}
+              aria-label={`Recording ${i + 1}${mine ? `, pair ${numberOf(w.id)}` : ""}`}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                tapWord(w.id);
+              }}
+            >
+              {inside}
+            </div>
+          ) : (
+            <button type="button" key={w.id} data-el="match-word" {...tile}>
+              {inside}
             </button>
           );
         })}
@@ -10011,6 +10171,10 @@ export default function ArabicTrainer() {
      middle of the walks makes them read the same ladder over again. They
      do not depend on each other — see installIndexes, which is the same
      order for the same reason. */
+  /* And which of the learner's cards share a word or a meaning — see
+     siblingStateOf. Rebuilt with the cards, which is when it can change. */
+  const siblingState = useMemo(() => siblingStateOf(asking, settings), [asking, settings]);
+  setSiblingState(siblingState);
   const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
   setMateCounts(mateCounts);
   const picturedCounts = useMemo(() => countPictured(asking, settings), [asking, settings]);
@@ -10954,6 +11118,26 @@ export default function ArabicTrainer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, parentItem, spec, qLang.id]);
 
+  /*
+   * The learner's other cards that this question cannot tell from the one
+   * it asks — صَبِر = patience, when صَبِر = cactus is asked for its
+   * meaning. See siblingsAsked.
+   *
+   * A question offering answers to choose from simply leaves them out of
+   * the choices. A question to be answered in writing says which card it
+   * means under the prompt — the teacher's clue, or the others ruled out —
+   * and an answer that belongs to one of them is not marked: see submit.
+   */
+  const siblings = useMemo(
+    () => (!item || !parentItem || hasSlots(parentItem) ? ([] as Sibling[]) : siblingsAsked(parentItem, item, spec, settings)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [item, parentItem, spec, siblingState],
+  );
+  const siblingCards = useMemo(() => siblings.map((sb) => sb.card.id), [siblings]);
+  const ofSibling = (u: Form) =>
+    siblingCards.some((id) => u.id === id || String(u.id || "").startsWith(`${id}-`));
+  const siblingClue = spec && !spec.picks ? clueFor(parentItem, siblings, spec.answerField || "") : "";
+
   const choices = useMemo(() => {
     if (!spec || !spec.picks) return [];
     if (spec.picks === "reply") {
@@ -10989,7 +11173,7 @@ export default function ArabicTrainer() {
       return optionsFor({
         answer: item,
         pool: wordPool(companyOf(asking, exercise), settings, qLang.id, item).filter(
-          (u) => Array.isArray(u.images) && u.images.length && canSeeHere(u),
+          (u) => Array.isArray(u.images) && u.images.length && canSeeHere(u) && !ofSibling(u),
         ),
         wanted: PICK_OPTIONS,
         seed: `${item.id} picture ${reps}`,
@@ -11005,7 +11189,7 @@ export default function ArabicTrainer() {
       return optionsFor({
         answer: item,
         pool: wordPool(companyOf(asking, exercise), settings, qLang.id, item)
-          .filter((u) => u.en && !twins.some((t) => t.id === u.id))
+          .filter((u) => u.en && !twins.some((t) => t.id === u.id) && !ofSibling(u))
           .map((u) => oneOf(u, exercise ? exercise.type : "")),
         wanted: PICK_OPTIONS,
         seed: `${item.id} meaning ${reps}`,
@@ -11018,7 +11202,7 @@ export default function ArabicTrainer() {
          would otherwise put both on one tile, and the long one among three
          short ones is the answer given away by its shape. */
       pool: wordPool(companyOf(asking, exercise), settings, qLang.id, item)
-        .filter((u) => !twins.some((t) => t.id === u.id))
+        .filter((u) => !twins.some((t) => t.id === u.id) && !ofSibling(u))
         .map((u) => oneOf(u, exercise ? exercise.type : "")),
       wanted: PICK_OPTIONS,
       /* A question with no phrase behind it — "which of these means this"
@@ -11030,7 +11214,7 @@ export default function ArabicTrainer() {
       textOf: (w) => w.ar,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, asking.length]);
+  }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, asking.length, siblingCards.join(" ")]);
 
   /*
    * Whether the prompt has to say which form it wants.
@@ -11117,7 +11301,11 @@ export default function ArabicTrainer() {
     /* Nor in the grid of recordings, whose answer is a tile tapped, not a
        word written. */
     if (spec.answerField !== "ar" || spec.picks === "pair") return null;
-    return answerGiven(typed, item, (given, want) => qLang.check(given, want, qSettings).ok, answerFields());
+    /* Told what the card means and whether it was heard, as the marking
+       was, so an answer accepted there is found here too. */
+    const needs: string[] = spec.needs || [];
+    const ctx = { meaning: meaningsOf(item).join(" / "), heard: needs.includes("recs") || needs.includes("contextAudio") };
+    return answerGiven(typed, item, (given, want) => qLang.check(given, want, qSettings, ctx).ok, answerFields());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item && item.id, checked, typed, skipped, spec && spec.answerField]);
   /* And what that answer is, grammatically, in this language's words. Empty
@@ -11252,6 +11440,25 @@ export default function ArabicTrainer() {
           result = also;
           break;
         }
+      }
+    }
+    /*
+     * Another card's answer: the question is asked again and nothing is
+     * marked.
+     *
+     * صَبِر asked as *cactus* and answered *patience* is a learner who
+     * knows the word and was not sure which meaning was wanted — not a
+     * mistake. They are told so, and asked for the other one. As often as
+     * it happens: knowing the other card is never held against this one.
+     */
+    if (!result.ok && spec && !spec.picks && !skipped && !toldAnswer) {
+      const side = promptSide(spec.promptField);
+      const given = side ? siblings.find((sb) => checkAnswer(typed, sb.unit, exercise.type, qSettings).ok) : null;
+      if (side && given) {
+        setTyped("");
+        flash(siblingAnswerNote(side, given, spec.answerField || ""));
+        if (inputRef.current) inputRef.current.focus();
+        return;
       }
     }
     /*
@@ -12611,6 +12818,16 @@ export default function ArabicTrainer() {
                         {formLabelText}
                       </p>
                     )}
+                    {/* Which card it means, where another card the learner
+                        has shows the same thing — the teacher's clue, or
+                        "not patience". Under the prompt, where "feminine"
+                        is said, for the same reason: it is a fact about
+                        the word on the screen. See siblingsAsked. */}
+                    {siblingClue && (
+                      <p className="at-asktag" data-el="question-clue">
+                        {siblingClue}
+                      </p>
+                    )}
                     {/* And what the words in a sentence's blanks are,
                         where English says "your" for three Arabic words —
                         see lentTags. Without it a question asking for the
@@ -12908,6 +13125,21 @@ export default function ArabicTrainer() {
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
                         <Help data-el="verdict-reason">{verdictText(checked, qLang)}</Help>
+                      )}
+                      {/* Right, and written the textbook's way: the
+                          everyday form beside it — see checkArPS. */}
+                      {checked.ok && checked.usual && (
+                        <Help data-el="verdict-usual">
+                          Right. People usually say{" "}
+                          {spec.answerMode === "ar" ? (
+                            <span lang={qLang.id} dir={qLang.direction} style={{ fontFamily: qLang.fontStack }}>
+                              {checked.usual}
+                            </span>
+                          ) : (
+                            <span>{checked.usual}</span>
+                          )}
+                          .
+                        </Help>
                       )}
                       {/* Right, and the spelling it should have had is
                           underneath: one letter out of the English is a

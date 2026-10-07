@@ -5598,3 +5598,119 @@ A face with no noun to pair with is quiet, as an unopened row is: no
 question, no place among the new words, its schedule kept. And it no
 longer stands among the words whose clearing opens the next stretch,
 since counting never holds a stretch back.
+
+## The play button in the grid of recordings is a target of its own
+
+**7 October 2026** · `src/ArabicTrainer.tsx` (`MatchGrid`), `src/index.css`
+(`.at-matchplay`)
+
+Reverses the 6 October call that a sound tile is one target. The owner
+asked for the play button to be its own tap target, drawn wider than tall:
+it plays and does nothing else, and the rest of the tile picks the tile up,
+pairs it or frees it as a word tile does. Listening along the column to
+find a word should not disturb the pairs already made.
+
+A button cannot hold a button, so a sound tile is a `div` with
+`role="button"`, focusable, taking Enter and Space as a tap; the play
+button stops its click and keys reaching the tile. Word tiles stay plain
+buttons. Pressing play on the tile already playing stops it.
+
+## One card per meaning, and which cards share a side is never stored
+
+**7 October 2026** · `src/meanings.ts`, `src/ArabicTrainer.tsx`
+(`siblingStateOf`, `siblingsAsked`, `availableTypes`, `submit`),
+`src/card-editor.tsx` (`MeaningsBlock`, `CarryAsk`), `src/spaces.tsx`
+(`MeaningSplits`), `src/shared.tsx` (`splitFromHeld`)
+
+The owner wants each meaning learnt, scheduled and put in decks on its
+own, in both directions: one Arabic word with two English meanings (صَبِر:
+cactus, patience) and one English word with two Arabic words (right: صح,
+يمين). Meanings inside one card, sub-cards under a parent word, and a
+dictionary of words and meanings were weighed and turned down: the first
+cannot put a meaning in its own deck without rebuilding decks, the second
+is a new kind of card, the third rebuilds everything. A card is already
+one schedule and one set of decks, so a card is one meaning.
+
+**Linked by what they say, not by a stored link.** Two cards *collide*
+when the side a question shows reads the same: the word (script,
+transliteration, recording) or one accepted meaning. Nothing on a card
+names its siblings. The owner intends to teach from languages other than
+English later, and on the meaning side whether two cards collide depends
+on the learner's language — right collides in English and not in French
+(juste, droite) — so a stored link would be wrong for one of them, and
+stale after any edit. The index is built from the learner's own cards,
+so a sibling they don't study changes nothing. Vowel marks and tones are
+kept when comparing words: صَبْر and صَبِر can be told apart on screen.
+
+**What a collision does.** A typed question gets a line under the prompt,
+in the spot the form tag uses: the card's `clue`, else "not <the other
+card's answer>" (the owner's pick over saying nothing). The other card's
+answer is asked again unmarked, as often as it is given. A pick question
+drops the sibling's units from its pool instead and says nothing. A
+sibling answered the same way (both صَبِر read *sabir*) is no ambiguity
+and is ignored. Matching grids needed nothing: they already keep two
+tiles reading alike apart, which is exactly a collision.
+
+**Reading and spelling are asked once.** Questions that show and want the
+target language (`onlyAboutWord`) are about the word, not the meaning.
+Among cards sharing a word, the one made first (then lowest id) keeps
+them; the others drop them in `availableTypes`.
+
+**Teachers.** "Another meaning of this word" saves the card and opens a copy
+with every form, spelling and recording kept, every meaning emptied, and
+no ID, clue, pictures or decks: the owner picked "no deck" so a meaning is
+placed on purpose. "Another word for this meaning" opens a card with the
+meaning only. The editor is keyed on an `opened` stamp so it remounts for
+the next card. A change to the spelling, transliteration or recordings of
+a form that another card still has identically (the card's own word by
+place, other forms by name, which is how a copy lines up) asks whether to
+carry it; empty and missing count as the same.
+
+**Splitting** narrows each form whose meaning count matches the card's own
+word, keeps pictures on the first card only, puts the new cards in the
+same decks, and stamps them `splitFrom`. A learner's device seeds a newly
+arrived card from the card it was split from, form by form, and only into
+forms with no progress of their own. `splitFrom` and `together` are only
+ever set by a save that sends them, never cleared by one that does not.
+
+**Cost.** The word is stored on every meaning's card. A verb's second
+meaning means writing its English again for every cell. Word counts go up
+by one per meaning. The learning language is named in one constant,
+`LEARNING_LANGUAGE`, for the day it is not English.
+
+## In and at: بالشغل is taught, and every everyday spelling counts
+
+**7 October 2026** · `checkArPS`, `checkTrPS`, `arInAtSpellings`, `trInAtSpellings`, `taughtInAt`, `alsoAcceptedInAt` and `meansPlace` in `src/languages.ts`; `taughtForm` and `castTaught` in `src/ArabicTrainer.tsx`; `AskedScript` in `src/shared.tsx`
+
+Palestinian says "at work" as بالشغل more often than في الشغل, says both
+with the article swallowed (biš-šuġl, fiš-šuġl), and writes the second as
+فالشغل about as often as in full. The owner asked that all of this be
+accounted for, that بالشغل be the form taught wherever a question shows the
+Arabic, and that في still count, with a note giving the everyday form.
+
+**Marking.** The pack's checker tries the card's forms, then the other
+ways of writing its في and بـ. فالـ for في الـ is spelling and is accepted
+everywhere, dictation included. بـ for في, and back, is a different word,
+so it waits on the card's English: بـ is also "by" and "with", and في is
+also "there is". Where the English reads as a place, the swap is made; في
+before the article goes to بـ unless the English says otherwise; a heard
+question never swaps. فالـ on a card is not read as في, because it is just
+as often ف ("so") on the article.
+
+**What is shown.** `castTaught` rewrites في الـ to بالـ on the question
+(and on the tiles beside it) where the English is a place, and keeps the
+card's wording as `taughtFrom`, which checkAnswer adds to the accepted
+answers. Not on a heard question and not on a card with a recording,
+because text that disagrees with the voice next to it teaches neither.
+Only before the article: في بيتي and ببيتي are both everyday.
+
+**The teacher's lists.** Examples and the review show the taught form, and
+an "Also accepted" line underneath. Review fingerprints are still taken of
+the card's own words. The taught form is a fixed function of them, so an
+approval still covers exactly what the student sees, and no sentence
+already approved has to be approved again.
+
+**What it costs.** "A place" is read off the English, which is a guess. A
+card whose English doesn't say "in", "at" or "on" is shown as written and
+not swapped. That is the cautious side of the guess.
+
