@@ -102,6 +102,15 @@ export const HE_SLOTS: SlotSpec[] = [
     group: "millions",
     hint: "The word after a count, as in three million. It does not take a plural here.",
   },
+  { slot: "billion.1", formKeys: COUNTING, label: "1,000,000,000", group: "billions" },
+  { slot: "billion.2", formKeys: COUNTING, label: "2,000,000,000", group: "billions" },
+  {
+    slot: "billion.n",
+    formKeys: COUNTING,
+    label: "billion",
+    group: "billions",
+    hint: "The word after a count, as in three billion — counted the way a million is.",
+  },
   {
     slot: "connector",
     formKeys: COUNTING,
@@ -228,7 +237,9 @@ function numeral(b: Build, n: number, how: FormKey): string {
   if (n === 0) return b.word("unit.0", "standalone");
 
   const pieces: string[] = [];
-  const { millions, thousands, rest } = chunksOf(n);
+  const { billions, millions, thousands, rest } = chunksOf(n);
+  const g = scale(b, billions, 1000000000, "billion", "m");
+  if (g) pieces.push(g);
   const m = scale(b, millions, 1000000, "million", "m");
   if (m) pieces.push(m);
   const t = scale(b, thousands, 1000, "thousand", "construct.m");

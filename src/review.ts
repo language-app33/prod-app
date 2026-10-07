@@ -48,9 +48,9 @@ import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, lendsInto, 
 import { countedWith } from "./numbers/generate.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
-import { aboutPerson, fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
+import { aboutPerson, besideAdjectives, fillForm, fillsOf, lentBy, readAs, readingOf, readingsOf, refOf, slotsOf, valuesForTurn } from "./variables.ts";
 import {
-  agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, ownSlot, partnerOf, personsOf,
+  agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, linkedToNothing, ownSlot, partnerOf, personsOf,
   rowIdsOf, rowOf, slotLinks, slotRows, subjectSlot,
 } from "./verbs.ts";
 
@@ -292,7 +292,11 @@ export function agreeTook(
     if (spec) {
       const agreed = agreedValue(owner.card, spec, value, beside ? readOff(beside, lang) : null);
       if (!agreed) return false;
-      out[slot] = agreed;
+      /* A demonstrative in a reading blank reads *these are* off the form
+         the noun chose, not *this is* off the word it was drawn as. */
+      out[slot] = agreed !== value && readingOf(owner.card, slot)
+        ? readAs(owner.card, { ...agreed, readings: readingsOf(owner.card, agreed, false) }, slot)
+        : agreed;
       return true;
     }
     const tensed = tensedOf(lang, owner.card.category);
@@ -476,6 +480,7 @@ export function reviewPool(
     lang,
     (slot) => slotRows(part, slot),
     (slot) => !!partnerOf(part, partSlots, slot),
+    (slot) => linkedToNothing(part, slot),
   );
   const langId = lang ? lang.id : "";
   const byAge = [...(pool || [])].sort(
@@ -483,6 +488,7 @@ export function reviewPool(
   );
   const fields = grammarFields();
   const into = lendsInto(lang);
+  const beside = besideAdjectives();
   for (const card of byAge) {
     if (!card) continue;
     if (langId && card.lang && card.lang !== langId) continue;
@@ -494,7 +500,9 @@ export function reviewPool(
       for (const slot of slots) {
         if (!values[slot]) continue;
         if (!admits(card, form, slot)) continue;
-        values[slot].push(...into(card, value, slot));
+        const made = into(card, value, slot);
+        beside.saw(card, slot, made);
+        values[slot].push(...made);
       }
     }
     for (const form of formsOf(card) as Held[]) {
@@ -502,7 +510,7 @@ export function reviewPool(
       if (ref && !owner.has(ref)) owner.set(ref, { card, form });
     }
   }
-  return { values, owner };
+  return { values: beside.sift(values), owner };
 }
 
 /** One sentence a frame makes, as a student would see it. */

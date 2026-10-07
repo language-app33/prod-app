@@ -183,7 +183,7 @@ test("every character comes back, in order, whatever was marked", () => {
 
    The benefit of the doubt, and deliberately a narrow one: the question
    is asked again rather than counted as a miss, so a mistyped letter
-   cannot put a card's passes back to nought and cost four days. What is
+   cannot be the miss that shuts a level or costs a card its passes. What is
    checked here is mostly where the doubt runs out — two letters, and
    short words, where one letter is a different word rather than a slip.
    ------------------------------------------------------------------ */

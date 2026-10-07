@@ -17,33 +17,27 @@
  * Reload before the handover had finished put you back at the start of it,
  * which is the third press.
  *
- * One reload at the moment the handover happens ends the whole class of it:
- * refresh once and the page puts itself onto the new build, and an app left
- * open does it by itself the next time it is not being used.
+ * One reload at the moment the handover happens ends the whole class of it —
+ * but only where it can cost nothing. A page nobody has touched yet (the
+ * refresh above, a fresh launch) takes it by itself. A page somebody has
+ * typed or tapped on is told instead, and offers Reload: a reload there
+ * could throw away what is on screen and not yet saved.
  *
  * No part of this is the version line in the menu. That answers a different
  * question — "is what I merged actually running?" — by asking the server,
  * and it is right to keep asking even when nothing here has fired.
  */
 
-/* The one thing a reload would interrupt is a question a learner is part
-   way through answering, so a session in flight holds it back. */
-let held = false;
 /*
- * And what has to happen first, whenever it does happen.
+ * What has to happen first, whenever a reload does happen.
  *
- * A reload used to be described here as cheap because everything a learner
- * does is written to the device as it happens. That was not true: the
- * write is debounced, so a reload landing in the six hundred milliseconds
- * after an answer took the answer with it — and the worst case was the
- * moment a session ended, which releases the hold below and reloads on the
- * spot, in the same breath as the last answer was recorded.
- *
- * So the trainer registers its flush here and this calls it before going.
- * Synchronous on purpose: the storage write underneath is, and a promise
- * awaited across `location.reload()` is a promise nobody is left to keep.
+ * Everything a learner does is written to the device, but the write is
+ * debounced, so a reload landing in the six hundred milliseconds after an
+ * answer would take the answer with it. The trainer registers its flush
+ * here and applyUpdate calls it before going. Synchronous on purpose: the
+ * storage write underneath is, and a promise awaited across
+ * `location.reload()` is a promise nobody is left to keep.
  */
-/** @type {Set<() => void>} */
 const beforeReloads: Set<() => void> = new Set();
 
 /**
@@ -58,8 +52,34 @@ export function beforeReload(fn: () => void): () => void {
     beforeReloads.delete(fn);
   };
 }
-/* A worker took over while it was being held back. */
-let waiting = false;
+
+function runBeforeReloads() {
+  for (const fn of beforeReloads) {
+    try {
+      fn();
+    } catch (e) {
+      /* A reload somebody asked for has to happen; one registered hook
+         throwing is not a reason to strand the page on an old build. */
+    }
+  }
+}
+
+/*
+ * Whether a newer build has taken charge of this page.
+ *
+ * The page used to reload itself the moment that happened (or, during a
+ * session, the moment the session ended or the app was put away). That
+ * threw away whatever was on screen and not yet saved — a card half
+ * written in the editor, a form part filled — and nothing a flush can do
+ * saves a text box that has not been submitted. Only the person knows
+ * whether now is a good moment, so the page says an update is ready and
+ * waits for Reload to be pressed.
+ */
+let ready = false;
+
+/* Whether anybody has done anything on this page yet. Until they have,
+   there is nothing on it a reload could lose. */
+let touched = false;
 
 /* Only ever once in a stretch. A worker that kept changing — two tabs
    racing, a deploy loop — would otherwise be a page that kept reloading,
@@ -81,38 +101,32 @@ function setStamp(key: string) {
     sessionStorage.setItem(key, String(Date.now()));
   } catch (e) {
     /* A private window with storage switched off. The guard is a courtesy,
-       not a correctness property: without it the reload still happens. */
+       not a correctness property. */
   }
 }
+const readyListeners: Set<(ready: boolean) => void> = new Set();
 
-/* Go, unless we have just been — and never before what is owed to the
-   disk has been written. */
-function reloadOnce() {
-  if (Date.now() - stampOf(STAMP) < GAP_MS) return;
-  setStamp(STAMP);
-  for (const fn of beforeReloads) {
+export function updateReady() {
+  return ready;
+}
+
+/** Hear when an update becomes ready. Returns the way to stop hearing. */
+export function onUpdateReady(fn: (ready: boolean) => void): () => void {
+  readyListeners.add(fn);
+  return () => {
+    readyListeners.delete(fn);
+  };
+}
+
+function markReady() {
+  if (ready) return;
+  ready = true;
+  for (const fn of readyListeners) {
     try {
-      fn();
+      fn(true);
     } catch (e) {
-      /* A reload that has been announced has to happen; one registered
-         hook throwing is not a reason to strand the page on an old
-         build. */
+      /* One listener failing does not stop the others hearing. */
     }
-  }
-  window.location.reload();
-}
-
-/*
- * Whether a reload would land on top of something.
- *
- * Called by the trainer when a session starts and ends. A page nobody is
- * looking at is never in the way, whatever it says.
- */
-export function holdUpdates(on: boolean) {
-  held = !!on;
-  if (!held && waiting) {
-    waiting = false;
-    reloadOnce();
   }
 }
 
@@ -139,7 +153,8 @@ export async function checkForUpdate() {
 }
 
 /*
- * Watch for the handover, and take it.
+ * Watch for the handover, and take it — by itself only where that costs
+ * nothing, otherwise when Reload is pressed.
  *
  * Registered once, at startup, before anything renders — the handover can
  * happen at any moment, including during the first paint.
@@ -154,30 +169,31 @@ export function watchForUpdates() {
      reloading for it would be a reload for nothing. */
   const wasControlled = !!sw.controller;
 
+  /* Capturing, so nothing on the page can stop it hearing. */
+  const touch = () => {
+    touched = true;
+  };
+  for (const type of ["pointerdown", "keydown", "input"]) {
+    window.addEventListener(type, touch, { capture: true, passive: true });
+  }
+
   sw.addEventListener("controllerchange", () => {
     if (!wasControlled) return;
-    /* Held only while it would interrupt something. The moment that
-       passes — the session ends, or the app is put away — it goes. */
-    if (held && !document.hidden) {
-      waiting = true;
+    /* Untouched, a reload loses nothing and saves the second refresh.
+       Touched, it is said rather than done: see `ready` above. */
+    if (!touched && Date.now() - stampOf(STAMP) >= GAP_MS) {
+      setStamp(STAMP);
+      runBeforeReloads();
+      window.location.reload();
       return;
     }
-    reloadOnce();
+    markReady();
   });
 
-  /* A page put away with an update waiting takes it there and then, so
-     coming back to the app is coming back to the new build. And a page
-     picked up again asks whether anything has been deployed since, which
-     is the moment a learner is most likely to have missed a day. */
+  /* A page picked up again asks whether anything has been deployed since,
+     which is the moment a learner is most likely to have missed a day. */
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      if (waiting) {
-        waiting = false;
-        reloadOnce();
-      }
-      return;
-    }
-    checkForUpdate();
+    if (!document.hidden) checkForUpdate();
   });
 
   /* And on launch, rather than waiting for the browser's own check on the
@@ -208,6 +224,7 @@ export function applyUpdate() {
       done = true;
       /* Straight past the guard: this one was asked for. */
       setStamp(STAMP);
+      runBeforeReloads();
       window.location.reload();
       resolve(undefined);
     };

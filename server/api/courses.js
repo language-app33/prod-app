@@ -906,6 +906,7 @@ export default async (req) => {
            nothing can read, exactly as an open `kind` would. */
         answer: String(body.answer || "").slice(0, 200),
         verdict: FLAG_VERDICTS.includes(String(body.verdict)) ? String(body.verdict) : "",
+        expected: String(body.expected || "").slice(0, 200),
         release: String(body.release || "").slice(0, 40),
         /* Which filled sentence it was, where the card is a frame — the
            fingerprint its review is kept in, so a teacher reading this can
@@ -1439,6 +1440,21 @@ export default async (req) => {
            reads as the reading the app makes of the pronoun's English. */
         enIs: String(card.enIs || "").trim().slice(0, 120) || undefined,
         enAsk: String(card.enAsk || "").trim().slice(0, 120) || undefined,
+        /* Which meaning this card is, for a question another card shares
+           its prompt with — "the plant" on صَبِر = cactus. The teacher's
+           words, capped like every other line of text; absent where none
+           was written, which reads as the other card's answer ruled out.
+           See clueFor in src/meanings.ts. */
+        clue: String(card.clue || "").trim().slice(0, 80) || undefined,
+        /* Which card this one was split out of, where it was — see
+           splitByMeaning. Written once, by the save that makes the card,
+           and kept through every later save, which does not send it: so
+           only ever set here, never cleared by saying nothing. */
+        ...(idish(card.splitFrom) ? { splitFrom: idish(card.splitFrom) } : {}),
+        /* And the teacher's answer that its meanings are learnt together,
+           where they gave one. Kept the same way: an editor that does not
+           ask the question does not undo the answer. */
+        ...(typeof card.together === "boolean" ? { together: card.together } : {}),
         /* No `value` here, and none taken from a save.
            It was what made a card one of the parts a number was built out
            of, and there are no parts any more: a language's numbers are
@@ -3274,8 +3290,11 @@ export default async (req) => {
             const wasAt = f.cardKnown === false ? undefined : f.cardRev;
             let cardState;
             if (rev === null || rev === undefined) {
-              /* Not there now. Was it there when this was sent? */
-              cardState = f.cardKnown === false || !cardId ? "absent" : "gone";
+              /* Not there now. Was it there when this was sent? Never, for
+                 a question the app made itself from a number system: no
+                 card is ever stored for one, and calling it missing read
+                 as though somebody had deleted it. */
+              cardState = cardId.startsWith("sys:") ? "made" : f.cardKnown === false || !cardId ? "absent" : "gone";
             } else if (wasAt === undefined) {
               cardState = "here";
             } else {

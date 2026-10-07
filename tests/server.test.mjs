@@ -1941,6 +1941,26 @@ test("a verdict the app never sends is stored as nothing, not as itself", async 
   assert.equal(mine.verdict, "", "an unknown verdict reads as 'not recorded'");
 });
 
+test("a report on a question the app made from numbers says so, with what it expected", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Hana" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  const sent = await api("/api/courses?action=report-flag", {
+    method: "POST",
+    key,
+    body: { kind: "strict", cardId: "sys:n1:unit.10", exercise: "ar2en", answer: "10 books", expected: "10 Bookses", verdict: "near" },
+  });
+  assert.equal(sent.status, 200, sent.text);
+  const mine = must(
+    overviewOf(await api("/api/courses?action=admin-overview", { key }))
+      .flags.find((f) => f.id === sent.json.id),
+    "the report just sent"
+  );
+  /* No card is ever stored for one, so it is neither missing nor deleted. */
+  assert.equal(mine.cardState, "made");
+  assert.equal(mine.expected, "10 Bookses");
+});
+
 test("a flag nobody could act on is refused, and only an administrator reads them", async () => {
   const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Layla" } });
   const key = student.json.key;

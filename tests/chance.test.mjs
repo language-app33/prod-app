@@ -123,6 +123,28 @@ test("two forms of one card never share a grid, however differently they read", 
   assert.ok(!grid.meanings.includes(forms[1].en));
 });
 
+test("no tile shows a meaning another word on the board also accepts", () => {
+  /* Reported: مبسوط shown as "Content", فرحان as "happy", and pairing
+     مبسوط with "happy" marked wrong — though مبسوط means happy too. */
+  const written = /** @type {Record<string, string[]>} */ ({ k: ["Happy", "Content", "Pleased"] });
+  const meaningsOf = (/** @type {{id: string, en: string}} */ w) => written[w.id] || [w.en];
+  const mabsut = word("k", "مبسوط", "Content");
+  const farhan = word("f", "فرحان", "happy");
+  const { grids } = matchGroups({ wanting: [mabsut], spares: [farhan, ...words(4, "s")], textOf, meaningOf, meaningsOf });
+  assert.ok(!ids(grids[0]).includes("f"), "a spare sharing a meaning was dealt beside it");
+  const grid = matchSet({ answers: [mabsut, word("b"), word("c")], pool: [farhan, ...words(4, "p")], seed: "x", textOf, meaningOf, meaningsOf });
+  assert.ok(!grid.meanings.includes("happy"), "a spare meaning the word also accepts was drawn");
+  /* And a word dealt beside it anyway is asked another time, not marked wrong. */
+  const asked = matchSet({ answers: [mabsut, farhan, word("c")], pool: words(4, "p"), seed: "x", textOf, meaningOf, meaningsOf });
+  assert.ok(!ids(asked.words).includes("f"));
+});
+
+test("two forms of one card dealt together anyway are not both put up", () => {
+  const familyOf = (/** @type {{id: string}} */ w) => (w.id === "m" || w.id === "f" ? "k1" : w.id);
+  const grid = matchSet({ answers: [word("m", "مبسوط", "Content"), word("f", "مَبسوطة", "Happy"), word("c")], pool: words(4, "p"), seed: "x", textOf, meaningOf, familyOf });
+  assert.deepEqual(ids(grid.words).sort(), ["c", "m"]);
+});
+
 test("a word with nothing written on one side is not asked", () => {
   const { grids, dropped } = matchGroups({
     wanting: [word("a"), word("blank", "كلمة", ""), word("b"), word("c")],

@@ -11,6 +11,7 @@ tests/.session-build/
 # Documents written by the server when DATA_DIR isn't set.
 data/
 tests/.offline-build/
+tests/.meanings-build/
 tests/.pace-build/
 tests/.forecast-build/
 tests/.facts-build/
@@ -24,3 +25,4 @@ tests/.review-build/
 tests/.blank-pools-build/
 tests/.session-fill-build/
 tests/.backup-build/
+tests/.counted-faces-build/

@@ -168,7 +168,7 @@ const ALLOWED_SCRIPT = {
      card with a name of its own is named instead of. */
   gallery: ["كِتَاب", "كُتُب", "أكل"],
   /* Examples of what each element holds, which are the point of the list. */
-  "screen-elements": ["كِتاب", "الكتاب كبير", "كُتُب", "السَّلامُ عَلَيْكُم", "٤٧", "٠١٢٣٤٥٦٧٨٩"],
+  "screen-elements": ["كِتاب", "الكتاب كبير", "كُتُب", "السَّلامُ عَلَيْكُم", "٤٧", "٠١٢٣٤٥٦٧٨٩", "أنا بالشغل"],
   /* Specimens of each text style, on the admin screen that lists them. */
   "text-styles": ["كِتَاب", "الكِتَاب كَبِير", "اسْمِي لَيْلَى وَأَنَا مِن فِلَسْطِين"],
 };
@@ -250,8 +250,9 @@ test("a composer is reached through the registry, never by its language's name",
     const bad = [...source.matchAll(/from\s*["']\.\/numbers\/([\w.-]+)\.tsx?["']/g)]
       .map((m) => m[1])
       /* `nouns` reads a teacher's noun cards for the counting questions:
-         word-free, and no composer in it. */
-      .filter((mod) => !["index", "types", "schema", "range", "generate", "nouns"].includes(mod));
+         word-free, and no composer in it. `spans` names runs of the
+         stretches, which are the same in every language. */
+      .filter((mod) => !["index", "types", "schema", "range", "generate", "nouns", "spans"].includes(mod));
     assert.deepEqual(
       bad,
       [],

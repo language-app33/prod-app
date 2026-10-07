@@ -40,7 +40,7 @@ const str = (x: unknown): string => (x == null ? "" : String(x).trim());
 const firstOf = (x: unknown): string => (splitAlternatives(str(x))[0] || "").trim();
 
 /** Why a noun card is not counted, said the way the number screen says it. */
-export type NounGap = "singular" | "plural" | "gender";
+export type NounGap = "singular" | "plural" | "plural-english" | "gender";
 
 export interface ReadNoun {
   /** The card's id, which is also the noun's. */
@@ -115,6 +115,10 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
   const missing: NounGap[] = [];
   if (!one) missing.push("singular");
   if (!many) missing.push("plural");
+  /* The English of the plural is the card's to say, and never made up:
+     *10 books* is asked in it. A plural with no meaning written is a
+     plural no counting question can be asked in. */
+  else if (!many.en) missing.push("plural-english");
   if (!sex) missing.push("gender");
   const en = (one && one.en) || firstOf((formsOf(card)[0] || {}).en);
   if (missing.length || !one || !many) return { id, en, missing };
@@ -126,7 +130,8 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
     ...(afterThree ? { plCounted: afterThree.text } : null),
     gender: sex as "m" | "f",
     en,
-    ...(many.en && many.en !== en ? { enPl: many.en } : null),
+    /* As written, even where it is the singular's own word. */
+    enPl: many.en,
     ...((one.human || human) ? { human: one.human || human } : null),
   };
   return { id, en, noun, missing: [] };

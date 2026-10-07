@@ -192,6 +192,19 @@ test("Punctuation is never what an answer is marked on, curly or straight", () =
   assert.equal(checkViet("“xin chào”", "xin chào", { tones: "either" }).ok, true);
 });
 
+test("English: a comma inside a meaning is part of it, not a break between meanings", () => {
+  /* Reported by a learner, three times: the whole sentence was marked
+     wrong, with or without its comma, and half of it was marked right. */
+  const m = "He's cold, he wants a jacket / He's cold, he needs a jacket / He is cold, he wants a jacket / He is cold, he needs a jacket";
+  assert.deepEqual(checkEn("He is cold, he wants a jacket ", m), { ok: true, reason: "exact" });
+  assert.deepEqual(checkEn("He is cold he wants a jacket ", m), { ok: true, reason: "exact" });
+  assert.deepEqual(checkEn("He's cold, he needs a jacket", m), { ok: true, reason: "exact" });
+  assert.equal(checkEn("He is cold", m).ok, false);
+  assert.equal(checkEn("he needs a jacket", m).ok, false);
+  /* The other person is still the other person. */
+  assert.equal(checkEn("She is cold, she wants a jacket", m).ok, false);
+});
+
 test("English: a different word in one place is wrong, not a near miss", () => {
   /* Reported by a learner, twice: "their" for "your" was marked as the
      right word, not quite spelt. */
@@ -258,10 +271,15 @@ test("a pair is a number a language may count", () => {
   /* Arabic and Hebrew both do, and the app could not say it: a noun's
      dual had nowhere to live, which is why a counting question draws its
      nouns from a list written by hand rather than off the cards. */
-  assert.deepEqual(GRAMMAR.number.options.map(([v]) => v), ["singular", "plural", "dual", "na"]);
+  assert.deepEqual(GRAMMAR.number.options.map(([v]) => v), ["singular", "dual", "plural", "na"]);
   assert.equal(dimValues({ number: "dual" }).number, "dual");
   assert.equal(normDimValue(GRAMMAR.number, "dual"), "dual");
   assert.equal(normDimValue(GRAMMAR.number, "du"), "dual");
+  /* Moved ahead of the plural in 0.401; what a stored or typed value
+     means does not depend on where it sits. */
+  for (const [given, means] of [["pl", "plural"], ["p", "plural"], ["pl.", "plural"], ["plurals", "plural"], ["d", "dual"], ["s", "singular"], ["sg", "singular"]]) {
+    assert.equal(normDimValue(GRAMMAR.number, given), means, given);
+  }
   /* And it is offered only where somebody counts in pairs: Huế declares
      no number at all, so nobody there is asked a question about a dual. */
   assert.ok(!LANGUAGES["vi-Hue"].grammar.includes("number"));
@@ -332,13 +350,15 @@ test("every exercise that stands a card beside other cards asks for company", ()
      whose words change cannot be one of them — offers.ts reads that off
      this need rather than naming the three. */
   assert.deepEqual(TYPES.filter((t) => EX[t].needs.includes("mates")).sort(),
-    ["ar2pick", "en2pick", "img2pick", "match"]);
+    ["ar2pick", "en2pick", "img2pick", "match", "recmatch"]);
 });
 
 /* --- listening exercises --- */
 
-test("the listening exercises are exactly the ones prompted by audio", () => {
-  const byPrompt = TYPES.filter((t) => EX[t].promptField === "audio");
+test("the listening exercises are exactly the ones prompted by audio, or made of it", () => {
+  /* The grid of recordings plays nothing above it — each tile is a sound —
+     and is no more answerable in silence than a question that does. */
+  const byPrompt = TYPES.filter((t) => EX[t].promptField === "audio" || EX[t].tiles === "audio");
   const byHelper = TYPES.filter(isListening);
   assert.deepEqual(byHelper, byPrompt);
   /* Named so that adding another needs no second edit — but the ones that
@@ -347,7 +367,7 @@ test("the listening exercises are exactly the ones prompted by audio", () => {
      and the "can't listen right now" button all picked it up unprompted,
      which is what deriving this from the prompt rather than a flag buys. */
   assert.deepEqual(byHelper, [
-    "rec2en", "rec2img", "rec2ar", "rec2attr", "rec2ctx",
+    "rec2en", "rec2img", "recmatch", "recfig", "recown", "rec2ar", "rec2attr", "rec2ctx",
     /* And the two that play a number or a time. They were picked up by
        the quiet window and the "can't listen right now" button without
        being told, which is what deriving this from the prompt buys. */
@@ -464,7 +484,7 @@ test("and so it is offered to fill the blank that means any word", () => {
      kind, and a card that reads as a word answers to `{{word}}`. */
   const vi = LANGUAGES["vi-HUE"];
   const thanks = { id: "x", lang: "vi-HUE", category: "noun", forms: [{ id: "x", ar: "cảm ơn", en: "thanks", lat: "" }] };
-  assert.deepEqual(fillsOf(thanks, kindOf(thanks, vi)).sort(), ["noun", "word"]);
+  assert.deepEqual(fillsOf(thanks, kindOf(thanks, vi)).sort(), ["is-noun", "noun", "noun-is", "word"]);
 });
 
 /* --- finding a word inside a phrase ---
@@ -638,7 +658,7 @@ test("the gentle types are read off the definitions, not kept beside them", () =
      recognising what a word means, then which word it is. Every one of
      them puts the answer on the screen — nothing here is written out. */
   assert.deepEqual(EASY_TYPES, [
-    "ar2pick", "ar2en", "rec2en", "rec2img", "match", "en2pick", "img2pick", "ctx2pick", "dlgwhole",
+    "ar2pick", "ar2en", "rec2en", "rec2img", "match", "recmatch", "recfig", "recown", "en2pick", "img2pick", "ctx2pick", "dlgwhole",
     /* Reading a number or a time and saying what it is, and picking one
        out of four, are recognition in exactly the sense the six above
        are: the answer is on the screen and nothing is written out. */
@@ -984,9 +1004,13 @@ test("a demonstrative agrees the way an adjective does, and is a subtype of its 
   assert.equal(agreementOf(ar, "demonstrative"), agreementOf(ar, "adjective"));
   assert.ok(agreementOf(LANGUAGES["he-IL"], "demonstrative"), "Hebrew's זה and זאת agree too");
   assert.equal(agreementOf(LANGUAGES["vi-Hue"], "demonstrative"), null, "nothing agrees in Huế");
-  /* Its forms wait for the sentence to pick one, like an adjective's. */
-  assert.equal(lendsForm(ar, { category: "demonstrative" })({ row: "agreement" }), false);
-  assert.equal(lendsForm(ar, { category: "demonstrative" })({}), true);
+  /* Its forms wait for the sentence to pick one, like an adjective's,
+     unless the blank was linked to nothing — see blankAdmits. */
+  const admits = blankAdmits(ar, () => [], () => true);
+  assert.equal(admits({ category: "demonstrative" }, { row: "agreement" }, "this"), false);
+  assert.equal(admits({ category: "demonstrative" }, {}, "this"), true);
+  const alone = blankAdmits(ar, () => [], () => false, () => true);
+  assert.equal(alone({ category: "demonstrative" }, { row: "agreement" }, "this"), true);
 });
 
 test("and which kinds of word a sentence can ask for a tense of", () => {
@@ -1088,12 +1112,22 @@ test("an adjective's shapes say which they are: gender, plural and dual", () => 
   assert.equal(labelFor(cell("feminine"), LANGUAGES["vi-Hue"]), "");
 });
 
-test("an agreeing card lends its own word only, and every other card lends every form", () => {
+test("an agreeing card stands in a blank as its own word, unless the blank is linked to nothing", () => {
   const ar = LANGUAGES["ar-PS"];
   const lendsBig = lendsForm(ar, { category: "adjective" });
-  assert.equal(lendsBig({ ar: "كبير" }), true, "the word");
-  assert.equal(lendsBig({ ar: "كبيرة", row: "agreement", col: "feminine" }), false, "not a form the sentence picks");
-  assert.equal(lendsBig({ ar: "كبيرين", row: "" }), true, "a plain extra form still lends");
+  assert.equal(lendsBig({ ar: "كبيرة", row: "agreement", col: "feminine" }), true, "every card lends its whole table");
+  const big = { category: "adjective", forms: [
+    { id: "big", ar: "كبير" },
+    { id: "big-m", ar: "كبير", row: "agreement", col: "masculine" },
+    { id: "big-f", ar: "كبيرة", row: "agreement", col: "feminine" },
+  ] };
+  const [own, m, f] = big.forms;
+  const usual = blankAdmits(ar, () => []);
+  assert.equal(usual(big, own, "adjective"), true, "the word");
+  assert.equal(usual(big, f, "adjective"), false, "not a form the sentence picks");
+  assert.equal(usual(big, { ar: "كبيرين", row: "" }, "adjective"), true, "a plain extra form still lends");
+  const alone = blankAdmits(ar, () => [], () => false, () => true);
+  assert.deepEqual([own, m, f].map((x) => alone(big, x, "adjective")), [false, true, true], "every form, the masculine once");
   const lendsBook = lendsForm(ar, { category: "noun" });
   assert.equal(lendsBook({ ar: "كتابي", row: "attached", col: "me" }), true, "the pronouns pick nothing, so they lend");
   assert.equal(lendsForm(ar, { category: "" })({ row: "agreement" }), true, "a card that says nothing lends everything");
@@ -1229,16 +1263,18 @@ test("each pack offers only the grammar its language has", () => {
   }
   /* Arabic has a plural a few nouns take only after three to ten — days,
      months — and Hebrew has none. */
-  assert.deepEqual(values("ar-PS", "number"), ["singular", "plural", "counted", "dual", "na"]);
-  assert.deepEqual(values("he-IL", "number"), ["singular", "plural", "dual", "na"]);
+  assert.deepEqual(values("ar-PS", "number"), ["singular", "dual", "plural", "counted", "na"]);
+  assert.deepEqual(values("he-IL", "number"), ["singular", "dual", "plural", "na"]);
   /* It is a noun's, and offered on nothing else that is asked its number. */
   const offered = (/** @type {string} */ kind) =>
     must(dimsFor(LANGUAGES["ar-PS"], kind).find((d) => d.field === "number"), kind).options.map(([v]) => v);
   assert.ok(offered("noun").includes("counted"));
   for (const kind of ["pronoun", "person", "place", "name"]) {
-    assert.deepEqual(offered(kind), ["singular", "plural", "dual", "na"], kind);
+    assert.deepEqual(offered(kind), ["singular", "dual", "plural", "na"], kind);
   }
-  assert.equal(labelFor({ number: "counted", gender: "masculine" }, LANGUAGES["ar-PS"]), "pl. 3–10 m.");
+  /* Not "pl. 3–10": beside "pl." that reads as the plural for three to
+     ten, and "pl." as the one above ten, which is the singular. */
+  assert.equal(labelFor({ number: "counted", gender: "masculine" }, LANGUAGES["ar-PS"]), "special pl. m.");
   /* And what is stored is never narrowed: a value outside the pack's list
      is still kept, and a tag still reads it. */
   assert.equal(dimValues({ gender: "neutral" }).gender, "neutral");

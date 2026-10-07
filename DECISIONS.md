@@ -4569,7 +4569,8 @@ three to ten that they have nowhere else — خمس تيام beside أيام, ت
 is heard as the start of a special plural, and where it is written in
 Arabic script it is written on the noun. Some textbooks transcribe it on
 the numeral in Latin letters (*ḫamest‿iyyām*), which is the same sound. So
-it is a box on the noun's card, *Plural after 3 to 10*, Arabic only and
+it is a box on the noun's card, *Special plural after 3–10 (days,
+months)* — *Plural after 3 to 10* until 0.399, see the note below — Arabic only and
 offered on nouns only (`GrammarDim.optionRules`), read by counting as
 `CountedNoun.plCounted` and used for three to ten alone. A form in it
 starts out of practice and out of sentences: it is said inside a counted
@@ -4586,6 +4587,26 @@ box, which was weighed and left out until someone asks.
 
 **Revisit if** a teacher asks for خمست أيام spelt that way, or for a
 counted phrase to accept more than one spelling.
+
+**Renamed in 0.399.** The owner read the four boxes — Singular, Plural,
+Plural after 3 to 10, Dual — as four ways of counting, which left the
+plain plural to be the one above ten, and asked why Arabic was not counted
+with the singular there. It is; the names said otherwise. A noun's boxes
+start folded where they are empty, which this one nearly always is, so the
+line under it that says which nouns want it was never read. The box is
+now *Special plural after 3–10 (days, months)*, from `optionRules.box`,
+since a radio has no room for the example; the radio says *special plural
+after 3–10*, and the abbreviation on tags and narrow rows is *special pl.*
+rather than *pl. 3–10*, which beside *pl.* made the same suggestion. The
+line under the box says what every other noun does instead. Nothing
+stored changes: the value is still `counted`.
+
+**Reordered in 0.401.** The owner asked for the boxes in the order
+singular, dual, plural, special plural — one, two, several, which is also
+the order a number counts them. The boxes follow the axis's options, so
+the options moved, and with them the radios on every kind of word, which
+is wanted: one order wherever number is asked. `normDimValue` does not
+depend on the order, since no two values share their first letters.
 
 ---
 
@@ -5262,7 +5283,9 @@ ten figures said "Write this numeral…", and a number word (ثلاثة, meaning
 "3") said "Write in English", although its answer is marked as a number
 (`numeralMeanings`). Now the written ones all say "Write the number in
 Arabic numerals (123)" and the heard ones "Listen, then write the number
-in Arabic numerals (123)". The two strings are constants, used by
+in Arabic numerals (123)" (since 0.367 both say "Write in Arabic numerals
+(123)": the owner asked for the shorter line, and the play button already
+says to listen). The two strings are constants, used by
 `num2fig`, `dig2fig` and `rec2fig` directly, and by `ar2en` and `rec2en`
 as `figuresInstruction`, which `instructionFor` picks when every meaning
 of the card is a number. Only the line changes: which questions a card
@@ -5316,3 +5339,414 @@ download when the server holds nothing new, would make every trip smaller.
 Both reach into the server and the merge. Fewer trips was the bigger saving
 for the smaller change, and the other is still worth doing if collections
 grow into the thousands.
+
+---
+
+## The numeral pad's figures are shuffled per question
+
+**6 October 2026** · `NumeralPad` and its `deal` prop in `src/ArabicTrainer.tsx`
+
+In counting order, the phone-keypad layout of 0.366 gave the answer away:
+the fourth key was ٤, so a learner could write ٤ by position without
+recognising it. The twelve-key shape stays; which figure is on which of
+the ten figure keys is shuffled with the app's one `shuffle`, memoised on
+the question number (`qi`) so the keys do not move while the learner is
+typing. The cost is the phone-dialler familiarity 0.366 argued for, which
+the owner judged less important than having to read each figure. A
+keyboard that has the figures still types them directly.
+
+---
+
+## Practice can no longer only cost: one slip keeps the passes, and cleared opens what is next
+
+**6 October 2026** · `markedState` in `src/grade.ts`; `knownCard`, `cardStandings`, `stretchOpen`, `stretchCleared`, `wordsCleared` and `quietRows` in `src/ArabicTrainer.tsx`
+
+The owner practises numbers only, in a custom session, gets nearly
+everything right, and was stuck on 0 to 9 with the same questions coming
+round. A simulated learner on the golden Arabic system, in that set-up
+(four sittings a day, one answer in twelve wrong), showed why: 0 to 9
+reached Cleared in about a week and was still there after three, waiting
+on more cards in week three than in week two. Three rules made that, and
+each changes here.
+
+**One miss keeps the passes; two running take them.** A wrong answer put
+a card's passes back to nought. Practice before a card is due can never
+make a pass (`cameRound`), so every extra sitting could take passes and
+never give them, and a small set drilled all day lost them faster than the
+calendar handed them back: half the answers in the simulation were early,
+four in five in Ultimate. The ladder forgives one miss and shuts a level
+on two (`missedTwice`); the passes now follow the same line.
+
+**A number part is held at Cleared on its words being cleared, not
+learnt.** 0.324 and 0.363 held it until every word and all ten figures
+were learnt, which for 0 to 9 is twenty cards with their passes made at
+the same moment, with any slip taking one back. Each word still has its
+own way to learnt and the Numbers section still counts them by it; the
+part asks that they are known. `partsOf` and `numeralsOf` carry `known`
+beside `validated`, and steering still reads `validated`.
+
+**A stretch opens when the one below is through: its own questions
+cleared, or every word it is built from cleared, whichever comes first.**
+The stretch's own questions were the only way. A stretch shares its
+session with every word it is built from, so it is about one question in
+thirty and its questions alone held the next stretch shut for days, and
+shut it again when the ten figures added two questions to it. Words alone
+were tried first and measured slower: a stretch asks only numbers whose
+words are cleared, so it often clears before the last spelling of the
+last word does, and 10 to 19 opened on day 6 to 12 instead of 4 to 7.
+Either way through, as the front door's `throughDoor` does, is never
+slower.
+
+**A verb's next tense opens on the one above being cleared, not
+mastered.** Mastered is a four-day gap on every cell, which no practice
+brings forward. The owner asked for "cleared opens what is next" in
+general, and this was the other place a wait was on time rather than on
+work. Pronoun cells already open on their word reaching level two.
+
+**Measured.** Six seeded runs each, custom Regular, 0 to 9 and 10 to 19,
+four sittings a day, 8% wrong, 21 days: 0 to 9 learnt in 4 of 6 (none
+before), the rest waiting on one word (3 to 8 before); 10 to 19 opened
+on the same day as before. Ultimate: 1 of 6 learnt and the rest waiting
+on one or two (14 to 17 before). The simulation is not a test in the
+suite; the rules each have one.
+
+**What it costs.** Learnt is easier to reach: a card with a single slip
+in its passes still gets there, and a number part is learnt with some of
+its words still making their own reviews. The past tense of a verb can
+come the same week as its present. The deck estimate (`workloadOf`)
+already counted passes owed and nothing it restates changed.
+
+**Revisit if** learners report cards marked learnt that they do not know:
+the first thing to look at is a miss that is not followed by a second.
+
+## A comma in a meaning is part of it, when marking too
+
+A learner reported three times that "He is cold, he wants a jacket"
+(k5b6526eedb99, بردان بده جاكيت) was marked wrong, typed out in full with
+or without the comma. `checkEn` split the expected English on `/`, `;`
+and `,`, so the meaning became "He is cold" and "he wants a jacket" plus
+the whole field with every alternative in it: the full sentence matched
+nothing, and either half was marked right.
+
+**Now.** `checkEn` splits on a slash or semicolon only, as `readAlike`,
+`meaningsOf` and the other checkers already did. `normEn` drops the comma,
+so the phrase is right with or without it. The comma split had been kept
+on purpose, as generosity to a hand-written card listing two meanings with
+a comma; the owner chose the slash as the only separator.
+
+**What it costs.** A card written "big, large" no longer accepts "big"
+alone. It wants a slash. The transliteration check still splits on a
+comma; nothing has been reported there, and it was left as it was.
+
+## A prep can aim at Cleared, and the deck picker moved to shared
+
+**6 October 2026** · `src/ArabicTrainer.tsx` (`PrepTarget`, `workloadOf`,
+`climbOf`, `towardsLearnt`'s `reach`), `src/shared.tsx` (`DeckSwitch`,
+`PickSheet`)
+
+The owner asked for a prep to aim at Cleared as well as Learnt, with the
+home tile's numbers following. The target is on the prep, defaulting to
+Learnt so a saved prep means what it meant. One number decides "far
+enough" everywhere (`reached`), so the tile's ring, its sessions a day,
+the forecast on the prep screen and whether the prep is done cannot
+disagree. Aiming at Cleared drops the passes from the work and puts the
+floor at `CLEAR_DAYS` (twice that for a card whose words come first)
+rather than `LEARN_DAYS` — the same measured figures, not new ones; the
+estimate is no better checked than the Learnt one was.
+
+The prep's decks are chosen with the card editor's `DeckSwitch`, as
+asked. It and `PickSheet` moved from `card-editor.tsx` to `shared.tsx`
+rather than the trainer importing the card editor, which loads on its own
+and would otherwise be pulled into every student's first load. The
+picker's sentences, which spoke of putting a card in a deck, became
+overridable (`words`).
+
+## Numbers are followed through their decks, waiting ones included
+
+**6 October 2026** · `src/ArabicTrainer.tsx` (`DeckScreen`, `workloadOf`)
+
+The owner asked for the Numbers section on Progress to go: a deck that
+holds numbers is the place to follow them. Its word-by-word view went with
+it. The deck tile already counted a number waiting on its stretch (see
+`towardsLearnt`), but the deck's own screen and `workloadOf` read only
+`laddered`, so they left those out: the screen listed the parts being
+worked on and none of the rest, and the forecast and a prep's sessions a
+day counted no work for them. Both now read a waiting card through
+`ladderedOnceOpen`, as the percentages do. On the deck screen it is listed
+last, under "Opens later". In the forecast it carries its whole ladder,
+with the floor of a card whose building blocks come first
+(`CLEAR_DAYS + LEARN_DAYS`) — a stand-in, not a measurement.
+
+## Matching recordings is the word grid with sounds on its tiles
+
+**6 October 2026** · `src/languages.ts` (`recmatch`, `isGrid`,
+`isListening`), `src/ArabicTrainer.tsx` (`MatchGrid`, `withGrids`,
+`gridFor`), `src/offers.ts` (`heard`)
+
+The owner asked for a matching exercise with recordings on the left and
+words in the script on the right, and set two things against the proposal
+that came before it: five pairs, not three or four, and tiles that look
+and behave exactly as the word grid's do — the empty circle, the numbers,
+and a tap on a paired tile freeing it, which on a sound tile means that
+hearing it again frees it too. So it is the grid with a flag on it rather
+than an exercise of its own: one `MatchGrid`, one dealing (`withGrids`,
+now per kind of grid), one marking. The play icon is drawn inside the tile
+rather than being a button, because the tile is the button and one inside
+another is not allowed; one player serves the whole grid so a second tile
+stops the first.
+
+It stands on level 2, beside the word grid. **What that costs:** a card
+with a recording now has one more question to pass before level 3 opens,
+and a card already past level 2 has it to answer too — the same price the
+picture exercises charged in 0.244. Cards without a recording are asked
+exactly what they were.
+
+At the same time, "Learn more" and the card's note are gone from under
+every grid. They spoke of the first word only and never said which; the
+owner preferred nothing to five times as much.
+
+## A number blank is a run of stretches
+
+**7 October 2026** · `src/numbers/spans.ts` (`spanTag`, `readSpan`, `spansThrough`, `mixed`), `src/variables.ts` (`fillsOf`, `valuesForTurn`), `src/card-editor.tsx` (`RangeTicks`, `BlankTap`, `renameBlank`)
+
+The blank list offered every stretch's tag, the old tags kept for sentences
+written before the split, and the general `number` and `count` — a dozen
+rows for one question. The owner asked for two rows, Numbers and Counting
+things, and ticks for the stretches, any number of them making one blank.
+
+**Ticks that touch, named bottom to top.** A run is written from its first
+stretch's bottom to its last one's top — `0-99`, `10-999`, `20-plus` — so
+the name reads as what it holds. One stretch is its own tag and all five is
+`number` or `count`, so nothing written before means anything new. Runs
+with a gap were ruled out with the owner: the name would have to list them.
+
+**Nothing is written on the fillers.** `fillsOf` adds the runs a filler's
+own stretch is inside, off the name alone, so a filler carries no more
+`fills` than it did (they are capped at twelve) and a run nobody writes
+costs nothing.
+
+**Stretches in turn, not numbers.** The rotation walks a blank's values in
+order, and they arrive a stretch at a time, so `{{0-99}}` would be ten
+digits before any teen. `mixed` deals the stretches round in turn, the same
+order for the same list, so a count is still a sentence — and each stretch
+comes up about as often as the others, which the owner chose over every
+number equally (eight times in ten 20 to 99).
+
+**Changed by renaming.** Tapping a number pill opens its ticks; the new run
+replaces the old name in every field, and the tenses and agreement said
+about it move with it.
+
+## Eleven digits, and the billions a part of their own
+
+**7 October 2026** · `src/numbers/types.ts` (`NUMBER_CEILING`, `NUMBER_RANGES`), the three composers, `src/numbers/range.ts` (`askFor`)
+
+Check a number read the first seven digits of whatever was typed, so a
+teacher who typed 800,413,901 was shown 8,004,139, said in full, as if
+that were what they had asked. The owner asked for numbers under twelve
+digits to be said as typed, by the check and in what students are asked.
+The ceiling is now 99,999,999,999.
+
+**Why a sixth part rather than a longer fifth.** Up to 999,999,999 is
+said with the words for a million and below: the count in front of
+*million* is just a number under a thousand. Past that needs a word no
+system had: *billion*. A part opens only when everything in it can be
+said, and its probe always includes its top number, so stretching
+"1,000 and over" to eleven digits would have closed it for every
+language until a teacher wrote that word, and taken it away from every
+learner on it. So 1,000 to 999,999,999 keeps its id and stays open.
+1,000,000,000 and over is new, and waits on its words the way any part
+does.
+
+**What it costs.** A part is a stretch drawn evenly, so most questions in
+the thousands part are now nine-digit numbers, where they were mostly
+seven. Because its top changed, every question already drawn from it
+comes back as a different number once. Neither is new in kind: the part
+was already mostly its biggest numbers.
+
+**What a sentence calls it.** A stretch's tag was read off its id, and
+the thousands keep the id `numbers:1000+` so nobody's progress or deck
+loses them. Read that way, its tag and the run of it with the billions
+would both have been `1000-plus`. Tags are now read off a stretch's ends
+(`stretchTag`): the thousands answer to `1000-999999999`, and
+`1000-plus` is the run from 1,000 to the top, which is what a sentence
+written with it before meant. Such a sentence is now filled from the
+billions too.
+
+**The draw.** One draw from the seeded generator is 32 bits, about four
+billion values, and the billions span about a hundred billion. Taken
+alone it would only land on every twenty-third number or so. A range
+wider than one draw takes a second one below it. Every range that fits
+in one draw does exactly what it did, so no other question changes.
+
+**The words in the golden tables.** مليار, מיליארד and tỷ were added to
+the three golden systems so the tests can reach the ceiling. No reviewer
+has read them, and no table row says how a billion should come out. They
+are the tests' words, not the app's: each teacher writes their own.
+
+## A face that counts things is asked with a thing
+
+**7 October 2026** · `src/numbers/generate.ts` (`countedAt`, `faceAsk`),
+`src/offers.ts` (`COUNTED_FACE_TYPES`), `src/ArabicTrainer.tsx`
+(`castFace`, `withFacesWaiting`, `KnownNumbers.face`)
+
+The owner's rule: the counting-things version of a number is never
+practised without a noun. Each such face is asked as a small sentence made
+under the hood — the number and one of the learner's noun cards in the
+shape the number puts it in — and shown to nobody as a card. The owner
+chose: a noun the learner has already cleared in that shape (the bar every
+building block meets), a different noun each time round, nothing asked
+while no noun fits, and the progress earned on the bare face kept.
+
+Which faces count is read off the composer, not declared: a face counts
+wherever rendering a number with a noun reaches for it (probed with a
+stand-in noun of each gender), at its own number, or failing that twenty
+above it — Arabic and Hebrew two's gendered words meet a noun only inside
+22, which the owner agreed is where they are asked. Hebrew's bound three
+to nine before *thousands* is reached for by no noun and is asked as it
+was. The card's own word is never a counting face.
+
+The face stays on its card with its own id, so its schedule is where it
+was: no new item, and nothing to hand on. It is asked only the keys it
+climbed when bare that still make sense for a phrase made fresh each time
+— read it (`ar2en`) and write it (`en2ar`, `own2ar`) — and not the
+recordings, transliterations or grids, since nobody recorded or spelled
+out the phrase whole. The ask is drawn as a range's is, on a seed that
+moves on a right answer; the cast form carries the other words as tokens,
+so the noun is credited the way a counted number credits it, and the
+face's own word is left out of them so it is not marked twice.
+
+A face with no noun to pair with is quiet, as an unopened row is: no
+question, no place among the new words, its schedule kept. And it no
+longer stands among the words whose clearing opens the next stretch,
+since counting never holds a stretch back.
+
+## The play button in the grid of recordings is a target of its own
+
+**7 October 2026** · `src/ArabicTrainer.tsx` (`MatchGrid`), `src/index.css`
+(`.at-matchplay`)
+
+Reverses the 6 October call that a sound tile is one target. The owner
+asked for the play button to be its own tap target, drawn wider than tall:
+it plays and does nothing else, and the rest of the tile picks the tile up,
+pairs it or frees it as a word tile does. Listening along the column to
+find a word should not disturb the pairs already made.
+
+A button cannot hold a button, so a sound tile is a `div` with
+`role="button"`, focusable, taking Enter and Space as a tap; the play
+button stops its click and keys reaching the tile. Word tiles stay plain
+buttons. Pressing play on the tile already playing stops it.
+
+## One card per meaning, and which cards share a side is never stored
+
+**7 October 2026** · `src/meanings.ts`, `src/ArabicTrainer.tsx`
+(`siblingStateOf`, `siblingsAsked`, `availableTypes`, `submit`),
+`src/card-editor.tsx` (`MeaningsBlock`, `CarryAsk`), `src/spaces.tsx`
+(`MeaningSplits`), `src/shared.tsx` (`splitFromHeld`)
+
+The owner wants each meaning learnt, scheduled and put in decks on its
+own, in both directions: one Arabic word with two English meanings (صَبِر:
+cactus, patience) and one English word with two Arabic words (right: صح,
+يمين). Meanings inside one card, sub-cards under a parent word, and a
+dictionary of words and meanings were weighed and turned down: the first
+cannot put a meaning in its own deck without rebuilding decks, the second
+is a new kind of card, the third rebuilds everything. A card is already
+one schedule and one set of decks, so a card is one meaning.
+
+**Linked by what they say, not by a stored link.** Two cards *collide*
+when the side a question shows reads the same: the word (script,
+transliteration, recording) or one accepted meaning. Nothing on a card
+names its siblings. The owner intends to teach from languages other than
+English later, and on the meaning side whether two cards collide depends
+on the learner's language — right collides in English and not in French
+(juste, droite) — so a stored link would be wrong for one of them, and
+stale after any edit. The index is built from the learner's own cards,
+so a sibling they don't study changes nothing. Vowel marks and tones are
+kept when comparing words: صَبْر and صَبِر can be told apart on screen.
+
+**What a collision does.** A typed question gets a line under the prompt,
+in the spot the form tag uses: the card's `clue`, else "not <the other
+card's answer>" (the owner's pick over saying nothing). The other card's
+answer is asked again unmarked, as often as it is given. A pick question
+drops the sibling's units from its pool instead and says nothing. A
+sibling answered the same way (both صَبِر read *sabir*) is no ambiguity
+and is ignored. Matching grids needed nothing: they already keep two
+tiles reading alike apart, which is exactly a collision.
+
+**Reading and spelling are asked once.** Questions that show and want the
+target language (`onlyAboutWord`) are about the word, not the meaning.
+Among cards sharing a word, the one made first (then lowest id) keeps
+them; the others drop them in `availableTypes`.
+
+**Teachers.** "Another meaning of this word" saves the card and opens a copy
+with every form, spelling and recording kept, every meaning emptied, and
+no ID, clue, pictures or decks: the owner picked "no deck" so a meaning is
+placed on purpose. "Another word for this meaning" opens a card with the
+meaning only. The editor is keyed on an `opened` stamp so it remounts for
+the next card. A change to the spelling, transliteration or recordings of
+a form that another card still has identically (the card's own word by
+place, other forms by name, which is how a copy lines up) asks whether to
+carry it; empty and missing count as the same.
+
+**Splitting** narrows each form whose meaning count matches the card's own
+word, keeps pictures on the first card only, puts the new cards in the
+same decks, and stamps them `splitFrom`. A learner's device seeds a newly
+arrived card from the card it was split from, form by form, and only into
+forms with no progress of their own. `splitFrom` and `together` are only
+ever set by a save that sends them, never cleared by one that does not.
+
+**Cost.** The word is stored on every meaning's card. A verb's second
+meaning means writing its English again for every cell. Word counts go up
+by one per meaning. The learning language is named in one constant,
+`LEARNING_LANGUAGE`, for the day it is not English.
+
+## In and at: بالشغل is taught, and every everyday spelling counts
+
+**7 October 2026** · `checkArPS`, `checkTrPS`, `arInAtSpellings`, `trInAtSpellings`, `taughtInAt`, `alsoAcceptedInAt` and `meansPlace` in `src/languages.ts`; `taughtForm` and `castTaught` in `src/ArabicTrainer.tsx`; `AskedScript` in `src/shared.tsx`
+
+Palestinian says "at work" as بالشغل more often than في الشغل, says both
+with the article swallowed (biš-šuġl, fiš-šuġl), and writes the second as
+فالشغل about as often as in full. The owner asked that all of this be
+accounted for, that بالشغل be the form taught wherever a question shows the
+Arabic, and that في still count, with a note giving the everyday form.
+
+**Marking.** The pack's checker tries the card's forms, then the other
+ways of writing its في and بـ. فالـ for في الـ is spelling and is accepted
+everywhere, dictation included. بـ for في, and back, is a different word,
+so it waits on the card's English: بـ is also "by" and "with", and في is
+also "there is". Where the English reads as a place, the swap is made; في
+before the article goes to بـ unless the English says otherwise; a heard
+question never swaps. فالـ on a card is not read as في, because it is just
+as often ف ("so") on the article.
+
+**What is shown.** `castTaught` rewrites في الـ to بالـ on the question
+(and on the tiles beside it) where the English is a place, and keeps the
+card's wording as `taughtFrom`, which checkAnswer adds to the accepted
+answers. Not on a heard question and not on a card with a recording,
+because text that disagrees with the voice next to it teaches neither.
+Only before the article: في بيتي and ببيتي are both everyday.
+
+**The teacher's lists.** Examples and the review show the taught form, and
+an "Also accepted" line underneath. Review fingerprints are still taken of
+the card's own words. The taught form is a fixed function of them, so an
+approval still covers exactly what the student sees, and no sentence
+already approved has to be approved again.
+
+**What it costs.** "A place" is read off the English, which is a guess. A
+card whose English doesn't say "in", "at" or "on" is shown as written and
+not swapped. That is the cautious side of the guess.
+
+## A counted noun's English is the card's, never made up
+
+**8 October 2026** · `src/numbers/range.ts` (`englishFor`),
+`src/numbers/nouns.ts` (`readNounCard`, the `plural-english` gap)
+
+The English a counted phrase is asked in used to guess a plural by
+putting *s* or *es* on the singular wherever the plural box said nothing,
+or said the same as the singular. A card whose singular read *Books*
+came out *10 Bookses*, and 0.397 only patched the guess. The owner's
+rule: plurals come from the cards alone. So a noun whose plural has no
+English is not counted, and the numbers screen names the gap; a plural's
+English is used as written, even the singular's own word. The one choice
+left to the app is which of the two the English takes: the singular for
+one, the plural for every other count, whatever the language's own noun
+does after eleven.
