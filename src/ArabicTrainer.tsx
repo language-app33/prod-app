@@ -279,6 +279,7 @@ import {
   answersOf,
   firstOfEach,
   meaningForTurn,
+  meaningsOf,
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
@@ -2716,7 +2717,11 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
  * not move: the answer is still the word, and every spelling of it still
  * counts.
  */
-function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
+function castMeaning(
+  resolved: { unit: Form, parent: Item, isSub: boolean } | null,
+  type: string,
+  exercise?: Question,
+) {
   if (!resolved) return resolved;
   const spec = specOf(type);
   /* Where the meaning is the question, and where it is the answer: a card
@@ -2733,7 +2738,7 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
     return resolved;
   }
   const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
-  const one = meaningForTurn(resolved.unit, seen);
+  const one = sentenceMeaning(resolved.unit, exercise) || meaningForTurn(resolved.unit, seen);
   /* Nothing to narrow: one meaning, or none written at all — in which case
      this exercise was never offered, and the card is left exactly as it is
      rather than having its one empty field rewritten. */
@@ -2744,6 +2749,28 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
     unit,
     parent: resolved.isSub ? resolved.parent : withLead(resolved.parent, unit),
   };
+}
+
+/*
+ * Which meaning a filled sentence shows, drawn at random for each asking.
+ *
+ * تعبان اليوم means *I am*, *you are* and *he is tired today* — see
+ * ADJECTIVE_IS_SLOT. Rotated by right answers, as a word's meanings are,
+ * a sentence new to the learner showed *I am* every time until it had been
+ * got right, which read as the only person the sentence was ever about.
+ * Drawn once per question rather than per render, so the meaning on screen
+ * does not change under the learner; a missed sentence is queued again as
+ * a new question and draws again. "" for anything that is not a filled
+ * sentence, or has one meaning, which is left to meaningForTurn.
+ */
+const MEANING_DRAWS: WeakMap<Question, number> = new WeakMap();
+function sentenceMeaning(unit: Form, exercise?: Question): string {
+  if (!exercise || !(unit as Record<string, any>).filled) return "";
+  const list = meaningsOf(unit);
+  if (list.length < 2) return "";
+  let draw = MEANING_DRAWS.get(exercise);
+  if (draw === undefined) MEANING_DRAWS.set(exercise, (draw = Math.random()));
+  return list[Math.min(list.length - 1, Math.floor(draw * list.length))];
 }
 
 /*
@@ -5289,7 +5316,7 @@ export function tokenCards(
  */
 export function resolveQuestion(asking: Item[], exercise: Question, trial: boolean, systems: SystemSet[]) {
   return castRange(
-    castMeaning(castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type), exercise.type),
+    castMeaning(castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type), exercise.type, exercise),
     exercise,
     systems,
   );

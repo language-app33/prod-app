@@ -654,7 +654,30 @@ export function StickyFoot({ above, children, className }: {
    its transliteration is decided — and which a test can import. Re-exported
    here because this is where the screens look for it. */
 export { splitAlternatives, joinAlternatives } from "./answers.ts";
-import { answersOf, firstOfEach, storedAnswer } from "./answers.ts";
+import { answersOf, firstOfEach, meaningsOf, storedAnswer } from "./answers.ts";
+
+/*
+ * What one listed sentence means, a line for each meaning.
+ *
+ * تعبان اليوم is *I am tired today*, *you are tired today* and *he is
+ * tired today* — see ADJECTIVE_IS_SLOT — and strung along one line with
+ * slashes between them that read as one long sentence whose first words
+ * were "I am". Stacked, each person is a sentence of its own, which is
+ * what a teacher checking them is checking. Shared by the card's examples,
+ * the editor's and the review list, so the three read alike.
+ */
+export function AskedMeanings({ en }: { en?: string | null }) {
+  const list = meaningsOf({ en: en || "" });
+  return (
+    <>
+      {list.map((one, i) => (
+        <span className="at-askedmeans" key={i}>
+          {one}
+        </span>
+      ))}
+    </>
+  );
+}
 
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each
@@ -2382,7 +2405,7 @@ function ReadBlanks({ card, lang, cards }: {
                           </span>
                         ) : null}
                         {line.lat ? <span className="at-askedsaid">{line.lat}</span> : null}
-                        {line.en ? <span className="at-askedmeans">{line.en}</span> : null}
+                        <AskedMeanings en={line.en} />
                       </span>
                     </li>
                   ))}

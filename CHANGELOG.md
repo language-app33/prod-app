@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.382 — 7 October 2026
+
+**"I am tired" sentences show the other persons too.**
+
+- Practising a sentence like تعبان اليوم from English, the person shown
+  is now picked at random each time: *I am tired today*, *you are tired
+  today* or *he is tired today*. Before, a new sentence always showed
+  *I am* until you had got it right, so it looked as if that was all it
+  meant. Any of them is still accepted when turning it into English.
+- In a card's examples, and in the list of sentences to approve, each
+  meaning now has its own line instead of being joined by slashes on one
+  line, which read like a single sentence starting with "I am".
+- Trade-off: other generated sentences with more than one meaning also
+  show one picked at random, rather than repeating the one you missed.
+- To check by hand: open a sentence card with an "I am tired" blank,
+  look at its examples and its review list, then practise it a few times
+  from English.
+
 ## 0.381 — 6 October 2026
 
 **"What is this?" and "what are these?" from one sentence card.**

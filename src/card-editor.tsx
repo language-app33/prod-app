@@ -74,6 +74,7 @@ import {
   Overlay,
   PickSheet,
   DeckSwitch,
+  AskedMeanings,
 } from "./shared.tsx";
 
 /* A blank form carries every grammatical value any language might use, so a
@@ -8184,7 +8185,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                           </span>
                         )}
                         {line.lat && <span className="at-askedsaid">{line.lat}</span>}
-                        {line.en && <span className="at-askedmeans">{line.en}</span>}
+                        <AskedMeanings en={line.en} />
                       </span>
                     </li>
                   ))}

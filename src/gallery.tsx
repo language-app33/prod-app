@@ -215,6 +215,7 @@ const PLACES: Record<string, [string, string]> = {
   NumberSystemEditor: [TEACH, "A language's number system"],
   ReviewLine: [TEACH, "A card · where its sentences stand with review"],
   ReviewScreen: [TEACH, "Reviewing a card's sentences"],
+  SentenceText: [TEACH, "Reviewing a card's sentences · one sentence"],
   OverCeiling: [TEACH, "Reviewing a card's sentences · too many to read"],
   NarrowBlank: [TEACH, "Reviewing a card's sentences · narrowing a blank"],
   ReportsScreen: [TEACH, "Reports from students"],
