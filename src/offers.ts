@@ -71,6 +71,11 @@ export function unmetNeeds(
    * on its left is a play button, so its company has to be heard too.
    */
   heard = 0,
+  /**
+   * The same for a number's grids of recordings: how many other numbers
+   * in this language have a recording and could stand beside it.
+   */
+  heardFigures = 0,
 ): string[] {
   const holes = slotsOf(unit);
   /* The verb's own place in a verb card's sentence is a hole no card
@@ -128,6 +133,8 @@ export function unmetNeeds(
     if (f === "pictured") return pictured < PICK_OPTIONS - 1;
     /* Two more recorded words beside it: the fewest a grid is dealt with. */
     if (f === "heard") return heard < MIN_PAIR_WORDS - 1;
+    if (f === "heardFigures") return heardFigures < MIN_PAIR_WORDS - 1;
+    if (f === "figure") return !isFigureForm(unit);
     if (f === "contexts") return !contexts.length;
     if (f === "contextAudio") return !contexts.some((c) => (c.recs || []).length > 0);
     if (DIALOG_NEEDS.includes(f)) return !dialogNeedMet(f, scene, unit);
@@ -153,6 +160,7 @@ export function canAsk(
     mates?: number;
     pictured?: number;
     heard?: number;
+    heardFigures?: number;
   },
   type: string,
   lang: Lang,
@@ -162,7 +170,7 @@ export function canAsk(
   if ((spec.dialog || "word") !== roleOf(on.unit, on.scene)) return false;
   if (!drilledBy(spec, lang, on.unit)) return false;
   if (askedInstead(spec, on.unit)) return false;
-  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}, on.mates || 0, on.pictured || 0, on.heard || 0).length === 0;
+  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}, on.mates || 0, on.pictured || 0, on.heard || 0, on.heardFigures || 0).length === 0;
 }
 
 /* Whether another exercise asks this one's question of this unit — see
@@ -198,7 +206,24 @@ export interface Offer {
 
 /* What a number system's cards and skills carry and no card a teacher
    writes ever does. */
-const MADE_NOT_WRITTEN = ["numeral", "digit", "rangeNumbers", "rangeCounted", "rangeTime", "rangeFigures"];
+const MADE_NOT_WRITTEN = ["numeral", "figure", "digit", "rangeNumbers", "rangeCounted", "rangeTime", "rangeFigures"];
+
+/* Whether a unit carries one of them. All but one are fields on the form;
+   `figure` is read off it. */
+const carriesMade = (unit: Form, need: string): boolean =>
+  need === "figure" ? isFigureForm(unit) : !!(unit as Record<string, unknown>)[need];
+
+/**
+ * A word of a number system that is one number, so has figures to be
+ * paired with: the card for *forty* ("40"), and not the one for *hundred*
+ * or *and*. Only the system's own cards, which are what say their number
+ * in figures where a card a teacher writes says it in English; and not
+ * the ten figures themselves, which have no word to be heard.
+ */
+export function isFigureForm(unit: Form): boolean {
+  if (!unit || !unit.ar || !String(unit.id || "").startsWith("sys:")) return false;
+  return /^\d{1,3}(,\d{3})*$|^\d+$/.test(String(unit.en || "").trim());
+}
 
 /* What a scene has to have that a text never does. */
 const NEVER_OF_TEXT = ["line", "reply", "choices", "order", "part"];
@@ -216,6 +241,7 @@ export function offersFor({
   matesFor = () => 0,
   picturedFor = () => 0,
   heardFor = () => 0,
+  heardFiguresFor = () => 0,
 }: {
   units: { unit: Form; isSub: boolean; scene?: Placed | null }[];
   lang: Lang;
@@ -228,6 +254,8 @@ export function offersFor({
   picturedFor?: (unit: Form) => number;
   /** How many other cards with a recording could stand in a grid with it. */
   heardFor?: (unit: Form) => number;
+  /** And how many other recorded numbers, for a number's grids of recordings. */
+  heardFiguresFor?: (unit: Form) => number;
 }): Offer[] {
   const known = units.map((u) => ({
     unit: u.unit,
@@ -238,6 +266,7 @@ export function offersFor({
     mates: matesFor(u.unit) || 0,
     pictured: picturedFor(u.unit) || 0,
     heard: heardFor(u.unit) || 0,
+    heardFigures: heardFiguresFor(u.unit) || 0,
   }));
 
   const offers: Offer[] = [];
@@ -257,7 +286,7 @@ export function offersFor({
     /* And the questions only a number system's own cards can carry: what
        they need is made by the app, so a card without it is not waiting for
        anything a teacher could add. */
-    if (spec.needs.some((n) => MADE_NOT_WRITTEN.includes(n) && !fits.some((u) => (u.unit as Record<string, unknown>)[n]))) {
+    if (spec.needs.some((n) => MADE_NOT_WRITTEN.includes(n) && !fits.some((u) => carriesMade(u.unit, n)))) {
       continue;
     }
 
@@ -277,7 +306,7 @@ export function offersFor({
          language gives its script. */
       missing: ready
         ? []
-        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values, on.mates, on.pictured, on.heard).map((f) =>
+        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values, on.mates, on.pictured, on.heard, on.heardFigures).map((f) =>
             needLabel(f, lang)
           ),
     });
