@@ -2045,14 +2045,20 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
  * stops a teacher typing "Name Is!" and being handed "nameis" by a save
  * they have already forgotten about.
  */
-function BlankNameBox({ label, placeholder, taken, onName }: {
+function BlankNameBox({ label, placeholder, taken, onName, value, onType }: {
   label: string;
   placeholder: string;
   /** Names already on this list, which are chosen rather than typed again. */
   taken: string[];
   onName: (name: string) => void;
+  /** What is typed, where the box is also a search and whatever it sits
+      over needs to read it — see TagSheet. Held here otherwise. */
+  value?: string;
+  onType?: (typed: string) => void;
 }) {
-  const [made, setMade] = useState("");
+  const [own, setOwn] = useState("");
+  const made = value ?? own;
+  const setMade = (next: string) => (onType ? onType(next) : setOwn(next));
   const name = made.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24);
   const add = () => {
     if (!name || taken.includes(name)) return;
@@ -7466,8 +7472,9 @@ function IdBox({ word }: { word: WordDraft }) {
 function TagList({ word, rows, maker, full, open, onOpen, onClose }: {
   word: WordDraft;
   rows: { name: string; used: number; wrote: number }[];
-  /** The box that creates a custom tag, drawn at the top of the sheet. */
-  maker?: Node;
+  /** The box that creates a custom tag, drawn at the top of the sheet. It
+      is the sheet's search as well, so the sheet holds what is typed. */
+  maker?: (typed: string, onType: (typed: string) => void) => Node;
   /** Whether the card already carries as many tags as it may. */
   full: boolean;
   open: boolean;
@@ -7554,12 +7561,20 @@ function TagList({ word, rows, maker, full, open, onOpen, onClose }: {
 function TagSheet({ word, rows, maker, full, onClose }: {
   word: WordDraft;
   rows: { name: string; used: number; wrote: number }[];
-  maker?: Node;
+  maker?: (typed: string, onType: (typed: string) => void) => Node;
   full: boolean;
   onClose: () => void;
 }) {
   const { fills, addFill, dropFill, renameFill, nameHeld, askStrip, asking, dropping } = word;
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  /* The box at the top names a new tag and finds an old one: what is typed
+     there narrows the list under it, as the blank screen's box does, so a
+     tag that exists already is found before a second one is made. Only
+     while the box is there — on a full card it is not, and neither is the
+     narrowing. */
+  const [typed, setTyped] = useState("");
+  const find = maker ? slotName(typed) : "";
+  const shown = find ? rows.filter((b) => b.name.includes(find)) : rows;
   /* Escape shuts the sheet — unless it is shutting something inside it
      first: a rename being typed, or one of the two questions. */
   useEffect(() => {
@@ -7590,9 +7605,10 @@ function TagSheet({ word, rows, maker, full, onClose }: {
             <IconButton icon="close" label="Close" onClick={onClose} />
           </div>
           <p className="at-hint">
-            Tick the tags this card should have, or create a new one.
+            Tick the tags this card should have. Type to find one, or to
+            create a new one.
           </p>
-          {maker}
+          {maker && maker(typed, setTyped)}
           {full && (
             <Notice kind="warn">
               That is as many tags as one card may have. Take one off to
@@ -7606,7 +7622,12 @@ function TagSheet({ word, rows, maker, full, onClose }: {
                 somebody.
               </p>
             )}
-            {rows.map((b) => {
+            {rows.length > 0 && !shown.length && (
+              <p className="at-hint">
+                No tag has &ldquo;{find}&rdquo; in its name.
+              </p>
+            )}
+            {shown.map((b) => {
               const on = fills.includes(b.name);
               if (renaming && renaming.from === b.name) {
                 return (
@@ -8379,10 +8400,12 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                  was at the top of the section, over the default tags it
                  has nothing to do with. */
               maker={
-                !holes.length && !full ? (
+                !holes.length && !full ? (typed, onType) => (
                   <BlankNameBox
-                    label="Create a custom tag"
-                    placeholder="A new tag, like colours"
+                    label="Find or create a custom tag"
+                    placeholder="Find a tag, or name a new one"
+                    value={typed}
+                    onType={onType}
                     /* Every name already on the list, the default tags
                        included — a tag called `noun` would be a second
                        thing answering to `{{noun}}` — and every ID a card
@@ -8394,7 +8417,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                       .concat(word.refName ? [word.refName] : [])}
                     onName={addFill}
                   />
-                ) : null
+                ) : undefined
               }
             />
 

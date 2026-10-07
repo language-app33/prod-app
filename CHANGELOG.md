@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.386 — 7 October 2026
+## 0.387 — 7 October 2026
 
 **"My house is" and "my houses are" from one noun blank.**
 
@@ -32,6 +32,18 @@ and moves once per batch of work you would notice, not once per commit.
 - To check by hand: give a noun a plural, put a {{noun-is}} blank in
   "{{noun-is}} big", and see that the examples read "… is big" for the
   singular and "… are big" for the plural.
+
+## 0.386 — 7 October 2026
+
+**Finding a custom tag by typing its name.**
+
+- In the sheet where you add custom tags to a card, the box at the top
+  now also searches. As you type, the list underneath narrows to the tags
+  whose names contain what you typed, so with a long list you can find
+  the tag you want instead of scrolling for it — and see that a tag
+  already exists before making a second one like it.
+- If nothing matches, the sheet says so, and Add still creates a new tag
+  with that name. Clearing the box brings the whole list back.
 
 ## 0.385 — 7 October 2026
 
