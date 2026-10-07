@@ -256,35 +256,35 @@ test("a bigger part lends an even spread of itself, not its first dozen", () => 
   assert.ok(Math.max(...values) - Math.min(...values) > 40, `${values} is bunched up`);
 });
 
-test("a stretch fills a counting blank with a number and a thing, saying which number the thing is", () => {
+test("a stretch fills a counting blank with the number in its counting form, and no noun", () => {
   const sys = withNouns({ ...SYS, nouns: [] }, countedNouns([nounCard("book"), nounCard("girl")], "ar-PS"));
   const counted = (/** @type {string} */ part) =>
     of(fillerCards(arComposer, sys), part).filter((c) => (c.fills || []).includes("count"));
   const made = counted("numbers:0-9");
   assert.ok(made.length > 0);
+  const nouns = [GOLD.book, GOLD.girl].flatMap((n) => [n.sg, n.pl, n.dual]);
   for (const card of made) {
     const form = /** @type {any} */ (card.forms[0]);
-    const n = Number(String(form.en).split(" ")[0]);
+    const n = Number(form.en);
     assert.ok(n >= 1 && n <= 9, `${form.en}: nobody counts nought books`);
+    assert.equal(form.en, String(n), "the number, and no thing beside it");
+    for (const word of nouns) assert.ok(!String(form.ar).split(" ").includes(word), `${form.ar} brings a noun`);
     /* Its own tag and the general one — and the old counting part's tag
        that held this number, so a sentence written with {{count-3-10}}
        is still filled. */
     assert.deepEqual(card.fills, ["count-0-9", n <= 2 ? "count-1-2" : "count-3-10", "count"]);
-    assert.match(form.en, /^\d+ (book|girl)s?$/);
     assert.equal(form.number, n === 1 ? "singular" : n === 2 ? "dual" : "plural", form.en);
-    assert.ok(["masculine", "feminine"].includes(form.gender));
   }
+  /* Three before a noun is not three counted aloud. */
+  const three = made.find((c) => /** @type {any} */ (c.forms[0]).en === "3");
+  const plain = of(fillerCards(arComposer, sys), "numbers:0-9").find((c) => /** @type {any} */ (c.forms[0]).en === "3");
+  assert.ok(three && plain);
+  assert.notEqual(/** @type {any} */ (three.forms[0]).ar, /** @type {any} */ (plain.forms[0]).ar);
   /* Never a plain number's blank, and never a plain number in a counting
      one. */
   assert.ok(made.every((c) => !(c.fills || []).includes("number")));
-  const plain = of(fillerCards(arComposer, sys), "numbers:0-9").filter((c) => !(c.fills || []).includes("count"));
-  assert.ok(plain.length && plain.every((c) => !(c.fills || []).some((/** @type {string} */ t) => t.startsWith("count"))));
-  /* Above twenty, the counted word is the singular again. */
-  for (const card of counted("numbers:20-99")) assert.equal(/** @type {any} */ (card.forms[0]).number, "singular");
-  /* But the English is plural whatever the Arabic counts with: 11 books. */
-  for (const card of [...counted("numbers:10-19"), ...counted("numbers:20-99")]) {
-    assert.match(/** @type {any} */ (card.forms[0]).en, /^\d+ (books|girls)$/);
-  }
+  const plains = of(fillerCards(arComposer, sys), "numbers:0-9").filter((c) => !(c.fills || []).includes("count"));
+  assert.ok(plains.length && plains.every((c) => !(c.fills || []).some((/** @type {string} */ t) => t.startsWith("count"))));
 });
 
 test("a sentence asking for a part's blank is shown the part's numbers on the teacher's screen", () => {
@@ -323,8 +323,16 @@ test("a counting blank with a noun blank after it counts that noun", () => {
   assert.ok(list.some((s) => s.took.noun.card === "book") && list.some((s) => s.took.noun.card === "girl"));
   /* Once per number and noun: the plural and the pair add nothing. */
   assert.equal(new Set(list.map((s) => s.en)).size, list.length);
-  /* With anything between them, the counting blank brings its own thing. */
-  const apart = { ...sentence.forms[0], ar: "عندي {{count-0-9}} و{{noun}}", en: "I have {{count-0-9}} and {{noun}}" };
-  const own = sentencesOf(sentence, apart, pool, lang).list;
-  assert.ok(own.length > 0 && own.every((s) => /^I have \d+ \w+ and \w+/.test(s.en)), own.map((s) => s.en).join(" | "));
+  /* Two books is the dual alone, and still counted. */
+  assert.ok(list.some((s) => s.en === "I have 2 books." && s.ar === `عندي ${GOLD.book.dual}`), list.map((s) => s.en).join(" | "));
+  /* With no noun blank after it, the counting blank brings no noun: the
+     teacher writes it. And two, said only by its noun, is not offered. */
+  const alone = { ...sentence.forms[0], ar: "عندي {{count-0-9}} كتب", en: "I have {{count-0-9}} books" };
+  const own = sentencesOf(sentence, alone, pool, lang).list;
+  assert.ok(own.length > 0);
+  for (const s of own) {
+    assert.match(s.en, /^I have \d+ books$/);
+    assert.notEqual(s.en, "I have 2 books");
+    assert.equal(s.ar.split(" ").filter((w) => w === GOLD.book.pl).length, 1, s.ar);
+  }
 });

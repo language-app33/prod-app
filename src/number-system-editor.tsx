@@ -1419,9 +1419,9 @@ function PartTags({ range, open, counts }: { range: Range; open: boolean; counts
     name === general
       ? "Any number, from any part"
       : name === counting[1]
-        ? "Any number of things, from any part"
+        ? "Any number in its counting form, from any part"
         : name === counting[0]
-          ? `A number and a thing counted, from ${range.label.toLowerCase()}`
+          ? `A number in its counting form, from ${range.label.toLowerCase()}`
           : `A number from ${range.label.toLowerCase()}`;
   return (
     <PartBlock title="Filling blanks" role="How this part can be used to fill blanks in sentence cards">
@@ -1430,12 +1430,12 @@ function PartTags({ range, open, counts }: { range: Range; open: boolean; counts
         <Help>
           Wherever a sentence card has a blank for one of these tags, this part fills it with one of
           its numbers, written out
-          {counting.length ? <>, or for the counting tags with a noun beside it in the form the number calls for</> : null}.
+          {counting.length ? <>, or for the counting tags in the form a number takes before a noun</> : null}.
           {counting.length ? (
             <>
-              {" "}Put a noun blank straight after a counting tag, as in{" "}
+              {" "}A counting tag brings no noun: write the noun yourself. Put a noun blank straight after it, as in{" "}
               <span className="at-blankname">{`{{${counting[0]}}} {{animal}}`}</span>, and the number counts that
-              noun instead: &ldquo;3 dogs&rdquo;.
+              noun, in the form the number calls for: &ldquo;3 dogs&rdquo;.
             </>
           ) : null}
         </Help>

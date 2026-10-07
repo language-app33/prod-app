@@ -45,7 +45,7 @@ import type { Form, Lang } from "./types.ts";
 import { formsOf } from "./cards.ts";
 import { linesOf, pickedFrom } from "./dialogs.ts";
 import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, lendsInto, tensedOf, verbOf } from "./languages.ts";
-import { countedWith } from "./numbers/generate.ts";
+import { countedWith, standsAlone } from "./numbers/generate.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { aboutPerson, besideAdjectives, fillForm, fillsOf, lentBy, readAs, readingOf, readingsOf, refOf, slotsOf, valuesForTurn } from "./variables.ts";
@@ -392,17 +392,19 @@ export function countPairs(part: Held | null | undefined): Record<string, string
  * A counting blank followed by a noun blank, said as one: the number
  * counting the noun the other blank drew.
  *
- * A counting blank is filled with a number *and* a thing — see fillerCards
- * — so "I have {{count-0-9}} {{animal}}" was *I have 3 books dogs*. Where
- * a noun blank stands straight after it, the number counts that noun
- * instead, in the form the number calls for, and the noun blank is said by
- * it: *I have 3 dogs*. The noun blank carries the counted phrase's number
- * and gender, so a word agreeing with it agrees with *dogs*, not *dog*.
+ * A counting blank holds a number in its counting form and nothing else —
+ * see fillerCards — so the thing counted is the teacher's to write. Where
+ * what they wrote after it is a noun blank, the number counts that noun:
+ * "I have {{count-0-9}} {{animal}}" is *I have 3 dogs*, with the noun in
+ * the form the number calls for and the words in the order the language
+ * says them (Arabic's one follows its noun). The noun blank is said by
+ * the counting one, and carries the counted phrase's number and gender, so
+ * a word agreeing with it agrees with *dogs*, not *dog*.
  *
  * Only the noun's own word is taken there — its plural and its pair would
- * make the same sentence again — and a noun that cannot be counted across
- * the number's part is no sentence. A counting blank with anything else
- * after it brings its own thing, as it always has.
+ * make the same sentence again — and a noun that cannot be counted with
+ * the number is no sentence. Nor is a number that is said only through its
+ * noun, Arabic's two, standing anywhere but before a noun blank.
  */
 export function countTook(
   part: Held,
@@ -410,8 +412,8 @@ export function countTook(
   ownerOf: (value: Value) => Owner | null,
 ): Record<string, Value> | null {
   const pairs = countPairs(part);
-  if (!Object.keys(pairs).length) return took;
   const out = { ...took };
+  const counted = new Set<string>();
   for (const [slot, next] of Object.entries(pairs)) {
     const number = took[slot];
     const noun = took[next];
@@ -425,6 +427,12 @@ export function countTook(
     if (!said || refOf(noun) !== nounId) return null;
     out[slot] = { ...number, ar: said.ar, en: said.en, lat: said.lat, grammar: said.grammar, swallows: next };
     out[next] = { ...noun, grammar: { ...(noun.grammar || {}), ...said.grammar } };
+    counted.add(slot);
+  }
+  for (const [slot, value] of Object.entries(took)) {
+    if (counted.has(slot) || !value) continue;
+    const filler = ownerOf(value);
+    if (filler && !standsAlone(String(filler.card.id || ""))) return null;
   }
   return out;
 }
