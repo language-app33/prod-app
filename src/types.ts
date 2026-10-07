@@ -597,6 +597,8 @@ export interface Lang {
    * language, and are named in the exercise table directly.
    */
   numeralsLabel?: string;
+  /** And one of them: "Eastern Arabic numeral". */
+  numeralLabel?: string;
   /**
    * One line a learner should know about them, shown beside the ten — in
    * Arabic, that its speakers call them "Indian numerals".

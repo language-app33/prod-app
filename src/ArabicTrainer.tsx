@@ -249,7 +249,7 @@ import {
 import type { Move, Standing } from "./scheduler.ts";
 import { PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "./chance.ts";
 import { buildContextIndex } from "./context-index.ts";
-import { canAsk } from "./offers.ts";
+import { canAsk, isFigureForm } from "./offers.ts";
 import { isOffline } from "./net.ts";
 import { drainOutbox, keep as keepPending, waiting as waitingToSend } from "./outbox.ts";
 import {
@@ -2231,6 +2231,17 @@ function heardFor(unit: Form, settings?: Settings): number {
   return Math.max(0, (HEARD_COUNTS.get(id) || 0) - own);
 }
 
+/* And the numbers among them — the company a number's grids of
+   recordings need, which is other numbers. Counted under the language
+   with a mark after it, in the same map. */
+const FIGURES_KEY = (id: LangId) => `${id} #`;
+
+function heardFiguresFor(unit: Form, settings?: Settings): number {
+  const id = (unit && unit.lang) || (settings && settings.language) || activeLang().id;
+  const own = unit && (unit.recs || []).length && isFigureForm(unit) ? 1 : 0;
+  return Math.max(0, (HEARD_COUNTS.get(FIGURES_KEY(id) as LangId) || 0) - own);
+}
+
 function countHeard(items: Item[], settings: Settings): Map<LangId, number> {
   const counts: Map<LangId, number> = new Map();
   for (const card of items) {
@@ -2239,6 +2250,10 @@ function countHeard(items: Item[], settings: Settings): Map<LangId, number> {
     for (const { unit } of unitsOf(card)) {
       if (unit.ar && !hasSlots(unit) && (unit.recs || []).length) {
         counts.set(id, (counts.get(id) || 0) + 1);
+        if (isFigureForm(unit)) {
+          const key = FIGURES_KEY(id) as LangId;
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
       }
     }
   }
@@ -3186,7 +3201,7 @@ function availableTypes(
   const values = fillsFor(it, lang.id);
   const types = TYPES.filter((t) =>
     canAsk(
-      { unit: it, scene: at, contexts: contextsFor(it.id), values, mates: matesFor(it), pictured: picturedFor(it), heard: heardFor(it) },
+      { unit: it, scene: at, contexts: contextsFor(it.id), values, mates: matesFor(it), pictured: picturedFor(it), heard: heardFor(it), heardFigures: heardFiguresFor(it) },
       t,
       lang
     ) && (!EX[t].afterNumerals || numeralsKnownFor(it))
@@ -4768,7 +4783,7 @@ function withGrids(
         if (!isDrillable(card, settings) || langIdOf(card, settings) !== lang) continue;
         if (isDialog(card) || hasSlots(card)) continue;
         for (const { unit, isSub } of unitsOf(card)) {
-          if (!unit.ar || (!heard && !unit.en) || mine.has(unit.id)) continue;
+          if (!unit.ar || !gridOther(type, unit) || mine.has(unit.id)) continue;
           /* A word on the left of the grid of recordings is a play button,
              so a spare standing there has to be one that can be heard. */
           if (heard && (!(unit.recs || []).length || !typeAllowedNow(type, unit))) continue;
@@ -4783,9 +4798,9 @@ function withGrids(
         wanting: asked,
         spares: inOrder(spares, (u) => dueRank(statesOf(u)[type].due || 0)),
         textOf: (u) => u.ar,
-        /* What the other column shows: the meaning, or in the grid of
-           recordings the word itself. */
-        meaningOf: (u) => (heard ? u.ar : u.en),
+        /* What the other column shows: the meaning, or in a grid of
+           recordings the word itself or the number in figures. */
+        meaningOf: (u) => gridOther(type, u),
         likeness: (a, b) => wordLikeness(a.ar, b.ar, lg),
         familyOf: (u) => placeOf.get(u.id)?.id || u.id,
       });
@@ -5198,14 +5213,27 @@ export function weakness(s: ExerciseState | null | undefined): number {
  * the grid in the question screen, which is where this is read, and the
  * deck forecast, which marks the same words the screen would.
  */
+/*
+ * What a word stands against on the right of a grid: its meaning, or in a
+ * grid of recordings the word in the script, or the number in figures —
+ * the field the grid is answered in, whichever it is.
+ */
+export function gridOther(type: string, u: Form): string {
+  const field = specOf(type)?.answerField || "en";
+  return String(((u as Record<string, unknown>)[field] as string) || "");
+}
+
 export function gridFor(item: Form, exercise: Question, asking: Item[], settings: Settings, qLang: Lang) {
   /* The grid of recordings: a play button for each word, and the words
      themselves down the other side where the meanings would be. Its
      spare tiles are words, so they need no recording; every word asked
      does. */
   const heard = specOf(exercise.type)?.tiles === "audio";
-  const other = (u: Form) => String((heard ? u.ar : u.en) || "");
-  const fits = (u: Form) => !!u.ar && !!other(u);
+  const other = (u: Form) => gridOther(exercise.type, u);
+  /* A grid of numbers stands numbers beside each other and nothing else:
+     a spare reading "book" among figures is not a spare anybody weighs. */
+  const numbers = !!specOf(exercise.type)?.needs.includes("figure");
+  const fits = (u: Form) => !!u.ar && !!other(u) && (!numbers || isFigureForm(u));
   /* Two units a learner would read as one tile: the same word, or the
      same meaning, after both have been narrowed to the one the question
      shows. matchSet is the gate that refuses them; this is the same
@@ -5988,6 +6016,8 @@ export const GRID_VERDICT = "Not all of them — the right meanings are shown.";
 /* And the grid of recordings, where what is shown under a sound is the
    word it was. */
 export const HEARD_GRID_VERDICT = "Not all of them — the right words are shown.";
+/* And where the right-hand column is numbers rather than words. */
+export const HEARD_NUMBERS_VERDICT = "Not all of them — the right numbers are shown.";
 /* Giving up is not getting it wrong: nothing was offered to be incorrect.
    The answer is simply handed over. */
 export const SKIPPED_VERDICT = "The answer is:";
@@ -6009,7 +6039,9 @@ export function praiseFor(n: number) {
    related words are a short block like the rest. The pronunciation and
    the recording are always the pair, when both are there; the others pair
    up in order, and one left over takes half a row like everything else,
-   so no short block is ever drawn wider than its neighbours. */
+   so no short block is ever drawn wider than its neighbours. That half is
+   the middle one, not the left: a block alone on its row sits centred
+   under the pairs above it rather than leaving a hole beside it. */
 const ALSO_PAIR = ["also-hint", "also-audio"];
 function alsoName(el: any): string {
   return el.type === RelatedWords ? "related-words" : el.props["data-el"] || "";
@@ -6018,7 +6050,11 @@ function AlsoBox({ children }: { children?: Node }) {
   const shown = React.Children.toArray(children).filter(Boolean) as any[];
   if (!shown.length) return null;
   const row = (cells: any[]) => (
-    <div className="at-alsorow" data-el="also-row" key={`row-${cells[0].key}`}>
+    <div
+      className={cells.length === 1 ? "at-alsorow single" : "at-alsorow"}
+      data-el="also-row"
+      key={`row-${cells[0].key}`}
+    >
       {cells}
     </div>
   );
@@ -8262,9 +8298,11 @@ function MatchGrid({
   checked?: boolean;
   /**
    * What the right-hand column is, and so what a word is paired against:
-   * its meaning, or — in the grid of recordings — the word in the script.
+   * its meaning, or — in the grid of recordings — the word in the script,
+   * or the number in the language's own figures. The figures English uses
+   * are `en` on a number's card, and are set as the meanings are.
    */
-  field?: "en" | "ar";
+  field?: "en" | "ar" | "numeral";
   /**
    * Whether the words are heard rather than read: a play button on each
    * tile where the word would be. The tile is otherwise the same tile,
@@ -8451,7 +8489,10 @@ function MatchGrid({
     tapWord(w.id);
   };
   /* What the tile should have been paired with, under one paired wrong. */
-  const wantedOf = (w: Form) => String((field === "ar" ? w.ar : w.en) || "");
+  const wantedOf = (w: Form) => String((w as Record<string, unknown>)[field] || "");
+  /* The script and the language's own figures are set as the script is;
+     the meaning, and figures as English writes them, as English is. */
+  const scripted = field !== "en";
 
   return (
     <div className="at-match" data-el="answer-match">
@@ -8478,7 +8519,7 @@ function MatchGrid({
               ) : (
                 <span className="at-matchnum empty" aria-hidden="true" />
               )}
-              <span className="at-matchword">
+              <span className={`at-matchword${heard ? " heard" : ""}`}>
                 {heard ? (
                   /* Drawn as the play button drawn wherever a recording
                      is, but not a button of its own: the whole tile is the
@@ -8499,12 +8540,12 @@ function MatchGrid({
                     verdict below speaks of the first word only, and a grid
                     of five has four others to be told about. */}
                 {checked && !right ? (
-                  field === "ar" ? (
+                  scripted ? (
                     <span className="at-matchfix ar">
-                      <Arabic text={w.ar} kind="word" lang={lang} />
+                      <Arabic text={wantedOf(w)} kind="word" lang={lang} />
                     </span>
                   ) : (
-                    <span className="at-matchfix">{w.en}</span>
+                    <span className="at-matchfix">{wantedOf(w)}</span>
                   )
                 ) : null}
               </span>
@@ -8526,7 +8567,7 @@ function MatchGrid({
               data-el="match-meaning"
               /* Held looks the same on both sides, because it is the same
                  thing: a tile waiting for its other half. */
-              className={`at-matchtile${field === "ar" ? "" : " en"}${heldMeaning === at ? " on" : ""}${
+              className={`at-matchtile${scripted ? "" : " en"}${heldMeaning === at ? " on" : ""}${
                 owner ? " paired" : ""
               }${checked && owner ? (right ? " right" : " wrong") : ""}`}
               aria-pressed={heldMeaning === at}
@@ -8542,9 +8583,9 @@ function MatchGrid({
                   as on the words, because it is the meanings a learner
                   cannot tell apart: the tag on the word alone would name
                   the form without saying which English is its. */}
-              {field === "ar" ? (
+              {scripted ? (
                 /* The words in the script, as the word grid shows them on
-                   its left. */
+                   its left — or the figures it writes numbers in. */
                 <span className="at-matchword">
                   <Arabic text={m} kind="word" lang={lang} />
                   {meaningTags[at] ? (
@@ -11164,7 +11205,7 @@ export default function ArabicTrainer() {
   const gridMarks = () =>
     grid.words.map((w) => ({
       unit: w,
-      right: (matched[w.id] || "") === String((spec && spec.answerField === "ar" ? w.ar : w.en) || ""),
+      right: (matched[w.id] || "") === gridOther(exercise.type, w),
     }));
 
   /*
@@ -12670,7 +12711,7 @@ export default function ArabicTrainer() {
                           checked={!!checked}
                           onChange={setTyped}
                           onPairs={setMatched}
-                          field={spec.answerField === "ar" ? "ar" : "en"}
+                          field={spec.answerField === "en" ? "en" : spec.answerField === "numeral" ? "numeral" : "ar"}
                           heard={spec.tiles === "audio"}
                         />
                         {/* A grid half done is not an answer, and a Check
@@ -12859,7 +12900,9 @@ export default function ArabicTrainer() {
                           ? SKIPPED_VERDICT
                           : spec.picks === "pair"
                           ? spec.tiles === "audio"
-                            ? HEARD_GRID_VERDICT
+                            ? spec.answerField === "ar"
+                              ? HEARD_GRID_VERDICT
+                              : HEARD_NUMBERS_VERDICT
                             : GRID_VERDICT
                           : WRONG_VERDICT}
                       </p>

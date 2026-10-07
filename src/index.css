@@ -310,6 +310,11 @@ button {
 .at-alsorow { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 12px; }
 .at-alsorow > * { margin:0; padding:0; border:0; min-width:0; overflow-wrap:anywhere; }
 .at-alsorow > * + * { padding-left:12px; border-left:1px solid var(--line); }
+/* One block left over keeps the width of half a row, but the middle half,
+   its contents centred in it, so it reads as belonging to the box rather
+   than as a pair with its other half missing. */
+.at-alsorow.single { grid-template-columns:minmax(0, calc((100% - 12px) / 2));
+  justify-content:center; text-align:center; }
 /* A recording in half the row: the button keeps its shape and its label,
    one size down again, centred in its half of the row. Two
    speeds that no longer fit beside each other go one under the other. */
@@ -3499,6 +3504,10 @@ body.at-screening .at-chromebar { display:none; }
 .at-matchplay { width:34px; height:34px; display:inline-flex; align-items:center;
   justify-content:center; font-size:13px; }
 .at-matchtile:hover .at-matchplay { background: var(--raised-hover); }
+/* And it stands in the middle of the room the tile has beside its number,
+   not hard up against the number with the rest of the tile empty. What
+   comes under it once checked is centred with it. */
+.at-matchword.heard { flex:1 1 auto; align-items:center; text-align:center; }
 /* Under a recording paired wrong, the word it was: in the script, and set
    small like the meaning under a word is. */
 .at-matchfix.ar .at-arabic { font-size: calc(var(--ask) * .42); color: var(--rose); }

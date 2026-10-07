@@ -75,6 +75,9 @@
       "million.1": { "slot": "million.1", "forms": { "standalone": "مليون" } },
       "million.2": { "slot": "million.2", "forms": { "standalone": "مليونين" } },
       "million.n": { "slot": "million.n", "forms": { "standalone": "ملايين" } },
+      "billion.1": { "slot": "billion.1", "forms": { "standalone": "مليار" } },
+      "billion.2": { "slot": "billion.2", "forms": { "standalone": "مليارين" } },
+      "billion.n": { "slot": "billion.n", "forms": { "standalone": "مليارات" } },
       "connector": { "slot": "connector", "forms": { "standalone": "و" } }
     },
     "overrides": {

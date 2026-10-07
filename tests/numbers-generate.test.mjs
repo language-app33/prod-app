@@ -72,7 +72,7 @@ test("a system becomes a card per word and a skill per range", () => {
   assert.deepEqual(
     skills.map((s) => must(s.range, "range").id),
     [
-      "numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+",
+      "numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+", "numbers:1000000000+",
       "time:hours", "time:quarters-halves", "time:fives", "time:exact-minutes", "time:periods",
     ],
   );

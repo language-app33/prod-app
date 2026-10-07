@@ -1259,6 +1259,14 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
         r.children.length >= 1 && r.children.length <= 2 &&
         [...r.children].every((c) => c.getAttribute("data-el") !== "also-context")),
       rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    /* A block alone on its row sits in the middle of it, not the left half. */
+    const lone = rowsIn.filter((e) => e.getAttribute("data-el") === "also-row" && e.children.length === 1);
+    check("a block alone on its row is centred in it",
+      lone.every((r) => {
+        const a = r.getBoundingClientRect(), b = r.children[0].getBoundingClientRect();
+        return Math.abs((b.left - a.left) - (a.right - b.right)) <= 2;
+      }),
+      lone.map((r) => r.children[0].getAttribute("data-el")).join(" "));
     check("and every short block sits in a row, the related words included",
       rowsIn.every((e) => ["also-row", "also-context"].includes(e.getAttribute("data-el") || "")),
       rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
@@ -8358,7 +8366,8 @@ const openPronounTables = async () => {
   const tiles = [...panel().querySelectorAll(".at-numparts .at-deckcard")];
   check("the number system's editor opens on its parts, one button each",
     tiles.length >= 8 && !!tileNamed("Numbers 0 to 9") && !!tileNamed("Numbers 10 to 19") &&
-      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 and over"),
+      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 to 999,999,999") &&
+      !!tileNamed("Numbers 1,000,000,000 and over"),
     tiles.map((t) => (t.textContent || "").trim()).join(" | "));
   check("and each says what it is waiting for",
     /waiting on/.test((tileNamed("Numbers 0 to 9") || {}).textContent || ""),
@@ -8620,6 +8629,16 @@ const openPronounTables = async () => {
     await sleep(200);
     check("a number it cannot say yet says what it is waiting for instead",
       /waiting on/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "800,413,901");
+    await sleep(200);
+    check("a nine-digit number is answered for itself, not for its first seven digits",
+      /800,413,901/.test(up().textContent || "") && !/8,004,139/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "123,456,789,012");
+    await sleep(200);
+    check("and one longer than eleven digits says so, rather than answering for part of it",
+      /12 digits/.test(up().textContent || "") && !/12,345,678,901/.test(up().textContent || ""),
       (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
   await goBack();

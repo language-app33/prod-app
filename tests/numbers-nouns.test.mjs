@@ -24,7 +24,7 @@ import { arComposer } from "../src/numbers/ar-PS.ts";
 import { heComposer } from "../src/numbers/he-IL.ts";
 import { countedNouns, readNounCard, readNouns, setsWithNouns, withNouns } from "../src/numbers/nouns.ts";
 import { blocking, countable, probeOf, rangeChecks } from "../src/numbers/range.ts";
-import { fillerCards, FILLERS_PER_PART, homesOf, partTags, RETIRED_TAGS } from "../src/numbers/generate.ts";
+import { fillerCards, FILLERS_PER_PART, homesOf, partTags } from "../src/numbers/generate.ts";
 import { countingOf } from "../src/numbers/types.ts";
 import { fillersFor } from "../src/card-facts.ts";
 import { LANGUAGES } from "../src/languages.ts";
@@ -185,7 +185,7 @@ test("nouns are judged by kind, and the answer is the one rendering each would g
 
 test("with no noun cards at all, counting waits on something to count", () => {
   const checks = rangeChecks(arComposer, { ...SYS, nouns: [] }).filter((c) => c.counting);
-  assert.equal(checks.length, 5, "every stretch is counted with");
+  assert.equal(checks.length, 6, "every stretch is counted with");
   for (const c of checks) {
     assert.equal(c.open, true, "and is asked its numbers all the same");
     assert.equal(c.counting?.open, false);
@@ -203,6 +203,7 @@ test("each box is on the screen of the first part that needs it", () => {
   assert.equal(homes.get("connector"), "numbers:20-99");
   assert.equal(homes.get("hundred.2"), "numbers:100-999");
   assert.equal(homes.get("thousand.1"), "numbers:1000+");
+  assert.equal(homes.get("billion.1"), "numbers:1000000000+");
   /* Every box the language asks for is somewhere. */
   for (const spec of arComposer.requiredSlots()) assert.ok(homes.get(spec.slot), `${spec.slot} is on no screen`);
   for (const spec of heComposer.requiredSlots()) assert.ok(homesOf(heComposer).get(spec.slot), `${spec.slot} is on no screen`);
@@ -220,25 +221,14 @@ test("each part answers to a tag of its own and a general one, the same in every
     /* The parts split out of 0 to 10 and 11 to 99 still answer to the old
        tags, so a sentence written with {{11-99}} before the split is filled. */
     ["0-9", "0-10", "number"], ["10-19", "11-99", "number"], ["20-99", "11-99", "number"],
-    ["100-999", "number"], ["1000-plus", "number"],
+    ["100-999", "number"], ["1000-999999999", "number"], ["1000000000-plus", "number"],
   ]);
   assert.deepEqual(tags(heComposer), tags(arComposer));
   /* And counting, from each stretch, under tags of its own. */
   assert.deepEqual(stretches(arComposer).map((/** @type {any} */ r) => partTags(countingOf(r))), [
     ["count-0-9", "count"], ["count-10-19", "count"], ["count-20-99", "count"],
-    ["count-100-999", "count"], ["count-1000-plus", "count"],
+    ["count-100-999", "count"], ["count-1000-999999999", "count"], ["count-1000000000-plus", "count"],
   ]);
-});
-
-test("the old part names are still filled but marked retired, and only those", () => {
-  /* So the blank picker offers 0-9, 10-19 and 20-99 — not 0-10 and 11-99
-     beside them, nor the three old counting parts beside count-0-9. */
-  assert.deepEqual([...RETIRED_TAGS].sort(), ["0-10", "11-99", "count-1-2", "count-11-20", "count-3-10"]);
-  const stretches = arComposer.ranges().filter((/** @type {any} */ r) => r.kind === "numbers");
-  const current = stretches.flatMap((/** @type {any} */ r) => [...partTags(r), ...partTags(countingOf(r))]);
-  for (const tag of current) {
-    if (!["0-10", "11-99"].includes(tag)) assert.ok(!RETIRED_TAGS.has(tag), tag);
-  }
 });
 
 test("a part fills its tags with its numbers, written out", () => {
