@@ -9303,7 +9303,15 @@ const openPronounTables = async () => {
     return met;
   };
 
+  /* The new words alone, with no course material: the server's own lesson
+     words — a frame, a book and its plural — otherwise arrive on start and
+     take the session over, so whether a picture question came up at all
+     turned on how the shared die had been rolled by every walk above. The
+     walks after this one keep them, since the grid of recordings is
+     filled from them. */
+  materialQuiet = true;
   const fresh = await walk([0, 1, 2, 3, 4].map((i) => pictured(i)));
+  materialQuiet = false;
   check("new words with a picture are asked to hear the word and choose its picture",
     fresh.chooseImage > 0, JSON.stringify(fresh));
   check("out of four pictures, each drawn",
