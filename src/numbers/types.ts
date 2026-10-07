@@ -103,8 +103,10 @@ export interface CountedNoun {
   pl: string;
   gender: "m" | "f";
   en: string;
-  /** The English of the plural, where the card says it — *children*,
-      which no rule makes out of *child*. */
+  /** The English of the plural, as the card says it — *books*,
+      *children*. Every noun read off a card has one, since a plural with
+      no English is not counted; the clock's *minute* may lack it, and is
+      then said in its singular's words. Never made up. */
   enPl?: string;
   /**
    * The plural as it is said after three to ten, where that is not the

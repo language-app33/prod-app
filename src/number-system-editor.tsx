@@ -1276,6 +1276,7 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord, countedAt }: {
 const GAP_LABEL: Record<string, string> = {
   singular: "no singular",
   plural: "no plural",
+  "plural-english": "no English for the plural",
   gender: "no gender",
   sg: "no singular",
   pl: "no plural",
