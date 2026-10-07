@@ -121,6 +121,10 @@ export interface CountedNoun {
   /** Whether it is a person or a thing, as the card says, so what stands
       beside a counted phrase in a sentence agrees with it. */
   human?: string;
+  /** How each of its forms is said, as the card's transliteration has it,
+      keyed by the form's own words — so a counted phrase can be said
+      whole. Only the forms the card gave one. See sayAlong. */
+  lat?: Record<string, string>;
 }
 
 /** What a teacher may hand-correct: one number, or one number in one

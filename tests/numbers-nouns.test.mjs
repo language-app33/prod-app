@@ -29,6 +29,7 @@ import { countingOf } from "../src/numbers/types.ts";
 import { fillersFor } from "../src/card-facts.ts";
 import { LANGUAGES } from "../src/languages.ts";
 import { sentencesOf } from "../src/review.ts";
+import { fieldsLost, fillForm } from "../src/variables.ts";
 
 const load = (/** @type {string} */ name) =>
   JSON.parse(readFileSync(new URL(`./golden/${name}`, import.meta.url), "utf8"));
@@ -335,4 +336,90 @@ test("a counting blank with a noun blank after it counts that noun", () => {
     assert.notEqual(s.en, "I have 2 books");
     assert.equal(s.ar.split(" ").filter((w) => w === GOLD.book.pl).length, 1, s.ar);
   }
+});
+
+/* A system whose every word has a transliteration — made up, and made of
+   the slot it is said by, since what is tested is that it is carried. */
+const SAID = (/** @type {any} */ sys) => ({
+  ...sys,
+  lexemes: Object.fromEntries(Object.entries(sys.lexemes).map(([slot, lex]) => [slot, {
+    .../** @type {any} */ (lex),
+    lat: Object.fromEntries(Object.keys(/** @type {any} */ (lex).forms || {}).map((k) => [k, `${slot}/${k}`])),
+  }])),
+});
+/** A noun card with a transliteration on every answer. */
+const saidNoun = (/** @type {string} */ id) => {
+  const card = nounCard(id);
+  card.forms = card.forms.map((f) => ({ ...f, lat: `${id}-${f.number}` }));
+  return card;
+};
+
+test("a number in a sentence is said in the transliteration the system and the noun card give it", () => {
+  const cards = [saidNoun("book"), saidNoun("girl")];
+  const sys = withNouns(SAID({ ...SYS, nouns: [] }), countedNouns(cards, "ar-PS"));
+  const lang = LANGUAGES["ar-PS"];
+  const sentence = {
+    id: "s1", lang: "ar-PS", sentence: true,
+    forms: [{ id: "s1", ar: "عندي {{count-0-9}} {{noun}}", en: "I have {{count-0-9}} {{noun}}", lat: "3indi {{count-0-9}} {{noun}}" }],
+  };
+  const pool = /** @type {any[]} */ ([sentence, ...cards, ...fillerCards(arComposer, sys)]);
+  const { list } = sentencesOf(sentence, sentence.forms[0], pool, lang);
+  assert.ok(list.length > 0);
+  for (const s of list) {
+    assert.doesNotMatch(s.lat, /\{\{/, s.lat);
+    assert.match(s.lat, /^3indi \S/, s.lat);
+    /* The noun counted is said as its card says it, once. */
+    assert.equal((s.lat.match(new RegExp(s.took.noun.card, "g")) || []).length, 1, s.lat);
+  }
+  /* And a counting blank with nothing after it, in its own words alone. */
+  const alone = { ...sentence.forms[0], ar: "عندي {{count-0-9}} كتب", en: "I have {{count-0-9}} books", lat: "3indi {{count-0-9}} kutub" };
+  for (const s of sentencesOf(sentence, alone, pool, lang).list) {
+    assert.match(s.lat, /^3indi \S+.* kutub$/, s.lat);
+    assert.doesNotMatch(s.lat, /book-|\{\{/, s.lat);
+  }
+  /* A plain number too. */
+  const plain = { ...sentence.forms[0], ar: "{{0-9}}", en: "{{0-9}}", lat: "{{0-9}}" };
+  for (const s of sentencesOf(sentence, plain, pool, lang).list) assert.ok(s.lat && !s.lat.includes("{{"), s.lat);
+});
+
+test("a sentence whose number has no transliteration is still a sentence, with no transliteration", () => {
+  /* The golden system has none written. */
+  const cards = [saidNoun("book")];
+  const sys = withNouns({ ...SYS, nouns: [] }, countedNouns(cards, "ar-PS"));
+  const lang = LANGUAGES["ar-PS"];
+  const sentence = {
+    id: "s1", lang: "ar-PS", sentence: true,
+    forms: [{ id: "s1", ar: "عندي {{count-0-9}} {{noun}}", en: "I have {{count-0-9}} {{noun}}", lat: "3indi {{count-0-9}} {{noun}}" }],
+  };
+  const pool = /** @type {any[]} */ ([sentence, ...cards, ...fillerCards(arComposer, sys)]);
+  const { list } = sentencesOf(sentence, sentence.forms[0], pool, lang);
+  assert.ok(list.length > 0, "every sentence is still made");
+  for (const s of list) {
+    /* Two books is the noun's pair alone, with no number word, so it is
+       said whole; every other number is not. */
+    if (s.en === "I have 2 books") assert.equal(s.lat, "3indi book-dual");
+    else assert.equal(s.lat, "", "no line, rather than one with a blank's name in it");
+    assert.match(s.en, /^I have \d+ books?$/);
+    assert.doesNotMatch(s.ar, /\{\{/);
+  }
+});
+
+test("a word with no English leaves the sentence's English out, and its transliteration in", () => {
+  const value = (/** @type {any} */ v) => ({ id: "", ...v });
+  const form = { ar: "أنا {{name}}", en: "I am {{name}}", lat: "ana {{name}}", answers: [{ text: "أنا {{name}}", lat: "ana {{name}}" }] };
+  const unsaid = { name: value({ ar: "سامي", en: "", lat: "sami" }) };
+  const filled = /** @type {any} */ (fillForm(form, unsaid));
+  assert.equal(filled.en, "");
+  assert.equal(filled.lat, "ana sami");
+  assert.deepEqual(fieldsLost(form, unsaid), ["en"]);
+  const unspelt = { name: value({ ar: "سامي", en: "Sami", lat: "" }) };
+  const other = /** @type {any} */ (fillForm(form, unspelt));
+  assert.equal(other.lat, "");
+  assert.equal(other.answers[0].lat, "");
+  assert.equal(other.en, "I am Sami");
+  assert.deepEqual(fieldsLost(form, unspelt), ["lat"]);
+  /* A sentence with no transliteration of its own loses nothing. */
+  assert.deepEqual(fieldsLost({ ...form, lat: "" }, unspelt), []);
+  /* And a blank nothing was offered for still stands, as a visible bug. */
+  assert.equal(/** @type {any} */ (fillForm(form, {})).lat, "ana {{name}}");
 });

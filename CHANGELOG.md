@@ -8,6 +8,33 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.405 — 7 October 2026
+
+**Numbers in sentences have a transliteration, and a missing one no longer
+shows as a blank's name.**
+
+- A number in a sentence card is now transliterated, put together from the
+  transliterations written on the number screen and, for the thing
+  counted, on the noun card. Before, it never was: "I have {{count-0-9}}
+  {{animal}}" read "3indi {{count-0-9}}" in every example.
+- A number is transliterated only where every word in it has one. If one
+  word is missing, that version of the sentence has no transliteration.
+- This is true of every blank, not only numbers. If the word in a blank
+  has no transliteration, that version of the sentence is shown without
+  its transliteration. If it has no English, it is shown without its
+  English. The sentence is still made, in the examples, in your review
+  list and in practice.
+- In practice, a version with no English is not asked as a question
+  about the English (translating to or from it), and a version with no
+  transliteration is not asked as a question about the transliteration.
+  It is asked in the other questions, and the next version is asked in
+  its place.
+- Sentences you already approved whose transliteration or English
+  changed (a number that now has one, or a blank's name that is now
+  gone) wait for you to review them again.
+- Worth checking by hand: a sentence card with a counting tag and a noun
+  tag, after writing transliterations for the numbers and the noun.
+
 ## 0.404 — 7 October 2026
 
 **"This" agrees with "my sister".**

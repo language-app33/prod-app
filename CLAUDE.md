@@ -83,3 +83,6 @@ point, ask them this way, every time:
 - A numbered list, grouped by topic with sub-numbers: 1a, 1b, 2a, and so on.
 - One question per item, never two in the same item.
 - Concise and non-technical, in the same plain terms as above.
+- Where what the owner said can be read more than one way, and the ways
+  are put back to them, each reading is numbered or named, so the owner
+  can answer with which one is right in a word ("2", or "the second").

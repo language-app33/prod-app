@@ -1478,6 +1478,41 @@ export function fillText(
   });
 }
 
+/*
+ * Whether a word standing in one of this string's blanks has nothing to
+ * say in this field — a number nobody wrote a transliteration for, a name
+ * with no English.
+ *
+ * Such a sentence has no line in that field, rather than a line with the
+ * blank's name standing in it, and rather than not being a sentence: the
+ * Arabic is whole, and a transliteration with a hole in it would be read
+ * as the whole. A blank nothing was offered for at all is not this — that
+ * is left standing, as fillText says. The script is never asked: a value
+ * with nothing in its script is not a value.
+ */
+function wants(written: string, values: Record<string, Value>, field: string): boolean {
+  for (const m of withoutSwallowed(written, values).matchAll(SLOT)) {
+    const slot = m[1].toLowerCase();
+    const took = values && values[slot];
+    if (!took) continue;
+    const read = field === "en" && took.readings ? took.readings[slot] : "";
+    const word = read || (took as unknown as Record<string, string>)[field];
+    if (!String(word || "").trim()) return true;
+  }
+  return false;
+}
+
+/** The fields a form writes that these values leave it without — see
+    `wants`. What practice reads to keep a question that asks for one of
+    them away from this filling. */
+export function fieldsLost(form: WithSlots | null | undefined, values: Record<string, Value> | null): string[] {
+  if (!values) return [];
+  return ["en", "lat"].filter((field) => {
+    const written = text(form, field);
+    return !!written && wants(written, values, field);
+  });
+}
+
 /* A string with every blank another one has said already taken out of
    it, with the space before it — see `swallows`. */
 function withoutSwallowed(written: string, values: Record<string, Value>): string {
@@ -1586,6 +1621,10 @@ export function fillForm<T extends WithSlots>(
   for (const field of FILLED_FIELDS) {
     const written = text(form, field);
     if (!written) continue;
+    if (field !== "ar" && wants(written, values, field)) {
+      out[field] = "";
+      continue;
+    }
     out[field] = field === "en" ? fillEnglish(written, values, cased) : fillText(written, values, field, cased);
   }
   /* The answers array is written from `ar` and would otherwise still hold
@@ -1595,7 +1634,7 @@ export function fillForm<T extends WithSlots>(
     out.answers = (form.answers as Record<string, unknown>[]).map((a) => ({
       ...a,
       text: fillText(typeof a.text === "string" ? a.text : "", values, "ar", cased),
-      lat: fillText(typeof a.lat === "string" ? a.lat : "", values, "lat", cased),
+      lat: typeof a.lat === "string" && wants(a.lat, values, "lat") ? "" : fillText(typeof a.lat === "string" ? a.lat : "", values, "lat", cased),
     }));
   }
   out.filled = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.id || v.ar]));

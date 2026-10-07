@@ -42,7 +42,7 @@ import type {
   TimeSystem,
   Token,
 } from "./types.ts";
-import { askFor, blocking, countable, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
+import { askFor, blocking, countable, rangeChecks, renderAsk, probeOf, sayAlong, seeded } from "./range.ts";
 import { COUNTING_WAS, NUMBER_CEILING, countingOf, partsNow, stretchTag } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
@@ -1412,7 +1412,7 @@ export function fillerCards(composer: Composer | null, sys: NumberSystem | null,
       const said = renderAsk({ rangeId: range.id, kind: "numbers", value }, composer, sys);
       if (!said.text) continue;
       const id = fillerId(sys.id, range.id, value);
-      out.push(fillerItem(id, sys, range, names, said.text, said.en || said.digits, null, now));
+      out.push(fillerItem(id, sys, range, names, said.text, said.en || said.digits, said.lat || "", null, now));
     }
   }
   return out;
@@ -1426,6 +1426,7 @@ function fillerItem(
   names: string[],
   ar: string,
   en: string,
+  lat: string,
   grammar: Record<string, string> | null,
   now: Millis,
   old: string[] = [],
@@ -1438,7 +1439,10 @@ function fillerItem(
     kind: "phrase",
     tags: [],
     fills: old.length ? [names[0], ...old, ...names.slice(1)] : names,
-    forms: [{ id: `${id}-f0`, ar, en, lat: "", ...grammar, s: {} }],
+    /* How it is said, where every word of it has a transliteration — see
+       sayAlong. Empty otherwise, and then a sentence it stands in has no
+       transliteration rather than one with a hole in it: see fillForm. */
+    forms: [{ id: `${id}-f0`, ar, en, lat, ...grammar, s: {} }],
     source: { systemId: sys.id, slot: `fill:${range.id}` },
     locked: true,
     drill: false,
@@ -1489,12 +1493,16 @@ function countingFillers(
     const noun = nouns.find((n) => n.gender === g);
     return noun ? [noun] : [];
   });
-  type Face = { value: number; text: string; gender: "" | "m" | "f"; nounForm?: string };
+  type Face = { value: number; text: string; lat: string; gender: "" | "m" | "f"; nounForm?: string };
   const faces: Face[] = [];
   for (const value of values) {
     const each = sample.flatMap((noun) => {
       const said = renderAsk({ rangeId: range.id, kind: "numbers", value, nounId: noun.id }, composer, sys);
-      return said.text ? [{ value, text: numberAlone(said), gender: noun.gender, nounForm: said.nounForm }] : [];
+      if (!said.text) return [];
+      const text = numberAlone(said);
+      /* Said the same way, from the number's own words alone. */
+      const lat = text ? sayAlong(text, said.tokens.filter((t) => !t.noun), [sys]) : "";
+      return [{ value, text, lat, gender: noun.gender, nounForm: said.nounForm }];
     });
     if (!each.length) continue;
     if (new Set(each.map((f) => f.text)).size === 1) faces.push({ ...each[0], gender: "" });
@@ -1506,8 +1514,10 @@ function countingFillers(
     const alone = !!face.text;
     /* Lent under the number counted aloud where it has no counting form
        of its own, so it has words to be lent with; never shown so. */
-    const ar = alone ? face.text : renderAsk({ rangeId: range.id, kind: "numbers", value: face.value }, composer, sys).text;
+    const aloud = alone ? null : renderAsk({ rangeId: range.id, kind: "numbers", value: face.value }, composer, sys);
+    const ar = aloud ? aloud.text : face.text;
     if (!ar) continue;
+    const lat = aloud ? aloud.lat || "" : face.lat;
     const grammar: Record<string, string> = {
       number: NUMBER_OF[face.nounForm || "pl"] || "plural",
       ...(face.gender ? { gender: face.gender === "f" ? "feminine" : "masculine" } : null),
@@ -1516,7 +1526,7 @@ function countingFillers(
     if (alone) ALONE_NOT.delete(id);
     else ALONE_NOT.add(id);
     const old = OLD_COUNT_TAGS.filter((t) => face.value >= t.from && face.value <= t.to).map((t) => t.tag);
-    out.push(fillerItem(id, sys, range, names, ar, String(face.value), grammar, now, old));
+    out.push(fillerItem(id, sys, range, names, ar, String(face.value), lat, grammar, now, old));
   }
   return out;
 }
@@ -1538,7 +1548,7 @@ function countsFor(
     const noun = nouns.find((n) => n.id === nounId && (!gender || n.gender === gender));
     const said = noun ? renderAsk({ rangeId: range.id, kind: "numbers", value, nounId }, composer, sys) : null;
     const out = noun && said && said.text
-      ? { ar: said.text, en: said.en || said.digits, lat: "", grammar: countedGrammar(said, noun) }
+      ? { ar: said.text, en: said.en || said.digits, lat: said.lat || "", grammar: countedGrammar(said, noun) }
       : null;
     held.set(nounId, out);
     return out;
