@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.383 — 7 October 2026
+## 0.386 — 7 October 2026
 
 **"My house is" and "my houses are" from one noun blank.**
 
@@ -33,6 +33,67 @@ and moves once per batch of work you would notice, not once per commit.
   "{{noun-is}} big", and see that the examples read "… is big" for the
   singular and "… are big" for the plural.
 
+## 0.385 — 7 October 2026
+
+**A shorter, clearer list of number blanks.**
+
+- When you add a number blank to a sentence, the list now offers only
+  the current number ranges: 0 to 9, 10 to 19, 20 to 99, 100 to 999 and
+  1,000 and over, and the same five with "count" in front for counting
+  things. The old names (0 to 10, 11 to 99, and the old counting ranges
+  1 to 2, 3 to 10 and 11 to 20) were showing up next to them, which
+  made it look like there were overlapping choices.
+- Sentences you already wrote with one of the old names still work and
+  still get filled with numbers as before. You don't need to change
+  them.
+
+## 0.384 — 7 October 2026
+
+**"I am tired" sentences show the other persons too.**
+
+- Practising a sentence like تعبان اليوم from English, the person shown
+  is now picked at random each time: *I am tired today*, *you are tired
+  today* or *he is tired today*. Before, a new sentence always showed
+  *I am* until you had got it right, so it looked as if that was all it
+  meant. Any of them is still accepted when turning it into English.
+- In a card's examples, and in the list of sentences to approve, each
+  meaning now has its own line instead of being joined by slashes on one
+  line, which read like a single sentence starting with "I am".
+- Trade-off: other generated sentences with more than one meaning also
+  show one picked at random, rather than repeating the one you missed.
+- To check by hand: open a sentence card with an "I am tired" blank,
+  look at its examples and its review list, then practise it a few times
+  from English.
+## 0.383 — 7 October 2026
+
+**Every card list has a view button: small grid, large grid, list or table. Teachers can filter cards by kind and subtype.**
+
+- The card-size button over a card list is now a view button. Each press
+  moves to the next view: small grid, large grid, list, then table, and
+  back to the start. Its icon is a picture of the view the list is in.
+- The large grid is the size that used to be called Medium. The old
+  Large size has gone.
+- The list shows one line per card: the word and its meaning, or how it
+  sounds where it has no meaning written.
+- The table shows the word, transliteration, meaning, kind, subtype,
+  decks, whether it has a recording, its review status, and when it was
+  created and last modified. On a phone it scrolls sideways inside its
+  own frame.
+- Students get the view button on all three of their card lists: their
+  cards, a deck's cards, and the cards on Progress. Their table shows the
+  word, meaning, kind, subtype and level.
+- Each list remembers its own view on the device, so the Cards tab can
+  stay a table while decks stay a grid. A device that had chosen Medium
+  or Large starts on the large grid.
+- On the teacher's Cards tab and in a deck, Filter starts with *Kind*:
+  tick any of Word or phrase, Sentence and Scene. Ticking Word or phrase
+  offers its subtypes (Noun, Verb and so on, plus *No subtype*). Ticking
+  Scene offers Text and Conversation. Several can be ticked at once, and
+  a kind's subtypes narrow only that kind, so "nouns and every sentence"
+  works.
+- To check by hand: on a phone, press the view button through all four
+  views on the Cards tab, open a deck and see that it kept its own view,
+  and select a few cards in the table view.
 ## 0.382 — 7 October 2026
 
 **A new version no longer restarts the app while you are using it.**

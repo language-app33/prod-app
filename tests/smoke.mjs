@@ -7795,9 +7795,9 @@ const openPronounTables = async () => {
   check("the Cards tab's controls are three rows: buttons, search, then Select and the menus",
     rows().length === 3, `${rows().length} rows`);
   const top = /** @type {any} */ (rows()[0]);
-  check("the first row is New card and the size button, with no search box in it",
+  check("the first row is New card and the view button, with no search box in it",
     !!top && /New card/.test(top.textContent || "") &&
-      !top.querySelector("input.at-search") && !!top.querySelector(".at-sizebtn"),
+      !top.querySelector("input.at-search") && !!top.querySelector(".at-viewbtn"),
     top ? (top.textContent || "").replace(/\s+/g, " ").trim() + ` · ${top.querySelectorAll("input, button").length} controls` : "no row");
   const searchRow = /** @type {any} */ (rows()[1]);
   check("and the search box is on a line of its own under it",
@@ -7806,11 +7806,11 @@ const openPronounTables = async () => {
       !!searchRow.querySelector("input.at-search[placeholder='Search cards']"),
     searchRow ? searchRow.className : "no row");
   const sizeName = () => {
-    const btn = one(".at-sizebtn", null);
-    return btn ? btn.getAttribute("aria-label") || "" : "(no size button)";
+    const btn = one(".at-viewbtn", null);
+    return btn ? btn.getAttribute("aria-label") || "" : "(no view button)";
   };
-  check("and the size button says which size it is at and what pressing it does",
-    /^Card size: Small — press for medium$/.test(sizeName()), sizeName());
+  check("and the view button says which view it is in and what pressing it does",
+    /^View: Small grid — press for large grid$/.test(sizeName()), sizeName());
   check("the row of menus is Select, Sort and Filter, in that order",
     named(subRow()).join(" | ") === "Select | Sort | Filter",
     named(subRow()).join(" | ") || "(no second row)");
@@ -7827,8 +7827,30 @@ const openPronounTables = async () => {
   await sleep(200);
   check("and Filter replaces it rather than standing beside it",
     frame.querySelectorAll(".at-listmenu").length === 1 &&
-      sortLabels().join(" | ") === "Recordings | Forms | Decks | Blanks | Review",
+      sortLabels().join(" | ") === "Kind | Recordings | Forms | Decks | Blanks | Review",
     `${frame.querySelectorAll(".at-listmenu").length} panels · ${sortLabels().join(" | ")}`);
+
+  /* ---- and by kind, with each kind's subtypes under it ----
+     Offered once the kind is ticked and only then: "verbs" says nothing
+     about a sentence. */
+  const tickRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
+      .find((r) => re.test((((r.querySelector("b") || {}).textContent) || "").trim())) || null);
+  check("the filter offers the three kinds of card",
+    !!tickRow(/^Word or phrase$/) && !!tickRow(/^Sentence$/) && !!tickRow(/^Scene$/),
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow b")].map((b) => (b.textContent || "").trim()).join(" | "));
+  check("and no subtypes before a kind is ticked", !tickRow(/^No subtype$/) && !tickRow(/^Conversation$/), "");
+  const tilesBefore = tiles();
+  click(tickRow(/^Word or phrase$/) && tickRow(/^Word or phrase$/).querySelector("input"));
+  await sleep(250);
+  check("ticking words and phrases offers their subtypes, and no scene's",
+    !!tickRow(/^Noun$/) && !!tickRow(/^No subtype$/) && !tickRow(/^Conversation$/),
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow b")].map((b) => (b.textContent || "").trim()).join(" | "));
+  check("and narrows the list to them", tiles() <= tilesBefore, `${tiles()} of ${tilesBefore}`);
+  click(tickRow(/^Word or phrase$/) && tickRow(/^Word or phrase$/).querySelector("input"));
+  await sleep(250);
+  check("and letting go of the kind gives the list back", tiles() === tilesBefore && !tickRow(/^No subtype$/),
+    `${tiles()} of ${tilesBefore}`);
 
   /* ---- and by a blank, from either side of it ----
      A blank has two sides and a teacher wants both: the sentences it is a
@@ -7977,31 +7999,49 @@ const openPronounTables = async () => {
     !!document.querySelector(".at-menubtn.on"),
     [...document.querySelectorAll(".at-menubtn")].map((b) => (b.textContent || "").trim()).join(" | "));
 
-  /* Bigger cards: fewer to a row, each with its words set larger. The grid
-     carries the scale, so one variable moves both. */
+  /* Four views, in turn: small tiles, bigger tiles — fewer to a row, each
+     with its words set larger, the grid carrying the scale so one variable
+     moves both — a line per card, and a table. */
   const scale = () => {
     const g = one(".at-cardgrid", null);
     return g ? g.style.getPropertyValue("--tile") : "";
   };
-  const sizeBtn = () => one(".at-sizebtn", null);
+  const sizeBtn = () => one(".at-viewbtn", null);
+  const viewIcon = () => {
+    const p = one(".at-viewbtn path", null);
+    return p ? p.getAttribute("d") || "" : "";
+  };
   check("the tiles start at the size they have always been", !scale(), scale() || "(no scale set)");
+  const smallIcon = viewIcon();
   click(sizeBtn());
   await sleep(200);
-  check("pressing the size button draws them bigger", Number(scale()) > 1, scale() || "(no scale set)");
-  check("and the button now offers the next size up",
-    /Medium — press for large/.test(sizeName()), sizeName());
-  /* Kept on the device: a teacher who wants big cards wants them on the next
-     screen too, and on the next visit. */
-  check("the size is remembered on the device, not in the document",
-    localStorage.getItem("arabic-trainer-tile-size") === "1",
-    String(localStorage.getItem("arabic-trainer-tile-size")));
+  check("pressing the view button draws them bigger", Number(scale()) > 1, scale() || "(no scale set)");
+  check("and the button now offers the list",
+    /Large grid — press for list/.test(sizeName()), sizeName());
+  check("and its icon changes with the view", !!viewIcon() && viewIcon() !== smallIcon, viewIcon().slice(0, 20));
+  /* Kept on the device, and per list: the deck's view is not the Cards tab's. */
+  check("the view is remembered on the device, for this list",
+    localStorage.getItem("arabic-trainer-view:teacher-deck") === "large",
+    String(localStorage.getItem("arabic-trainer-view:teacher-deck")));
   click(sizeBtn());
   await sleep(150);
+  const lines = [...document.querySelectorAll(".at-cardline")];
+  check("the list view is a line per card, with no tiles",
+    lines.length > 0 && !one(".at-cardgrid .at-minicard", null),
+    `${lines.length} lines`);
+  click(sizeBtn());
+  await sleep(150);
+  const heads = [...document.querySelectorAll(".at-cardtable thead th")].map((th) => (th.textContent || "").trim()).filter(Boolean);
+  check("the table view has a column for everything the teacher compares",
+    heads.join(" | ") === "Word | Transliteration | Meaning | Kind | Subtype | Decks | Recording | Review | Created | Modified",
+    heads.join(" | ") || "(no table)");
+  check("and a row per card", document.querySelectorAll(".at-cardtable tbody tr[data-card]").length > 0,
+    String(document.querySelectorAll(".at-cardtable tbody tr").length));
   click(sizeBtn());
   await sleep(150);
   check("and it comes back round to where it started rather than running out",
-    !scale() && localStorage.getItem("arabic-trainer-tile-size") === "0",
-    `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-tile-size")}`);
+    !scale() && localStorage.getItem("arabic-trainer-view:teacher-deck") === "small",
+    `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-view:teacher-deck")}`);
 
   /* ---- and what a deck holds besides cards ----
      Numbers are one document per language, so a deck takes them in parts,

@@ -141,7 +141,7 @@ export const DEMONSTRATIVE_READING_SLOTS = [DEMONSTRATIVE_IS_SLOT, IS_DEMONSTRAT
  * Read off the form's number — see nounReadings — rather than its English,
  * which for a noun says nothing about it. Whether a pronoun is on the end
  * of the noun is the blank's other question, asked the same as before.
- * Added in 0.383.
+ * Added in 0.386.
  */
 export const NOUN_SLOT = "noun";
 export const NOUN_IS_SLOT = "noun-is";
@@ -1085,7 +1085,7 @@ export function valuesFor(
  * `{{feelings-is}}` over a tag holding تعبان and حفلة: the adjective reads
  * it as *I am tired*, with nobody named, and the noun as *the party is*.
  * The first is what a tag of adjectives is read that way for, and was the
- * whole of it before nouns read with *to be* (0.383) — so where any
+ * whole of it before nouns read with *to be* (0.386) — so where any
  * adjective says the blank about a person, the nouns in it stand aside,
  * as they always did. Kept as values are gathered, and applied once at
  * the end, since which cards are in a blank is known only then.

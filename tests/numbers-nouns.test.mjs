@@ -24,7 +24,7 @@ import { arComposer } from "../src/numbers/ar-PS.ts";
 import { heComposer } from "../src/numbers/he-IL.ts";
 import { countedNouns, readNounCard, readNouns, setsWithNouns, withNouns } from "../src/numbers/nouns.ts";
 import { blocking, countable, probeOf, rangeChecks } from "../src/numbers/range.ts";
-import { fillerCards, FILLERS_PER_PART, homesOf, partTags } from "../src/numbers/generate.ts";
+import { fillerCards, FILLERS_PER_PART, homesOf, partTags, RETIRED_TAGS } from "../src/numbers/generate.ts";
 import { countingOf } from "../src/numbers/types.ts";
 import { fillersFor } from "../src/card-facts.ts";
 import { LANGUAGES } from "../src/languages.ts";
@@ -228,6 +228,17 @@ test("each part answers to a tag of its own and a general one, the same in every
     ["count-0-9", "count"], ["count-10-19", "count"], ["count-20-99", "count"],
     ["count-100-999", "count"], ["count-1000-plus", "count"],
   ]);
+});
+
+test("the old part names are still filled but marked retired, and only those", () => {
+  /* So the blank picker offers 0-9, 10-19 and 20-99 — not 0-10 and 11-99
+     beside them, nor the three old counting parts beside count-0-9. */
+  assert.deepEqual([...RETIRED_TAGS].sort(), ["0-10", "11-99", "count-1-2", "count-11-20", "count-3-10"]);
+  const stretches = arComposer.ranges().filter((/** @type {any} */ r) => r.kind === "numbers");
+  const current = stretches.flatMap((/** @type {any} */ r) => [...partTags(r), ...partTags(countingOf(r))]);
+  for (const tag of current) {
+    if (!["0-10", "11-99"].includes(tag)) assert.ok(!RETIRED_TAGS.has(tag), tag);
+  }
 });
 
 test("a part fills its tags with its numbers, written out", () => {

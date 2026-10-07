@@ -336,7 +336,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { installIndexes, castQuestion, lentTags } = await import(path.join(out, "trainer.js"));
+const { installIndexes, castQuestion, lentTags, resolveQuestion } = await import(path.join(out, "trainer.js"));
 
 const settings = { language: "ar-PS" };
 const nameCard = (/** @type {string} */ id, /** @type {string} */ word, /** @type {string} */ en, /** @type {number} */ created) => ({
@@ -507,6 +507,31 @@ test("an adjective said about a person is one sentence per form, read as every p
     assert.ok(checkEn(said, made.list[0].en).ok, said);
   }
   assert.ok(!checkEn("we are tired today", made.list[0].en).ok, "but not a person that form does not fit");
+});
+
+/*
+ * Asked to write it in Arabic, the learner is shown one person — drawn
+ * at random for each asking, not *I am* until it has been got right.
+ */
+test("writing a sentence about a person shows a person drawn for that asking, and keeps it", () => {
+  const items = [todayCard, tiredCard()];
+  installIndexes(items, settings);
+  const real = Math.random;
+  const shown = new Set();
+  try {
+    for (const roll of [0, 0.4, 0.9]) {
+      Math.random = () => roll;
+      const ex = { id: "T", subId: null, type: "en2ar" };
+      const first = must(resolveQuestion(items, ex, true, []), "the question").unit.en;
+      Math.random = () => (roll + 0.5) % 1;
+      assert.equal(must(resolveQuestion(items, ex, true, []), "again").unit.en, first,
+        "the same question does not change under the learner");
+      shown.add(first);
+    }
+  } finally {
+    Math.random = real;
+  }
+  assert.deepEqual([...shown], ["I am tired today", "You are tired today", "He is tired today"]);
 });
 
 test("a person whose form was left blank is left out, and nothing is said where there are no persons", () => {

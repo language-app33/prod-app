@@ -102,11 +102,17 @@ const ICONS: Record<string, string> = {
     "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
   tune:
     "M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z",
-  /* Ordering a list, and how big to draw it. `tune` beside them is what
+  /* Ordering a list. `tune` beside it is what
      narrowing one looks like, so the three buttons over a card list read as
      three different jobs rather than three shades of the same one. */
   sort: "M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z",
-  size: "M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z",
+  /* The four ways a card list can be drawn, each a picture of itself: many
+     small tiles, a few big ones, lines, and a table with its heading row. */
+  viewSmall:
+    "M4 4h4v4H4V4zm6 0h4v4h-4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4z",
+  viewLarge: "M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z",
+  viewList: "M3 5h3v3H3V5zm5 0h13v3H8V5zM3 10.5h3v3H3v-3zm5 0h13v3H8v-3zM3 16h3v3H3v-3zm5 0h13v3H8v-3z",
+  viewTable: "M3 3v18h18V3H3zm2 6h4v4H5V9zm0 6h4v4H5v-4zm6 4v-4h8v4h-8zm8-6h-8V9h8v4z",
   check: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
   back: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
   save:
@@ -654,7 +660,30 @@ export function StickyFoot({ above, children, className }: {
    its transliteration is decided — and which a test can import. Re-exported
    here because this is where the screens look for it. */
 export { splitAlternatives, joinAlternatives } from "./answers.ts";
-import { answersOf, firstOfEach, storedAnswer } from "./answers.ts";
+import { answersOf, firstOfEach, meaningsOf, storedAnswer } from "./answers.ts";
+
+/*
+ * What one listed sentence means, a line for each meaning.
+ *
+ * تعبان اليوم is *I am tired today*, *you are tired today* and *he is
+ * tired today* — see ADJECTIVE_IS_SLOT — and strung along one line with
+ * slashes between them that read as one long sentence whose first words
+ * were "I am". Stacked, each person is a sentence of its own, which is
+ * what a teacher checking them is checking. Shared by the card's examples,
+ * the editor's and the review list, so the three read alike.
+ */
+export function AskedMeanings({ en }: { en?: string | null }) {
+  const list = meaningsOf({ en: en || "" });
+  return (
+    <>
+      {list.map((one, i) => (
+        <span className="at-askedmeans" key={i}>
+          {one}
+        </span>
+      ))}
+    </>
+  );
+}
 
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each
@@ -1362,40 +1391,242 @@ export function ClipList({ clips, onChange, load }: {
 const PAGE_SIZE = 120;
 
 /*
- * How big the tiles in a grid are drawn.
+ * The four ways a card list can be drawn, which its view button steps
+ * through: small tiles, big tiles, a line per card, and a table.
  *
- * Three steps rather than a slider: the useful range is "as many as fit" to
- * "readable across the room", and a slider over that invites fiddling with a
- * number nobody wants to choose. The scale drives the grid's own column
- * width as well as the type inside a tile, so a bigger card is a bigger
- * card — fewer to a row, each with its word set larger — rather than the
- * same tile with the words spilling out of it.
+ * The two grids are the tiles at two sizes. The scale drives the grid's own
+ * column width as well as the type inside a tile, so a bigger card is a
+ * bigger card — fewer to a row, each with its word set larger — rather than
+ * the same tile with the words spilling out of it. Large is the size that
+ * was "Medium" when there were three sizes and no other views: the biggest
+ * of them was readable across the room and nobody's list.
+ *
+ * The line is the word and what it means and nothing else, for reading down
+ * a long list; the table is everything a list knows about each card, side
+ * by side, for comparing them. What goes in either is the list's to say —
+ * see CardViews.
  */
-const TILE_SIZES = [
-  { name: "Small", scale: 1 },
-  { name: "Medium", scale: 1.35 },
-  { name: "Large", scale: 1.75 },
+export type ListView = "small" | "large" | "list" | "table";
+const VIEWS: { id: ListView; name: string; icon: string }[] = [
+  { id: "small", name: "Small grid", icon: "viewSmall" },
+  { id: "large", name: "Large grid", icon: "viewLarge" },
+  { id: "list", name: "List", icon: "viewList" },
+  { id: "table", name: "Table", icon: "viewTable" },
 ];
+const LARGE_TILE = 1.35;
 
-/* Kept on the device rather than in the synced settings: how big a teacher
-   wants the cards is about this screen and these eyes, not about the
+/*
+ * What a list draws a card as, in the list and table views.
+ *
+ * `word` and `meaning` are the line; `cells` are the table's, by the key of
+ * each of `columns`. `open` is what pressing the row does — what pressing
+ * the tile does — and `actions` sit at the end of it, as they sit on a tile.
+ */
+export interface CardRow {
+  word: Node;
+  meaning: Node;
+  cells: Record<string, Node>;
+  open?: () => void;
+  actions?: Node;
+}
+export interface CardViews<T> {
+  /** Which list this is, for remembering the view it was left at. */
+  key: string;
+  columns: { key: string; label: string }[];
+  row: (item: T) => CardRow;
+}
+
+/* Kept on the device rather than in the synced settings: how a teacher
+   wants a list drawn is about this screen and these eyes, not about the
    material, and settings sync whole — a write here would hand this
-   device's theme and keyboard to every other one. */
-const TILE_KEY = "arabic-trainer-tile-size";
-function loadTileSize() {
+   device's theme and keyboard to every other one. And kept per list: a
+   table suits the whole collection and a grid suits one deck.
+
+   A device that last chose a size under the old button starts from the
+   grid nearest it, so nobody's cards shrink under them on the day this
+   arrives. */
+const VIEW_KEY = "arabic-trainer-view:";
+const OLD_TILE_KEY = "arabic-trainer-tile-size";
+function loadView(list: string): ListView {
   try {
-    const at = Number(localStorage.getItem(TILE_KEY));
-    return at >= 0 && at < TILE_SIZES.length ? at : 0;
+    const said = localStorage.getItem(VIEW_KEY + list);
+    if (VIEWS.some((v) => v.id === said)) return said as ListView;
+    return Number(localStorage.getItem(OLD_TILE_KEY)) >= 1 ? "large" : "small";
   } catch (e) {
-    return 0;
+    return "small";
   }
 }
-function saveTileSize(at: number) {
+function saveView(list: string, view: ListView) {
   try {
-    localStorage.setItem(TILE_KEY, String(at));
+    localStorage.setItem(VIEW_KEY + list, view);
   } catch (e) {
     /* private browsing; it lasts as long as the app is open */
   }
+}
+
+/* What a card is, as the filter and the table say it: the three kinds a
+   teacher picks between when making one. The same reading as shapeOf in
+   the editor, which is where the kind is chosen. */
+export type CardKind = "word" | "sentence" | "scene";
+export const CARD_KINDS: { id: CardKind; label: string }[] = [
+  { id: "word", label: "Word or phrase" },
+  { id: "sentence", label: "Sentence" },
+  { id: "scene", label: "Scene" },
+];
+export const cardKindOf = (card: Record<string, any> | null | undefined): CardKind =>
+  isDialog(card as any) ? "scene" : isSentence(card as any) ? "sentence" : "word";
+export const cardKindLabel = (card: Record<string, any>): string =>
+  (CARD_KINDS.find((k) => k.id === cardKindOf(card)) || CARD_KINDS[0]).label;
+/* And which of its kind: a word's part of speech, as its language names
+   it, or whether a scene is a text or a conversation. A sentence has none. */
+export const cardSubtypeLabel = (card: Record<string, any>, lang?: Lang | null): string => {
+  const kind = cardKindOf(card);
+  if (kind === "scene") return isText(card as any) ? "Text" : "Conversation";
+  if (kind === "word") return categoryLabel(lang || null, card.category);
+  return "";
+};
+
+/*
+ * A card's word and its meaning, drawn for a line or a table cell.
+ *
+ * The same face the tile shows — a scene's first line, a figure's figure —
+ * in the language's own script and direction. `meaning` falls back to the
+ * romanisation where the card has no meaning written, so a line is never a
+ * word beside nothing; `en` and `lat` are each alone, for the table's
+ * columns of them.
+ */
+export function cardWords(card: Record<string, any>, lang?: Lang | null): { word: Node; meaning: Node; en: Node; lat: Node } {
+  const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
+  /* A scene is known by its first line, its meaning as much as its words. */
+  const lead = firstOfEach(isDialog(card as any) ? linesOf(card as any)[0] : leadOf(card));
+  const face = lead.ar || String(card.numeral || "");
+  const said = card.name || lead.en;
+  return {
+    word: (
+      <span className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
+        <Written text={face} />
+      </span>
+    ),
+    meaning: said ? <span dir="auto"><Written text={said} /></span> : lead.lat ? <span className="at-lat"><Written text={lead.lat} /></span> : null,
+    en: said ? <span dir="auto"><Written text={said} /></span> : null,
+    lat: lead.lat ? <Written text={lead.lat} /> : null,
+  };
+}
+
+/*
+ * A card list drawn as lines or as a table, for ItemList.
+ *
+ * A row does what its tile does: pressing it opens the card, and while
+ * selecting it ticks the card instead. The run headings of a grouped list
+ * are drawn here too — a line of their own in the list, a row across the
+ * table — so a deck's cards stay sorted by where they stand whichever way
+ * they are drawn.
+ *
+ * The table scrolls sideways inside its own frame where it is wider than
+ * the screen, rather than pushing the page wider with it.
+ */
+function CardLines<T>({ view, views, page, itemKey, selecting, picked, toggle, headingAt }: {
+  view: "list" | "table";
+  views: CardViews<T>;
+  page: T[];
+  itemKey: (item: T) => string;
+  selecting: boolean;
+  picked: Set<string>;
+  toggle: (id: string) => void;
+  headingAt: (item: T, i: number) => { label: string; n: number } | null;
+}) {
+  const rows = page.map((it) => ({ id: itemKey(it), row: views.row(it) }));
+  const press = (id: string, row: CardRow) => (selecting ? toggle(id) : row.open && row.open());
+  const keys = (id: string, row: CardRow) => (e: React.KeyboardEvent) => {
+    if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    press(id, row);
+  };
+  const tick = (on: boolean) =>
+    selecting ? <span className={`at-ckbox pick${on ? " on" : ""}`} aria-hidden="true">{on ? "✓" : ""}</span> : null;
+  /* What makes a row a thing to press, said the same way for both. */
+  const pressable = (id: string, row: CardRow) =>
+    selecting || row.open
+      ? {
+          tabIndex: 0,
+          onClick: () => press(id, row),
+          onKeyDown: keys(id, row),
+          ...(selecting ? { "aria-pressed": picked.has(id) } : null),
+        }
+      : {};
+
+  if (view === "list") {
+    return (
+      <div className="at-cardlines">
+        {rows.map(({ id, row }, i) => {
+          const head = headingAt(page[i], i);
+          const on = picked.has(id);
+          return (
+            <React.Fragment key={id}>
+              {head && (
+                <p className="at-grouphead">
+                  {head.label}
+                  <span>{head.n}</span>
+                </p>
+              )}
+              <div className={`at-cardline${on ? " picked" : ""}`} role="button" data-card={id} {...pressable(id, row)}>
+                {tick(on)}
+                <span className="at-cardline-word">{row.word}</span>
+                <span className="at-cardline-meaning">{row.meaning}</span>
+                {row.actions && !selecting ? (
+                  <span className="at-cardline-acts" onClick={(e) => e.stopPropagation()}>{row.actions}</span>
+                ) : null}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const acts = !selecting && rows.some((r) => r.row.actions);
+  const span = views.columns.length + (selecting ? 1 : 0) + (acts ? 1 : 0);
+  return (
+    <div className="at-tablewrap">
+      <table className="at-cardtable">
+        <thead>
+          <tr>
+            {selecting ? <th aria-label="Selected" /> : null}
+            {views.columns.map((c) => (
+              <th key={c.key} scope="col">{c.label}</th>
+            ))}
+            {acts ? <th aria-label="Actions" /> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ id, row }, i) => {
+            const head = headingAt(page[i], i);
+            const on = picked.has(id);
+            return (
+              <React.Fragment key={id}>
+                {head && (
+                  <tr className="at-grouprow">
+                    <th colSpan={span} scope="colgroup">
+                      {head.label} <span>{head.n}</span>
+                    </th>
+                  </tr>
+                )}
+                <tr className={`${row.open || selecting ? "opens" : ""}${on ? " picked" : ""}`} data-card={id} {...pressable(id, row)}>
+                  {selecting ? <td className="at-cardtable-tick">{tick(on)}</td> : null}
+                  {views.columns.map((c) => (
+                    <td key={c.key} className={`at-cardtable-${c.key}`}>{row.cells[c.key]}</td>
+                  ))}
+                  {acts ? (
+                    <td className="at-cardtable-acts" onClick={(e) => e.stopPropagation()}>{row.actions}</td>
+                  ) : null}
+                </tr>
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 /*
@@ -1597,7 +1828,7 @@ export function ItemList<T>({
   groups,
   groupOf,
   size = "large",
-  resizable,
+  views,
   onNew,
   searchBelow,
   renderItem,
@@ -1651,8 +1882,9 @@ export function ItemList<T>({
   groups?: { key: string; label: string }[];
   groupOf?: (item: T) => string;
   size?: "large" | "small";
-  /** Whether the tiles can be drawn bigger. Only a grid of them can. */
-  resizable?: boolean;
+  /** The view button and what the line and table views show; absent
+      draws the tiles as they are. See CardViews. */
+  views?: CardViews<T>;
   onNew?: () => void;
   renderItem: (item: T, state: { selecting: boolean; selected: boolean }) => Node;
   selected?: Set<string>;
@@ -1668,9 +1900,10 @@ export function ItemList<T>({
   const [limit, setLimit] = useState(PAGE_SIZE);
   /* Which menu is open, by key. One at a time, and "" for none. */
   const [openMenu, setOpenMenu] = useState("");
-  /* How big the tiles are. Read from the device at the first render, so the
-     size the last screen was left at is the size this one opens at. */
-  const [tile, setTile] = useState(loadTileSize);
+  /* How the list is drawn. Read from the device at the first render, so
+     the view this list was last left at is the view it opens at. */
+  const viewKey = views ? views.key : "";
+  const [view, setView] = useState<ListView>(() => (viewKey ? loadView(viewKey) : "small"));
 
   /* match is nearly always an inline arrow, so depending on it directly
      would throw the filtered list away on every render of the parent. */
@@ -1737,12 +1970,14 @@ export function ItemList<T>({
   /* A menu with nothing in it is a button that opens onto nothing. */
   const live = (menus || []).filter((m) => m && m.key && m.content);
   const shownMenu = live.find((m) => m.key === openMenu) || null;
-  /* What the size button says. The size it is at, and the one it goes to
-     next — an icon that cycles owes the reader both, and "Card size: Medium"
-     alone leaves a person pressing it to find out. */
-  const at = TILE_SIZES[tile] || TILE_SIZES[0];
-  const then = TILE_SIZES[(tile + 1) % TILE_SIZES.length];
-  const sizeLabel = `Card size: ${at.name} — press for ${then.name.toLowerCase()}`;
+  /* What the view button says. The view it is at, and the one it goes to
+     next — an icon that cycles owes the reader both, and "View: List" alone
+     leaves a person pressing it to find out. */
+  const viewAt = views ? Math.max(0, VIEWS.findIndex((v) => v.id === view)) : 0;
+  const at = VIEWS[viewAt];
+  const then = VIEWS[(viewAt + 1) % VIEWS.length];
+  const viewLabel = `View: ${at.name} — press for ${then.name.toLowerCase()}`;
+  const drawn: ListView = views ? at.id : "small";
 
   const startSelecting = () => {
     if (onSelectedChange) onSelectedChange(new Set());
@@ -1828,21 +2063,21 @@ export function ItemList<T>({
         {/* Beside the search box, because narrowing by hand and narrowing by
             typing are the same job. */}
         {tools}
-        {/* And at the far end, how big to draw them — which is about
-            reading the list rather than about what is in it, so it stands
-            apart from the row below that decides that. */}
-        {resizable && items.length > 0 && (
+        {/* And at the far end, how to draw them — which is about reading
+            the list rather than about what is in it, so it stands apart
+            from the row below that decides that. Its icon is a picture of
+            the view the list is in. */}
+        {views && items.length > 0 && (
           <button
-            className="at-icon at-sizebtn"
-            title={sizeLabel}
-            aria-label={sizeLabel}
+            className="at-icon at-viewbtn"
+            title={viewLabel}
+            aria-label={viewLabel}
             onClick={() => {
-              const next = (tile + 1) % TILE_SIZES.length;
-              setTile(next);
-              saveTileSize(next);
+              setView(then.id);
+              saveView(viewKey, then.id);
             }}
           >
-            <Icon name="size" />
+            <Icon name={at.icon} />
           </button>
         )}
       </div>
@@ -1909,11 +2144,29 @@ export function ItemList<T>({
         </div>
       )}
 
-      {/* The scale rides on the grid rather than on each tile: the columns
-          are as much of "bigger cards" as the type inside them is. */}
+      {views && (drawn === "list" || drawn === "table") ? (
+        <CardLines
+          view={drawn}
+          views={views}
+          page={page}
+          itemKey={itemKey}
+          selecting={selecting}
+          picked={picked}
+          toggle={toggle}
+          headingAt={(it, i) => {
+            const of = groupRef.current;
+            const run = counted && of ? of(it) : null;
+            if (run === null || !of || (i > 0 && of(page[i - 1]) === run)) return null;
+            const named = (groups || []).find((g) => g.key === run);
+            return { label: named ? named.label : run, n: (counted && counted.get(run)) || 0 };
+          }}
+        />
+      ) : (
+      /* The scale rides on the grid rather than on each tile: the columns
+          are as much of "bigger cards" as the type inside them is. */
       <div
         className={size === "small" ? "at-cardgrid" : "at-decklist2"}
-        style={resizable && at.scale !== 1 ? ({ "--tile": String(at.scale) } as React.CSSProperties) : undefined}
+        style={drawn === "large" ? ({ "--tile": String(LARGE_TILE) } as React.CSSProperties) : undefined}
       >
         {page.map((it, i) => {
           const id = itemKey(it);
@@ -1964,6 +2217,7 @@ export function ItemList<T>({
           );
         })}
       </div>
+      )}
 
       {shown.length > page.length && (
         <div className="at-row at-mt3">
@@ -2382,7 +2636,7 @@ function ReadBlanks({ card, lang, cards }: {
                           </span>
                         ) : null}
                         {line.lat ? <span className="at-askedsaid">{line.lat}</span> : null}
-                        {line.en ? <span className="at-askedmeans">{line.en}</span> : null}
+                        <AskedMeanings en={line.en} />
                       </span>
                     </li>
                   ))}

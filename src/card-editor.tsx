@@ -48,6 +48,7 @@ import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, DEMONSTRATIVE_READING_SLOTS
 import { agreeingBlanks, combosOf, mainFormOnly, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
+import { RETIRED_TAGS } from "./numbers/generate.ts";
 import { MAX_IMAGES, shrinkImage } from "./images.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -74,6 +75,7 @@ import {
   Overlay,
   PickSheet,
   DeckSwitch,
+  AskedMeanings,
 } from "./shared.tsx";
 
 /* A blank form carries every grammatical value any language might use, so a
@@ -4740,6 +4742,8 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
         });
       } else if (b.built === "reading") {
         /* Offered under the pronoun, the demonstrative or the noun, above. */
+      } else if (RETIRED_TAGS.has(b.name)) {
+        /* A number part's old name: still filled, never offered. */
       } else if (b.used > 0 || b.wrote > 0) {
         rows.push({ name: b.name, kind: "group", words, note: "The cards tagged with it", ...readingsBehind(b.name) });
       }
@@ -8282,7 +8286,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                           </span>
                         )}
                         {line.lat && <span className="at-askedsaid">{line.lat}</span>}
-                        {line.en && <span className="at-askedmeans">{line.en}</span>}
+                        <AskedMeanings en={line.en} />
                       </span>
                     </li>
                   ))}

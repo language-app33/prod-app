@@ -2939,3 +2939,30 @@ test("a deck's size says when its number parts are not ready", () => {
      can change before the next look says which parts wait. */
   assert.equal(deckSize({ cardCount: 0, parts: ["numbers:0-9"], partsWaiting: ["numbers:10-19"] }), "1 number part");
 });
+
+test("filtering by kind of card, and by the subtypes of each kind", () => {
+  /* A teacher asks for nouns and every sentence in one go: each kind's
+     subtypes narrow only that kind. */
+  const list = [
+    card({ id: "noun", category: "noun" }),
+    card({ id: "verb", category: "verb" }),
+    card({ id: "bare" }),
+    card({ id: "sentence", sentence: true }),
+    card({ id: "chat", lines: [{ ar: "a", en: "a" }] }),
+    card({ id: "prose", sceneKind: "text", lines: [{ ar: "b", en: "b" }] }),
+  ];
+  const ids = (/** @type {Record<string, any>} */ f) =>
+    filterCards(list, f).map((/** @type {any} */ c) => c.id);
+
+  assert.deepEqual(ids({ kinds: [] }), ["noun", "verb", "bare", "sentence", "chat", "prose"]);
+  assert.deepEqual(ids({ kinds: ["word"] }), ["noun", "verb", "bare"]);
+  assert.deepEqual(ids({ kinds: ["word", "sentence"], subtypes: ["noun"] }), ["noun", "sentence"]);
+  /* A word nobody has said a subtype for is "none". */
+  assert.deepEqual(ids({ kinds: ["word"], subtypes: ["none", "verb"] }), ["verb", "bare"]);
+  assert.deepEqual(ids({ kinds: ["scene"], sceneKinds: ["text"] }), ["prose"]);
+  assert.deepEqual(ids({ kinds: ["scene"], sceneKinds: ["conversation"] }), ["chat"]);
+  /* Subtypes of a kind not ticked narrow nothing — and no kind ticked
+     narrows nothing at all. */
+  assert.deepEqual(ids({ kinds: ["sentence"], subtypes: ["noun"] }), ["sentence"]);
+  assert.deepEqual(ids({ subtypes: ["noun"] }), ["noun", "verb", "bare", "sentence", "chat", "prose"]);
+});
