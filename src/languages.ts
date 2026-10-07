@@ -1919,17 +1919,19 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        a stored value already means. */
     options: [
       ["singular", "singular"],
-      ["plural", "plural"],
       /* A pair, where a language counts one. Arabic and Hebrew both do —
          كتابين, שעתיים — and Huế declares no axes at all, so nobody is
          offered it who has no use for it.
 
          Added here rather than appended after "na" because the list is
-         also the order the radios read in, and "one, several, doesn't
-         apply, two" is not an order. Safe to insert: normDimValue matches
-         the whole word first, and its two prefix passes only reach "du",
-         which no value stored under the old list begins with. */
+         also the order the radios read in, and a noun's boxes too: one,
+         two, several, which is the order the owner asked them in (0.400)
+         and the order a number counts them. Safe to move: normDimValue
+         matches the whole word first, and every value here starts with
+         letters no other does, so its two prefix passes reach one value
+         whatever the order. */
       ["dual", "dual"],
+      ["plural", "plural"],
       ["na", "N/A"],
     ],
     /* Most words a teacher writes are not usefully singular or plural, and
@@ -3232,9 +3234,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
          beside أيام — which is a box on a noun card, under the plural. */
       number: [
         ["singular", "singular"],
+        ["dual", "dual"],
         ["plural", "plural"],
         ["counted", "special plural after 3–10"],
-        ["dual", "dual"],
         ["na", "N/A"],
       ],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],

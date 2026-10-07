@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.400 — 7 October 2026
+
+**A noun's forms go one, two, many.**
+
+- On a noun card the boxes are now in the order **singular, dual,
+  plural, special plural after 3–10**. Before, the dual came last. A
+  person or an animal has that order on each side.
+- The same order is used wherever a word's number is picked, for every
+  kind of word, so it reads the same everywhere.
+- Nothing stored changes. Every form stays in the box it was in, only
+  the boxes have moved.
+
 ## 0.399 — 7 October 2026
 
 **A noun's "special plural" box says what it is for.**

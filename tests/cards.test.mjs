@@ -2779,14 +2779,14 @@ test("a noun is laid out in boxes, with two sides for a person or an animal", ()
   assert.equal(nounLayoutOf(arPS(), "preposition", "thing"), "");
   assert.equal(nounLayoutOf(LANGUAGES["vi-Hue"], "noun", "thing"), "");
   assert.deepEqual(nounBoxes(arPS(), "single").map((/** @type {any} */ b) => b.title), [
-    "Singular", "Plural", "Special plural after 3–10 (days, months)", "Dual",
+    "Singular", "Dual", "Plural", "Special plural after 3–10 (days, months)",
   ]);
   assert.deepEqual(nounBoxes(arPS(), "paired").map((/** @type {any} */ b) => b.title), [
-    "Masculine singular", "Masculine plural", "Masculine special plural after 3–10 (days, months)", "Masculine dual",
-    "Feminine singular", "Feminine plural", "Feminine special plural after 3–10 (days, months)", "Feminine dual",
+    "Masculine singular", "Masculine dual", "Masculine plural", "Masculine special plural after 3–10 (days, months)",
+    "Feminine singular", "Feminine dual", "Feminine plural", "Feminine special plural after 3–10 (days, months)",
   ]);
   /* Hebrew has no plural of its own after a number, so no such box. */
-  assert.deepEqual(nounBoxes(LANGUAGES["he-IL"], "single").map((/** @type {any} */ b) => b.title), ["Singular", "Plural", "Dual"]);
+  assert.deepEqual(nounBoxes(LANGUAGES["he-IL"], "single").map((/** @type {any} */ b) => b.title), ["Singular", "Dual", "Plural"]);
 });
 
 test("Arabic's plural after three to ten says which nouns want it, and is not asked on its own", () => {

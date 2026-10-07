@@ -271,10 +271,15 @@ test("a pair is a number a language may count", () => {
   /* Arabic and Hebrew both do, and the app could not say it: a noun's
      dual had nowhere to live, which is why a counting question draws its
      nouns from a list written by hand rather than off the cards. */
-  assert.deepEqual(GRAMMAR.number.options.map(([v]) => v), ["singular", "plural", "dual", "na"]);
+  assert.deepEqual(GRAMMAR.number.options.map(([v]) => v), ["singular", "dual", "plural", "na"]);
   assert.equal(dimValues({ number: "dual" }).number, "dual");
   assert.equal(normDimValue(GRAMMAR.number, "dual"), "dual");
   assert.equal(normDimValue(GRAMMAR.number, "du"), "dual");
+  /* Moved ahead of the plural in 0.400; what a stored or typed value
+     means does not depend on where it sits. */
+  for (const [given, means] of [["pl", "plural"], ["p", "plural"], ["pl.", "plural"], ["plurals", "plural"], ["d", "dual"], ["s", "singular"], ["sg", "singular"]]) {
+    assert.equal(normDimValue(GRAMMAR.number, given), means, given);
+  }
   /* And it is offered only where somebody counts in pairs: Huế declares
      no number at all, so nobody there is asked a question about a dual. */
   assert.ok(!LANGUAGES["vi-Hue"].grammar.includes("number"));
@@ -1258,14 +1263,14 @@ test("each pack offers only the grammar its language has", () => {
   }
   /* Arabic has a plural a few nouns take only after three to ten — days,
      months — and Hebrew has none. */
-  assert.deepEqual(values("ar-PS", "number"), ["singular", "plural", "counted", "dual", "na"]);
-  assert.deepEqual(values("he-IL", "number"), ["singular", "plural", "dual", "na"]);
+  assert.deepEqual(values("ar-PS", "number"), ["singular", "dual", "plural", "counted", "na"]);
+  assert.deepEqual(values("he-IL", "number"), ["singular", "dual", "plural", "na"]);
   /* It is a noun's, and offered on nothing else that is asked its number. */
   const offered = (/** @type {string} */ kind) =>
     must(dimsFor(LANGUAGES["ar-PS"], kind).find((d) => d.field === "number"), kind).options.map(([v]) => v);
   assert.ok(offered("noun").includes("counted"));
   for (const kind of ["pronoun", "person", "place", "name"]) {
-    assert.deepEqual(offered(kind), ["singular", "plural", "dual", "na"], kind);
+    assert.deepEqual(offered(kind), ["singular", "dual", "plural", "na"], kind);
   }
   /* Not "pl. 3–10": beside "pl." that reads as the plural for three to
      ten, and "pl." as the one above ten, which is the singular. */
