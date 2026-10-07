@@ -5562,3 +5562,39 @@ the three golden systems so the tests can reach the ceiling. No reviewer
 has read them, and no table row says how a billion should come out. They
 are the tests' words, not the app's: each teacher writes their own.
 
+## In and at: بالشغل is taught, and every everyday spelling counts
+
+**7 October 2026** · `checkArPS`, `checkTrPS`, `arInAtSpellings`, `trInAtSpellings`, `taughtInAt`, `alsoAcceptedInAt` and `meansPlace` in `src/languages.ts`; `taughtForm` and `castTaught` in `src/ArabicTrainer.tsx`; `AskedScript` in `src/shared.tsx`
+
+Palestinian says "at work" as بالشغل more often than في الشغل, says both
+with the article swallowed (biš-šuġl, fiš-šuġl), and writes the second as
+فالشغل about as often as in full. The owner asked that all of this be
+accounted for, that بالشغل be the form taught wherever a question shows the
+Arabic, and that في still count, with a note giving the everyday form.
+
+**Marking.** The pack's checker tries the card's forms, then the other
+ways of writing its في and بـ. فالـ for في الـ is spelling and is accepted
+everywhere, dictation included. بـ for في, and back, is a different word,
+so it waits on the card's English: بـ is also "by" and "with", and في is
+also "there is". Where the English reads as a place, the swap is made; في
+before the article goes to بـ unless the English says otherwise; a heard
+question never swaps. فالـ on a card is not read as في, because it is just
+as often ف ("so") on the article.
+
+**What is shown.** `castTaught` rewrites في الـ to بالـ on the question
+(and on the tiles beside it) where the English is a place, and keeps the
+card's wording as `taughtFrom`, which checkAnswer adds to the accepted
+answers. Not on a heard question and not on a card with a recording,
+because text that disagrees with the voice next to it teaches neither.
+Only before the article: في بيتي and ببيتي are both everyday.
+
+**The teacher's lists.** Examples and the review show the taught form, and
+an "Also accepted" line underneath. Review fingerprints are still taken of
+the card's own words. The taught form is a fixed function of them, so an
+approval still covers exactly what the student sees, and no sentence
+already approved has to be approved again.
+
+**What it costs.** "A place" is read off the English, which is a guess. A
+card whose English doesn't say "in", "at" or "on" is shown as written and
+not swapped. That is the cautious side of the guess.
+

@@ -168,7 +168,7 @@ const ALLOWED_SCRIPT = {
      card with a name of its own is named instead of. */
   gallery: ["كِتَاب", "كُتُب", "أكل"],
   /* Examples of what each element holds, which are the point of the list. */
-  "screen-elements": ["كِتاب", "الكتاب كبير", "كُتُب", "السَّلامُ عَلَيْكُم", "٤٧", "٠١٢٣٤٥٦٧٨٩"],
+  "screen-elements": ["كِتاب", "الكتاب كبير", "كُتُب", "السَّلامُ عَلَيْكُم", "٤٧", "٠١٢٣٤٥٦٧٨٩", "أنا بالشغل"],
   /* Specimens of each text style, on the admin screen that lists them. */
   "text-styles": ["كِتَاب", "الكِتَاب كَبِير", "اسْمِي لَيْلَى وَأَنَا مِن فِلَسْطِين"],
 };

@@ -685,6 +685,48 @@ export function AskedMeanings({ en }: { en?: string | null }) {
   );
 }
 
+/*
+ * A listed sentence's script and romanisation, as a student will see them,
+ * and the other ways of writing it that are marked right.
+ *
+ * Palestinian teaches بالشغل where a sentence says في الشغل and means a
+ * place, and accepts في الشغل and فالشغل too — see taughtInAt. A teacher
+ * reading the card's examples or reviewing its sentences reads what the
+ * student is shown, and underneath it what gets through, so a version
+ * they would not accept is in front of them before it reaches anybody.
+ * Shared by the three lists, so they read alike.
+ */
+export function AskedScript({ line, lang }: { line: { ar?: string; lat?: string; en?: string }; lang: Lang }) {
+  const taught = lang.taught ? lang.taught({ ar: line.ar, lat: line.lat, en: line.en }) : null;
+  const ar = taught ? taught.ar : String(line.ar || "");
+  const lat = taught && taught.lat ? taught.lat : String(line.lat || "");
+  const also = ar && lang.alsoAccepted ? lang.alsoAccepted(ar, line.en) : [];
+  const script = { fontFamily: lang.fontStack, ...scriptVars(lang) };
+  return (
+    <>
+      {ar ? (
+        <span className="at-askedscript" lang={lang.id} dir={lang.direction} style={script}>
+          {ar}
+        </span>
+      ) : null}
+      {lat ? <span className="at-askedsaid">{lat}</span> : null}
+      {also.length > 0 ? (
+        <span className="at-askedalso" data-el="also-accepted">
+          Also accepted:{" "}
+          {also.map((one, i) => (
+            <span key={i}>
+              {i > 0 ? " · " : ""}
+              <span lang={lang.id} dir={lang.direction} style={script}>
+                {one}
+              </span>
+            </span>
+          ))}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each
    toggled their own "primary" class, and tells assistive software what
@@ -2625,17 +2667,7 @@ function ReadBlanks({ card, lang, cards }: {
                   {asked.map((line, i) => (
                     <li className="at-askedline" key={i}>
                       <span className="at-askedsays">
-                        {line.ar ? (
-                          <span
-                            className="at-askedscript"
-                            lang={lang.id}
-                            dir={lang.direction}
-                            style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
-                          >
-                            {line.ar}
-                          </span>
-                        ) : null}
-                        {line.lat ? <span className="at-askedsaid">{line.lat}</span> : null}
+                        <AskedScript line={line} lang={lang} />
                         <AskedMeanings en={line.en} />
                       </span>
                     </li>

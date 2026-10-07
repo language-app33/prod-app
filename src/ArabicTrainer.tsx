@@ -2759,6 +2759,56 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
 }
 
 /*
+ * And which form of the words it teaches.
+ *
+ * A language may teach a form other than the one written: Palestinian
+ * shows بالشغل where a card says في الشغل and means a place, because that
+ * is what people say — see taughtInAt. The card's own wording stays an
+ * accepted answer (`taughtFrom`, read by checkAnswer).
+ *
+ * Not on a question that is heard, and not on a card with a recording:
+ * the recording says the card's words, and text that disagrees with the
+ * voice beside it teaches neither. Done before the meaning is narrowed,
+ * so "at work / busy" is still read as a place when "busy" is the meaning
+ * shown.
+ */
+function taughtForm(unit: Form, type: string): Form {
+  const lang = activeLang();
+  if (!lang.taught || !unit) return unit;
+  const spec = specOf(type);
+  const needs: string[] = (spec && spec.needs) || [];
+  if (needs.includes("recs") || needs.includes("contextAudio")) return unit;
+  if (Array.isArray(unit.recs) && unit.recs.length) return unit;
+  const en = meaningsOf(unit).join(" / ");
+  const taught = lang.taught({ ar: unit.ar, lat: unit.lat, en });
+  if (!taught) return unit;
+  const answers = Array.isArray(unit.answers)
+    ? unit.answers.map((a: any) => {
+        const one = a && lang.taught ? lang.taught({ ar: a.text, lat: a.lat, en }) : null;
+        return one ? { ...a, text: one.ar, ...(a.lat ? { lat: one.lat } : {}) } : a;
+      })
+    : unit.answers;
+  return {
+    ...unit,
+    ar: taught.ar,
+    lat: taught.lat || unit.lat,
+    answers,
+    taughtFrom: { ar: String(unit.ar || ""), lat: String(unit.lat || "") },
+  } as Form;
+}
+
+function castTaught(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
+  if (!resolved) return resolved;
+  const unit = taughtForm(resolved.unit, type);
+  if (unit === resolved.unit) return resolved;
+  return {
+    ...resolved,
+    unit,
+    parent: resolved.isSub ? resolved.parent : withLead(resolved.parent, unit),
+  };
+}
+
+/*
  * And which meaning a question made of the meaning asks about.
  *
  * A card may mean more than one thing — "office / desk" — and asked what it
@@ -2848,7 +2898,7 @@ function oneOf(unit: Form, type: string): Form {
   const seen = turnOf(unit.s && unit.s[type]);
   const answer = answerAt(unit, seen, answerFields());
   const meaning = meaningForTurn(unit, seen);
-  const out = answer ? (oneAnswer(unit, answer) as Form) : unit;
+  const out = taughtForm(answer ? (oneAnswer(unit, answer) as Form) : unit, type);
   return meaning && meaning !== String(out.en || "").trim() ? { ...out, en: meaning } : out;
 }
 
@@ -5386,7 +5436,11 @@ export function tokenCards(
  */
 export function resolveQuestion(asking: Item[], exercise: Question, trial: boolean, systems: SystemSet[]) {
   return castRange(
-    castMeaning(castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type), exercise.type, exercise),
+    castMeaning(
+      castTaught(castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type), exercise.type),
+      exercise.type,
+      exercise,
+    ),
     exercise,
     systems,
   );
@@ -12813,6 +12867,21 @@ export default function ArabicTrainer() {
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
                         <Help data-el="verdict-reason">{verdictText(checked, qLang)}</Help>
+                      )}
+                      {/* Right, and written the textbook's way: the
+                          everyday form beside it — see checkArPS. */}
+                      {checked.ok && checked.usual && (
+                        <Help data-el="verdict-usual">
+                          Right. People usually say{" "}
+                          {spec.answerMode === "ar" ? (
+                            <span lang={qLang.id} dir={qLang.direction} style={{ fontFamily: qLang.fontStack }}>
+                              {checked.usual}
+                            </span>
+                          ) : (
+                            <span>{checked.usual}</span>
+                          )}
+                          .
+                        </Help>
                       )}
                       {/* Right, and the spelling it should have had is
                           underneath: one letter out of the English is a

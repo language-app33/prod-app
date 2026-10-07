@@ -78,6 +78,7 @@ import {
   PickSheet,
   DeckSwitch,
   AskedMeanings,
+  AskedScript,
 } from "./shared.tsx";
 
 /* A blank form carries every grammatical value any language might use, so a
@@ -8499,17 +8500,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                   {asked.map((line, i) => (
                     <li className="at-askedline" key={i}>
                       <span className="at-askedsays">
-                        {line.ar && (
-                          <span
-                            className="at-askedscript"
-                            lang={lang.id}
-                            dir={lang.direction}
-                            style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
-                          >
-                            {line.ar}
-                          </span>
-                        )}
-                        {line.lat && <span className="at-askedsaid">{line.lat}</span>}
+                        <AskedScript line={line} lang={lang} />
                         <AskedMeanings en={line.en} />
                       </span>
                     </li>

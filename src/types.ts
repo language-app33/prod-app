@@ -527,6 +527,13 @@ export interface Lang {
   /** Marks a romanisation, where the language has more to accept than
    *  checkTr does. */
   checkTranslit?: (given: string, expected: string, ctx?: { meaning?: string | null; heard?: boolean }) => any;
+  /** The card's Arabic and romanisation as a question shows them, where
+   *  the language teaches a form other than the one written — see
+   *  taughtInAt. Null when it is shown as written. */
+  taught?: (form: { ar?: unknown; lat?: unknown; en?: unknown }) => { ar: string; lat: string } | null;
+  /** Other ways of writing a sentence that are marked right, for the
+   *  teacher's lists — see alsoAcceptedInAt. */
+  alsoAccepted?: (ar: string, meaning?: string | null) => string[];
   /**
    * One character, folded the way this language's marking folds it when it
    * is deciding whether two spellings are the same word.

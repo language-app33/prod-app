@@ -8,6 +8,32 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.393 — 7 October 2026
+
+**Palestinian "in" and "at": بالشغل is taught, and every everyday spelling counts.**
+
+- Questions now show **بالشغل** where a card says في الشغل and means a
+  place ("at work", "in the house"), because that is what people say.
+  The transliteration follows: "bish-shughl" instead of "fish-shughl".
+  Cards that have a recording keep their own wording, so the text matches
+  the voice. So do listening questions.
+- Typed answers accept **بالشغل, في الشغل and فالشغل** (the joined spelling
+  used in texting) for each other. Before, فالشغل came back "Very close"
+  and بالشغل "Not quite". In transliteration, "bish-shughl" and
+  "fish-shughl" both count. "fil-shughl" is still wrong, because ش is a
+  sun letter.
+- Writing في where people say بـ is still marked right, with a line
+  underneath: "People usually say أنا بالشغل."
+- Not swapped where the two mean different things: بـ as "by" or "with"
+  (بالسيارة, by car), في as "there is" (في ناس), or a question where you
+  write down a recording.
+- The card's **Examples** and the **sentence review** show each sentence the
+  way students will see it, with an "Also accepted" line underneath listing
+  the other versions that are marked right.
+- **Check by hand:** the app judges "a place" from the card's English
+  ("in", "at", "on"). A card whose English doesn't say so keeps في as
+  written. Look over a few sentence cards that use في in the review.
+
 ## 0.392 — 7 October 2026
 
 **Play buttons sit in the middle of their cards.**

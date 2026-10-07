@@ -33,7 +33,7 @@ import {
 import type { PartSentences, ReviewState, Sentence } from "./review.ts";
 import { fillNames, refClash, refOf, slotName, slotsOf, WORD_SLOT } from "./variables.ts";
 import { ownSlot } from "./verbs.ts";
-import { AskedMeanings, Button, CheckList, Field, Help, Notice, Screen, Section, Segmented, plural } from "./shared.tsx";
+import { AskedMeanings, AskedScript, Button, CheckList, Field, Help, Notice, Screen, Section, Segmented, plural } from "./shared.tsx";
 
 type Mark = "ok" | "no" | null;
 
@@ -99,17 +99,7 @@ export function ReviewLine({ state, onOpen }: { state: ReviewState | null | unde
 function SentenceText({ line, lang }: { line: Sentence; lang: Lang }) {
   return (
     <span className="at-askedsays">
-      {line.ar && (
-        <span
-          className="at-askedscript"
-          lang={lang.id}
-          dir={lang.direction}
-          style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
-        >
-          {line.ar}
-        </span>
-      )}
-      {line.lat && <span className="at-askedsaid">{line.lat}</span>}
+      <AskedScript line={line} lang={lang} />
       <AskedMeanings en={line.en} />
       {/* Which form stands in a blank, where the English reads the same
           for several — the word a student is shown beside the sentence. */}

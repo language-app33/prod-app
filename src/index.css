@@ -654,6 +654,8 @@ button {
   line-height:calc(1.5 * var(--sleading, 1)); font-weight:600; }
 .at-askedsaid { color: var(--text-soft); font-size: var(--fs-sm); font-weight:600; }
 .at-askedmeans { color: var(--text); font-size: var(--fs-sm); }
+/* The other ways of writing it that are marked right — see AskedScript. */
+.at-askedalso { color: var(--text-soft); font-size: var(--fs-sm); }
 /* A blank the card leaves: what it is named — which is what another card
    has to say it fills — and, on hovering it, the words that will be put in
    it. The name alone was the least of what a teacher wants to know about

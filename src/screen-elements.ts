@@ -73,6 +73,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
     ["verdict", "What happened. Rotating praise when right; one fixed line when not. Larger when the praise is all the screen has to show.", "Nicely done! · Incorrect. The correct answer is: · The answer is:"],
     ["verdict-reason", "Why it was marked that way, when there is something worth saying.", "Right letters, wrong harakat"],
     ["verdict-typo", "Says a right answer in English was one letter out, above the spelling it should have had.", "One letter out — counted as right. It is spelt:"],
+    ["verdict-usual", "Says a right answer was written the textbook's way where people usually say it another way — in Palestinian Arabic, \"in\" or \"at\" before \"the\" — and gives the everyday form.", "Right. People usually say أنا بالشغل."],
     ["verdict-hinted", "Says so when a right answer was written with the nudge up, on the questions whose nudge is the answer said another way.", "Right — but the transliteration was on screen, so this one counts as a near miss and comes round again."],
     ["answer-value", "The right answer. Shown only when you got it wrong or asked to see it.", ""],
     ["answer-value-text", "The right answer itself, in whichever language was asked for.", "كِتاب"],
