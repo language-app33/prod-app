@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.388 — 7 October 2026
+## 0.389 — 7 October 2026
 
 **Number blanks: pick Numbers or Counting things, then tick the ranges.**
 
@@ -33,6 +33,15 @@ and moves once per batch of work you would notice, not once per commit.
   using the old names such as 11-99.
 - **Trade-off:** a blank can't skip ranges. For example, 0 to 9 together
   with 100 to 999 isn't possible.
+
+## 0.388 — 7 October 2026
+
+**A lone block under "Learn more" sits in the middle.**
+
+- After you answer, the things under "Learn more" sit two to a row. When
+  one is left over on a row of its own, it used to sit in the left half
+  with an empty gap beside it. It now sits centred in the row, so the box
+  looks finished rather than as if something were missing.
 
 ## 0.387 — 7 October 2026
 
