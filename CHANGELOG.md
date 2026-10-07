@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.390 — 7 October 2026
+## 0.391 — 7 October 2026
 
 **Numbers up to eleven digits, in Check a number and in practice.**
 
@@ -29,6 +29,24 @@ and moves once per batch of work you would notice, not once per commit.
   already written with the 1,000-and-over blank keeps meaning 1,000 and
   up, so it is now filled from the billions as well. Ticking only 1,000
   to 999,999,999 gives a blank of its own, called 1000-999999999.
+
+## 0.390 — 7 October 2026
+
+**Two new matching grids for numbers you can hear.**
+
+- Beside "Match each recording to its word", sessions can now ask
+  "Match each recording to its Arabic numeral": a play button for each
+  number down one side, and figures like 40 down the other.
+- And, in Arabic, "Match each recording to its Eastern Arabic numeral":
+  the same, with ٤٠ on the other side. Like the other questions that use
+  these figures, it only starts once the ten figures ٠ to ٩ have been
+  learnt.
+- Only numbers your teacher has recorded are used, and only ones that
+  are a single number — "forty" can be in the grid, "hundred" or "and"
+  cannot. A grid needs at least three recorded numbers, and everything
+  on the right-hand side is a number, never an ordinary word.
+- Both sit on the second level of the ladder, next to the other
+  matching grids.
 
 ## 0.389 — 7 October 2026
 

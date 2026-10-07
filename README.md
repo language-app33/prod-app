@@ -18,7 +18,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   | level | what it asks | exercises |
   |---|---|---|
   | 1 | what the word means | choose the meaning · {script} → English · listen → English · read a scene |
-  | 2 | which word it is | match the pairs · match the recordings · English → choose · choose the missing word |
+  | 2 | which word it is | match the pairs · match the recordings · match recordings to numbers (both kinds of figures) · English → choose · choose the missing word |
   | 3 | write it from a cue | {translit} → script · listen → script · listen → tone · choose the reply · put a scene in order |
   | 4 | write it from its meaning | English → script · fill the gap · phrase heard → script |
 

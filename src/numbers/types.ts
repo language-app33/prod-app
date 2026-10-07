@@ -473,7 +473,7 @@ export interface Ask {
  *
  * It was seven, from before this directory existed, until a teacher
  * checking a number typed nine digits and was answered for the first
- * seven of them. Eleven is what the owner asked for in 0.390 — the
+ * seven of them. Eleven is what the owner asked for in 0.391 — the
  * billions, which every language here has one more word for, and no
  * further.
  */
@@ -491,7 +491,7 @@ export const NUMBER_CEILING = 99999999999;
  * two old parts are named in `was`, so nothing anybody had on them is lost.
  *
  * The billions are a part of their own rather than the top of the
- * thousands, because they need a word no system had before 0.390: a part
+ * thousands, because they need a word no system had before 0.391: a part
  * opens only when everything in it can be said, and the thousands
  * reaching to the ceiling would have closed for every language until its
  * teacher wrote *billion*. Up to 999,999,999 is said with the words for
