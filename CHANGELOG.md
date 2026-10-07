@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.398 — 8 October 2026
+
+**The English of a counted noun comes only from its card.**
+
+- When a number is practised with a noun ("10 books"), the English of the
+  plural is now always the one written in the noun card's plural box.
+  The app no longer makes a plural up by putting an "s" on the singular.
+- A noun whose plural box has no English is left out of counting until it
+  has one. On the numbers screen it is listed with what it is missing:
+  "no English for the plural".
+- A plural's English is used exactly as written, even when it is the same
+  as the singular's.
+- One thing is still the app's own choice: English uses the singular's
+  English for one and the plural's for every other number, though Arabic
+  counts eleven and up with its singular noun.
+- Worth checking by hand: on the numbers screen, under counting, see
+  whether any of your nouns now say "no English for the plural", and fill
+  those in.
+
 ## 0.397 — 8 October 2026
 
 **"10 books", not "10 bookses".**

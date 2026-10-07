@@ -5714,3 +5714,18 @@ already approved has to be approved again.
 card whose English doesn't say "in", "at" or "on" is shown as written and
 not swapped. That is the cautious side of the guess.
 
+## A counted noun's English is the card's, never made up
+
+**8 October 2026** · `src/numbers/range.ts` (`englishFor`),
+`src/numbers/nouns.ts` (`readNounCard`, the `plural-english` gap)
+
+The English a counted phrase is asked in used to guess a plural by
+putting *s* or *es* on the singular wherever the plural box said nothing,
+or said the same as the singular. A card whose singular read *Books*
+came out *10 Bookses*, and 0.397 only patched the guess. The owner's
+rule: plurals come from the cards alone. So a noun whose plural has no
+English is not counted, and the numbers screen names the gap; a plural's
+English is used as written, even the singular's own word. The one choice
+left to the app is which of the two the English takes: the singular for
+one, the plural for every other count, whatever the language's own noun
+does after eleven.
