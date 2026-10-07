@@ -61,6 +61,7 @@ import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./v
 import { fillersFor, groupPronouns, isPronounCard, isPronounGroup, pickedCardIds } from "./card-facts.ts";
 import type { PronounGroup } from "./card-facts.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
+import { anotherMeaningOf, anotherWordDraft, carryWordChanges, meaningsOnCard, splitByMeaning } from "./meanings.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
 /* A language's numbers and its clock, written on one screen. Reached
@@ -3760,6 +3761,59 @@ function TryExercises({ card, cards, lang, onTry, back }: {
 }
 
 /* ------------------------------------------------------------------
+   More than one meaning on a card
+
+   One card per meaning is the rule — each meaning learnt, scheduled and
+   put in decks on its own — and a card written before it, or by habit,
+   may hold two: "cactus / patience". Only the teacher can say whether
+   those are two meanings or two ways of saying one (big, large), so each
+   card is a question with two answers. Split makes one card per meaning,
+   in the same decks, and a student who had the card starts each of them
+   where it stood. Keep says the meanings are learnt together, and the
+   card is not asked about again.
+   ------------------------------------------------------------------ */
+function MeaningSplits({ cards, busy, onSplit, onKeep, onClose }: {
+  cards: Card[];
+  busy?: boolean;
+  onSplit: (card: Card) => void;
+  onKeep: (card: Card) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Screen title="More than one meaning" onBack={onClose}>
+      <Help>
+        Each of these cards has more than one meaning written on it, so its meanings are learnt
+        together, on one schedule. Split it to make one card per meaning, each learnt on its own and
+        kept in the same decks; students keep the progress they had. Keep it if the meanings are
+        two ways of saying the same thing.
+      </Help>
+      {cards.length ? (
+        <ul className="at-blanklist">
+          {cards.map((c) => (
+            <li key={c.id}>
+              <div className="at-castrow">
+                <b lang={c.lang} dir="auto">{leadOf(c).ar}</b>
+                <span>{meaningsOnCard(c).join(" · ")}</span>
+              </div>
+              <div className="at-row at-mt3">
+                <Button size="sm" variant="primary" disabled={busy} onClick={() => onSplit(c)}>
+                  Split into {meaningsOnCard(c).length} cards
+                </Button>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => onKeep(c)}>
+                  Keep as one card
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Help>Nothing left to look at.</Help>
+      )}
+    </Screen>
+  );
+}
+
+/* ------------------------------------------------------------------
    In context
 
    What a teacher's own material already says about itself, as three lists
@@ -4403,6 +4457,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
   const [courseView, setCourseView] = useState<any | null>(null);
   const [openDeck, setOpenDeck] = useState<any | null>((back && back.deckId) || null);
   const [cards, setCards] = useState<Card[]>(last ? last.cards : []);
+  /* Whether the list of cards holding more than one meaning is open — see
+     MeaningSplits. */
+  const [splitting, setSplitting] = useState(false);
   /* The card being edited, with the decks it is to land in. null when the
      editor is shut. */
   const [editing, setEditing] = useState<{
@@ -4414,6 +4471,11 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
        exists says what it is itself. */
     making?: CardShape;
     draft?: Record<string, any>;
+    /* When this card was opened, where one editor hands straight on to
+       the next — another meaning, another word, a card the Meanings block
+       names. The editor is drawn afresh for it, rather than keeping the
+       card it was just showing. */
+    opened?: number;
   } | null>(null);
   /*
    * A card being started: everything settled about it so far, and nothing
@@ -4681,6 +4743,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     () => (off.length ? cards.filter((c) => inPlayWith(off, (langOfCard(c) || ({} as Lang)).id)) : cards),
     [cards, off, langOfCard]
   );
+  /* The cards written with more than one meaning on them, which the
+     teacher may want as one card each — see meaningsOnCard. */
+  const twoMeanings = useMemo(() => onCards.filter((c) => meaningsOnCard(c).length > 1), [onCards]);
   /* And the languages it leaves, for the things asked a language at a
      time — Numbers, Pronouns, In context — so a teacher looking at one
      language is not asked which. */
@@ -5639,6 +5704,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       (editing.card ? langOfCard(editing.card) : langOfDeck(forDeck || ({ courses: [] } as any)));
     return (
       <CardEditor
+        key={`${editing.opened || ""}`}
         card={editing.card}
         lang={editLang || LANGUAGES[DEFAULT_LANGUAGE]}
         decks={decksIn(new Set([(editLang || LANGUAGES[DEFAULT_LANGUAGE]).id]), editing.decks)}
@@ -5648,7 +5714,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         allCards={lendable}
         making={editing.making}
         draft={editing.draft || null}
-        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, stripped, drill, scene: written }) =>
+        onOpenCard={(other) =>
+          setEditing({ card: other, decks: other.decks || [], lang: other.lang || (editLang || {}).id || "", opened: Date.now() })
+        }
+        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, stripped, drill, scene: written, clue, carry, next }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5742,6 +5811,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                            reason: written on the Pronouns screen only. */
                         ...(editing.card && editing.card.enIs ? { enIs: editing.card.enIs } : {}),
                         ...(editing.card && editing.card.enAsk ? { enAsk: editing.card.enAsk } : {}),
+                        /* Which meaning this card is, for a question
+                           another card shares its prompt with. Said every
+                           time, so a clue taken off comes off. */
+                        clue,
                       }),
                 },
                 inDecks
@@ -5793,6 +5866,20 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   moved.add(id);
                 }
               }
+              /*
+               * And the word itself, onto the other cards that share it,
+               * where the teacher said so — see CarryAsk. Through the same
+               * pool, so a card a rename also reached is saved once with
+               * both.
+               */
+              for (const id of (carry && carry.ids) || []) {
+                const other = pool.get(id);
+                if (!other) continue;
+                const next1 = carryWordChanges(other, carry!.changes);
+                if (!next1) continue;
+                pool.set(id, next1);
+                moved.add(id);
+              }
               for (const id of moved) {
                 const one = pool.get(id);
                 if (!one) continue;
@@ -5800,7 +5887,28 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   await sendOrKeep({ ...one, id, lang: one.lang || "" }, one.decks || []),
                 );
               }
-              setEditing(null);
+              /*
+               * And straight on to the next card, where the teacher asked
+               * for another meaning of this word or another word for this
+               * meaning: a copy of what was just saved, with what it means
+               * emptied, or a new card with only the meaning in it. In no
+               * deck either way — see MeaningsBlock.
+               */
+              const savedNow = r && r.card;
+              if (next === "meaning" && savedNow) {
+                setEditing({ card: anotherMeaningOf(savedNow), decks: [], lang: savedNow.lang || (editLang || {}).id || "", opened: Date.now() });
+              } else if (next === "word" && savedNow) {
+                setEditing({
+                  card: null,
+                  decks: [],
+                  lang: savedNow.lang || (editLang || {}).id || "",
+                  making: "word",
+                  draft: anotherWordDraft(savedNow, (savedNow.forms || [])[0] || null),
+                  opened: Date.now(),
+                });
+              } else {
+                setEditing(null);
+              }
               /* Whether the card just saved turns up in phrases already
                  written. Counted against the list with the new card in
                  it — it is the thing being looked for, and the list in
@@ -6869,6 +6977,39 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                     Show {waitingOn === 1 ? "it" : "them"}
                   </Button>
                 </div>
+              )}
+              {twoMeanings.length > 0 && (
+                <div className="at-reviewbanner">
+                  <span>{`${plural(twoMeanings.length, "card")} ${twoMeanings.length === 1 ? "has" : "have"} more than one meaning on ${twoMeanings.length === 1 ? "it" : "them"}.`}</span>
+                  <Button size="sm" onClick={() => setSplitting(true)}>
+                    Review
+                  </Button>
+                </div>
+              )}
+              {splitting && (
+                <MeaningSplits
+                  cards={twoMeanings}
+                  busy={busy}
+                  onClose={() => setSplitting(false)}
+                  onSplit={(card) =>
+                    run(
+                      async () => {
+                        const { kept, made } = splitByMeaning(card);
+                        const decksOf = card.decks || [];
+                        absorbSaved(await sendOrKeep({ ...kept, lang: kept.lang || "" }, decksOf));
+                        for (const one of made) absorbSaved(await sendOrKeep({ ...one, lang: one.lang || "" }, decksOf));
+                        return made.length + 1;
+                      },
+                      (n: number) => `Split into ${n} cards`,
+                    )
+                  }
+                  onKeep={(card) =>
+                    run(
+                      async () => absorbSaved(await sendOrKeep({ ...card, together: true }, card.decks || [])),
+                      "Kept as one card",
+                    )
+                  }
+                />
               )}
               {reports.flags.length > 0 && (
                 <div className="at-reviewbanner">

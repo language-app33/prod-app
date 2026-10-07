@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.393 — 7 October 2026
+## 0.396 — 7 October 2026
 
 **Palestinian "in" and "at": بالشغل is taught, and every everyday spelling counts.**
 
@@ -33,6 +33,92 @@ and moves once per batch of work you would notice, not once per commit.
 - **Check by hand:** the app judges "a place" from the card's English
   ("in", "at", "on"). A card whose English doesn't say so keeps في as
   written. Look over a few sentence cards that use في in the review.
+## 0.395 — 7 October 2026
+
+**One card for each meaning, learnt on its own.**
+
+A word with two meanings, like صَبِر (cactus, and patience), or two words
+for one English word, like صح and يمين (both "right"), can now be one card
+per meaning. Each card has its own progress and schedule and goes in its
+own decks.
+
+For students:
+
+- If two of your cards show the same thing, a question says which one it
+  means, in the small line under the word: the teacher's clue (such as
+  "the plant"), or the other card ruled out ("not patience"). This works
+  both ways: "right" can say "not صح".
+- Giving the other card's answer isn't marked wrong. The app says so ("Yes,
+  it also means 'patience'. Now the other meaning.") and asks again, with
+  nothing recorded.
+- In multiple choice, the other card is never one of the wrong options.
+- Reading or spelling a word you have on two cards (from its
+  transliteration, or from a recording) is only asked on one of them, so
+  you don't practise it twice.
+- If you only have one of the cards, nothing changes.
+
+For teachers, in the card editor's new **Meanings** section:
+
+- It lists your other cards with the same word ("Same word: patience") or
+  the same English ("Same English: صح"), as you type. Tap one to open it.
+- An optional **Clue** says which meaning this card is. Without one,
+  questions name the other card instead.
+- **Another meaning of this word** saves the card and opens a new one with
+  the word, its other forms and its recordings already filled in, the
+  English empty, no pictures, and no decks yet.
+- **Another word for this meaning** saves the card and opens a new one
+  with just the English filled in.
+- If you change the spelling or recordings of a word another card shares,
+  you're asked whether to change it there too.
+- The Cards tab lists cards with more than one meaning written on them
+  ("book / notebook"). **Split** makes one card per meaning in the same
+  decks, and students keep the progress they had. **Keep as one card**
+  says the meanings are learnt together, and the card isn't listed again.
+
+Worth checking by hand: split a card a student is already learning, and
+see that both new cards show the progress the original had on their
+device.
+
+## 0.394 — 7 October 2026
+
+**In the matching grid of recordings, the play button is a button of its own.**
+
+- The play button on each recording is now wider — a long rounded button
+  rather than a small circle — so it is easier to hit.
+- Tapping the play button only plays the recording. Tapping anywhere else
+  on the card picks it up to be matched, as with any other card. Before,
+  every tap on the card both played it and picked it up (or undid its
+  pair), so listening through the column to find the right one kept
+  disturbing pairs already made.
+- Pressing the play button again while it is playing stops it.
+- To check by hand: on a phone, that the play button is comfortable to
+  tap and the rest of the card still selects it.
+
+## 0.393 — 7 October 2026
+
+**Counting forms of numbers are practised with something to count.**
+
+- The form a number takes when it counts things — Arabic three to
+  nineteen before a noun, one with a masculine or a feminine word, the
+  Hebrew masculine and feminine forms of one to nineteen and two's paired
+  forms — is no longer asked on its own. Each time it comes round it is
+  asked as a short phrase: the number with one of your noun cards beside
+  it, in the shape that number needs, such as "3 books". A different noun
+  each time.
+- Only nouns the student has already learnt in that shape are used. Until
+  there is one, that counting form simply waits and isn't asked at all; it
+  doesn't take up a place among the new words meanwhile.
+- Arabic two and Hebrew two's plain masculine and feminine forms never
+  stand straight in front of a noun, so they are practised inside
+  "22 books"-style phrases, once twenty is learnt.
+- Hebrew's form for three to nine before "thousands" counts thousands, not
+  things, and is practised as before.
+- What students had already earned on these forms carries over. A right
+  answer also counts as practice on the noun.
+- The forms are still shown on each number's card for reading, and the
+  "3 books" question each stretch of numbers asks is unchanged.
+- Worth checking by hand: a student who has learnt a few nouns should see
+  phrases like "3 books" where they used to see "three · before a noun".
 
 ## 0.392 — 7 October 2026
 

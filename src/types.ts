@@ -935,6 +935,31 @@ export type Card = {
    * else's sentence, and asking what it means is not a question.
    */
   drill?: boolean;
+  /**
+   * A few words saying which meaning this card is, for the questions
+   * that could mean another card as well: *the plant* on صَبِر = cactus,
+   * beside صَبِر = patience; *direction* on يمين = right, beside صح =
+   * right. Written in the language the learner learns from, like the
+   * meaning itself.
+   *
+   * Shown only where a question's prompt is shared with another card the
+   * learner studies — see siblingsOf in src/meanings.ts. Absent means
+   * the question says which by naming the other card's answer instead:
+   * "not patience". Absent on every card written before 0.395.
+   */
+  clue?: string;
+  /**
+   * The card this one was split out of, where a card holding two
+   * meanings was made into one card each — see splitByMeaning. A
+   * learner's device that held the original starts this one where the
+   * original stood rather than from nothing. Absent on every other card.
+   */
+  splitFrom?: string;
+  /**
+   * The teacher's answer that the meanings on this card are learnt
+   * together — *big / large* — so it is not offered for splitting again.
+   */
+  together?: boolean;
   uses?: string[];
   lines?: (CardForm & { who?: number; uses?: string[]; from?: string; roles?: Record<string, string>; review?: import("./review.ts").Review })[];
   speakers?: string[];
@@ -1271,6 +1296,10 @@ export type Item = {
   category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
+  /** Which meaning this card is, where another card shares its prompt. See Card. */
+  clue?: string;
+  /** The card it was split out of, by this device's id. See Card. */
+  splitFrom?: string;
   /** What a teacher approved of the sentences it makes, where they have
       reviewed it. Absent means asked as it always was. See Card. */
   review?: import("./review.ts").Review;

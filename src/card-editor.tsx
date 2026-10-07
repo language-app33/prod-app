@@ -51,6 +51,8 @@ import { liftSubtypeTags } from "./subtype-tags.ts";
 import { readSpan, spanTag } from "./numbers/spans.ts";
 import type { Span } from "./numbers/spans.ts";
 import { NUMBER_RANGES } from "./numbers/types.ts";
+import { LEARNING_LANGUAGE, cardsSharingChange, sharedWith, wordChanges } from "./meanings.ts";
+import type { WordChange } from "./meanings.ts";
 import { MAX_IMAGES, shrinkImage } from "./images.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -9553,13 +9555,153 @@ export function NewCardKind({ onPick, onClose }: {
   );
 }
 
-export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, making = "word", draft = null }: {
+/*
+ * One card per meaning: the other cards that share this one's word or its
+ * meaning, the clue that tells them apart, and the two ways to add
+ * another.
+ *
+ * Which cards share a side is read off what is on the screen, every time,
+ * rather than stored — see meanings.ts. So the line follows the typing:
+ * write صَبِر into a new card and the cactus card appears under it.
+ *
+ * The two buttons are mirror images. "Another meaning of this word" saves
+ * this card and opens a new one with the word, its forms and recordings
+ * already in it and every meaning empty; "Another word for this meaning"
+ * saves this card and opens a new one with the meaning in it and the word
+ * empty. Both start in no deck: a meaning is put where it belongs, on
+ * purpose.
+ */
+function MeaningsBlock({ lang, selfId, lead, allCards, clue, onClue, canAdd, onAnother, onOpen }: {
+  lang: Lang;
+  selfId: string;
+  lead: Record<string, any>;
+  allCards: Card[];
+  clue: string;
+  onClue: (text: string) => void;
+  canAdd: boolean;
+  onAnother: (which: "meaning" | "word") => void;
+  onOpen?: (card: Card) => void;
+}) {
+  const shared = useMemo(
+    () => sharedWith(allCards, { id: selfId, lang: lang.id }, lead as any),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allCards, selfId, lang.id, lead.ar, lead.en],
+  );
+  const named = (list: Card[], field: "en" | "ar") =>
+    list.map((c, i) => {
+      const said = splitAlternatives(String((leadOf(c) as Record<string, any>)[field] || "")).filter(Boolean)[0] || "(blank)";
+      return (
+        <span key={c.id}>
+          {i ? ", " : ""}
+          {onOpen ? (
+            <button type="button" className="at-linkbtn" data-shared={c.id} onClick={() => onOpen(c)}>
+              {said} ›
+            </button>
+          ) : (
+            said
+          )}
+        </span>
+      );
+    });
+  const sharing = shared.word.length + shared.meaning.length > 0;
+  return (
+    <div className="at-formblock at-mt5">
+      <div className="at-formhead">
+        <span className="at-formnum">Meanings</span>
+        <span className="at-formrole">One card for each meaning, each learnt on its own.</span>
+      </div>
+      {shared.word.length > 0 && (
+        <p className="at-sharedline">
+          <b>Same word:</b> {named(shared.word, "en")}
+        </p>
+      )}
+      {shared.meaning.length > 0 && (
+        <p className="at-sharedline">
+          <b>Same {LEARNING_LANGUAGE}:</b>{" "}
+          <span lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack }}>
+            {named(shared.meaning, "ar")}
+          </span>
+        </p>
+      )}
+      <Field
+        label="Clue"
+        optional
+        lede="A few words saying which meaning this card is. Shown under a question only when another card a student studies shows the same word or the same meaning."
+      >
+        <input
+          className="at-input"
+          value={clue}
+          maxLength={80}
+          placeholder="For example: the plant"
+          aria-label="Clue"
+          onChange={(e) => onClue(e.target.value)}
+        />
+      </Field>
+      {sharing && !clue.trim() && (
+        <Help>
+          Without a clue, a question that could mean either card names the other one instead
+          {shared.word.length
+            ? ` — “not ${splitAlternatives(String(leadOf(shared.word[0]).en || "")).filter(Boolean)[0] || "…"}”`
+            : ""}
+          .
+        </Help>
+      )}
+      <div className="at-row at-mt3">
+        <Button variant="ghost" size="sm" icon="add" disabled={!canAdd} onClick={() => onAnother("meaning")}>
+          Another meaning of this word
+        </Button>
+        <Button variant="ghost" size="sm" icon="add" disabled={!canAdd} onClick={() => onAnother("word")}>
+          Another word for this meaning
+        </Button>
+      </div>
+      <Help>Either one saves this card first, then opens the new one.</Help>
+    </div>
+  );
+}
+
+/*
+ * The question a change to a shared word asks.
+ *
+ * Fixing a spelling or a recording on صَبِر = cactus says nothing about
+ * whether صَبِر = patience was wrong too — usually it was, since one was
+ * copied from the other, but only the teacher knows. So it asks, naming
+ * the cards.
+ */
+function CarryAsk({ cards, onAnswer, onCancel }: {
+  cards: Card[];
+  onAnswer: (carry: boolean) => void;
+  onCancel: () => void;
+}) {
+  const names = cards.map((c) => leadOf(c).en || leadOf(c).ar || "another card");
+  return (
+    <ConfirmModal
+      danger={false}
+      title="Change it on the other card too?"
+      body={
+        <p>
+          {names.length === 1 ? "This word is also on" : "This word is also on these cards:"}{" "}
+          {names.map((n) => `“${n}”`).join(", ")}. Change the spelling and recordings there as well?
+        </p>
+      }
+      altLabel="Only this card"
+      onAlt={() => onAnswer(false)}
+      confirmLabel={names.length === 1 ? "Change both" : "Change them all"}
+      onCancel={onCancel}
+      onConfirm={() => onAnswer(true)}
+    />
+  );
+}
+
+export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, onOpenCard, busy, confirming, making = "word", draft = null }: {
   card: Card | null;
   lang: Lang;
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], stripped: string[], drill: boolean, scene: { title: string, setting: string, sceneKind: SceneKind, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], stripped: string[], drill: boolean, scene: { title: string, setting: string, sceneKind: SceneKind, speakers: string[], you: number | null, lines: any[] } | null, clue: string, carry: { ids: string[], changes: WordChange[] } | null, next: "meaning" | "word" | null }) => void;
+  /** Open another of the teacher's cards in place of this one — the
+      cards the Meanings block names. */
+  onOpenCard?: (card: Card) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;
@@ -9607,6 +9749,28 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
               ? "verb"
               : "table";
   const selfId = (card && card.id) || "";
+  /* A card that exists, as against one being made — which a copy made
+     for another meaning is, though it arrives with words in it. */
+  const stored = !!(card && card.id);
+  /* Which meaning this card is, for the questions another card shares —
+     see MeaningsBlock. Only on a word: a sentence and a conversation
+     carry their own context. */
+  const [clue, setClue] = useState(String((card && card.clue) || ""));
+  /* The question a change to a shared word asks, while it is being asked:
+     what would be saved, and which cards it would be offered to. */
+  const [carrying, setCarrying] = useState<{ written: ReturnType<typeof writtenCard>, cards: Card[], changes: WordChange[], next: "meaning" | "word" | null } | null>(null);
+  const meanings = shape === "word";
+  const save = (next: "meaning" | "word" | null = null) => {
+    const written = writtenCard({ word, talk, shape, chosen });
+    const extra = { clue: meanings ? clue.trim() : "", next: meanings ? next : null };
+    const changes = stored && meanings ? wordChanges(card, written.forms as any) : [];
+    const others = cardsSharingChange(allCards, { id: selfId, lang: lang.id }, changes);
+    if (others.length) {
+      setCarrying({ written, cards: others, changes, next: extra.next });
+      return;
+    }
+    onSave({ ...written, ...extra, carry: null });
+  };
   /* Whether there is a connection, for the line above the first field. */
   const offline = useOffline();
 
@@ -9623,7 +9787,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
         /* Named for what is being made, which is settled before this
            opens: a screen for writing a conversation should not be called
            "New card" and then be full of turns. */
-        title={card ? "Edit card" : `New ${shapeLabel(shape).toLowerCase()}`}
+        title={stored ? "Edit card" : `New ${shapeLabel(shape).toLowerCase()}`}
         /* One sheet, ruled into sections — see .at-screen.cardform. The
            editor is the only screen laid out that way, so it is the only
            one that asks for it. */
@@ -9632,7 +9796,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
         action={
           <Button variant="primary" size="sm"
             disabled={!canSave || busy}
-            onClick={() => onSave(writtenCard({ word, talk, shape, chosen }))}
+            onClick={() => save()}
           >
             <Icon name="save" />
             {busy ? "Saving…" : "Save"}
@@ -9676,6 +9840,20 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             }
           />
 
+          {meanings && (
+            <MeaningsBlock
+              lang={lang}
+              selfId={selfId}
+              lead={word.forms[0] || {}}
+              allCards={allCards}
+              clue={clue}
+              onClue={setClue}
+              canAdd={canSave && !busy}
+              onAnother={(which) => save(which)}
+              onOpen={onOpenCard}
+            />
+          )}
+
           {/* One editor, whichever kind of card this is. Told apart here
               and nowhere else: every block above draws what it is handed,
               and which blocks that is, is each editor's list. */}
@@ -9695,13 +9873,29 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             <WordEditor word={word} lang={lang} allCards={allCards} selfId={selfId} />
           )}
 
-          {card && onDelete && (
+          {stored && onDelete && (
             <Button variant="danger" className="at-mt5" onClick={onDelete}>
               Delete this card
             </Button>
           )}
       </Screen>
       <RecordingOverlays word={word} talk={talk} />
+      {carrying && (
+        <CarryAsk
+          cards={carrying.cards}
+          onCancel={() => setCarrying(null)}
+          onAnswer={(carry) => {
+            const { written, cards, changes, next } = carrying;
+            setCarrying(null);
+            onSave({
+              ...written,
+              clue: clue.trim(),
+              next,
+              carry: carry ? { ids: cards.map((c) => c.id), changes } : null,
+            });
+          }}
+        />
+      )}
     </>
   );
 }

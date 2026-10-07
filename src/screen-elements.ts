@@ -34,6 +34,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
   [QUESTION, [
     ["question-instruction", "The line telling you what to do. The same shape in every exercise.", "Write in English"],
     ["question-form-tag", "Which form is being asked, only where the question could not otherwise say — written from its meaning, or with another form of the card among the tiles: only what tells it from the others, in whole words.", "feminine plural"],
+    ["question-clue", "Which card the question means, where another card the learner studies shows the same word or the same meaning: the teacher's clue, or the other card's answer ruled out.", "not patience"],
     ["question-fill-tag", "What a word dropped into a sentence is, where its English could be more than one form of it. Only then; nothing on most sentences.", "Your name: plural"],
     ["question-prompt", "The block being asked about. A word, a phrase with a gap in it, a play button, or a conversation, depending on the exercise.", ""],
     ["question-prompt-text", "The words inside it, when it is words. One size in every exercise.", "كِتاب"],
@@ -54,7 +55,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
     ["answer-match", "The matching grid: the words on one side, the meanings on the other.", ""],
     ["match-word", "One word in it, waiting to be paired.", "كِتاب"],
     ["match-meaning", "One meaning in it. Two of them match no word at all.", "book"],
-    ["match-sound", "In the grid of recordings, the play button standing where a word would. Tapping its tile plays it and pairs it like any other tile.", ""],
+    ["match-sound", "In the grid of recordings, the play button standing where a word would. A target of its own, drawn long: tapping it only plays the word, and tapping the rest of the tile pairs it like any other tile.", ""],
     ["match-form-tag", "On a tile, which form of its card it is. Only where two forms of one card are in the grid, and on both the word and the meaning.", "plural"],
     ["answer-self", "The two answers to \"could you follow all of it\". Nobody else was in the room, so the reader marks it.", ""],
     ["question-context-meaning", "On a gap-fill, which word is wanted — the word's own meaning, never the phrase's.", "book"],
