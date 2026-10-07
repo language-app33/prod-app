@@ -1208,25 +1208,35 @@ export function lentBy(
  * خوات as much a word for people. The teacher says it once, on the card's
  * own word — the editor writes whether it is people there and nowhere
  * else — and the other forms say only what is their own: a plural box its
- * number, a pronoun on the end nothing at all. Until 0.404 that is all
- * they lent, so a demonstrative beside "my sister" stood as هاد rather
- * than هاي, and beside "sisters" as هاد rather than هدول. A form takes
- * what it leaves unsaid from the form it is on the end of (`of`), and then
- * from the card's own word — the reading nounNumberOf already gives a
+ * number. Until 0.404 that is all they lent, so a demonstrative beside
+ * "sisters" stood as هاد rather than هدول. A form takes what it leaves
+ * unsaid from the card's own word.
+ *
+ * **A pronoun on the end says nothing of the noun at all**, so its cell
+ * reads the noun it is on the end of (`of`, else the card's own word)
+ * outright. The editor writes a cell's boxes as "doesn't apply" and "a
+ * thing", which is about the pronoun, not the sister — and 0.404, which
+ * filled only what a cell left empty, let those stand: هاد أختي went on
+ * being made from real cards until 0.406. What a cell says counts only
+ * where its noun says nothing — the reading nounNumberOf already gives a
  * pronoun on the end its number.
  */
 function withHost(card: WithSlots | null | undefined, form: WithSlots, value: Value, fields: string[]): Value {
   const forms = formsOf(card) as WithSlots[];
   if (!fields.length || form === forms[0]) return value;
-  const of = text(form, "row") && text(form, "col") ? text(form, "of").trim() : "";
+  const cell = !!(text(form, "row") && text(form, "col"));
+  const of = cell ? text(form, "of").trim() : "";
   const hosts = [of && forms.find((f) => text(f, "id") === of), forms[0]].filter(
     (f): f is WithSlots => !!f && f !== form,
   );
-  const grammar: Record<string, string> = { ...(value.grammar || {}) };
+  const own = value.grammar || {};
+  const grammar: Record<string, string> = cell ? {} : { ...own };
   for (const host of hosts) {
     const said = valueOf(host, fields).grammar || {};
     for (const field of fields) if (!grammar[field] && said[field]) grammar[field] = said[field];
   }
+  for (const field of fields) if (!grammar[field] && own[field]) grammar[field] = own[field];
+  if (own.person) grammar.person = own.person;
   return Object.keys(grammar).length ? { ...value, grammar } : value;
 }
 

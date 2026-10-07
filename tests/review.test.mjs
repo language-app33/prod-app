@@ -247,7 +247,9 @@ test("a lone demonstrative is its own word, and every form in turn once linked t
 /*
  * A pronoun on the end of a noun leaves its gender where the teacher said
  * it, on the noun's own word: هاد أختي was what "{{this-is}} {{relative}}"
- * made of *my sister* until 0.404, and هاي is what it should.
+ * made of *my sister* until 0.404 — and from real cards, whose cells the
+ * editor saves as "doesn't apply" and "a thing", until 0.406. هاي is what
+ * it should.
  */
 test("a noun with a pronoun on the end agrees as the noun it is on the end of", () => {
   const thisCard = {
@@ -263,15 +265,17 @@ test("a noun with a pronoun on the end agrees as the noun it is on the end of", 
     forms: [
       { id: "sister", ar: "أخت", en: "sister", lat: "okht", gender: "feminine", number: "singular", human: "person" },
       { id: "sisters", ar: "خوات", en: "sisters", lat: "khawat", number: "plural" },
-      { id: "my-sister", ar: "أختي", en: "my sister", lat: "okhti", row: "attached", col: "me" },
-      { id: "my-sisters", ar: "خواتي", en: "my sisters", lat: "khawati", row: "attached", col: "me", of: "sisters" },
+      /* As the editor saves a cell: its boxes say "doesn't apply" and "a
+         thing", which is the pronoun on the end and not the sister. */
+      { id: "my-sister", ar: "أختي", en: "my sister", lat: "okhti", row: "attached", col: "me", number: "na", gender: "", human: "thing" },
+      { id: "my-sisters", ar: "خواتي", en: "my sisters", lat: "khawati", row: "attached", col: "me", of: "sisters", number: "na", gender: "", human: "thing" },
     ],
   };
   const brother = {
     id: "brother", lang: "ar-PS", category: "noun", fills: ["relative"], created: 5,
     forms: [
       { id: "brother", ar: "أخ", en: "brother", lat: "akh", gender: "masculine", number: "singular" },
-      { id: "my-brother", ar: "أخوي", en: "my brother", lat: "akhuy", row: "attached", col: "me" },
+      { id: "my-brother", ar: "أخوي", en: "my brother", lat: "akhuy", row: "attached", col: "me", number: "na", gender: "", human: "thing" },
     ],
   };
   const frame = { id: "s", lang: "ar-PS", sentence: true, created: 9,
