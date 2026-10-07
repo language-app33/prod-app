@@ -2737,13 +2737,13 @@ function castRange(
   const unit: Form = {
     ...resolved.unit,
     ar: said.text,
-    en: said.digits,
+    /* The figures — and, where a thing is counted, the thing beside them:
+       the counting question is asked from this, and "1" alone asked for
+       "one dog" left the learner to guess the dog. */
+    en: ex.ask.nounId && said.en ? said.en : said.digits,
     /* And the same in the language's own figures, where it has them — ٤٧,
        ٠٧:١٥ — which the top of the skill is asked from. */
     ...(figures ? { numeral: figures } : null),
-    /* What it means in words, where a counted phrase has anything to say
-       beyond the figures. */
-    ...(said.en && said.en !== said.digits ? { gloss: said.en } : null),
     /* The two hands, for the question that draws a face and the one that
        is answered by setting one. */
     ...(typeof said.hour === "number"
@@ -4923,6 +4923,7 @@ function withGrids(
         meaningOf: (u) => gridOther(type, u),
         likeness: (a, b) => wordLikeness(a.ar, b.ar, lg),
         familyOf: (u) => placeOf.get(u.id)?.id || u.id,
+        meaningsOf: (u) => gridOthers(type, u),
       });
       for (const grid of grids) {
         leadOf.set(gridKey(type, grid[0].id), grid.slice(1));
@@ -5343,6 +5344,13 @@ export function gridOther(type: string, u: Form): string {
   return String(((u as Record<string, unknown>)[field] as string) || "");
 }
 
+/* And everything that word would be right against there: every meaning
+   the card accepts, where the other side is meanings, so that no tile
+   beside it shows one of them — see matchGroups. */
+function gridOthers(type: string, u: Form): string[] {
+  return (specOf(type)?.answerField || "en") === "en" ? meaningsOf(u) : [gridOther(type, u)];
+}
+
 export function gridFor(item: Form, exercise: Question, asking: Item[], settings: Settings, qLang: Lang) {
   /* The grid of recordings: a play button for each word, and the words
      themselves down the other side where the meanings would be. Its
@@ -5363,10 +5371,17 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
     String(a.ar || "").trim() === String(b.ar || "").trim() ||
     other(a).trim().toLowerCase() === other(b).trim().toLowerCase();
   const ownerOf = new Map<string, string>();
+  /* Each word as written, before it was narrowed to the one meaning its
+     tile shows: what else it means is what no other tile may say. */
+  const writtenOf = new Map<string, Form>();
   for (const card of asking) {
-    for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card.id);
+    for (const { unit } of unitsOf(card)) {
+      ownerOf.set(unit.id, card.id);
+      writtenOf.set(unit.id, unit);
+    }
   }
   const familyOf = (u: Form) => ownerOf.get(u.id) || u.id;
+  const othersOf = (u: Form) => gridOthers(exercise.type, writtenOf.get(u.id) || u);
   const answers: Form[] = [item];
   for (const mate of exercise.mates || []) {
     const r = resolveUnit(asking, { ...mate, type: exercise.type });
@@ -5397,6 +5412,7 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
          matchSet refuses them below, and a trial that handed it four
          collisions would be a grid of one word and a lot of spares. */
       if (answers.some((a) => sameTile(a, u) || familyOf(a) === familyOf(u))) continue;
+      if (othersOf(u).some((m) => answers.some((a) => othersOf(a).some((n) => n.trim().toLowerCase() === m.trim().toLowerCase())))) continue;
       answers.push(u);
     }
   }
@@ -5407,6 +5423,7 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
     textOf: (u) => u.ar,
     meaningOf: other,
     familyOf,
+    meaningsOf: othersOf,
   });
 }
 
@@ -11690,9 +11707,12 @@ export default function ArabicTrainer() {
       language: qLang.id,
       /* A copy of the question, not a pointer to it: the card can be
          edited or withdrawn between the flag and somebody reading it, and
-         a report that says only "card k3f2" is then unreadable. */
-      prompt: leadOf(parentItem).ar || "",
-      meaning: leadOf(parentItem).en || "",
+         a report that says only "card k3f2" is then unreadable. And the
+         form as it was shown, not the card's first: a plural, a number
+         counted with a noun, a meaning narrowed to one — "عشرة" alone
+         was what a report said of a question that had asked "ten books". */
+      prompt: (item && item.ar) || leadOf(parentItem).ar || "",
+      meaning: (item && item.en) || leadOf(parentItem).en || "",
       /* Where the card reached this device from. A bad card is usually one
          of a bad batch, and the deck is what somebody goes and looks at.
          Absent on a card the learner made, which came through neither. */
@@ -11709,6 +11729,11 @@ export default function ArabicTrainer() {
          throw away the answer this field exists to give. */
       answer: String(typed || "").slice(0, 200),
       verdict: flagVerdict(),
+      /* What would have been taken as right, as the question stood — the
+         line that makes "it marked me wrong" answerable at a glance, and
+         the only record of the question where no card holds it: a number
+         or a thing counted, which the app makes itself. */
+      expected: String((item && spec && (item as any)[spec.answerField]) || "").slice(0, 200),
       /* Which build, so a report can be matched against what was running.
          The release alone is two or three deploys. */
       release: APP_BUILD,

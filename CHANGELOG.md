@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.400 — 7 October 2026
+
+**Three fixes from learners' reports: counting says what is counted, match
+boards stop marking right pairs wrong, and reports on number questions are
+clearer.**
+
+- **A counting question now names the thing being counted.** It used to
+  show only the number, "1", then expect "one dog" in Arabic, leaving the
+  learner to guess the dog. It now shows "1 dog".
+- **Match the pairs never puts two words that share a meaning on one
+  board.** A board could show مبسوط as "Content" beside another word
+  shown as "happy". Pairing مبسوط with "happy" was marked wrong, though
+  the card accepts "happy" too. Words that share any meaning, and two
+  forms of the same card, now go on different boards.
+- **Reports on number, time and counting questions say the app made the
+  question.** They used to say the card was "not on the site any more",
+  which read as though it had been deleted. The app builds these
+  questions itself and never stores them as cards.
+- **Every report now records the answer the app expected**, and what was
+  asked is now the question as it was shown ("عشرة كتب", not "عشرة").
+  This only applies to reports sent from this release on.
+- Worth checking by hand: practise counting and see that the noun is
+  shown beside the number.
+
 ## 0.399 — 7 October 2026
 
 **A noun's "special plural" box says what it is for.**

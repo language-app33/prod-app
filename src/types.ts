@@ -1541,7 +1541,7 @@ export type FlagKind = "strict" | "data" | "easy" | "other";
  * "here" also covers a report too old to compare — nothing is claimed
  * about a card whose revision at the time was never recorded.
  */
-export type CardState = "here" | "edited" | "gone" | "absent";
+export type CardState = "here" | "edited" | "gone" | "absent" | "made";
 
 /**
  * How the question the learner flagged had gone for them.
@@ -1610,6 +1610,12 @@ export interface Flag {
    */
   answer?: string;
   verdict?: FlagVerdict;
+  /**
+   * What the app would have taken as right, as the question stood. Most
+   * worth having where the card is not there to look at — a question the
+   * app made itself from a number system, which no card holds.
+   */
+  expected?: string;
   /**
    * The fingerprint of the sentence as it was asked, where the card was a
    * sentence filled from other cards — see sentenceKey in review.ts.
