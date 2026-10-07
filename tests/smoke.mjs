@@ -5995,6 +5995,33 @@ const openPronounTables = async () => {
         !!newBox() && !!fillList().length &&
           !!(newBox().compareDocumentPosition(fillList()[0]) & 4),
         newBox() && fillList().length ? "above" : "(nothing to compare)");
+      /* And the same box finds a tag as it names one: what is typed there
+         narrows the list under it, so a tag that exists is found before a
+         second one like it is made. */
+      {
+        const findBox = () => /** @type {any} */ (inSheet(".at-blanknew input")[0] || null);
+        const addNew = () => /** @type {any} */ (inSheet(".at-blanknew button")[0] || null);
+        const all = fillNames();
+        typeInto(findBox(), "fri");
+        await sleep(200);
+        const narrowed = fillNames();
+        check("typing in the box narrows the tags to the ones that match",
+          narrowed.includes("friend") && narrowed.every((n) => n.includes("fri")),
+          `${all.join(", ")} → ${narrowed.join(", ") || "(none)"}`);
+        typeInto(findBox(), "zzqq");
+        await sleep(200);
+        const none = inSheet(".at-tagsheetlist .at-hint")
+          .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" ");
+        check("and says so when none matches, with Add still there to make it",
+          !fillList().length && /No tag has .zzqq. in its name/.test(none) &&
+            !!addNew() && !addNew().disabled,
+          none || "(nothing said)");
+        typeInto(findBox(), "");
+        await sleep(200);
+        check("and emptying it brings every tag back",
+          JSON.stringify(fillNames()) === JSON.stringify(all),
+          fillNames().join(", "));
+      }
       /* And the button that opens it is under the Custom tags heading, not
          over the default tags it has nothing to do with. */
       {

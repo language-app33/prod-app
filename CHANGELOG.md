@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.367 — 7 October 2026
+
+**Finding a custom tag by typing its name.**
+
+- In the sheet where you add custom tags to a card, the box at the top
+  now also searches. As you type, the list underneath narrows to the tags
+  whose names contain what you typed, so with a long list you can find
+  the tag you want instead of scrolling for it — and see that a tag
+  already exists before making a second one like it.
+- If nothing matches, the sheet says so, and Add still creates a new tag
+  with that name. Clearing the box brings the whole list back.
+
 ## 0.366 — 6 October 2026
 
 **Bigger keys for writing numbers in Arabic numerals.**
