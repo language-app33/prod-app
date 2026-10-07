@@ -134,6 +134,13 @@ export const MIN_PAIR_WORDS = 3;
  * with their grammar settled the toss and gave the game away, since only
  * those two tiles carried a tag. A learner reported both. Kept apart, a
  * grid never holds two words that differ only in their grammar.
+ *
+ * **Nor two words that share any meaning**, when `meaningsOf` says every
+ * meaning a word accepts. A card meaning "Happy / Content / Pleased" and a
+ * card meaning "happy" read as two meanings to a guard that compares the
+ * whole line, and then the first was shown as "Content", the second as
+ * "happy", and a learner who paired the first with "happy" was marked
+ * wrong for an answer the card itself accepts. A learner reported it.
  */
 export function matchGroups<T extends { id: string }>({
   wanting,
@@ -144,6 +151,7 @@ export function matchGroups<T extends { id: string }>({
   meaningOf,
   likeness = () => 0,
   familyOf = (x) => x.id,
+  meaningsOf = (x) => [meaningOf(x)],
 }: {
   wanting: T[];
   spares: T[];
@@ -153,6 +161,7 @@ export function matchGroups<T extends { id: string }>({
   meaningOf: (x: T) => string;
   likeness?: (a: T, b: T) => number;
   familyOf?: (x: T) => string;
+  meaningsOf?: (x: T) => string[];
 }): { grids: T[][]; dropped: T[] } {
   const asked = wanting.filter((w) => w && plain(textOf(w)) && plain(meaningOf(w)));
   const dropped: T[] = wanting.filter((w) => !asked.includes(w));
@@ -168,12 +177,12 @@ export function matchGroups<T extends { id: string }>({
   const fits = (g: number, w: T) =>
     grids[g].length < size &&
     !texts[g].has(plain(textOf(w))) &&
-    !meanings[g].has(plain(meaningOf(w)).toLowerCase()) &&
+    !meaningKeys(w, meaningOf, meaningsOf).some((m) => meanings[g].has(m)) &&
     !families[g].has(familyOf(w));
   const put = (g: number, w: T) => {
     grids[g].push(w);
     texts[g].add(plain(textOf(w)));
-    meanings[g].add(plain(meaningOf(w)).toLowerCase());
+    for (const m of meaningKeys(w, meaningOf, meaningsOf)) meanings[g].add(m);
     families[g].add(familyOf(w));
     used.add(w.id);
   };
@@ -255,6 +264,7 @@ export function matchSet<T extends { id: string }>({
   textOf,
   meaningOf,
   familyOf = (x) => x.id,
+  meaningsOf = (x) => [meaningOf(x)],
 }: {
   answers: T[];
   pool: T[];
@@ -263,6 +273,7 @@ export function matchSet<T extends { id: string }>({
   textOf: (x: T) => string;
   meaningOf: (x: T) => string;
   familyOf?: (x: T) => string;
+  meaningsOf?: (x: T) => string[];
 }): { words: T[]; meanings: string[]; said: T[] } {
   const saidText = new Set<string>();
   const saidMeaning = new Set<string>();
@@ -270,20 +281,30 @@ export function matchSet<T extends { id: string }>({
   /* A spare meaning from another form of a word already up is the same
      meaning in other clothes — see matchGroups — so none is drawn. */
   const kin = new Set(answers.map(familyOf));
+  /* Every meaning a word on the board accepts, and not only the one its
+     tile shows: "happy" beside a word shown as "Content" that also means
+     happy is a right pairing marked wrong — see matchGroups. */
+  const clashes = (x: T) => meaningKeys(x, meaningOf, meaningsOf).some((m) => saidMeaning.has(m));
+  const take = (x: T) => {
+    saidText.add(plain(textOf(x)));
+    for (const m of meaningKeys(x, meaningOf, meaningsOf)) saidMeaning.add(m);
+  };
   /* The first of a colliding pair stands, so the word the question is
      actually about — which the caller puts first — is never the one put
-     aside for the sake of its company. */
+     aside for the sake of its company. And one word of a card at a time:
+     two forms of it are a coin toss, whatever matchGroups dealt. */
   const words: T[] = [];
+  const families = new Set<string>();
   let spilled = 0;
   for (const a of answers) {
     const text = plain(textOf(a));
     const meaning = plain(meaningOf(a)).toLowerCase();
-    if (!text || !meaning || saidText.has(text) || saidMeaning.has(meaning)) {
+    if (!text || !meaning || saidText.has(text) || clashes(a) || families.has(familyOf(a))) {
       spilled += 1;
       continue;
     }
-    saidText.add(text);
-    saidMeaning.add(meaning);
+    take(a);
+    families.add(familyOf(a));
     words.push(a);
   }
   const want = Math.max(0, decoys) + spilled;
@@ -294,9 +315,9 @@ export function matchSet<T extends { id: string }>({
     const text = plain(textOf(cand));
     const meaning = plain(meaningOf(cand));
     if (!text || !meaning) continue;
-    if (saidText.has(text) || saidMeaning.has(meaning.toLowerCase())) continue;
-    saidText.add(text);
-    saidMeaning.add(meaning.toLowerCase());
+    if (saidText.has(text) || clashes(cand)) continue;
+    take(cand);
+    kin.add(familyOf(cand));
     spare.push(cand);
   }
   /* Shuffled on their own seed, or a word and its meaning would come up
@@ -318,3 +339,9 @@ export function matchSet<T extends { id: string }>({
 }
 
 const plain = (s: string) => String(s || "").replace(/\s+/g, " ").trim();
+
+/* A tile's meaning as shown and every meaning its word accepts, in the one
+   spelling they are compared in. */
+function meaningKeys<T>(x: T, meaningOf: (x: T) => string, meaningsOf: (x: T) => string[]): string[] {
+  return [meaningOf(x), ...meaningsOf(x)].map((m) => plain(m).toLowerCase()).filter(Boolean);
+}

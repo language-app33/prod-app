@@ -906,6 +906,7 @@ export default async (req) => {
            nothing can read, exactly as an open `kind` would. */
         answer: String(body.answer || "").slice(0, 200),
         verdict: FLAG_VERDICTS.includes(String(body.verdict)) ? String(body.verdict) : "",
+        expected: String(body.expected || "").slice(0, 200),
         release: String(body.release || "").slice(0, 40),
         /* Which filled sentence it was, where the card is a frame — the
            fingerprint its review is kept in, so a teacher reading this can
@@ -3289,8 +3290,11 @@ export default async (req) => {
             const wasAt = f.cardKnown === false ? undefined : f.cardRev;
             let cardState;
             if (rev === null || rev === undefined) {
-              /* Not there now. Was it there when this was sent? */
-              cardState = f.cardKnown === false || !cardId ? "absent" : "gone";
+              /* Not there now. Was it there when this was sent? Never, for
+                 a question the app made itself from a number system: no
+                 card is ever stored for one, and calling it missing read
+                 as though somebody had deleted it. */
+              cardState = cardId.startsWith("sys:") ? "made" : f.cardKnown === false || !cardId ? "absent" : "gone";
             } else if (wasAt === undefined) {
               cardState = "here";
             } else {

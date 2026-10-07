@@ -4601,7 +4601,7 @@ rather than *pl. 3–10*, which beside *pl.* made the same suggestion. The
 line under the box says what every other noun does instead. Nothing
 stored changes: the value is still `counted`.
 
-**Reordered in 0.400.** The owner asked for the boxes in the order
+**Reordered in 0.401.** The owner asked for the boxes in the order
 singular, dual, plural, special plural — one, two, several, which is also
 the order a number counts them. The boxes follow the axis's options, so
 the options moved, and with them the radios on every kind of word, which

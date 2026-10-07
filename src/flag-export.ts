@@ -125,7 +125,13 @@ const SINCE: Record<CardState, string> = {
   edited: "edited since this was reported, so it may already be fixed",
   gone: "deleted since this was reported",
   absent: "the site did not hold this card even when the report was sent",
+  made: "made by the app from a number system, never stored as a card",
 };
+
+/* A question the app makes itself — a number, a time, a thing counted —
+   from a number system. There is no card for it, before or since. */
+const madeByApp = (flag: Flag) =>
+  flag.cardState === "made" || String(flag.cardId || "").startsWith("sys:");
 
 /** `word — meaning — pronunciation`, with the empty parts left out. */
 const formLine = (f: CardForm) =>
@@ -215,7 +221,7 @@ function block(flag: Flag, n: number, of: number, opts: FlagExportOptions): stri
   const exercise = names.exercise(flag.language, flag.exercise);
   const courseName = flag.courseId ? names.course(flag.courseId) : "";
   const deckName = flag.deckId ? names.deck(flag.deckId) : "";
-  const since = SINCE[flag.cardState || "here"] || "";
+  const since = madeByApp(flag) ? SINCE.made : SINCE[flag.cardState || "here"] || "";
 
   out.push(
     ...row("Problem", names.kind(flag.kind)),
@@ -237,6 +243,9 @@ function block(flag: Flag, n: number, of: number, opts: FlagExportOptions): stri
     /* Quoted, because the whole value of keeping it is the trailing space
        or the missing letter, and unquoted those are invisible. */
     ...row("They put", flag.answer ? `"${flag.answer}"` : ""),
+    /* Quoted for the same reason: "10 Bookses" against "10 books" is the
+       whole report. */
+    ...row("Expected", flag.expected ? `"${flag.expected}"` : ""),
     ...row("Marked", MARKED[flag.verdict || ""] || ""),
     ...row("Course", courseName ? `${courseName} (${flag.courseId})` : flag.courseId),
     ...row("Deck", deckName ? `${deckName} (${flag.deckId})` : flag.deckId),
@@ -246,7 +255,13 @@ function block(flag: Flag, n: number, of: number, opts: FlagExportOptions): stri
   /* Nothing is said about a card that was never looked up: an export that
      silently reported "not on the site" for a card it had not asked about
      would be worse than one that says nothing. */
-  if (Object.prototype.hasOwnProperty.call(cards, flag.cardId)) {
+  if (madeByApp(flag)) {
+    out.push(
+      "",
+      "The app makes this question itself from the number system; there is no card",
+      "to show. The lines above are all of it.",
+    );
+  } else if (Object.prototype.hasOwnProperty.call(cards, flag.cardId)) {
     const card = cards[flag.cardId];
     out.push("");
     if (card) {

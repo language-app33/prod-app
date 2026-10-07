@@ -737,6 +737,16 @@ test("a number question carries no recording it does not have", () => {
   assert.equal(unit.lat, "", "and no transliteration nobody wrote");
 });
 
+test("a counting question says the thing being counted, not the number alone", () => {
+  /* Reported: "1", answered with كَلب واحد, made no sense to a learner who
+     was never told it was a dog. */
+  const noun = must(SYS.nouns[0], "a noun in the system");
+  const ask = { rangeId: "numbers:0-9", kind: "numbers", value: 1, nounId: noun.id };
+  const unit = castFor(SETS, ask, "count2phrase");
+  assert.equal(unit.en, renderAsk(ask, arComposer, SYS).en);
+  assert.match(unit.en, /^1 \S+/);
+});
+
 test("a number recorded whole is played, and its transliteration is shown", () => {
   const unit7 = SYS.lexemes["unit.7"];
   const sys = {

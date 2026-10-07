@@ -275,7 +275,7 @@ test("a pair is a number a language may count", () => {
   assert.equal(dimValues({ number: "dual" }).number, "dual");
   assert.equal(normDimValue(GRAMMAR.number, "dual"), "dual");
   assert.equal(normDimValue(GRAMMAR.number, "du"), "dual");
-  /* Moved ahead of the plural in 0.400; what a stored or typed value
+  /* Moved ahead of the plural in 0.401; what a stored or typed value
      means does not depend on where it sits. */
   for (const [given, means] of [["pl", "plural"], ["p", "plural"], ["pl.", "plural"], ["plurals", "plural"], ["d", "dual"], ["s", "singular"], ["sg", "singular"]]) {
     assert.equal(normDimValue(GRAMMAR.number, given), means, given);

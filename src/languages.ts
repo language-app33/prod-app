@@ -1925,7 +1925,7 @@ export const GRAMMAR: Record<string, GrammarDim> = {
 
          Added here rather than appended after "na" because the list is
          also the order the radios read in, and a noun's boxes too: one,
-         two, several, which is the order the owner asked them in (0.400)
+         two, several, which is the order the owner asked them in (0.401)
          and the order a number counts them. Safe to move: normDimValue
          matches the whole word first, and every value here starts with
          letters no other does, so its two prefix passes reach one value
