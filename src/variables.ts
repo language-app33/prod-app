@@ -844,6 +844,13 @@ export interface Value {
    * wherever it stands in a sentence. See fitCase.
    */
   proper?: boolean;
+  /**
+   * The blank written straight after this one that it has said already —
+   * a counting blank counting the noun beside it, *3 dogs* standing for
+   * `{{count-0-9}} {{animal}}`. That blank is dropped where it follows
+   * this one, and filled as itself anywhere else. See countTook.
+   */
+  swallows?: string;
 }
 
 const text =(form: WithSlots | null | undefined, field: string): string => {
@@ -1177,7 +1184,7 @@ export function lentBy(
   formsOf(card).forEach((form, at) => {
     if (!isLent(form as WithSlots)) return;
     if (!lends(form as WithSlots)) return;
-    const lent = valueOf(form as WithSlots, fields);
+    const lent = withHost(card, form as WithSlots, valueOf(form as WithSlots, fields), fields);
     if (!lent.ar) return;
     /* The card's own word carries the card's person, where it has one —
        the form handed in above cannot know it. */
@@ -1194,6 +1201,33 @@ export function lentBy(
     out.push({ form: form as WithSlots, value: named });
   });
   return out;
+}
+
+/*
+ * What a noun is, it is in every form: أختي is as feminine as أخت, and
+ * خوات as much a word for people. The teacher says it once, on the card's
+ * own word — the editor writes whether it is people there and nowhere
+ * else — and the other forms say only what is their own: a plural box its
+ * number, a pronoun on the end nothing at all. Until 0.404 that is all
+ * they lent, so a demonstrative beside "my sister" stood as هاد rather
+ * than هاي, and beside "sisters" as هاد rather than هدول. A form takes
+ * what it leaves unsaid from the form it is on the end of (`of`), and then
+ * from the card's own word — the reading nounNumberOf already gives a
+ * pronoun on the end its number.
+ */
+function withHost(card: WithSlots | null | undefined, form: WithSlots, value: Value, fields: string[]): Value {
+  const forms = formsOf(card) as WithSlots[];
+  if (!fields.length || form === forms[0]) return value;
+  const of = text(form, "row") && text(form, "col") ? text(form, "of").trim() : "";
+  const hosts = [of && forms.find((f) => text(f, "id") === of), forms[0]].filter(
+    (f): f is WithSlots => !!f && f !== form,
+  );
+  const grammar: Record<string, string> = { ...(value.grammar || {}) };
+  for (const host of hosts) {
+    const said = valueOf(host, fields).grammar || {};
+    for (const field of fields) if (!grammar[field] && said[field]) grammar[field] = said[field];
+  }
+  return Object.keys(grammar).length ? { ...value, grammar } : value;
 }
 
 /** The same, as the values alone — which is what a pool wants. */
@@ -1428,7 +1462,7 @@ export function fillText(
   field = "ar",
   cased = true,
 ): string {
-  return String(value || "").replace(SLOT, (whole, name, at: number, all: string) => {
+  return withoutSwallowed(String(value || ""), values).replace(SLOT, (whole, name, at: number, all: string) => {
     const slot = String(name).toLowerCase();
     const took = values && values[slot];
     if (!took) return whole;
@@ -1442,6 +1476,17 @@ export function fillText(
        the start of a sentence is added. */
     return field === "en" ? (start ? fitCase(word, true, true) : word) : fitCase(word, start, !!took.proper);
   });
+}
+
+/* A string with every blank another one has said already taken out of
+   it, with the space before it — see `swallows`. */
+function withoutSwallowed(written: string, values: Record<string, Value>): string {
+  let out = written;
+  for (const [slot, value] of Object.entries(values || {})) {
+    if (!value || !value.swallows) continue;
+    out = out.replace(new RegExp(`(\\{\\{\\s*${slot}\\s*\\}\\})\\s*\\{\\{\\s*${value.swallows}\\s*\\}\\}`, "gi"), "$1");
+  }
+  return out;
 }
 
 /*

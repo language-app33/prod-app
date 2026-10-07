@@ -8,6 +8,69 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.404 — 7 October 2026
+
+**"This" agrees with "my sister".**
+
+- A word like *this* in a sentence now takes the right form beside a
+  noun with a pronoun on the end: هاي أختي, not هاد أختي. The noun's
+  gender is set once, on its own word, and the forms with a pronoun on
+  the end did not pass it on, so *this* fell back to its masculine form.
+- The same for a noun's other forms: a plural of people such as خوات
+  now takes هدول. Whether a noun is people is set on its own word, and
+  the plural did not pass that on either.
+- Adjectives and verbs beside these forms agree the same way.
+- Nothing stored changes. A sentence card already reviewed lists the
+  corrected sentences as new ones waiting to be approved; the old wrong
+  ones drop away.
+
+## 0.403 — 7 October 2026
+
+**Counting tags bring the number only, never a noun.**
+
+- In a sentence card, `{{count-0-9}}`, `{{count}}` and the other counting
+  tags are now filled with just the number, in the form it takes before a
+  noun: تلات, not تلاتة, and no noun beside it. Before, they also brought
+  one of your nouns: "I have {{count-0-9}}" came out as "I have 3 books".
+  The noun is yours to write.
+- Write a noun tag straight after the counting tag, as in "I have
+  {{count-0-9}} {{animal}}", and the number counts that noun, as 0.402
+  added: "I have 3 dogs", with the noun in the form the number calls for.
+- In Hebrew, where the number before a noun changes with the noun's
+  gender, the tag offers both forms. If you write the noun yourself, strike
+  the sentences whose number doesn't match it. With a noun tag, the app
+  picks the right one.
+- In Palestinian Arabic, "two" is said with the noun's dual form and no
+  number word, so a counting tag only fills in 2 when a noun tag follows
+  it.
+- The counting questions the app makes to teach counting, like "3 books",
+  are unchanged.
+- Sentences you approved with a counting tag now read differently, so they
+  wait for you to review them again.
+- Worth checking by hand: a sentence card with a counting tag and a noun
+  you wrote yourself, and one with a counting tag and a noun tag.
+
+## 0.402 — 7 October 2026
+
+**A number in a sentence counts the noun you put after it.**
+
+- In a sentence card, a counting tag followed straight away by a noun
+  tag — "I have {{count-0-9}} {{animal}}" — now makes "I have 3 dogs".
+  Before, the counting tag brought a noun of its own, and the sentence
+  came out as "I have 3 books dogs".
+- The noun takes the form the number calls for: the plural, the pair, or
+  the singular after eleven in Palestinian Arabic. A word after it that
+  agrees, like an adjective, agrees with the counted noun.
+- A noun card that can't be counted with that number (because it is
+  missing a form the number needs) is left out of that sentence, rather
+  than shown wrongly.
+- It only works when nothing but a space stands between the two tags, in
+  every field of the sentence.
+- A part's "Filling blanks" section on the number screen now says this.
+- Worth checking by hand: write a sentence card like "I have
+  {{count-0-9}} {{animal}}", open its review, and see that each sentence
+  counts the animal once.
+
 ## 0.401 — 7 October 2026
 
 **A noun's forms go one, two, many.**

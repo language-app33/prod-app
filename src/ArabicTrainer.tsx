@@ -300,7 +300,7 @@ import {
 } from "./answers.ts";
 import { fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
-import { agreeTook, finishTook, leadsOf, lineGate, passes, reviewOf, sentenceKey, SCAN_LIMIT } from "./review.ts";
+import { agreeTook, countTook, finishTook, leadsOf, lineGate, passes, reviewOf, sentenceKey, SCAN_LIMIT } from "./review.ts";
 import { castFill as castScene, filledScene, hasCast } from "./cast.ts";
 import type { Review } from "./review.ts";
 import { liftSubtypeTagsIn } from "./subtype-tags.ts";
@@ -2546,8 +2546,10 @@ function tookFor(
   drawn: string[],
   own: string | null,
 ): Record<string, Value> | null {
+  const counted = countTook(unit, turned, (v) => VALUE_OWNER.get(refOf(v)) || null);
+  if (!counted) return null;
   const took = agreeTook(
-    turned,
+    counted,
     drawn,
     (v) => VALUE_OWNER.get(refOf(v)) || null,
     (c) => LANGUAGES[String(c.lang || "")] || activeLang(),
@@ -2556,7 +2558,7 @@ function tookFor(
   if (!took) return null;
   if (card && own && slots.length !== drawn.length) {
     const agreed = verbValue({ unit, parent: card }, took, leadsOf(
-      turned,
+      counted,
       slots,
       (v) => VALUE_OWNER.get(refOf(v)) || null,
       (c) => LANGUAGES[String(c.lang || "")] || activeLang(),
