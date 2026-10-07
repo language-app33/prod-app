@@ -8,6 +8,37 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.382 — 7 October 2026
+
+**Every card list has a view button: small grid, large grid, list or table. Teachers can filter cards by kind and subtype.**
+
+- The card-size button over a card list is now a view button. Each press
+  moves to the next view: small grid, large grid, list, then table, and
+  back to the start. Its icon is a picture of the view the list is in.
+- The large grid is the size that used to be called Medium. The old
+  Large size has gone.
+- The list shows one line per card: the word and its meaning, or how it
+  sounds where it has no meaning written.
+- The table shows the word, transliteration, meaning, kind, subtype,
+  decks, whether it has a recording, its review status, and when it was
+  created and last modified. On a phone it scrolls sideways inside its
+  own frame.
+- Students get the view button on all three of their card lists: their
+  cards, a deck's cards, and the cards on Progress. Their table shows the
+  word, meaning, kind, subtype and level.
+- Each list remembers its own view on the device, so the Cards tab can
+  stay a table while decks stay a grid. A device that had chosen Medium
+  or Large starts on the large grid.
+- On the teacher's Cards tab and in a deck, Filter starts with *Kind*:
+  tick any of Word or phrase, Sentence and Scene. Ticking Word or phrase
+  offers its subtypes (Noun, Verb and so on, plus *No subtype*). Ticking
+  Scene offers Text and Conversation. Several can be ticked at once, and
+  a kind's subtypes narrow only that kind, so "nouns and every sentence"
+  works.
+- To check by hand: on a phone, press the view button through all four
+  views on the Cards tab, open a deck and see that it kept its own view,
+  and select a few cards in the table view.
+
 ## 0.381 — 6 October 2026
 
 **"What is this?" and "what are these?" from one sentence card.**

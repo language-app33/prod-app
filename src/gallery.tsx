@@ -991,8 +991,8 @@ export function ComponentGallery() {
 
       <Row
         name="ItemList"
-        what="The standard list frame: New button, search and tile size on one row; Select and the menus on the next; bulk actions, empty state, paging at 120."
-        note="match is (item, lowercasedQuery) => boolean. bulkActions is [{ label, danger, onClick(ids) }]. menus is [{ key, label, icon, busy, content }] — one open at a time, drawn under the row. resizable adds the size button, which only a grid of tiles has anything to do with."
+        what="The standard list frame: New button, search and the view button on one row; Select and the menus on the next; bulk actions, empty state, paging at 120."
+        note="match is (item, lowercasedQuery) => boolean. bulkActions is [{ label, danger, onClick(ids) }]. menus is [{ key, label, icon, busy, content }] — one open at a time, drawn under the row. views adds the view button — small grid, large grid, list, table — with { key, columns, row(item) } saying what a line and a table row show; key is where the list remembers its view."
       >
         <V label="items + renderItem" wide>
           <ItemList
@@ -1002,7 +1002,11 @@ export function ComponentGallery() {
             itemKey={(d) => d.id}
             match={(d, q) => d.title.toLowerCase().includes(q)}
             size="small"
-            resizable
+            views={{
+              key: "gallery",
+              columns: [{ key: "title", label: "Title" }],
+              row: (d) => ({ word: d.title, meaning: null, cells: { title: d.title } }),
+            }}
             menus={[
               {
                 key: "sort",

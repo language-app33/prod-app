@@ -3,7 +3,7 @@ import type {
   Course, DayMoves, Deck, Doc, ExerciseState, FlagKind, FlagVerdict, Form, Item,
   Lang, LangId, Millis, Question, SavedSession, Settings, User,
  VerbSpec, } from "./types.ts";
-import type { Node } from "./shared.tsx";
+import type { CardViews, Node } from "./shared.tsx";
 import { say } from "./wording.ts";
 import {
   APP_COMMIT,
@@ -12,6 +12,9 @@ import {
   Button,
   CardReadout,
   CardTile,
+  cardKindLabel,
+  cardSubtypeLabel,
+  cardWords,
   DeckSwitch,
   ClipList,
   ConfirmModal,
@@ -845,6 +848,45 @@ function standingShort(at: Standing | null): string {
   if (at.status === "done") return "Learnt";
   if (at.status === "cleared") return "Cleared";
   return `Level ${at.level}`;
+}
+
+/*
+ * A learner's card list as lines or a table — see CardViews. The table is
+ * what a learner compares across their cards: what each says, what kind it
+ * is, and how far they have got with it. `key` is which list, so each
+ * remembers the view it was left at.
+ */
+const STUDENT_COLUMNS = [
+  { key: "word", label: "Word" },
+  { key: "meaning", label: "Meaning" },
+  { key: "kind", label: "Kind" },
+  { key: "subtype", label: "Subtype" },
+  { key: "level", label: "Level" },
+];
+function studentViews(
+  key: string,
+  { lang, open, level }: { lang: (it: Item) => Lang; open: (it: Item) => void; level: (it: Item) => string },
+): CardViews<Item> {
+  return {
+    key,
+    columns: STUDENT_COLUMNS,
+    row: (it) => {
+      const L = lang(it);
+      const said = cardWords(it, L);
+      return {
+        word: said.word,
+        meaning: said.meaning,
+        cells: {
+          word: said.word,
+          meaning: said.en,
+          kind: cardKindLabel(it),
+          subtype: cardSubtypeLabel(it, L),
+          level: level(it),
+        },
+        open: () => open(it),
+      };
+    },
+  };
 }
 
 /* ------------------------------------------------------------------
@@ -13865,6 +13907,11 @@ function ItemsTab({
             items={byTag}
             itemKey={(it) => it.id}
             size="small"
+            views={studentViews("student-cards", {
+              lang: () => activeLang(),
+              open: (it) => setSheet({ view: it }),
+              level: (it) => standingShort(standing(cardStandings(it, settings, items))),
+            })}
             busy={false}
             onNew={OWN ? () => setSheet("single") : undefined}
             filters={
@@ -17015,6 +17062,11 @@ function DeckScreen({
         empty="No cards match."
         groups={DECK_RUNS}
         groupOf={(it: Item) => (progressOf.get(it.id) ? deckRunOf(progressOf.get(it.id)) : "waiting")}
+        views={studentViews("student-deck", {
+          lang: (it) => langOf(settingsFor(settings, it)),
+          open: (it) => onCard(it),
+          level: (it) => (progressOf.get(it.id) ? standingShort(progressOf.get(it.id) || null) : "Opens later"),
+        })}
         match={(it: Item, needle: string) =>
           (leadOf(it).ar || "").includes(needle) ||
           (leadOf(it).lat || "").toLowerCase().includes(needle) ||
@@ -17309,6 +17361,11 @@ function ProgressTab({
              under "Learnt" they are all in the one state, which the list
              notices for itself and draws without headings. */
           groups={onLevel ? STATUS_RUNS : undefined}
+          views={studentViews("student-progress", {
+            lang: (it) => langOf(settingsFor(settings, it)),
+            open: (it) => setViewing(it),
+            level: (it) => standingShort(progressOf.get(it.id) || null),
+          })}
           groupOf={(it: Item) => {
             const at = progressOf.get(it.id);
             return at ? at.status : "none";
