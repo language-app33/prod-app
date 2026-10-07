@@ -42,7 +42,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { buildSession, installIndexes, cardStandings, partsOf, climbOf, towardsLearnt } = await import(path.join(out, "trainer.js"));
+const { buildSession, installIndexes, cardStandings, partsOf, climbOf, towardsLearnt, workloadOf } = await import(path.join(out, "trainer.js"));
 const { generate, fileIntoDecks, componentId, isRangeSkill, steeredAsk } = await import(
   path.join(here, "..", "src", "numbers", "generate.ts")
 );
@@ -153,7 +153,7 @@ test("a word not yet cleared is never asked inside a number", () => {
   assert.ok(asked > 0, "the part was never dealt, though every other word is learnt");
 });
 
-test("a part is learnt only once every word it is built from is", () => {
+test("a part is learnt only once every word it is built from is known", () => {
   const held = allLearntBut([ninety]);
   const part = must(held.find((/** @type {any} */ it) => it.id === partId), PART);
   const at = must(standing(cardStandings(part, settings, held)), "no standing");
@@ -169,6 +169,21 @@ test("a part is learnt only once every word it is built from is", () => {
   /* And read on its own, without the collection, the part is what its own
      ladder says — the one card's line, which cannot see its words. */
   assert.equal(must(standing(cardStandings(part, settings)), "no standing").status, "done");
+});
+
+test("known is cleared, not learnt: a word still making its own reviews holds nothing back", () => {
+  /* Since 0.368. Learnt asked every word and all ten figures to have made
+     their passes at the same moment, and one slip anywhere put a part back,
+     so 0 to 9 sat at Cleared for weeks. */
+  const items = allLearntBut([ninety]).map((/** @type {any} */ it) => (it.id === ninety ? clearedOnly(it) : it));
+  const part = must(items.find((/** @type {any} */ it) => it.id === partId), PART);
+  const at = must(standing(cardStandings(part, settings, items)), "no standing");
+  assert.equal(at.status, "done", "held back by a word that is cleared");
+  /* The word itself is still not learnt, and the page of a part's words
+     still says so. */
+  const word = must(partsOf(part, items, settings).find((/** @type {any} */ p) => p.card.id === ninety), "ninety");
+  assert.equal(word.validated, false);
+  assert.equal(word.known, true);
 });
 
 /*
@@ -221,19 +236,37 @@ test("a deck of numbers counts the numbers still waiting, so its percentage only
   assert.equal(fresh.share, 0);
 });
 
+test("the work left on a deck of numbers counts the numbers still waiting", () => {
+  installIndexes(filed, settings);
+  const counted = filed.filter((/** @type {any} */ it) => towardsLearnt(it, settings, filed)).length;
+  const asked = filed.filter((/** @type {any} */ it) => standing(cardStandings(it, settings, filed))).length;
+  assert.ok(asked < counted, "nothing is waiting, so this proves nothing");
+  const w = workloadOf(filed, settings);
+  assert.equal(w.left, counted, "a number waiting on its stretch is work the deck has left");
+  /* And the work on a waiting part is its whole ladder, not nothing. */
+  const thousands = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:1000+"), "1000+");
+  assert.ok(workloadOf([thousands], settings).questions > 0, "a waiting part needs no answers");
+});
+
+/** Missed twice running, so the level it is on shuts. */
+const missed = () => ({
+  ...freshState(), phase: "relearn", interval: 1, due: Date.now(),
+  reps: 6, right: 4, wrong: 2, hist: [1, 1, 1, 1, 0, 0], passes: 2, updated: Date.now() - 3600000,
+});
+const slipped = (/** @type {any} */ it) => ({
+  ...it,
+  forms: it.forms.map((/** @type {any} */ f) => ({ ...f, s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, missed()])) })),
+});
+const four = componentId(SYS.id, "unit.4");
+
 test("a slip below a stretch keeps what the numbers above it had earned", () => {
-  /* Everything learnt, then 0 to 9 missed twice running: every stretch
-     above it waits again. Their words are still learnt, and the percentage
-     says so rather than counting them as nothing. */
+  /* Everything learnt, then the word for four and 0 to 9's own questions
+     both missed twice running: neither way through is open, so every
+     stretch above 0 to 9 waits again. Their words are still learnt, and the
+     percentage says so rather than counting them as nothing. */
   const zeroToNine = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:0-9"), "0 to 9");
-  const missed = () => ({
-    ...freshState(), phase: "relearn", interval: 1, due: Date.now(),
-    reps: 6, right: 4, wrong: 2, hist: [1, 1, 1, 1, 0, 0], passes: 2, updated: Date.now() - 3600000,
-  });
-  const items = allLearntBut([zeroToNine.id]).map((/** @type {any} */ it) => (it.id === zeroToNine.id ? {
-    ...it,
-    forms: it.forms.map((/** @type {any} */ f) => ({ ...f, s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, missed()])) })),
-  } : it));
+  const items = allLearntBut([four, zeroToNine.id]).map((/** @type {any} */ it) =>
+    (it.id === four || it.id === zeroToNine.id ? slipped(it) : it));
   installIndexes(items, settings);
   const tens = must(items.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:20-99"), "20 to 99");
   assert.deepEqual(cardStandings(tens, settings, items), [], "20 to 99 is not waiting on the slip");
@@ -241,5 +274,57 @@ test("a slip below a stretch keeps what the numbers above it had earned", () => 
     "nor is its word for ninety");
   const climb = climbOf(items, settings, items);
   assert.equal(climb.n, filed.length);
-  assert.equal(climb.learnt, filed.length - 1, "only the part that slipped is short of learnt");
+  /* Short of learnt: four, and the parts built with it — nothing else. */
+  const short = items.filter((/** @type {any} */ it) => {
+    const at = towardsLearnt(it, settings, items);
+    return at && at.at.status !== "done";
+  });
+  assert.equal(climb.learnt, filed.length - short.length);
+  for (const it of short) {
+    assert.ok(it.id === four || it.id === zeroToNine.id || (it.range && (it.parts || []).includes(four)), `${it.id} is short of learnt`);
+  }
+});
+
+/*
+ * Since 0.368 a stretch opens on its words and not on the questions about
+ * the stretch below as a whole. Those come up about once in thirty
+ * questions of a numbers session, so waiting on them held 10 to 19 shut
+ * for days after the words for 0 to 9 were all known.
+ */
+test("a stretch opens once the words below it are cleared, before the stretch below's own questions are", () => {
+  const zeroToNine = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:0-9"), "0 to 9");
+  const tenToNineteen = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:10-19"), "10 to 19");
+  const below = new Set(zeroToNine.parts || []);
+  assert.ok(below.size >= 10, "0 to 9 knows the words it is built from");
+  /* The words for 0 to 9 cleared, and nothing else touched: 0 to 9 itself
+     has never been asked. */
+  const items = filed.map((/** @type {any} */ it) => (below.has(it.id) ? clearedOnly(it) : it));
+  installIndexes(items, settings);
+  const asked = cardStandings(must(items.find((/** @type {any} */ it) => it.id === tenToNineteen.id), "10 to 19"), settings, items);
+  assert.ok(asked.length > 0, "10 to 19 is still waiting on 0 to 9's own questions");
+
+  /* And one word short of that, it waits. */
+  const [one] = [...below];
+  const short = items.map((/** @type {any} */ it) => (it.id === one ? filed.find((/** @type {any} */ f) => f.id === one) : it));
+  installIndexes(short, settings);
+  assert.deepEqual(cardStandings(must(short.find((/** @type {any} */ it) => it.id === tenToNineteen.id), "10 to 19"), settings, short), [],
+    "10 to 19 opened with a word for 0 to 9 not yet cleared");
+});
+
+test("and the stretch below's own questions still open it, whatever its words say", () => {
+  /* The way through until 0.368, kept beside the new one: 0 to 9's own
+     questions cleared and its words not, and 10 to 19 is open. */
+  const zeroToNine = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:0-9"), "0 to 9");
+  const tenToNineteen = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:10-19"), "10 to 19");
+  const items = filed.map((/** @type {any} */ it) => (it.id === zeroToNine.id ? clearedOnly(it) : it));
+  installIndexes(items, settings);
+  assert.ok(cardStandings(must(items.find((/** @type {any} */ it) => it.id === tenToNineteen.id), "10 to 19"), settings, items).length > 0);
+});
+
+test("a slip on the stretch's own questions no longer shuts the stretch above while its words are known", () => {
+  const zeroToNine = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:0-9"), "0 to 9");
+  const items = allLearntBut([zeroToNine.id]).map((/** @type {any} */ it) => (it.id === zeroToNine.id ? slipped(it) : it));
+  installIndexes(items, settings);
+  const tens = must(items.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:20-99"), "20 to 99");
+  assert.ok(cardStandings(tens, settings, items).length > 0, "20 to 99 shut by a slip on 0 to 9's own questions");
 });

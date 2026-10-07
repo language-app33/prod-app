@@ -58,7 +58,7 @@ import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { sentencesOf } from "./review.ts";
 import { aboutPerson, cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
-import { citationOf, colOf, isCell, NO_PARTNER, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
+import { citationOf, colOf, isCell, linkedToNothing, NO_PARTNER, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
 
 /* A card, a form of one, a turn of one, or a half-written draft — open for
    the reason the other pure modules are: the same questions are asked of a
@@ -376,6 +376,7 @@ export function fillersFor(
       lang,
       (slot) => slotRows(form, slot),
       (slot) => !!partnerOf(form, formSlots, slot),
+      (slot) => linkedToNothing(form, slot),
     ),
     /* And an adjective said about a person, once per form — see
        aboutPersons. */
@@ -423,6 +424,11 @@ export function tensedBlanks(
  * with another blank — an adjective, a demonstrative, a verb with more
  * than one person — and so can be told which blank to follow. A blank of
  * nouns or names decides and never follows, and is asked nothing.
+ *
+ * A sentence's only blank is asked too where an adjective or a
+ * demonstrative is behind it, since 0.379: "what is {{this}}?" has
+ * nothing to follow, and can be linked to nothing to have every form in
+ * turn. A verb there goes through its persons already.
  */
 export function agreeingBlanks(
   form: Held | null | undefined,
@@ -431,12 +437,13 @@ export function agreeingBlanks(
 ): Set<string> {
   const out = new Set<string>();
   const holes = slotsOf(form);
-  if (holes.length < 2) return out;
+  if (!holes.length) return out;
+  const lone = holes.length < 2;
   for (const card of pool || []) {
     if (lang && card.lang && card.lang !== lang.id) continue;
     const category = str(card.category);
     const tensed = tensedOf(lang, category);
-    if (!agreementOf(lang, category) && !(tensed && personsOf(tensed).length > 1)) continue;
+    if (!agreementOf(lang, category) && (lone || !(tensed && personsOf(tensed).length > 1))) continue;
     const names = fillsOf(card, kindOf(card, lang));
     /* Not an adjective said about a person: it carries its own person,
        and has nothing to follow. */
@@ -444,6 +451,42 @@ export function agreeingBlanks(
     if (out.size === holes.length) break;
   }
   return out;
+}
+
+/**
+ * The words a sentence's only blank is showing in their main form alone,
+ * where they have other forms the teacher could have it go through.
+ *
+ * Asked by the examples list, which is where a teacher sees "what is
+ * {{this}}?" come out as هاد and nothing else and goes looking on the
+ * wrong card: the ticks on the word are right, and what is left is the
+ * sentence's own "Which forms it uses" — see blankAdmits. Empty once that
+ * says every form, and wherever the blank has another to agree with.
+ * Each word once, as the card's own word, oldest card first.
+ */
+export function mainFormOnly(
+  form: Held | null | undefined,
+  pool: Held[],
+  lang: Lang | null | undefined,
+): { slot: string; words: string[] } | null {
+  const holes = slotsOf(form);
+  if (holes.length !== 1) return null;
+  const [slot] = holes;
+  if (linkedToNothing(form, slot)) return null;
+  const words: string[] = [];
+  const byAge = [...(pool || [])].sort((a, b) => (a.created || 0) - (b.created || 0));
+  for (const card of byAge) {
+    if (!card || (lang && card.lang && card.lang !== lang.id)) continue;
+    const spec = agreementOf(lang, str(card.category));
+    if (!spec || !fillsOf(card, kindOf(card, lang)).includes(slot) || aboutPerson(card, slot)) continue;
+    const own = str(leadOf(card) && (leadOf(card) as Held).ar);
+    const rows = rowIdsOf(spec);
+    const more = (formsOf(card) as Held[]).some(
+      (f) => rows.has(rowOf(f)) && isLent(f) && !!str(f.ar) && str(f.ar) !== own,
+    );
+    if (more && own && !words.includes(own)) words.push(own);
+  }
+  return words.length ? { slot, words } : null;
 }
 
 /**
@@ -1364,6 +1407,7 @@ export function whyStarved(
     lang,
     (s) => slotRows(form, s),
     (s) => !!partnerOf(form, formSlots, s),
+    (s) => linkedToNothing(form, s),
   );
   let fills = false;
   let kept = false;
