@@ -35,6 +35,7 @@
  */
 import { ALT_SEP, splitAlternatives } from "./answers.ts";
 import { formsOf, leadOf } from "./cards.ts";
+import { mixed, spansThrough } from "./numbers/spans.ts";
 
 /*
  * What a slot looks like: {{name}}, and nothing cleverer.
@@ -324,6 +325,11 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
   if (kind === WORD_SLOT && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
   const said = String((card && card.category) || "").toLowerCase();
   if (said && !out.includes(said)) out.push(said);
+  /* And a number filler the runs of stretches its own is inside: a filler
+     from 10 to 19 stands in `{{0-99}}` and `{{10-999}}`. See spans.ts. */
+  for (const name of [...out]) {
+    for (const span of spansThrough(name)) if (!out.includes(span)) out.push(span);
+  }
   /* And a pronoun fills the blanks that read it with *to be*, and an
      adjective the one that says it about a person — the same cards, with
      a different English — under every name that reaches it: its kind,
@@ -1272,7 +1278,9 @@ export function valuesForTurn(
   const out: Record<string, Value> = {};
   let rolled = at;
   for (const slot of slots) {
-    const list = (have && have[slot]) || [];
+    /* A number blank over several stretches takes them in turn — see
+       mixed. */
+    const list = mixed(slot, (have && have[slot]) || []);
     if (!list.length) return null;
     out[slot] = list[rolled % list.length];
     rolled = Math.floor(rolled / list.length);

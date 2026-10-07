@@ -5484,3 +5484,33 @@ At the same time, "Learn more" and the card's note are gone from under
 every grid. They spoke of the first word only and never said which; the
 owner preferred nothing to five times as much.
 
+## A number blank is a run of stretches
+
+**7 October 2026** · `src/numbers/spans.ts` (`spanTag`, `readSpan`, `spansThrough`, `mixed`), `src/variables.ts` (`fillsOf`, `valuesForTurn`), `src/card-editor.tsx` (`RangeTicks`, `BlankTap`, `renameBlank`)
+
+The blank list offered every stretch's tag, the old tags kept for sentences
+written before the split, and the general `number` and `count` — a dozen
+rows for one question. The owner asked for two rows, Numbers and Counting
+things, and ticks for the stretches, any number of them making one blank.
+
+**Ticks that touch, named bottom to top.** A run is written from its first
+stretch's bottom to its last one's top — `0-99`, `10-999`, `20-plus` — so
+the name reads as what it holds. One stretch is its own tag and all five is
+`number` or `count`, so nothing written before means anything new. Runs
+with a gap were ruled out with the owner: the name would have to list them.
+
+**Nothing is written on the fillers.** `fillsOf` adds the runs a filler's
+own stretch is inside, off the name alone, so a filler carries no more
+`fills` than it did (they are capped at twelve) and a run nobody writes
+costs nothing.
+
+**Stretches in turn, not numbers.** The rotation walks a blank's values in
+order, and they arrive a stretch at a time, so `{{0-99}}` would be ten
+digits before any teen. `mixed` deals the stretches round in turn, the same
+order for the same list, so a count is still a sentence — and each stretch
+comes up about as often as the others, which the owner chose over every
+number equally (eight times in ten 20 to 99).
+
+**Changed by renaming.** Tapping a number pill opens its ticks; the new run
+replaces the old name in every field, and the tenses and agreement said
+about it move with it.
