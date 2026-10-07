@@ -256,12 +256,21 @@ const englishOf = (/** @type {string} */ sg, /** @type {string} */ pl, /** @type
   return renderAsk({ rangeId: "x", kind: "numbers", value, nounId: "book" }, arComposer, { ...AR, nouns: [noun] }).en;
 };
 
-test("a meaning that already ends in s is not given another ending", () => {
+test("the English is the card's own, never a plural made up", () => {
   assert.equal(englishOf("Books", "Books", 10), "10 Books");
-  assert.equal(englishOf("Books", "", 10), "10 Books");
-  assert.equal(englishOf("Book", "Book", 10), "10 Books");
-  assert.equal(englishOf("Glass", "", 10), "10 Glasses");
+  assert.equal(englishOf("Book", "Book", 10), "10 Book", "as written, even the singular's word");
   assert.equal(englishOf("Child", "Children", 10), "10 Children");
+  assert.equal(englishOf("Glass", "Glasses", 10), "10 Glasses");
+});
+
+test("a noun whose plural has no English is not counted, and says why", () => {
+  const book = AR.nouns.find((/** @type {any} */ n) => n.id === "book");
+  const read = must(readNounCard({ id: "book", category: "noun", forms: [
+    { id: "a", ar: book.sg, en: "Book", number: "singular", gender: "masculine" },
+    { id: "b", ar: book.pl, en: "", number: "plural", gender: "masculine" },
+  ] }), "read");
+  assert.equal(read.noun, undefined);
+  assert.deepEqual(read.missing, ["plural-english"]);
 });
 
 test("English counts in the plural from two up, though Arabic counts eleven and up with its singular", () => {

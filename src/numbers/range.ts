@@ -618,23 +618,18 @@ function carriedHour(h: number, m: number, mark: number | undefined): number {
 /**
  * "3 books", "1 book" — the English a counted phrase is asked in.
  *
- * Singular for one alone and plural for every other count, whatever the
- * language does: Arabic counts eleven and up with its singular, and *11
- * book* is not English. The card's own plural where it wrote one, and a
- * guess where it did not — which includes a plural box whose English is
- * the singular's own, see nouns.ts. The guess never adds to a word already
- * ending in a single *s*: a meaning written as *Books* on both boxes came
- * out *Bookses*.
+ * The card's own words and nothing made up: its singular's English for
+ * one alone, and its plural's for every other count, whatever the
+ * language does — Arabic counts eleven and up with its singular, and *11
+ * book* is not English. A plural used to be guessed by putting an *s* on
+ * the singular, which turned a meaning written as *Books* into *Bookses*;
+ * a noun whose plural says no English is now not counted at all (see
+ * nouns.ts).
  */
 function englishFor(noun: CountedNoun, value: number): string {
   const word = String(noun.en || noun.id || "").trim();
-  if (!word) return "";
   if (value === 1) return word;
-  if (noun.enPl) return noun.enPl;
-  /* An irregular plural is the teacher's to write; this is a cue, not a
-     lesson in English. */
-  if (/(ss|x|z|ch|sh)$/i.test(word)) return `${word}es`;
-  return /s$/i.test(word) ? word : `${word}s`;
+  return String(noun.enPl || "").trim() || word;
 }
 
 /* ---- wrong answers worth offering ---- */

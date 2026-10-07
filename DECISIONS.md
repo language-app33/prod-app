@@ -4570,7 +4570,7 @@ is heard as the start of a special plural, and where it is written in
 Arabic script it is written on the noun. Some textbooks transcribe it on
 the numeral in Latin letters (*ḫamest‿iyyām*), which is the same sound. So
 it is a box on the noun's card, *Special plural after 3–10 (days,
-months)* — *Plural after 3 to 10* until 0.398, see the note below — Arabic only and
+months)* — *Plural after 3 to 10* until 0.399, see the note below — Arabic only and
 offered on nouns only (`GrammarDim.optionRules`), read by counting as
 `CountedNoun.plCounted` and used for three to ten alone. A form in it
 starts out of practice and out of sentences: it is said inside a counted
@@ -4588,7 +4588,7 @@ box, which was weighed and left out until someone asks.
 **Revisit if** a teacher asks for خمست أيام spelt that way, or for a
 counted phrase to accept more than one spelling.
 
-**Renamed in 0.398.** The owner read the four boxes — Singular, Plural,
+**Renamed in 0.399.** The owner read the four boxes — Singular, Plural,
 Plural after 3 to 10, Dual — as four ways of counting, which left the
 plain plural to be the one above ten, and asked why Arabic was not counted
 with the singular there. It is; the names said otherwise. A noun's boxes
@@ -5728,3 +5728,18 @@ already approved has to be approved again.
 card whose English doesn't say "in", "at" or "on" is shown as written and
 not swapped. That is the cautious side of the guess.
 
+## A counted noun's English is the card's, never made up
+
+**8 October 2026** · `src/numbers/range.ts` (`englishFor`),
+`src/numbers/nouns.ts` (`readNounCard`, the `plural-english` gap)
+
+The English a counted phrase is asked in used to guess a plural by
+putting *s* or *es* on the singular wherever the plural box said nothing,
+or said the same as the singular. A card whose singular read *Books*
+came out *10 Bookses*, and 0.397 only patched the guess. The owner's
+rule: plurals come from the cards alone. So a noun whose plural has no
+English is not counted, and the numbers screen names the gap; a plural's
+English is used as written, even the singular's own word. The one choice
+left to the app is which of the two the English takes: the singular for
+one, the plural for every other count, whatever the language's own noun
+does after eleven.
