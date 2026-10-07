@@ -56,6 +56,7 @@ test("a complete system opens every range it has", () => {
     "numbers:20-99",
     "numbers:100-999",
     "numbers:1000+",
+    "numbers:1000000000+",
     "time:hours",
     "time:quarters-halves",
     "time:fives",
@@ -71,6 +72,7 @@ test("a system with no clock opens its numbers and nothing else", () => {
     "numbers:20-99",
     "numbers:100-999",
     "numbers:1000+",
+    "numbers:1000000000+",
   ]);
   /* And every stretch is counted with: the system's nouns can be said
      at every number of each of them. */

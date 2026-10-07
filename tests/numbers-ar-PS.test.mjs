@@ -88,7 +88,8 @@ test("every number up to the ceiling can be said, and says itself the same way t
   for (let v = 0; v <= 2000; v += 1) check(v);
   const rnd = seeded(7);
   for (let i = 0; i < 5000; i += 1) check(Math.floor(rnd() * (NUMBER_CEILING + 1)));
-  for (const v of [9999, 10000, 99999, 100000, 999999, 1000000, 1000001, 9999999]) check(v);
+  for (const v of [9999, 10000, 99999, 100000, 999999, 1000000, 1000001, 9999999,
+    999999999, 1000000000, 1000000001, 2000000000, 10000000000, NUMBER_CEILING]) check(v);
 });
 
 test("nothing in a number is invented: every piece of it comes from a box", () => {
@@ -361,7 +362,7 @@ test("the composer names itself and its ranges", () => {
   const ranges = arComposer.ranges();
   assert.deepEqual(
     ranges.map((r) => r.id),
-    ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+"],
+    ["numbers:0-9", "numbers:10-19", "numbers:20-99", "numbers:100-999", "numbers:1000+", "numbers:1000000000+"],
   );
   for (const r of ranges) {
     assert.ok(r.from <= r.to, `${r.id} is back to front`);

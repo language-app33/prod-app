@@ -965,7 +965,8 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   builds them out of, each with the faces it wears — written on one screen
   and never a card: the teacher reaches it from **Teaching → Cards**, the
   `#` in the list's toolbar. Its first screen only lists — the parts of
-  the numbers (0 to 9, 10 to 19, 20 to 99, 100 to 999, 1,000 and over),
+  the numbers (0 to 9, 10 to 19, 20 to 99, 100 to 999, 1,000 to
+  999,999,999, and the billions up to eleven digits),
   the clock, and the numbers written out by hand — and each opens on a
   screen of its own, which is where it is edited and saved. A part's words
   are a panel per number, the way a card's editor puts each form in a

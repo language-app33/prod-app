@@ -67,6 +67,7 @@ export const VI_SLOTS: SlotSpec[] = [
   },
   { slot: "thousand.n", formKeys: COUNTING, label: "thousand", group: "scales" },
   { slot: "million.n", formKeys: COUNTING, label: "million", group: "scales" },
+  { slot: "billion.n", formKeys: COUNTING, label: "billion", group: "scales" },
 ];
 
 export const VI_RANGES: Range[] = [
@@ -157,13 +158,15 @@ export function renderVi(n: number, sys: NumberSystem, ctx: RenderCtx = {}): Ren
   const said = (() => {
     if (written) return written;
     if (n === 0) return b.word("unit.0", "standalone");
-    const millions = Math.floor(n / 1000000);
+    const billions = Math.floor(n / 1000000000);
+    const millions = Math.floor((n % 1000000000) / 1000000);
     const thousands = Math.floor((n % 1000000) / 1000);
     const rest = n % 1000;
     const parts = [
-      scale(b, millions, "million.n", true),
-      scale(b, thousands, "thousand.n", !millions),
-      rest ? place(b, rest, !millions && !thousands) : "",
+      scale(b, billions, "billion.n", true),
+      scale(b, millions, "million.n", !billions),
+      scale(b, thousands, "thousand.n", !billions && !millions),
+      rest ? place(b, rest, !billions && !millions && !thousands) : "",
     ];
     return parts.filter(Boolean).join(" ");
   })();

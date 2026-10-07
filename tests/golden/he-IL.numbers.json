@@ -297,6 +297,24 @@
           "standalone": "מיליון"
         }
       },
+      "billion.1": {
+        "slot": "billion.1",
+        "forms": {
+          "standalone": "מיליארד"
+        }
+      },
+      "billion.2": {
+        "slot": "billion.2",
+        "forms": {
+          "standalone": "שני מיליארד"
+        }
+      },
+      "billion.n": {
+        "slot": "billion.n",
+        "forms": {
+          "standalone": "מיליארד"
+        }
+      },
       "connector": {
         "slot": "connector",
         "forms": {

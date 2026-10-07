@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.391 — 7 October 2026
+## 0.392 — 7 October 2026
 
 **Play buttons sit in the middle of their cards.**
 
@@ -16,8 +16,30 @@ and moves once per batch of work you would notice, not once per commit.
   on the left now sits in the middle of the space beside the pairing
   number, instead of pressed up against the number with the rest of the
   card empty. The correction shown under a wrongly paired card after
-  checking is centred with it. The same goes for the new grids that
-  match number recordings to their figures.
+  checking is centred with it. The same goes for the grids that match
+  number recordings to their figures.
+
+## 0.391 — 7 October 2026
+
+**Numbers up to eleven digits, in Check a number and in practice.**
+
+- Check a number now says every number up to 99,999,999,999 as typed.
+  Before, it kept only the first seven digits without saying so:
+  800,413,901 came back as 8,004,139. A number longer than eleven digits
+  now gets a message saying so, instead of an answer for part of it.
+- A language's numbers have a new part, **Numbers 1,000,000,000 and
+  over**, with boxes for the word for a billion (one, two, and the
+  plural where the language has one). It opens for students once the
+  teacher has written those words, like any other part.
+- The part that was "Numbers 1,000 and over" is now **Numbers 1,000 to
+  999,999,999** and asks numbers up to nine digits. It needs no new
+  words, so it stays open wherever it was open. Most of its questions are
+  now nine-digit numbers, where most were seven. Any question a student
+  already had from it comes back once as a different number.
+- Number blanks in sentences have the new range to tick too. A sentence
+  already written with the 1,000-and-over blank keeps meaning 1,000 and
+  up, so it is now filled from the billions as well. Ticking only 1,000
+  to 999,999,999 gives a blank of its own, called 1000-999999999.
 
 ## 0.390 — 7 October 2026
 

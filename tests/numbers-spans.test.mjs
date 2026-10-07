@@ -24,11 +24,16 @@ test("a run of stretches is named from its bottom to its top, and read back", ()
     [{ counted: false, from: 0, to: 0 }, "0-9"],
     [{ counted: false, from: 0, to: 2 }, "0-99"],
     [{ counted: false, from: 1, to: 3 }, "10-999"],
-    [{ counted: false, from: 2, to: 4 }, "20-plus"],
-    [{ counted: false, from: 4, to: 4 }, "1000-plus"],
-    [{ counted: false, from: 0, to: 4 }, "number"],
+    [{ counted: false, from: 2, to: 4 }, "20-999999999"],
+    [{ counted: false, from: 2, to: 5 }, "20-plus"],
+    [{ counted: false, from: 4, to: 4 }, "1000-999999999"],
+    [{ counted: false, from: 5, to: 5 }, "1000000000-plus"],
+    /* 1,000 to the top, which is what it meant before the billions were
+       a stretch of their own. */
+    [{ counted: false, from: 4, to: 5 }, "1000-plus"],
+    [{ counted: false, from: 0, to: 5 }, "number"],
     [{ counted: true, from: 0, to: 2 }, "count-0-99"],
-    [{ counted: true, from: 0, to: 4 }, "count"],
+    [{ counted: true, from: 0, to: 5 }, "count"],
   ];
   for (const [span, name] of cases) {
     assert.equal(spanTag(/** @type {any} */ (span)), name);
@@ -41,8 +46,10 @@ test("a run of stretches is named from its bottom to its top, and read back", ()
 });
 
 test("a stretch's own tag is inside every run that holds it, and nothing else is", () => {
-  assert.deepEqual(spansThrough("10-19"), ["0-19", "0-99", "0-999", "10-99", "10-999", "10-plus"]);
-  assert.deepEqual(spansThrough("count-0-9"), ["count-0-19", "count-0-99", "count-0-999"]);
+  assert.deepEqual(spansThrough("10-19"), [
+    "0-19", "0-99", "0-999", "0-999999999", "10-99", "10-999", "10-999999999", "10-plus",
+  ]);
+  assert.deepEqual(spansThrough("count-0-9"), ["count-0-19", "count-0-99", "count-0-999", "count-0-999999999"]);
   for (const name of ["number", "count", "0-99", "0-10", "name"]) assert.deepEqual(spansThrough(name), [], name);
 });
 
@@ -53,6 +60,13 @@ test("a filler stands in every run its stretch is inside", () => {
   assert.ok(fillsOf(teen).includes("0-99") && fillsOf(teen).includes("10-plus"));
   assert.ok(!fillsOf(big).includes("0-99"));
   assert.ok(fillsOf(big).includes("0-999"));
+});
+
+test("a sentence written with {{1000-plus}} is still filled from 1,000 to the top", () => {
+  const sentence = { id: "s2", lang: "ar-PS", sentence: true, forms: [{ ar: "{{1000-plus}}", en: "{{1000-plus}}", lat: "" }] };
+  const pool = /** @type {any[]} */ ([sentence, ...fillerCards(arComposer, { ...SYS, nouns: [] })]);
+  const got = fillersFor(sentence.forms[0], pool, LANGUAGES["ar-PS"]);
+  assert.deepEqual([...new Set(got["1000-plus"].map(stretch))].sort(), ["1000+", "1000000000+"]);
 });
 
 test("{{0-99}} is filled from all three stretches, taking them in turn", () => {

@@ -70,7 +70,7 @@ test("Huế asks for a third of the boxes the Semitic pair do, and they ask for 
      no hundreds or thousands to write out one at a time. */
   assert.deepEqual(
     vi.filter((s) => s.group === "scales").map((s) => s.slot),
-    ["hundred.n", "thousand.n", "million.n"],
+    ["hundred.n", "thousand.n", "million.n", "billion.n"],
   );
 });
 

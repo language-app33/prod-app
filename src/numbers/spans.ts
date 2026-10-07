@@ -6,7 +6,7 @@
  * from nought to ninety-nine is the first three ticked. That is one blank,
  * and it is written as one name: `{{0-99}}`, from the first stretch's
  * bottom to the last one's top, or `-plus` where the last is the open one
- * at the top. All five is the general tag there always was, `{{number}}`;
+ * at the top. All of them is the general tag there always was, `{{number}}`;
  * one is that stretch's own tag, as before. Counting things is the same
  * with `count-` in front.
  *
@@ -24,7 +24,7 @@
  * of 0 to 99 drawn by the number would be 20 to 99 eight times in ten,
  * which is a beginner's sentence asking almost nothing a beginner knows.
  */
-import { NUMBER_RANGES } from "./types.ts";
+import { NUMBER_RANGES, stretchTag } from "./types.ts";
 
 /** A run of stretches, by their place in NUMBER_RANGES, ends included. */
 export interface Span {
@@ -36,7 +36,7 @@ export interface Span {
 const LAST = NUMBER_RANGES.length - 1;
 
 /** A stretch's own tag — the same rule partTags writes it by. */
-const own = (i: number) => NUMBER_RANGES[i].id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
+const own = (i: number) => stretchTag(NUMBER_RANGES[i].id);
 
 /** The name a run of stretches is written as. */
 export function spanTag(span: Span): string {
@@ -48,8 +48,8 @@ export function spanTag(span: Span): string {
   return counted ? `count-${bare}` : bare;
 }
 
-/* Every run there is, by name: fifteen of each kind, so a table rather than
-   a parser. */
+/* Every run there is, by name: twenty-one of each kind, so a table rather
+   than a parser. */
 const BY_NAME = new Map<string, Span>();
 for (const counted of [false, true]) {
   for (let from = 0; from <= LAST; from++) {
@@ -58,7 +58,7 @@ for (const counted of [false, true]) {
 }
 
 /*
- * And the names the stretches had before they were these five, read as the
+ * And the names the stretches had before they were these, read as the
  * run that holds them — so a sentence written with one opens on the ticks
  * it stands for when the teacher taps it. 11 to 99 is the teens and the
  * tens together; the old counting parts are the stretch most of them went
