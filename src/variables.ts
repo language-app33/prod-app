@@ -744,6 +744,13 @@ export interface Value {
    * wherever it stands in a sentence. See fitCase.
    */
   proper?: boolean;
+  /**
+   * The blank written straight after this one that it has said already —
+   * a counting blank counting the noun beside it, *3 dogs* standing for
+   * `{{count-0-9}} {{animal}}`. That blank is dropped where it follows
+   * this one, and filled as itself anywhere else. See countTook.
+   */
+  swallows?: string;
 }
 
 const text =(form: WithSlots | null | undefined, field: string): string => {
@@ -1288,7 +1295,7 @@ export function fillText(
   field = "ar",
   cased = true,
 ): string {
-  return String(value || "").replace(SLOT, (whole, name, at: number, all: string) => {
+  return withoutSwallowed(String(value || ""), values).replace(SLOT, (whole, name, at: number, all: string) => {
     const slot = String(name).toLowerCase();
     const took = values && values[slot];
     if (!took) return whole;
@@ -1302,6 +1309,17 @@ export function fillText(
        the start of a sentence is added. */
     return field === "en" ? (start ? fitCase(word, true, true) : word) : fitCase(word, start, !!took.proper);
   });
+}
+
+/* A string with every blank another one has said already taken out of
+   it, with the space before it — see `swallows`. */
+function withoutSwallowed(written: string, values: Record<string, Value>): string {
+  let out = written;
+  for (const [slot, value] of Object.entries(values || {})) {
+    if (!value || !value.swallows) continue;
+    out = out.replace(new RegExp(`(\\{\\{\\s*${slot}\\s*\\}\\})\\s*\\{\\{\\s*${value.swallows}\\s*\\}\\}`, "gi"), "$1");
+  }
+  return out;
 }
 
 /*

@@ -1422,6 +1422,13 @@ function PartTags({ range, open, counts }: { range: Range; open: boolean; counts
           Wherever a sentence card has a blank for one of these tags, this part fills it with one of
           its numbers, written out
           {counting.length ? <>, or for the counting tags with a noun beside it in the form the number calls for</> : null}.
+          {counting.length ? (
+            <>
+              {" "}Put a noun blank straight after a counting tag, as in{" "}
+              <span className="at-blankname">{`{{${counting[0]}}} {{animal}}`}</span>, and the number counts that
+              noun instead: &ldquo;3 dogs&rdquo;.
+            </>
+          ) : null}
         </Help>
         <div className="at-ticklist at-cardtags">
           <p className="at-eyebrow">Default tags</p>

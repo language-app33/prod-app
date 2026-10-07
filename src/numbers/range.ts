@@ -455,7 +455,7 @@ export function renderAsk(
     ask,
     text: got.text,
     digits: String(ask.value),
-    en: noun ? `${ask.value} ${englishFor(noun, got.nounForm)}` : String(ask.value),
+    en: noun ? `${ask.value} ${englishFor(noun, ask.value)}` : String(ask.value),
     tokens: got.tokens,
     warnings: got.warnings,
     nounForm: got.nounForm,
@@ -610,11 +610,18 @@ function carriedHour(h: number, m: number, mark: number | undefined): number {
   return m >= 58 && mark === 0 ? (h + 1) % 24 : h;
 }
 
-/** "3 books", "1 book" — the English a counted phrase is asked in. */
-function englishFor(noun: CountedNoun, form: NounForm | undefined): string {
+/**
+ * "3 books", "1 book" — the English a counted phrase is asked in.
+ *
+ * By the number, not by the form the language counts in: Arabic counts
+ * eleven and twenty-one with the singular, and English does not. Read off
+ * the noun's form until 0.367, which made "11 book" of the Arabic for
+ * eleven books.
+ */
+function englishFor(noun: CountedNoun, value: number): string {
   const word = String(noun.en || noun.id || "").trim();
   if (!word) return "";
-  if (form === "sg") return word;
+  if (value === 1) return word;
   /* The card's own plural, where it says one — *children*, *mice*. */
   if (noun.enPl) return noun.enPl;
   /* English has one plural and no dual, so the two that are not singular

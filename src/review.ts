@@ -45,6 +45,7 @@ import type { Form, Lang } from "./types.ts";
 import { formsOf } from "./cards.ts";
 import { linesOf, pickedFrom } from "./dialogs.ts";
 import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, lendsInto, tensedOf, verbOf } from "./languages.ts";
+import { countedWith } from "./numbers/generate.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { aboutPerson, fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
@@ -355,6 +356,75 @@ export function ownVerb(
   return { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
 }
 
+/* Two blanks written one straight after the other, with nothing but
+   space between them. */
+const NEXT_TO = /\{\{\s*([A-Za-z0-9_-]+)\s*\}\}\s*(?=\{\{\s*([A-Za-z0-9_-]+)\s*\}\})/g;
+
+/**
+ * The blanks of a part written straight before another one, and which:
+ * `{{count-0-9}} {{animal}}` is `count-0-9` before `animal`. Only where
+ * every field that has both says so — a sentence whose English puts the
+ * two apart is not a number standing beside its noun.
+ */
+export function countPairs(part: Held | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  const fields = ["ar", "en", "lat"].map((f) => String((part && part[f]) || "")).filter((t) => t.trim());
+  const seen = (t: string) => new Set(slotsOf({ ar: t }));
+  const pairsIn = (t: string) =>
+    [...t.matchAll(NEXT_TO)].map((m) => [m[1].toLowerCase(), m[2].toLowerCase()] as [string, string]);
+  for (const [before, after] of fields.flatMap(pairsIn)) {
+    if (out[before] !== undefined) continue;
+    const together = fields.every((t) => {
+      const has = seen(t);
+      return !(has.has(before) && has.has(after)) || pairsIn(t).some(([b, a]) => b === before && a === after);
+    });
+    out[before] = together ? after : "";
+  }
+  for (const k of Object.keys(out)) if (!out[k]) delete out[k];
+  return out;
+}
+
+/**
+ * A counting blank followed by a noun blank, said as one: the number
+ * counting the noun the other blank drew.
+ *
+ * A counting blank is filled with a number *and* a thing — see fillerCards
+ * — so "I have {{count-0-9}} {{animal}}" was *I have 3 books dogs*. Where
+ * a noun blank stands straight after it, the number counts that noun
+ * instead, in the form the number calls for, and the noun blank is said by
+ * it: *I have 3 dogs*. The noun blank carries the counted phrase's number
+ * and gender, so a word agreeing with it agrees with *dogs*, not *dog*.
+ *
+ * Only the noun's own word is taken there — its plural and its pair would
+ * make the same sentence again — and a noun that cannot be counted across
+ * the number's part is no sentence. A counting blank with anything else
+ * after it brings its own thing, as it always has.
+ */
+export function countTook(
+  part: Held,
+  took: Record<string, Value>,
+  ownerOf: (value: Value) => Owner | null,
+): Record<string, Value> | null {
+  const pairs = countPairs(part);
+  if (!Object.keys(pairs).length) return took;
+  const out = { ...took };
+  for (const [slot, next] of Object.entries(pairs)) {
+    const number = took[slot];
+    const noun = took[next];
+    if (!number || !noun) continue;
+    const owner = ownerOf(noun);
+    if (!owner || String(owner.card.category || "").toLowerCase() !== "noun") continue;
+    const nounId = String(owner.card.id || "");
+    const filler = ownerOf(number);
+    const said = filler ? countedWith(String(filler.card.id || ""), nounId) : undefined;
+    if (said === undefined) continue;
+    if (!said || refOf(noun) !== nounId) return null;
+    out[slot] = { ...number, ar: said.ar, en: said.en, lat: said.lat, grammar: said.grammar, swallows: next };
+    out[next] = { ...noun, grammar: { ...(noun.grammar || {}), ...said.grammar } };
+  }
+  return out;
+}
+
 /**
  * One combination, finished: agreement applied and a verb's own place
  * filled. Null where there is no sentence to be had from it.
@@ -367,11 +437,13 @@ export function finishTook(
   ownerOf: (value: Value) => Owner | null,
   langFor: (card: Held) => Lang | null | undefined,
 ): Record<string, Value> | null {
-  const took = agreeTook(turned, drawn, ownerOf, langFor, slotLinks(part));
+  const counted = countTook(part, turned, ownerOf);
+  if (!counted) return null;
+  const took = agreeTook(counted, drawn, ownerOf, langFor, slotLinks(part));
   if (!took) return null;
   const own = ownSlot(part);
   if (own && card && slotsOf(part).includes(own)) {
-    const verb = ownVerb(part, card, langFor(card), took, leadsOf(turned, slotsOf(part), ownerOf, langFor));
+    const verb = ownVerb(part, card, langFor(card), took, leadsOf(counted, slotsOf(part), ownerOf, langFor));
     if (!verb) return null;
     took[own] = verb;
   }

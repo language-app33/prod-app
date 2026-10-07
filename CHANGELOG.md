@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.367 — 7 October 2026
+
+**A number in a sentence counts the noun you put after it.**
+
+- In a sentence card, a counting tag followed straight away by a noun
+  tag — "I have {{count-0-9}} {{animal}}" — now makes "I have 3 dogs".
+  Before, the counting tag brought a noun of its own, and the sentence
+  came out as "I have 3 books dogs".
+- The noun takes the form the number calls for: the plural, the pair, or
+  the singular after eleven in Palestinian Arabic. A word after it that
+  agrees, like an adjective, agrees with the counted noun.
+- A noun card that can't be counted with that number (because it is
+  missing its plural or pair form) is left out of that sentence, rather
+  than shown wrongly.
+- Only works when nothing but a space stands between the two tags, in
+  every field of the sentence. A counting tag on its own, or with other
+  words after it, still brings its own noun as before.
+- The English of a counted number now says "11 books", "21 books". It
+  used to follow the Arabic and say "11 book".
+- Sentences you approved that had "11 book" and the like in the English
+  are new sentences now, and wait for you to review them again.
+
 ## 0.366 — 6 October 2026
 
 **Bigger keys for writing numbers in Arabic numerals.**

@@ -28,6 +28,7 @@ import { fillerCards, FILLERS_PER_PART, homesOf, partTags } from "../src/numbers
 import { countingOf } from "../src/numbers/types.ts";
 import { fillersFor } from "../src/card-facts.ts";
 import { LANGUAGES } from "../src/languages.ts";
+import { sentencesOf } from "../src/review.ts";
 
 const load = (/** @type {string} */ name) =>
   JSON.parse(readFileSync(new URL(`./golden/${name}`, import.meta.url), "utf8"));
@@ -279,6 +280,10 @@ test("a stretch fills a counting blank with a number and a thing, saying which n
   assert.ok(plain.length && plain.every((c) => !(c.fills || []).some((/** @type {string} */ t) => t.startsWith("count"))));
   /* Above twenty, the counted word is the singular again. */
   for (const card of counted("numbers:20-99")) assert.equal(/** @type {any} */ (card.forms[0]).number, "singular");
+  /* But the English is plural whatever the Arabic counts with: 11 books. */
+  for (const card of [...counted("numbers:10-19"), ...counted("numbers:20-99")]) {
+    assert.match(/** @type {any} */ (card.forms[0]).en, /^\d+ (books|girls)$/);
+  }
 });
 
 test("a sentence asking for a part's blank is shown the part's numbers on the teacher's screen", () => {
@@ -293,4 +298,32 @@ test("a sentence asking for a part's blank is shown the part's numbers on the te
 test("a part that cannot be said yet lends nothing to the sentences that ask for it", () => {
   const sys = { ...SYS, nouns: [], lexemes: {} };
   assert.deepEqual(fillerCards(arComposer, sys), []);
+});
+
+test("a counting blank with a noun blank after it counts that noun", () => {
+  const cards = [nounCard("book"), nounCard("girl")];
+  const sys = withNouns({ ...SYS, nouns: [] }, countedNouns(cards, "ar-PS"));
+  const lang = LANGUAGES["ar-PS"];
+  const sentence = {
+    id: "s1", lang: "ar-PS", sentence: true,
+    forms: [{ id: "s1", ar: "عندي {{count-0-9}} {{noun}}", en: "I have {{count-0-9}}{{noun}}.", lat: "" }],
+  };
+  const pool = /** @type {any[]} */ ([sentence, ...cards, ...fillerCards(arComposer, sys)]);
+  const { list } = sentencesOf(sentence, sentence.forms[0], pool, lang);
+  assert.ok(list.length > 0);
+  for (const s of list) {
+    /* The number counts the noun drawn beside it, and the noun is not
+       said a second time. */
+    assert.match(s.en, /^I have \d+ (book|girl)s?\.$/, s.en);
+    const noun = s.took.noun.card;
+    assert.ok(s.en.includes(noun), `${s.en} counts ${noun}`);
+    assert.doesNotMatch(s.ar, /\{\{/);
+  }
+  assert.ok(list.some((s) => s.took.noun.card === "book") && list.some((s) => s.took.noun.card === "girl"));
+  /* Once per number and noun: the plural and the pair add nothing. */
+  assert.equal(new Set(list.map((s) => s.en)).size, list.length);
+  /* With anything between them, the counting blank brings its own thing. */
+  const apart = { ...sentence.forms[0], ar: "عندي {{count-0-9}} و{{noun}}", en: "I have {{count-0-9}} and {{noun}}" };
+  const own = sentencesOf(sentence, apart, pool, lang).list;
+  assert.ok(own.length > 0 && own.every((s) => /^I have \d+ \w+ and \w+/.test(s.en)), own.map((s) => s.en).join(" | "));
 });

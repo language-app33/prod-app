@@ -1250,6 +1250,39 @@ export const OLD_COUNT_TAGS: { tag: string; from: number; to: number }[] = [
  * nothing, and its sentences wait for it the way a sentence waits for a
  * name nobody has written.
  */
+/**
+ * A counting filler's number, counting another noun — what a sentence
+ * shows where a noun blank stands straight after the counting one:
+ * *I have {{count-0-9}} {{animal}}* as *I have 3 dogs*, not *3 books
+ * dogs*. See countTook in review.ts, which asks this.
+ *
+ * Undefined for anything that is not a counting filler, and null where
+ * the noun cannot be counted across the filler's part — a card missing
+ * the form that number calls for — which is no sentence rather than a
+ * wrong one. Worked out when first asked and kept: a teacher with two
+ * hundred noun cards uses a handful of them beside a number.
+ */
+export interface CountedPhrase {
+  ar: string;
+  en: string;
+  lat: string;
+  grammar: Record<string, string>;
+}
+
+const COUNTED_WITH: Map<string, (nounId: string) => CountedPhrase | null> = new Map();
+
+export const countedWith = (fillerRef: string, nounId: string): CountedPhrase | null | undefined => {
+  const counts = COUNTED_WITH.get(fillerRef);
+  return counts ? counts(nounId) : undefined;
+};
+
+/* What a counted phrase says about its noun, the way a card stores it. */
+const countedGrammar = (said: { nounForm?: string }, noun: CountedNoun): Record<string, string> => ({
+  number: NUMBER_OF[said.nounForm || "pl"] || "plural",
+  gender: noun.gender === "f" ? "feminine" : "masculine",
+  ...(noun.human ? { human: noun.human } : null),
+});
+
 export function fillerCards(composer: Composer | null, sys: NumberSystem | null, now: Millis = 0): Item[] {
   if (!composer || !sys) return [];
   const out: Item[] = [];
@@ -1284,13 +1317,8 @@ export function fillerCards(composer: Composer | null, sys: NumberSystem | null,
       if (!said.text) continue;
       const id = fillerId(sys.id, range.id, value, noun ? noun.id : "");
       const old = noun ? OLD_COUNT_TAGS.filter((t) => value >= t.from && value <= t.to).map((t) => t.tag) : [];
-      const grammar = noun
-        ? {
-            number: NUMBER_OF[said.nounForm || "pl"] || "plural",
-            gender: noun.gender === "f" ? "feminine" : "masculine",
-            ...(noun.human ? { human: noun.human } : null),
-          }
-        : null;
+      const grammar = noun ? countedGrammar(said, noun) : null;
+      if (noun) COUNTED_WITH.set(id, countsFor(range, value, nouns, composer, sys));
       out.push({
         id,
         lang: sys.languageId,
@@ -1309,6 +1337,28 @@ export function fillerCards(composer: Composer | null, sys: NumberSystem | null,
     }
   }
   return out;
+}
+
+/* One number of a counting part, counting whichever of its nouns it is
+   asked for — once each. */
+function countsFor(
+  range: Range,
+  value: number,
+  nouns: CountedNoun[],
+  composer: Composer,
+  sys: NumberSystem,
+): (nounId: string) => CountedPhrase | null {
+  const held: Map<string, CountedPhrase | null> = new Map();
+  return (nounId) => {
+    if (held.has(nounId)) return held.get(nounId) as CountedPhrase | null;
+    const noun = nouns.find((n) => n.id === nounId);
+    const said = noun ? renderAsk({ rangeId: range.id, kind: "numbers", value, nounId }, composer, sys) : null;
+    const out = noun && said && said.text
+      ? { ar: said.text, en: said.en || said.digits, lat: "", grammar: countedGrammar(said, noun) }
+      : null;
+    held.set(nounId, out);
+    return out;
+  };
 }
 
 /*
