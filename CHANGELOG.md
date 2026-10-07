@@ -8,6 +8,41 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.398 — 8 October 2026
+
+**The English of a counted noun comes only from its card.**
+
+- When a number is practised with a noun ("10 books"), the English of the
+  plural is now always the one written in the noun card's plural box.
+  The app no longer makes a plural up by putting an "s" on the singular.
+- A noun whose plural box has no English is left out of counting until it
+  has one. On the numbers screen it is listed with what it is missing:
+  "no English for the plural".
+- A plural's English is used exactly as written, even when it is the same
+  as the singular's.
+- One thing is still the app's own choice: English uses the singular's
+  English for one and the plural's for every other number, though Arabic
+  counts eleven and up with its singular noun.
+- Worth checking by hand: on the numbers screen, under counting, see
+  whether any of your nouns now say "no English for the plural", and fill
+  those in.
+
+## 0.397 — 8 October 2026
+
+**"10 books", not "10 bookses".**
+
+- When a number is practised with a noun, the English could come out as
+  "10 Bookses". That happened when the English on the noun's singular
+  already ended in "s" ("Books") and the plural box was empty or said the
+  same thing. The app added "es" to a word that was already plural. It
+  no longer adds an ending to a word that already ends in a single "s".
+- From eleven up, the English said "11 book", because Arabic counts with
+  the singular there. The English now says "11 books": singular for one,
+  plural for every other number.
+- Worth checking by hand: a noun whose singular's English says "Books" is
+  worth correcting to "Book". It still says "1 Books" for one, which the
+  app can't tell is wrong.
+
 ## 0.396 — 7 October 2026
 
 **Palestinian "in" and "at": بالشغل is taught, and every everyday spelling counts.**
