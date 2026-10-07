@@ -7257,6 +7257,61 @@ const openPronounTables = async () => {
   takeSaves = false;
 }
 
+/* ---- one card per meaning ----
+
+   The fixture's word carries two meanings on one card ("book /
+   notebook"), so the Cards tab offers it for splitting. Its editor has a
+   Meanings section, and "Another meaning of this word" saves it and opens
+   a copy with the word kept and the meaning emptied, which names the
+   original as sharing its word. */
+{
+  takeSaves = true;
+  const frameNow = () => /** @type {any} */ (document.querySelector(".at-screen.bare") || document);
+  const banner = [...frameNow().querySelectorAll(".at-reviewbanner")]
+    .find((b) => /more than one meaning/.test(b.textContent || ""));
+  check("the Cards tab says which cards have more than one meaning on them",
+    !!banner, banner ? (banner.textContent || "").trim() : "(no banner)");
+  click(banner && [...banner.querySelectorAll("button")].find((b) => /^Review$/.test((b.textContent || "").trim())));
+  await sleep(300);
+  const splits = [...document.querySelectorAll(".at-screen")]
+    .find((sc) => /^More than one meaning$/.test(((sc.querySelector(".at-screenhead h2") || {}).textContent || "").trim()));
+  check("and lists each with a way to split it or keep it",
+    !!splits && /book · notebook/.test(splits.textContent || "") && /Split into 2 cards/.test(splits.textContent || "") &&
+      /Keep as one card/.test(splits.textContent || ""),
+    splits ? (splits.textContent || "").slice(0, 160) : "(no screen)");
+  click(splits && [...splits.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+
+  const tile = [...frameNow().querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === "كتاب");
+  click(tile);
+  await sleep(450);
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+  const text = () => document.body.textContent || "";
+  check("the editor has a Meanings section with a clue",
+    /Meanings/.test(text()) && !!document.querySelector('input[aria-label="Clue"]'),
+    /Meanings/.test(text()) ? "there" : "(no section)");
+  const before = savedCards.length;
+  const another = /** @type {any} */ ([...document.querySelectorAll("button")].find((b) => /Another meaning of this word/.test(b.textContent || "")) || null);
+  click(another);
+  await sleep(600);
+  const sent = savedCards[before] || {};
+  check("another meaning saves this card first", sent.id === "k111111111111", sent.id || "(nothing saved)");
+  const heading = (([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim();
+  const inputs = [...document.querySelectorAll("input")];
+  const values = inputs.map((i) => /** @type {any} */ (i).value);
+  const meanings = values.filter((v) => /^(book|notebook|books)/.test(v));
+  check("then opens a new card with the word and its forms in it and every meaning empty",
+    /^New /.test(heading) && values.includes("كتاب") && values.includes("كتب") && meanings.length === 0,
+    `${heading} · ${values.filter(Boolean).join(" | ")}`);
+  check("which names the original as sharing its word",
+    /Same word:\s*book/.test(text()), (text().match(/Same word:[^.]{0,30}/) || ["(no line)"])[0]);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  takeSaves = false;
+}
+
 /* ---- a saved adjective opens on the table it agrees out of ----
 
    The first table that is neither a verb's nor the pronouns, so the first
@@ -9234,7 +9289,7 @@ const openPronounTables = async () => {
       chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0,
       /* The grid of recordings, where one comes up. */
       soundGrids: 0, soundTiles: 0, wordsInScript: false, noEnglish: false,
-      unpairs: false, soundVerdict: "", learnMore: false, marked: false,
+      unpairs: false, playOnly: false, soundVerdict: "", learnMore: false, marked: false,
     };
     for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
       const pics = host.querySelector(".at-picchoices");
@@ -9272,6 +9327,11 @@ const openPronounTables = async () => {
              again, it lets go — and is left held, so one more tap puts it
              down before the grid is played through. */
           const w0 = () => /** @type {Element} */ (host.querySelector('[data-el="match-word"]'));
+          /* Its play button is a target of its own: pressing it plays the
+             word and leaves the tile neither held nor paired. */
+          click(w0().querySelector('[data-el="match-sound"]'));
+          await sleep(25);
+          met.playOnly = !w0().classList.contains("on") && !w0().classList.contains("paired");
           click(w0());
           await sleep(25);
           click(host.querySelector('[data-el="match-meaning"]'));
@@ -9322,7 +9382,15 @@ const openPronounTables = async () => {
     return met;
   };
 
+  /* The new words alone, with no course material: the server's own lesson
+     words — a frame, a book and its plural — otherwise arrive on start and
+     take the session over, so whether a picture question came up at all
+     turned on how the shared die had been rolled by every walk above. The
+     walks after this one keep them, since the grid of recordings is
+     filled from them. */
+  materialQuiet = true;
   const fresh = await walk([0, 1, 2, 3, 4].map((i) => pictured(i)));
+  materialQuiet = false;
   check("new words with a picture are asked to hear the word and choose its picture",
     fresh.chooseImage > 0, JSON.stringify(fresh));
   check("out of four pictures, each drawn",
@@ -9349,6 +9417,8 @@ const openPronounTables = async () => {
     heardGrid.wordsInScript && heardGrid.noEnglish, JSON.stringify(heardGrid));
   check("tapping a paired recording lets go of its pair, as a word tile does",
     heardGrid.unpairs, JSON.stringify(heardGrid));
+  check("and its play button only plays: the tile is neither picked up nor paired",
+    heardGrid.playOnly, JSON.stringify(heardGrid));
   check("the grid is marked, and a miss is told the right words are shown",
     heardGrid.marked && !/meanings/.test(heardGrid.soundVerdict), JSON.stringify(heardGrid));
   check("and there is no Learn more under it",

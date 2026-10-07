@@ -685,6 +685,48 @@ export function AskedMeanings({ en }: { en?: string | null }) {
   );
 }
 
+/*
+ * A listed sentence's script and romanisation, as a student will see them,
+ * and the other ways of writing it that are marked right.
+ *
+ * Palestinian teaches بالشغل where a sentence says في الشغل and means a
+ * place, and accepts في الشغل and فالشغل too — see taughtInAt. A teacher
+ * reading the card's examples or reviewing its sentences reads what the
+ * student is shown, and underneath it what gets through, so a version
+ * they would not accept is in front of them before it reaches anybody.
+ * Shared by the three lists, so they read alike.
+ */
+export function AskedScript({ line, lang }: { line: { ar?: string; lat?: string; en?: string }; lang: Lang }) {
+  const taught = lang.taught ? lang.taught({ ar: line.ar, lat: line.lat, en: line.en }) : null;
+  const ar = taught ? taught.ar : String(line.ar || "");
+  const lat = taught && taught.lat ? taught.lat : String(line.lat || "");
+  const also = ar && lang.alsoAccepted ? lang.alsoAccepted(ar, line.en) : [];
+  const script = { fontFamily: lang.fontStack, ...scriptVars(lang) };
+  return (
+    <>
+      {ar ? (
+        <span className="at-askedscript" lang={lang.id} dir={lang.direction} style={script}>
+          {ar}
+        </span>
+      ) : null}
+      {lat ? <span className="at-askedsaid">{lat}</span> : null}
+      {also.length > 0 ? (
+        <span className="at-askedalso" data-el="also-accepted">
+          Also accepted:{" "}
+          {also.map((one, i) => (
+            <span key={i}>
+              {i > 0 ? " · " : ""}
+              <span lang={lang.id} dir={lang.direction} style={script}>
+                {one}
+              </span>
+            </span>
+          ))}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each
    toggled their own "primary" class, and tells assistive software what
@@ -2625,17 +2667,7 @@ function ReadBlanks({ card, lang, cards }: {
                   {asked.map((line, i) => (
                     <li className="at-askedline" key={i}>
                       <span className="at-askedsays">
-                        {line.ar ? (
-                          <span
-                            className="at-askedscript"
-                            lang={lang.id}
-                            dir={lang.direction}
-                            style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
-                          >
-                            {line.ar}
-                          </span>
-                        ) : null}
-                        {line.lat ? <span className="at-askedsaid">{line.lat}</span> : null}
+                        <AskedScript line={line} lang={lang} />
                         <AskedMeanings en={line.en} />
                       </span>
                     </li>
@@ -4231,6 +4263,12 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        the `{{pronoun-is}}` and `{{is-pronoun}}` blanks put in the English. */
     ...(card.enIs ? { enIs: String(card.enIs) } : null),
     ...(card.enAsk ? { enAsk: String(card.enAsk) } : null),
+    /* And which meaning it is, where the teacher wrote a clue: what a
+       question puts under a prompt another card shares — see clueFor. */
+    ...(card.clue ? { clue: String(card.clue) } : null),
+    /* And the card it was split out of, as this device names cards: what
+       starts it where the original stood — see foldCourses. */
+    ...(card.splitFrom ? { splitFrom: localIdFor(String(card.splitFrom)) } : null),
     /* And what number it is worth, where it is a number. Carried for the
        same reason the three above are — it is the teacher's answer and
        nothing here could read it off the word — and it is what everything
@@ -4626,6 +4664,26 @@ const uncarried = (item: Item): Item =>
       }
     : item;
 
+/*
+ * A card split out of another, with the original's progress copied onto
+ * it — its own word from the original's own word, and each other form
+ * from the original's form of the same name, which is what a split keeps.
+ * Only into a form with nothing of its own; the original keeps its own.
+ */
+export function splitFromHeld(fresh: Item, byId: Map<string, Item>): Item {
+  const from = fresh.splitFrom ? byId.get(fresh.splitFrom) : null;
+  if (!from) return fresh;
+  const had = formsOf(from);
+  const name = (id: string | undefined) => String(id || "").split("-f~")[1] || "";
+  const forms = formsOf(fresh).map((f, i) => {
+    const mate = i === 0 ? had[0] : had.find((h, j) => j > 0 && name(h.id) && name(h.id) === name(f.id));
+    const theirs = compactStates(mate && mate.s);
+    if (!Object.keys(theirs).length || Object.keys(compactStates(f.s)).length) return f;
+    return { ...f, s: { ...(f.s || {}), ...theirs } };
+  });
+  return { ...fresh, forms };
+}
+
 /* Fold fresh course cards into the person's cards: progress kept, wording
    taken from the teacher, withdrawn cards named so they can be tombstoned —
    and their progress set aside rather than thrown away. */
@@ -4675,8 +4733,10 @@ export function foldCourses(items: Item[], incoming: Item[], parked: Record<stri
       });
     } else {
       /* A card the device has never held — or one that went away and has
-         come back, whose work was set aside rather than thrown out. */
-      kept.push(withProgress(uncarried(fresh), parked[fresh.id]));
+         come back, whose work was set aside rather than thrown out. And a
+         card split out of one this device holds starts where that one
+         stood: the learner knew it as part of the original. */
+      kept.push(withProgress(uncarried(splitFromHeld(fresh, byId)), parked[fresh.id]));
     }
   }
 

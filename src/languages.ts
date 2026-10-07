@@ -31,7 +31,7 @@ import type {
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
-import { ALT_SEP, answersOf } from "./answers.ts";
+import { ALT_SEP, answersOf, meaningsOf } from "./answers.ts";
 import { leadOf, subFormsOf } from "./cards.ts";
 /* And what a row is, for the one rule below that reads one: verbs.ts
    knows what a table is made of and no language at all, which is the
@@ -3334,7 +3334,11 @@ export const LANGUAGES: Record<LangId, Lang> = {
     fontStack:
       '"Noto Naskh Arabic", "Amiri", "Scheherazade New", "Traditional Arabic", "Geeza Pro", "Al Bayan", serif',
     keys: { rows: AR_KEY_ROWS, extras: AR_EXTRAS, marks: AR_MARKS, marksLabel: "ً ٌ ٍ" },
-    check: (given, expected, settings) => checkAr(given, expected, settings),
+    /* With the dialect's two ways of saying in and at — see checkArPS. */
+    check: (given, expected, settings, ctx) => checkArPS(given, expected, settings, ctx),
+    checkTranslit: (given, expected, ctx) => checkTrPS(given, expected, ctx),
+    taught: taughtInAt,
+    alsoAccepted: alsoAcceptedInAt,
     /* The skeleton, one character at a time — the same fold compareAr
        measures its letters on, so what is highlighted and what is marked
        are the same answer. A harakat, a tatweel and a space all fold to
@@ -4084,6 +4088,271 @@ export function checkAr(given: string, expected: string, settings: Settings) {
   return worst;
 }
 
+/*
+ * In and at: في and بـ, in Palestinian.
+ *
+ * The dialect says "at work" two ways. في الشغل is the one a textbook
+ * writes; بالشغل is the one people say, and the more common of the two.
+ * Both are said with the article swallowed — fiš-šuġl, biš-šuġl — and the
+ * first is written the way it sounds, فالشغل, as often as it is written
+ * out. A learner who wrote any of these for the others had written the
+ * dialect, and was told "Very close" for the joined one and "Not quite"
+ * for بـ.
+ *
+ * So a card that says في before a word is also met by the other ways of
+ * writing it, and a card that says بالـ by في. What it takes is in two
+ * cases, because the two prepositions are not the same word everywhere:
+ *
+ * - **Spelling, never doubted.** في joined to an article — فالشغل, ف الشغل —
+ *   is the same word written as it is heard. Accepted on every exercise,
+ *   dictation included.
+ * - **The other preposition.** بـ also means *with* and *by* — بالسيارة is
+ *   by car, not in it — and في also means *there is*. Which one a card
+ *   means is in its English: "at work" is a place, "by car" and "there are
+ *   people" are not. So the swap is made where the meaning says it is a
+ *   place, and في before an article — which is almost never *there is* —
+ *   goes to بـ unless the meaning says otherwise. Never on an exercise
+ *   that is heard: writing down a recording is writing down which one was
+ *   said.
+ *
+ * Joined فالـ on a card is left alone. Written that way it is just as
+ * often ف, *so*, on the article — فالولد is "so the boy" — and reading it
+ * as في would accept an answer that changes the sentence.
+ */
+const IN_AT_MAX = 3;
+const PLACE_WORDS = /\b(in|at|on|inside|into)\b/i;
+const THERE_IS = /\bthere(\s+(is|are|was|were|will be)\b|['’]s\b)/i;
+
+export type InAt = { meaning?: string | null; heard?: boolean };
+
+/* Whether a meaning reads as a place: true, false, or null for no meaning
+   to go on. */
+export function meansPlace(meaning?: string | null): boolean | null {
+  const m = String(meaning || "").trim();
+  if (!m) return null;
+  if (THERE_IS.test(m)) return false;
+  return PLACE_WORDS.test(m);
+}
+
+/* Every way of writing each slot, multiplied out. A phrase with more than
+   IN_AT_MAX prepositions keeps the rest as written: three is more than any
+   card holds, and the product grows by four for each. */
+function spelledEveryWay(slots: string[][], join: string): string[] {
+  let out = [""];
+  for (const alts of slots) {
+    const next: string[] = [];
+    for (const head of out) for (const alt of alts) next.push(head ? head + join + alt : alt);
+    out = next;
+  }
+  return out;
+}
+
+const AR_LEAD_B = /^\u0628[\u064B-\u065F\u0670]*/;
+
+export function arInAtSpellings(expected: string, ctx: InAt = {}): string[] {
+  const words = String(expected || "").trim().split(/\s+/).filter(Boolean);
+  const bare = (w: string) => normAr(w, { stripTashkeel: true, ignoreHamza: true });
+  const place = ctx.heard ? false : meansPlace(ctx.meaning);
+  const slots: string[][] = [];
+  let swaps = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const next = words[i + 1];
+    const b = bare(w);
+    if (swaps < IN_AT_MAX && b === "في" && next) {
+      const article = bare(next).startsWith("ال");
+      /* Vowelled where the card is, so a learner who writes the kasra on
+         بِـ has written one the card agrees with. */
+      const marked = HAS_TASHKEEL.test(w);
+      const alts = [w + " " + next];
+      if (article) alts.push((marked ? "فِ" : "ف") + next);
+      if (article ? place !== false : place === true) alts.push((marked ? "بِ" : "ب") + next);
+      slots.push(alts);
+      swaps++;
+      i++;
+      continue;
+    }
+    if (swaps < IN_AT_MAX && place === true && b.startsWith("بال") && b.length >= 5) {
+      const rest = w.replace(AR_LEAD_B, "");
+      const marked = HAS_TASHKEEL.test(w.slice(0, w.length - rest.length));
+      slots.push([w, (marked ? "فِي " : "في ") + rest, (marked ? "فِ" : "ف") + rest]);
+      swaps++;
+      continue;
+    }
+    if (swaps < IN_AT_MAX && place === true && (b === "ب" || b === "بـ") && next) {
+      slots.push([w + " " + next, "في " + next]);
+      swaps++;
+      i++;
+      continue;
+    }
+    slots.push([w]);
+  }
+  if (!swaps) return [];
+  return spelledEveryWay(slots, " ").filter((s) => s !== words.join(" "));
+}
+
+/* The same two cases, in a romanisation. Folded first, so the hyphens are
+   spaces and the macrons are gone, and compared with the spaces taken out:
+   fi sh-shughl, fish-shughl and fi-sh-shughl are already one answer. What
+   is found is the preposition with the article run into it — fil, fish,
+   bit- — or standing alone before il, l, ish. */
+function trArticleFollows(tokens: string[], i: number): boolean {
+  const next = tokens[i + 1];
+  if (!next) return false;
+  if (/^[aie]?l$/.test(next)) return true;
+  const m = /^[aie]([a-z]{1,2})$/.exec(next);
+  return !!m && !!tokens[i + 2] && tokens[i + 2].startsWith(m[1]);
+}
+
+export function trInAtSpellings(expected: string, ctx: InAt = {}): string[] {
+  const tokens = normTr(expected).split(" ").filter(Boolean);
+  const place = ctx.heard ? false : meansPlace(ctx.meaning);
+  const slots: string[][] = [];
+  let swaps = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const next = tokens[i + 1];
+    const runIn = /^(fi|bi?)(l|[a-z]{1,2})$/.exec(t);
+    const joined = !!runIn && !!next && (runIn[2] === "l" || next.startsWith(runIn[2]));
+    if (swaps < IN_AT_MAX && t === "fi" && next) {
+      const article = trArticleFollows(tokens, i);
+      if (article ? place !== false : place === true) {
+        slots.push(["fi", "bi", "b"]);
+        swaps++;
+        continue;
+      }
+    }
+    if (swaps < IN_AT_MAX && joined && runIn[1] === "fi" && place !== false) {
+      slots.push([t, "bi" + runIn[2], "b" + runIn[2]]);
+      swaps++;
+      continue;
+    }
+    if (swaps < IN_AT_MAX && place === true && (t === "bi" || t === "b") && next) {
+      slots.push([t, "fi"]);
+      swaps++;
+      continue;
+    }
+    if (swaps < IN_AT_MAX && place === true && joined && runIn[1] !== "fi") {
+      slots.push([t, "fi" + runIn[2]]);
+      swaps++;
+      continue;
+    }
+    slots.push([t]);
+  }
+  if (!swaps) return [];
+  return spelledEveryWay(slots, " ").filter((s) => s !== tokens.join(" "));
+}
+
+/*
+ * Which of them is taught.
+ *
+ * The owner's call, and the dialect's: where a card says في الشغل and
+ * means a place, a question that shows the Arabic shows بالشغل — what a
+ * student will hear people say — and the card's own wording is still an
+ * accepted answer. Only where the meaning is plainly a place, and only
+ * before the article, which is where بـ is the everyday form beyond
+ * doubt; في بيتي and ببيتي are both everyday, so that is left as written.
+ * Null when there is nothing to change.
+ */
+export function arTaughtInAt(ar: string, meaning?: string | null): string | null {
+  if (meansPlace(meaning) !== true) return null;
+  const words = String(ar || "").trim().split(/\s+/).filter(Boolean);
+  const bare = (w: string) => normAr(w, { stripTashkeel: true, ignoreHamza: true });
+  const out: string[] = [];
+  let changed = false;
+  for (let i = 0; i < words.length; i++) {
+    const next = words[i + 1];
+    if (bare(words[i]) === "في" && next && bare(next).startsWith("ال")) {
+      out.push((HAS_TASHKEEL.test(words[i]) ? "بِ" : "ب") + next);
+      changed = true;
+      i++;
+      continue;
+    }
+    out.push(words[i]);
+  }
+  return changed ? out.join(" ") : null;
+}
+
+/* The romanisation to match: fi l-bēt to bi l-bēt, fiš-šuġl to biš-šuġl.
+   Only a fi with the article after it — run in or standing apart — so fi
+   standing for *there is* before a bare word is not touched. The rest of
+   the spelling is the card's own, macrons and hyphens and all. */
+const TR_FI_ARTICLE = /(^|[\s(/])([Ff])([iīIĪ])(?=[\s-]?[aieAIE]?(?:l[\s-]|([^\s-]{1,2})-\4))/gu;
+
+export function trTaughtInAt(lat: string): string {
+  return String(lat || "").replace(TR_FI_ARTICLE, (_m, lead: string, f: string, i: string) => lead + (f === "F" ? "B" : "b") + i);
+}
+
+/* A card's Arabic and romanisation as a question shows them. */
+export function taughtInAt(form: { ar?: unknown; lat?: unknown; en?: unknown }): { ar: string; lat: string } | null {
+  const ar = arTaughtInAt(String(form.ar || ""), String(form.en || ""));
+  if (!ar) return null;
+  return { ar, lat: trTaughtInAt(String(form.lat || "")) };
+}
+
+/* The other ways of writing a sentence that are marked right — what the
+   teacher's lists put under each sentence, so what gets through is read
+   along with what is shown. */
+export function alsoAcceptedInAt(ar: string, meaning?: string | null): string[] {
+  const shown = String(ar || "").trim();
+  const out: string[] = [];
+  for (const alt of arInAtSpellings(shown, { meaning })) if (alt !== shown && !out.includes(alt)) out.push(alt);
+  return out;
+}
+
+/* What to say when a learner wrote في where people say بـ: their own
+   answer, as people would say it. Empty when there is nothing to say. */
+function usualInAt(given: string, ctx: InAt, script: boolean): string {
+  if (ctx.heard) return "";
+  if (script) return arTaughtInAt(given, ctx.meaning) || "";
+  if (meansPlace(ctx.meaning) !== true) return "";
+  const said = trTaughtInAt(given);
+  return said !== given ? said : "";
+}
+
+/* Palestinian's script answers: the forms on the card, then the other ways
+   of writing its في and بـ. A miss reports the kindest of what was tried,
+   so a slip in بالشغل against a card saying في الشغل is "Very close", as
+   it would be against the card's own spelling. */
+export function checkArPS(given: string, expected: string, settings: Settings, ctx: InAt = {}) {
+  /* Right, and said the textbook's way: marked right, with the everyday
+     form beside it. The owner's call — في is not wrong in Palestinian, and
+     بـ is what people say. */
+  const right = (r: { ok: boolean; reason: string }) => {
+    const usual = usualInAt(given, ctx, true);
+    return usual ? { ...r, usual } : r;
+  };
+  const first = checkAr(given, expected, settings);
+  if (first.ok) return right(first);
+  let worst = first;
+  for (const form of splitForms(expected, /[/;]/)) {
+    for (const alt of arInAtSpellings(form, ctx)) {
+      const r = compareAr(given, alt, settings);
+      if (r.ok) return right(r);
+      if (AR_RANK[r.reason] > AR_RANK[worst.reason]) worst = r;
+    }
+  }
+  return worst;
+}
+
+export function checkTrPS(given: string, expected: string, ctx: InAt = {}) {
+  const right = (r: { ok: boolean; reason: string }) => {
+    const usual = usualInAt(given, ctx, false);
+    return usual ? { ...r, usual } : r;
+  };
+  const first = checkTr(given, expected);
+  if (first.ok) return right(first);
+  let worst = first;
+  for (const form of splitForms(expected, /[/;,]/)) {
+    for (const alt of trInAtSpellings(form, ctx)) {
+      const r = checkTr(given, alt);
+      if (r.ok) return right(r);
+      if (r.reason === "near") worst = r;
+    }
+  }
+  return worst;
+}
+
 /* A number as typed, with the notation taken off: the digits an Arabic or
    Persian keyboard writes, folded to the ones the card is stored with;
    thousands separators in the several shapes they are written — spaces of
@@ -4147,6 +4416,16 @@ export function instructionFor(spec: Record<string, any>, item: Record<string, a
   return spec.instruction;
 }
 
+/* What a language's checker may want to know about the card beyond its
+   answer: what it means, and whether the question was heard. */
+function inAtOf(item: Record<string, any> | null | undefined, spec: Record<string, any> | null | undefined): InAt {
+  const needs: string[] = (spec && spec.needs) || [];
+  return {
+    meaning: meaningsOf(item as WithAnswers).join(" / "),
+    heard: needs.includes("recs") || needs.includes("contextAudio"),
+  };
+}
+
 export function checkAnswer(typed: string, item: Record<string, any>, key: string, settings: Settings) {
   const spec = EX[typeOf(key)];
   const mode = spec.answerMode;
@@ -4191,7 +4470,7 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
     let best = { ok: false, reason: "wrong" };
     let allRight = turns.length > 0;
     for (let i = 0; i < turns.length; i++) {
-      const r = langOf(settings).check(said[i] || "", turns[i].ar, settings);
+      const r = langOf(settings).check(said[i] || "", turns[i].ar, settings, { meaning: turns[i].en });
       if (r.ok) continue;
       allRight = false;
       if (AR_RANK[r.reason] > AR_RANK[best.reason]) best = r;
@@ -4345,8 +4624,15 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
     return got === want ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
   }
   // "ar" means "the target language's own script", whatever that is.
-  if (mode === "ar") return langOf(settings).check(typed, expected, settings);
-  if (mode === "tr") return checkTr(typed, expected);
+  /* A question showing the taught form keeps the card's own wording as an
+     answer — see taughtForm in the trainer. */
+  const from = (item && item.taughtFrom) || null;
+  const also = (field: "ar" | "lat") => (from && from[field] ? `${expected} / ${from[field]}` : expected);
+  if (mode === "ar") return langOf(settings).check(typed, also("ar"), settings, inAtOf(item, spec));
+  if (mode === "tr") {
+    const own = langOf(settings).checkTranslit;
+    return own ? own(typed, also("lat"), inAtOf(item, spec)) : checkTr(typed, also("lat"));
+  }
   return checkEn(typed, expected);
 }
 

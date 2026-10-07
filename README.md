@@ -1105,6 +1105,17 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   gender and which of its faces are written, never on its words, so nouns
   are checked once per kind (`countingWarnings`).
 
+  **A face that counts things is never asked bare.** *Three* before a
+  noun, *one* with a feminine word, Hebrew's gendered one to nineteen: each
+  is asked as a small sentence made under the hood and shown to nobody —
+  its number with one of the learner's nouns, cleared in the shape the
+  number puts it in, a different one each time (`faceAsk`). Which faces
+  those are is read off the composer (`countedAt`): two's gendered words
+  meet a noun only in 22, so they are asked there. The face keeps its id
+  and its schedule, is asked only to be read and written (`COUNTED_FACE_TYPES`),
+  credits the noun through its tokens (`castFace`), and is quiet while no
+  noun fits (`withFacesWaiting`).
+
   A box that has a word in it asks two more things about it — **how it
   sounds** and **a recording** — and both ride onto the card the word
   becomes, in the fields a card written by hand keeps them in. A
@@ -1129,6 +1140,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   open course or deck shows all it holds. The space reports its languages
   up to the bar the switch sits in; `src/lang-choice.ts` holds the rules
   both switches read.
+- **A card is one meaning.** A word with two meanings is two cards, and so
+  are two words for one meaning; each has its own schedule and decks. Which
+  of a learner's cards share a side — the same word, or one accepted
+  meaning — is worked out from what they say, never stored, because on the
+  meaning side it depends on the language the learner reads meanings in
+  (`src/meanings.ts`). A question whose prompt another card shares says
+  which it means under the prompt (the card's `clue`, or the other card's
+  answer ruled out), keeps the sibling out of its choices, and asks again
+  unmarked when given the sibling's answer; questions only about the word
+  are asked on the card made first.
 - **What varies between askings turns on a right answer.** Which values
   fill a card's holes, which phrase it is shown in, which of its accepted
   spellings is put up and which of its meanings is asked about are all
