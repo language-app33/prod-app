@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.406 — 7 October 2026
+
+**"This" agrees with "my sister" on real cards too.**
+
+- 0.404 meant to fix هاد أختي, but on cards made in the editor it didn't.
+  The editor saves each "my …" form with "doesn't apply" as its number
+  and "a thing" as whether it is people. 0.404 only filled in what a form
+  left empty, so those settings won and *this* stayed masculine.
+- A form with a pronoun on the end now always takes its gender, number
+  and whether it is people from the word it is built on: هاي أختي,
+  هديك امي, هاي زوجتي, and هاد أخوي for the men. Where the word itself
+  says nothing, the form's own settings still count.
+- Nothing stored changes. Sentence cards using these forms list the
+  corrected sentences as new ones waiting for approval.
+- Worth checking by hand: open "This is my [relative]" and see each
+  relative take هاي/هاد and هديك/هداك by its gender.
+
 ## 0.405 — 7 October 2026
 
 **Numbers in sentences have a transliteration, and a missing one no longer
