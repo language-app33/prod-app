@@ -568,6 +568,22 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   choosing it turns to the three readings, which is what put that picker
   on a screen rather than a sheet.
 
+  **And a noun reads the same three ways, with *is* or *are* by its
+  number.** بيتي كبير is *my house is big* and بيوتي كبار *my houses are
+  big*. A teacher can write *is* into the English for a singular, but not
+  a word that is *is* beside one form and *are* beside the next, so a
+  noun fills `{{noun-is}}` and `{{is-noun}}`, and the `-is` / `is-`
+  readings of every tag and ID that reach it. The verb is read off the
+  form's number, not its English (`nounNumberOf` and `nounReadings` in
+  `src/variables.ts`): a plural, dual or counted plural is *are*,
+  anything else *is*, and a pronoun on the end takes the number of the
+  form it is on. The blank screen asks for it only where a noun behind
+  the blank has a plural (`nounsBehind` in `src/card-editor.tsx`), then
+  asks the pronoun-on-the-end question as a second step (`next` on a
+  `Reading`). Where an adjective reads the same `-is` about a person, the
+  nouns in that blank stand aside (`besideAdjectives`), as they did
+  before nouns read at all.
+
   **And an adjective can say who, with the pronoun left out.** تعبان
   answers "how are you?" by itself, and تعبانة اليوم is *I am tired today*
   with no word for *I*. `{{adjective-is}}` is that blank: every adjective
