@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.388 — 7 October 2026
+## 0.389 — 7 October 2026
 
 **Play buttons sit in the middle of their cards.**
 
@@ -17,6 +17,15 @@ and moves once per batch of work you would notice, not once per commit.
   number, instead of pressed up against the number with the rest of the
   card empty. The correction shown under a wrongly paired card after
   checking is centred with it.
+
+## 0.388 — 7 October 2026
+
+**A lone block under "Learn more" sits in the middle.**
+
+- After you answer, the things under "Learn more" sit two to a row. When
+  one is left over on a row of its own, it used to sit in the left half
+  with an empty gap beside it. It now sits centred in the row, so the box
+  looks finished rather than as if something were missing.
 
 ## 0.387 — 7 October 2026
 

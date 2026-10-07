@@ -1259,6 +1259,14 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
         r.children.length >= 1 && r.children.length <= 2 &&
         [...r.children].every((c) => c.getAttribute("data-el") !== "also-context")),
       rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    /* A block alone on its row sits in the middle of it, not the left half. */
+    const lone = rowsIn.filter((e) => e.getAttribute("data-el") === "also-row" && e.children.length === 1);
+    check("a block alone on its row is centred in it",
+      lone.every((r) => {
+        const a = r.getBoundingClientRect(), b = r.children[0].getBoundingClientRect();
+        return Math.abs((b.left - a.left) - (a.right - b.right)) <= 2;
+      }),
+      lone.map((r) => r.children[0].getAttribute("data-el")).join(" "));
     check("and every short block sits in a row, the related words included",
       rowsIn.every((e) => ["also-row", "also-context"].includes(e.getAttribute("data-el") || "")),
       rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
