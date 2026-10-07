@@ -42,7 +42,7 @@ import type {
   Token,
 } from "./types.ts";
 import { askFor, countable, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
-import { COUNTING_WAS, NUMBER_CEILING, NUMBER_RANGES, countingOf, partsNow } from "./types.ts";
+import { COUNTING_WAS, NUMBER_CEILING, countingOf, partsNow } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
 const safe = (s: string) => String(s).replace(/\|/g, "~");
@@ -1226,18 +1226,6 @@ export const OLD_COUNT_TAGS: { tag: string; from: number; to: number }[] = [
   { tag: "count-3-10", from: 3, to: 10 },
   { tag: "count-11-20", from: 11, to: 20 },
 ];
-
-/**
- * The tags of the parts there are no longer — `0-10`, `11-99` and the
- * three old counting parts. A filler still answers to them, so a sentence
- * written with one is still filled, but nobody should be offered one for
- * a new sentence beside the tags that replaced it: `0-10` next to `0-9`
- * reads as two choices where there is one.
- */
-export const RETIRED_TAGS: ReadonlySet<string> = new Set([
-  ...NUMBER_RANGES.flatMap((r) => (r.was ? [r.was.replace(/^numbers:/, "")] : [])),
-  ...OLD_COUNT_TAGS.map((t) => t.tag),
-]);
 
 /**
  * The numbers each part puts into the sentences that ask for it, as cards
