@@ -521,7 +521,12 @@ export interface Lang {
   formsLabel: string;
   fontStack: string;
   keys: LangKeys;
-  check: (given: string, expected: string, settings?: any) => any;
+  /** `ctx` is what the card means and whether the question was heard, for
+   *  a language whose marking depends on it — see checkArPS. */
+  check: (given: string, expected: string, settings?: any, ctx?: { meaning?: string | null; heard?: boolean }) => any;
+  /** Marks a romanisation, where the language has more to accept than
+   *  checkTr does. */
+  checkTranslit?: (given: string, expected: string, ctx?: { meaning?: string | null; heard?: boolean }) => any;
   /**
    * One character, folded the way this language's marking folds it when it
    * is deciding whether two spellings are the same word.

@@ -11018,7 +11018,11 @@ export default function ArabicTrainer() {
     /* Nor in the grid of recordings, whose answer is a tile tapped, not a
        word written. */
     if (spec.answerField !== "ar" || spec.picks === "pair") return null;
-    return answerGiven(typed, item, (given, want) => qLang.check(given, want, qSettings).ok, answerFields());
+    /* Told what the card means and whether it was heard, as the marking
+       was, so an answer accepted there is found here too. */
+    const needs: string[] = spec.needs || [];
+    const ctx = { meaning: meaningsOf(item).join(" / "), heard: needs.includes("recs") || needs.includes("contextAudio") };
+    return answerGiven(typed, item, (given, want) => qLang.check(given, want, qSettings, ctx).ok, answerFields());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item && item.id, checked, typed, skipped, spec && spec.answerField]);
   /* And what that answer is, grammatically, in this language's words. Empty
