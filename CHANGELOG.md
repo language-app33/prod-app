@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.398 — 7 October 2026
+
+**A noun's "special plural" box says what it is for.**
+
+- On a noun card, the box that used to be called "Plural after 3 to 10" is
+  now **"Special plural after 3–10 (days, months)"**. Next to "Plural" the
+  old name made it look like there was one plural for 3 to 10 and another
+  for counts above 10. There isn't: 3 to 10 take the plural, and 11 up take
+  the singular. This box is only for the few nouns whose plural changes
+  after 3 to 10, like خمس تيام. Every other noun leaves it empty.
+- Its short tag, shown on narrow screens and in the card list, is now
+  "special pl." instead of "pl. 3–10".
+- The line under the box now also says what every other noun does: 3 to
+  10 take the plural, and 11 up the singular.
+- Nothing about existing cards changes. Only the names are different.
+
 ## 0.397 — 8 October 2026
 
 **"10 books", not "10 bookses".**

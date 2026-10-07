@@ -2779,11 +2779,11 @@ test("a noun is laid out in boxes, with two sides for a person or an animal", ()
   assert.equal(nounLayoutOf(arPS(), "preposition", "thing"), "");
   assert.equal(nounLayoutOf(LANGUAGES["vi-Hue"], "noun", "thing"), "");
   assert.deepEqual(nounBoxes(arPS(), "single").map((/** @type {any} */ b) => b.title), [
-    "Singular", "Plural", "Plural after 3 to 10", "Dual",
+    "Singular", "Plural", "Special plural after 3–10 (days, months)", "Dual",
   ]);
   assert.deepEqual(nounBoxes(arPS(), "paired").map((/** @type {any} */ b) => b.title), [
-    "Masculine singular", "Masculine plural", "Masculine plural after 3 to 10", "Masculine dual",
-    "Feminine singular", "Feminine plural", "Feminine plural after 3 to 10", "Feminine dual",
+    "Masculine singular", "Masculine plural", "Masculine special plural after 3–10 (days, months)", "Masculine dual",
+    "Feminine singular", "Feminine plural", "Feminine special plural after 3–10 (days, months)", "Feminine dual",
   ]);
   /* Hebrew has no plural of its own after a number, so no such box. */
   assert.deepEqual(nounBoxes(LANGUAGES["he-IL"], "single").map((/** @type {any} */ b) => b.title), ["Singular", "Plural", "Dual"]);
@@ -2796,6 +2796,9 @@ test("Arabic's plural after three to ten says which nouns want it, and is not as
   const boxes = nounBoxes(arPS(), "single");
   const counted = must(boxes.find((/** @type {any} */ b) => b.number === "counted"), "the box");
   assert.match(String(counted.help), /three to ten/);
+  /* And what every other noun does instead, which is what the box was
+     once taken to be: the plural above ten. */
+  assert.match(String(counted.help), /eleven up the singular/);
   assert.equal(counted.unasked, true);
   for (const b of boxes.filter((/** @type {any} */ b) => b.number !== "counted")) {
     assert.equal(b.help, undefined, b.title);

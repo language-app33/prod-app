@@ -1267,7 +1267,9 @@ test("each pack offers only the grammar its language has", () => {
   for (const kind of ["pronoun", "person", "place", "name"]) {
     assert.deepEqual(offered(kind), ["singular", "plural", "dual", "na"], kind);
   }
-  assert.equal(labelFor({ number: "counted", gender: "masculine" }, LANGUAGES["ar-PS"]), "pl. 3–10 m.");
+  /* Not "pl. 3–10": beside "pl." that reads as the plural for three to
+     ten, and "pl." as the one above ten, which is the singular. */
+  assert.equal(labelFor({ number: "counted", gender: "masculine" }, LANGUAGES["ar-PS"]), "special pl. m.");
   /* And what is stored is never narrowed: a value outside the pack's list
      is still kept, and a tag still reads it. */
   assert.equal(dimValues({ gender: "neutral" }).gender, "neutral");

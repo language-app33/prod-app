@@ -1939,8 +1939,11 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     /* What the editor falls back to where three words will not fit on one
        line. The same abbreviations the card list uses, except that "na"
        has one here: a tag saying nothing is right, and a radio button
-       labelled nothing is not. */
-    brief: { singular: "sg.", plural: "pl.", dual: "du.", counted: "pl. 3–10", na: "N/A" },
+       labelled nothing is not. Not "pl. 3–10" for the plural a few nouns
+       take after three to ten: beside a plain "pl." it reads as the
+       plural for three to ten, leaving "pl." to be the one above ten —
+       which is the singular. */
+    brief: { singular: "sg.", plural: "pl.", dual: "du.", counted: "special pl.", na: "N/A" },
     /* And on a tag, a number that does not apply names nothing — not the
        letters "N/A". */
     short: { na: "" },
@@ -1952,7 +1955,8 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     optionRules: {
       counted: {
         onlyOn: ["noun"],
-        help: "Only for the few nouns whose plural changes after three to ten, like days or months. Leave it empty for every other noun: the plural is used.",
+        help: "Only for the few nouns whose plural changes after three to ten, like days or months. Leave it empty for every other noun: three to ten take the plural, and eleven up the singular.",
+        box: "special plural after 3–10 (days, months)",
         unasked: true,
       },
     },
@@ -3229,7 +3233,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
       number: [
         ["singular", "singular"],
         ["plural", "plural"],
-        ["counted", "plural after 3 to 10"],
+        ["counted", "special plural after 3–10"],
         ["dual", "dual"],
         ["na", "N/A"],
       ],

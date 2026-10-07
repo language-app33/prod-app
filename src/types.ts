@@ -376,10 +376,14 @@ export interface GrammarDim {
    *
    *   * `onlyOn` — the kinds of word it is offered on; absent is all.
    *   * `help` — said under the box it is the number of.
+   *   * `box` — the box's own name, where it has to say more than a radio
+   *     has room for. The help is only read once the box is open, and an
+   *     empty box starts folded — which this one nearly always is — so
+   *     the name is all it says.
    *   * `unasked` — a form of it starts switched off in practice; the
    *     ticks are still there to switch it on.
    */
-  optionRules?: Record<string, { onlyOn?: string[]; help?: string; unasked?: boolean }>;
+  optionRules?: Record<string, { onlyOn?: string[]; help?: string; box?: string; unasked?: boolean }>;
 }
 
 /* ---- a language ----

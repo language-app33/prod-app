@@ -4569,7 +4569,8 @@ three to ten that they have nowhere else — خمس تيام beside أيام, ت
 is heard as the start of a special plural, and where it is written in
 Arabic script it is written on the noun. Some textbooks transcribe it on
 the numeral in Latin letters (*ḫamest‿iyyām*), which is the same sound. So
-it is a box on the noun's card, *Plural after 3 to 10*, Arabic only and
+it is a box on the noun's card, *Special plural after 3–10 (days,
+months)* — *Plural after 3 to 10* until 0.398, see the note below — Arabic only and
 offered on nouns only (`GrammarDim.optionRules`), read by counting as
 `CountedNoun.plCounted` and used for three to ten alone. A form in it
 starts out of practice and out of sentences: it is said inside a counted
@@ -4586,6 +4587,19 @@ box, which was weighed and left out until someone asks.
 
 **Revisit if** a teacher asks for خمست أيام spelt that way, or for a
 counted phrase to accept more than one spelling.
+
+**Renamed in 0.398.** The owner read the four boxes — Singular, Plural,
+Plural after 3 to 10, Dual — as four ways of counting, which left the
+plain plural to be the one above ten, and asked why Arabic was not counted
+with the singular there. It is; the names said otherwise. A noun's boxes
+start folded where they are empty, which this one nearly always is, so the
+line under it that says which nouns want it was never read. The box is
+now *Special plural after 3–10 (days, months)*, from `optionRules.box`,
+since a radio has no room for the example; the radio says *special plural
+after 3–10*, and the abbreviation on tags and narrow rows is *special pl.*
+rather than *pl. 3–10*, which beside *pl.* made the same suggestion. The
+line under the box says what every other noun does instead. Nothing
+stored changes: the value is still `counted`.
 
 ---
 
