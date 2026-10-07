@@ -1849,6 +1849,10 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
   padding:10px 14px; display:flex; align-items:center; gap:14px;
   box-shadow: var(--nav-shadow); max-width: calc(100% - 24px); font-size:13px; }
 .at-undo .what { color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* The same floating bar, saying a new version is ready. Its sentence is the
+   whole point, so it wraps rather than being cut short on a phone. */
+.at-updatebar { gap:10px; }
+.at-updatebar .what { white-space:normal; color: var(--text); }
 /* The snackbar: the undo bar's shape, because that is already this app's
    way of saying "something floating, and temporary". It sits above
    everything (--z-toast) — a confirmation hidden behind the screen that

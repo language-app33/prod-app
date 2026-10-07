@@ -567,7 +567,7 @@ export function mergeMoves(
 import { fillerMarks, gradeInto, verdictOf } from "./grade.ts";
 import type { Filler, Mark } from "./grade.ts";
 
-import { applyUpdate, beforeReload, holdUpdates } from "./updates.ts";
+import { applyUpdate, beforeReload, onUpdateReady, updateReady } from "./updates.ts";
 import {
   syncClips,
   clipIdsIn,
@@ -8866,14 +8866,15 @@ export default function ArabicTrainer() {
      the unfiltered path. */
   const [deck] = useState<any[]>([]);
   const [session, setSession] = useState<any | null>(null); // { exercises, practice, items }
-  /* A newly deployed build takes the page over by itself — see updates.ts.
-     Mid-question is the one moment where that would land on top of
-     something, so a session in flight holds it until the session ends or
-     the app is put away. */
-  useEffect(() => {
-    holdUpdates(!!session);
-    return () => holdUpdates(false);
-  }, [session]);
+  /* A newly deployed build has taken charge — see updates.ts. The page
+     does not reload itself for it, since that would throw away whatever
+     is on screen and not yet saved; it says so and offers Reload, and the
+     person picks the moment. "Later" puts the bar away for this page; the
+     version line in the menu still offers Reload. */
+  const [updateWaiting, setUpdateWaiting] = useState(updateReady);
+  const [updateLater, setUpdateLater] = useState(false);
+  const [updateGoing, setUpdateGoing] = useState(false);
+  useEffect(() => onUpdateReady(setUpdateWaiting), []);
   /* Null until the person has set up or signed in; the app shows the
      welcome screens until then. */
   const [account, setAccount] = useState(() => API.loadAccount());
@@ -9694,9 +9695,9 @@ export default function ArabicTrainer() {
     };
     window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", onHidden);
-    /* And before any reload the app brings on itself, which is a service
-       worker taking over with a new build — that used to happen inside the
-       debounce and take the last answer with it. */
+    /* And before any reload the app brings on itself, which is Reload
+       pressed for a new build — that used to happen inside the debounce
+       and take the last answer with it. */
     const release = beforeReload(flush);
     return () => {
       window.removeEventListener("pagehide", flush);
@@ -13331,6 +13332,27 @@ export default function ArabicTrainer() {
         </div>
       )}
 
+
+      {updateWaiting && !updateLater && !inExercise && !(lastDeleted && lastDeleted.length > 0) && (
+        /* Kept off a question in progress and out of the undo bar's way,
+           which sits in the same place. */
+        <div className="at-undo at-updatebar" role="status">
+          <span className="what">A new version is ready. Save your work, then reload.</span>
+          <Button size="sm" onClick={() => setUpdateLater(true)} disabled={updateGoing}>
+            Later
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setUpdateGoing(true);
+              void applyUpdate();
+            }}
+            disabled={updateGoing}
+          >
+            {updateGoing ? "Reloading…" : "Reload"}
+          </Button>
+        </div>
+      )}
 
       {/* The three things that float above the app. They appear and vanish
           together, so they are decided in one place rather than three. */}

@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.382 — 7 October 2026
+## 0.383 — 7 October 2026
 
 **Every card list has a view button: small grid, large grid, list or table. Teachers can filter cards by kind and subtype.**
 
@@ -38,6 +38,22 @@ and moves once per batch of work you would notice, not once per commit.
 - To check by hand: on a phone, press the view button through all four
   views on the Cards tab, open a deck and see that it kept its own view,
   and select a few cards in the table view.
+## 0.382 — 7 October 2026
+
+**A new version no longer restarts the app while you are using it.**
+
+- When a new version was put out, the app restarted itself onto it — at
+  the end of a session, when you switched away from the app, or straight
+  away if you were not in a session. Anything typed and not yet saved,
+  such as a card half written in the editor, was lost.
+- Now a bar at the bottom says a new version is ready, with Reload and
+  Later. Save what you are doing, then press Reload. Later hides the bar;
+  the version line in the top-right menu still offers Reload.
+- If you open or refresh the app and the new version arrives before you
+  have tapped or typed anything, the app still switches to it by itself,
+  so you do not have to refresh twice. Nothing can be lost at that point.
+- Until you reload, you keep using the version you had open. Your answers
+  are saved as before.
 
 ## 0.381 — 6 October 2026
 
