@@ -933,7 +933,7 @@ export type Card = {
    * Shown only where a question's prompt is shared with another card the
    * learner studies — see siblingsOf in src/meanings.ts. Absent means
    * the question says which by naming the other card's answer instead:
-   * "not patience". Absent on every card written before 0.393.
+   * "not patience". Absent on every card written before 0.395.
    */
   clue?: string;
   /**

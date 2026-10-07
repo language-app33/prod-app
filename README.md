@@ -1140,6 +1140,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   open course or deck shows all it holds. The space reports its languages
   up to the bar the switch sits in; `src/lang-choice.ts` holds the rules
   both switches read.
+- **A card is one meaning.** A word with two meanings is two cards, and so
+  are two words for one meaning; each has its own schedule and decks. Which
+  of a learner's cards share a side — the same word, or one accepted
+  meaning — is worked out from what they say, never stored, because on the
+  meaning side it depends on the language the learner reads meanings in
+  (`src/meanings.ts`). A question whose prompt another card shares says
+  which it means under the prompt (the card's `clue`, or the other card's
+  answer ruled out), keeps the sibling out of its choices, and asks again
+  unmarked when given the sibling's answer; questions only about the word
+  are asked on the card made first.
 - **What varies between askings turns on a right answer.** Which values
   fill a card's holes, which phrase it is shown in, which of its accepted
   spellings is put up and which of its meanings is asked about are all

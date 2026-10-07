@@ -8,6 +8,52 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.395 — 7 October 2026
+
+**One card for each meaning, learnt on its own.**
+
+A word with two meanings, like صَبِر (cactus, and patience), or two words
+for one English word, like صح and يمين (both "right"), can now be one card
+per meaning. Each card has its own progress and schedule and goes in its
+own decks.
+
+For students:
+
+- If two of your cards show the same thing, a question says which one it
+  means, in the small line under the word: the teacher's clue (such as
+  "the plant"), or the other card ruled out ("not patience"). This works
+  both ways: "right" can say "not صح".
+- Giving the other card's answer isn't marked wrong. The app says so ("Yes,
+  it also means 'patience'. Now the other meaning.") and asks again, with
+  nothing recorded.
+- In multiple choice, the other card is never one of the wrong options.
+- Reading or spelling a word you have on two cards (from its
+  transliteration, or from a recording) is only asked on one of them, so
+  you don't practise it twice.
+- If you only have one of the cards, nothing changes.
+
+For teachers, in the card editor's new **Meanings** section:
+
+- It lists your other cards with the same word ("Same word: patience") or
+  the same English ("Same English: صح"), as you type. Tap one to open it.
+- An optional **Clue** says which meaning this card is. Without one,
+  questions name the other card instead.
+- **Another meaning of this word** saves the card and opens a new one with
+  the word, its other forms and its recordings already filled in, the
+  English empty, no pictures, and no decks yet.
+- **Another word for this meaning** saves the card and opens a new one
+  with just the English filled in.
+- If you change the spelling or recordings of a word another card shares,
+  you're asked whether to change it there too.
+- The Cards tab lists cards with more than one meaning written on them
+  ("book / notebook"). **Split** makes one card per meaning in the same
+  decks, and students keep the progress they had. **Keep as one card**
+  says the meanings are learnt together, and the card isn't listed again.
+
+Worth checking by hand: split a card a student is already learning, and
+see that both new cards show the progress the original had on their
+device.
+
 ## 0.394 — 7 October 2026
 
 **In the matching grid of recordings, the play button is a button of its own.**

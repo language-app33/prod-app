@@ -5614,3 +5614,67 @@ A button cannot hold a button, so a sound tile is a `div` with
 `role="button"`, focusable, taking Enter and Space as a tap; the play
 button stops its click and keys reaching the tile. Word tiles stay plain
 buttons. Pressing play on the tile already playing stops it.
+
+## One card per meaning, and which cards share a side is never stored
+
+**7 October 2026** · `src/meanings.ts`, `src/ArabicTrainer.tsx`
+(`siblingStateOf`, `siblingsAsked`, `availableTypes`, `submit`),
+`src/card-editor.tsx` (`MeaningsBlock`, `CarryAsk`), `src/spaces.tsx`
+(`MeaningSplits`), `src/shared.tsx` (`splitFromHeld`)
+
+The owner wants each meaning learnt, scheduled and put in decks on its
+own, in both directions: one Arabic word with two English meanings (صَبِر:
+cactus, patience) and one English word with two Arabic words (right: صح,
+يمين). Meanings inside one card, sub-cards under a parent word, and a
+dictionary of words and meanings were weighed and turned down: the first
+cannot put a meaning in its own deck without rebuilding decks, the second
+is a new kind of card, the third rebuilds everything. A card is already
+one schedule and one set of decks, so a card is one meaning.
+
+**Linked by what they say, not by a stored link.** Two cards *collide*
+when the side a question shows reads the same: the word (script,
+transliteration, recording) or one accepted meaning. Nothing on a card
+names its siblings. The owner intends to teach from languages other than
+English later, and on the meaning side whether two cards collide depends
+on the learner's language — right collides in English and not in French
+(juste, droite) — so a stored link would be wrong for one of them, and
+stale after any edit. The index is built from the learner's own cards,
+so a sibling they don't study changes nothing. Vowel marks and tones are
+kept when comparing words: صَبْر and صَبِر can be told apart on screen.
+
+**What a collision does.** A typed question gets a line under the prompt,
+in the spot the form tag uses: the card's `clue`, else "not <the other
+card's answer>" (the owner's pick over saying nothing). The other card's
+answer is asked again unmarked, as often as it is given. A pick question
+drops the sibling's units from its pool instead and says nothing. A
+sibling answered the same way (both صَبِر read *sabir*) is no ambiguity
+and is ignored. Matching grids needed nothing: they already keep two
+tiles reading alike apart, which is exactly a collision.
+
+**Reading and spelling are asked once.** Questions that show and want the
+target language (`onlyAboutWord`) are about the word, not the meaning.
+Among cards sharing a word, the one made first (then lowest id) keeps
+them; the others drop them in `availableTypes`.
+
+**Teachers.** "Another meaning of this word" saves the card and opens a copy
+with every form, spelling and recording kept, every meaning emptied, and
+no ID, clue, pictures or decks: the owner picked "no deck" so a meaning is
+placed on purpose. "Another word for this meaning" opens a card with the
+meaning only. The editor is keyed on an `opened` stamp so it remounts for
+the next card. A change to the spelling, transliteration or recordings of
+a form that another card still has identically (the card's own word by
+place, other forms by name, which is how a copy lines up) asks whether to
+carry it; empty and missing count as the same.
+
+**Splitting** narrows each form whose meaning count matches the card's own
+word, keeps pictures on the first card only, puts the new cards in the
+same decks, and stamps them `splitFrom`. A learner's device seeds a newly
+arrived card from the card it was split from, form by form, and only into
+forms with no progress of their own. `splitFrom` and `together` are only
+ever set by a save that sends them, never cleared by one that does not.
+
+**Cost.** The word is stored on every meaning's card. A verb's second
+meaning means writing its English again for every cell. Word counts go up
+by one per meaning. The learning language is named in one constant,
+`LEARNING_LANGUAGE`, for the day it is not English.
+
