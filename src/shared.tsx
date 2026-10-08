@@ -1080,25 +1080,6 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
       {/* Which of the two kinds of scene, which says more on a tile than
           that it is a scene at all. */}
       {isDialog(card) ? <div className="at-minikind">{isText(card) ? "Text" : "Conversation"}</div> : null}
-      {/*
-        * A name, where the card has one, is what it is listed under.
-        *
-        * A verb in a language with no infinitive is saved as the form a
-        * dictionary lists, so a list read as "he ate" — which names one
-        * cell of its table rather than the verb. Where the teacher has said
-        * what to call it, that is the headline and the dictionary form's
-        * own meaning goes: the name is the card's meaning now, and "he ate"
-        * under "to eat" reads as a correction of it.
-        *
-        * Written in `dir="auto"` and without the script's font or sizing,
-        * because a name is whatever the teacher typed — "to eat" as often
-        * as the verbal noun in the taught script — and every size in this
-        * file is tuned by eye against it. Latin left at a script-tuned size is the bug 0.113
-        * fixed for a hole in a card; this is the same bug one field over.
-        * The script itself keeps its line underneath, so a card list does
-        * not stop showing the language.
-        */}
-      {card.name ? <div className="at-mininame" dir="auto">{card.name}</div> : null}
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
         <Written text={face} />
       </div>
@@ -1106,7 +1087,25 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
           does — every field with words in it leaves the same blanks — so
           they are drawn the same way, and a tile shows one card rather
           than a frame beside two lines of braces. */}
-      {card.name ? null : <div className="at-minien"><Written text={lead.en} /></div>}
+      {/*
+        * A name, where the card has one, takes the meaning's line.
+        *
+        * A verb in a language with no infinitive is saved as the form a
+        * dictionary lists, so its meaning reads "he ate" — one cell of its
+        * table rather than the verb. Where the teacher has said what to call
+        * it, the name is the card's meaning now, and "he ate" beside "to
+        * eat" reads as a correction of it.
+        *
+        * In the meaning's place and the meaning's style, not as a headline
+        * above the script: a bold name on top made named tiles taller and
+        * louder than every other tile in the list, and the script is what
+        * the list is for. `dir="auto"` because a name is whatever the
+        * teacher typed — "to eat" as often as the verbal noun in the taught
+        * script.
+        */}
+      {card.name
+        ? <div className="at-minien at-mininame" dir="auto">{card.name}</div>
+        : <div className="at-minien"><Written text={lead.en} /></div>}
       {showLat && lead.lat ? <div className="at-minilat"><Written text={lead.lat} /></div> : null}
       {/* One line of small print, and the caller decides what it says.
           It used to carry the language, the decks the card was in, how

@@ -2720,11 +2720,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   /* A card the teacher has named is listed under that name rather than
      under its own words — a verb whose word is the form a dictionary lists
-     names one cell of its table, not the verb. The name is the headline,
-     and it stands in for the meaning line rather than sitting above it, so
-     "to eat" is not followed by "he ate" correcting it. Drawn in the
-     interface face rather than the taught script's: a name is whatever was
-     typed, and every size in the stylesheet is tuned against the script. */
+     names one cell of its table, not the verb. The name stands in the
+     meaning's line and is drawn as a meaning is, so "to eat" is not
+     followed by "he ate" correcting it, and the tile is the same shape as
+     every other. */
   const named = host.querySelector(".at-mininame");
   check("a card with a name of its own is listed under it",
     !!named && /to eat/.test(named.textContent || ""),

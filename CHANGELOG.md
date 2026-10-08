@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.407 — 8 October 2026
+
+**A card's name no longer looks oversized in the card list.**
+
+- A card with a name of its own, such as a verb named "to eat", used to
+  show that name on top in large bold type, above the Arabic. Those tiles
+  came out taller and louder than every other tile in the list.
+- Now the Arabic leads on every tile, and the name sits underneath it in
+  the same small grey text as an ordinary card's meaning. Every tile in
+  the list has the same shape.
+- The trade-off: a named card is no longer headed by its name, so a list
+  of verbs reads by the Arabic first, like everything else.
+- Worth checking by hand: open a space with named verbs and look at the
+  card list on a phone.
+
 ## 0.406 — 7 October 2026
 
 **"This" agrees with "my sister" on real cards too.**
