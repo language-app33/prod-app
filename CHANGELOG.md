@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.367 — 8 October 2026
+
+**Capital letters in the right places in English sentences.**
+
+- When a sentence has a word filled into a blank — in practice questions,
+  in conversations, and in the examples a teacher sees under a card — the
+  English now follows the usual rule: a capital letter at the start of a
+  sentence, and none in the middle. Before, a word kept whatever capital
+  its card was written with, so a question could read "I like Coffee".
+- People and places always keep their capital, wherever they stand, even
+  if the card was written in small letters ("I live in Hue").
+- A few words English always capitalises are left that way: "I" (and
+  "I'm", "I'll" and so on), the days of the week, the months, and the
+  names of languages such as Arabic and English. Abbreviations such as TV
+  are left as written.
+- Worth checking by hand: a name only keeps its capital if its card is
+  marked as a person or a place. A name card saved with another subtype
+  will now appear in small letters mid-sentence.
+
 ## 0.366 — 6 October 2026
 
 **Bigger keys for writing numbers in Arabic numerals.**

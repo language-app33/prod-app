@@ -188,8 +188,9 @@ const nameCard = (id, ar, en, lat) => ({
   id, owner: "t-1", ar, en, lat, note: "", lang: "ar-PS", number: "singular",
   gender: "masculine", classifier: "", clips: [], subs: [], uses: [],
   /* What makes it a value: which variable it fills, and that it is never a
-     question of its own. */
-  fills: "friend", drill: false, rev: 1, updated: 1,
+     question of its own. A person, which is what keeps its capital in the
+     middle of a sentence. */
+  category: "person", fills: "friend", drill: false, rev: 1, updated: 1,
   /* When each was made, which is the order the values are offered in — the
      rotation walks that list, and a card with no date would take today's
      and sort against the others by luck. Every card the server has ever

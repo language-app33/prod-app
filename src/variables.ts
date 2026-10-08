@@ -1297,10 +1297,7 @@ export function fillText(
     if (word === undefined || word === "") return whole;
     if (!cased || field === "lat") return word;
     const start = startsSentence(all.slice(0, at));
-    /* English capitalises more than people and places — I, Monday,
-       English itself — so there the teacher's capitals are kept and only
-       the start of a sentence is added. */
-    return field === "en" ? (start ? fitCase(word, true, true) : word) : fitCase(word, start, !!took.proper);
+    return field === "en" ? fitEnglish(word, start, !!took.proper) : fitCase(word, start, !!took.proper);
   });
 }
 
@@ -1346,17 +1343,21 @@ function fillEnglish(written: string, values: Record<string, Value>, cased: bool
 
 /* The kinds of word that are names, and keep their capital mid-sentence:
    a person, a place, and the retired Name that meant either — which a
-   card written before subtypes said by filling `{{name}}` by hand. */
+   card written before subtypes said by filling `{{name}}` by hand, as it
+   said a person or a place by filling theirs (see subtype-tags.ts, which
+   folds such a tag into the subtype). */
 const PROPER_KINDS = ["person", "place", "name"];
 const isProper = (card: WithSlots | null | undefined): boolean =>
-  PROPER_KINDS.includes(text(card, "category").trim().toLowerCase()) || fillNames(card).includes("name");
+  PROPER_KINDS.includes(text(card, "category").trim().toLowerCase()) ||
+  fillNames(card).some((n) => PROPER_KINDS.includes(n));
 
 /* Whether a blank written after `before` opens a sentence: nothing but
    space and opening marks since the start, or since a full stop, a
-   question or an exclamation. */
+   question or an exclamation — or since the slash between two ways of
+   saying it, each of which is a sentence of its own. */
 const startsSentence = (before: string): boolean => {
   const rest = before.replace(/[\s"'“‘«¿¡([\-–—]+$/u, "");
-  return rest === "" || /[.!?]$/.test(rest);
+  return rest === "" || /[.!?/]$/.test(rest);
 };
 
 const hasCase = (ch: string): boolean => ch.toUpperCase() !== ch.toLowerCase();
@@ -1378,6 +1379,50 @@ export function fitCase(word: string, start: boolean, proper: boolean): string {
   const next = rest[0] || "";
   if (next && hasCase(next) && next === next.toUpperCase()) return word;
   return first.toLowerCase() + rest.join("");
+}
+
+/*
+ * The English of a blank, cased the way English is written rather than
+ * the way the teacher happened to type it.
+ *
+ * A card's meaning is written to be read on its own — "Coffee", "Big
+ * house" — and was dropped into a sentence as it stood, which is how a
+ * question came to say "I like Coffee". So, as the owner set it: a person
+ * or a place keeps a capital wherever it stands; anything else has one at
+ * the start of a sentence and none in the middle of it, in every word it
+ * brings, not only its first — "Big house" is "a big house".
+ *
+ * Kept as written all the same: an abbreviation (TV), and the few words
+ * English capitalises whatever they are — I and its contractions, the
+ * days and the months, and the names of languages a card is likely to
+ * mean. Without them the rule would write "i" and "on monday", which are
+ * not what anybody means by properly capitalised.
+ */
+const ALWAYS_CAPITAL = new Set(
+  (
+    "i i'm i've i'll i'd " +
+    "monday tuesday wednesday thursday friday saturday sunday " +
+    "january february march april may june july august september october november december " +
+    "english arabic hebrew vietnamese french german spanish"
+  ).split(" "),
+);
+/* May and March are ordinary words too; only the days are safe to read as
+   names wherever they stand. A month that is also a word is left as the
+   teacher wrote it rather than guessed at. */
+const AMBIGUOUS_MONTHS = new Set(["may", "march"]);
+
+export function fitEnglish(phrase: string, start: boolean, proper: boolean): string {
+  let first = true;
+  return phrase.replace(/[\p{L}\p{M}'’]+/gu, (word) => {
+    const lead = first;
+    first = false;
+    const bare = word.toLowerCase().replace(/’/g, "'");
+    if (AMBIGUOUS_MONTHS.has(bare)) return lead && start ? fitCase(word, true, false) : word;
+    if (ALWAYS_CAPITAL.has(bare)) return fitCase(word, true, false);
+    /* A name keeps the rest of itself as written: the Gulf of Aqaba. */
+    if (proper) return lead ? fitCase(word, true, false) : word;
+    return fitCase(word, lead && start, false);
+  });
 }
 
 /*

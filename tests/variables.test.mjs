@@ -1169,9 +1169,24 @@ test("a blank's first letter fits where it stands", () => {
   assert.equal(fillText("Chào. {{word}} ngon", { word: sách }), "Chào. Sách ngon");
   assert.equal(fillText("tôi ở {{place}}", { place: huế }), "tôi ở Huế");
   assert.equal(fillText("tôi xem {{word}}", { word: { id: "t", ar: "TV", en: "TV", lat: "" } }), "tôi xem TV");
-  /* English adds the capital at the start and keeps the teacher's elsewhere. */
+  /* English: a capital at the start, none in the middle — in every word
+     the blank brings — and always one on a person or a place. */
   assert.equal(fillText("{{word}} is good", { word: sách }, "en"), "Book is good");
-  assert.equal(fillText("I like {{word}}", { word: cà }, "en"), "I like Coffee");
+  assert.equal(fillText("I like {{word}}", { word: cà }, "en"), "I like coffee");
+  assert.equal(fillText("I live in a {{word}}", { word: { ar: "", lat: "", en: "Big House" } }, "en"), "I live in a big house");
+  assert.equal(fillText("I live in {{place}}", { place: { ar: "", lat: "", en: "hue", proper: true } }, "en"), "I live in Hue");
+  assert.equal(fillText("I swam in the {{place}}", { place: { ar: "", lat: "", en: "gulf of Aqaba", proper: true } }, "en"), "I swam in the Gulf of Aqaba");
+  assert.equal(fillText("Is that {{word}}?", { word: { ar: "", lat: "", en: "TV" } }, "en"), "Is that TV?");
+  /* The start of each sentence, and of each way of saying it. */
+  assert.equal(fillText("Yes. {{word}} is good", { word: cà }, "en"), "Yes. Coffee is good");
+  assert.equal(fillText("I like it / {{word}} is good", { word: sách }, "en"), "I like it / Book is good");
+  /* And the words English capitalises whatever they are. */
+  assert.equal(fillText("Today {{pronoun}} am here", { pronoun: { ar: "", lat: "", en: "I" } }, "en"), "Today I am here");
+  assert.equal(fillText("Today {{word}}", { word: { ar: "", lat: "", en: "i'm tired" } }, "en"), "Today I'm tired");
+  assert.equal(fillText("See you on {{word}}", { word: { ar: "", lat: "", en: "Monday" } }, "en"), "See you on Monday");
+  assert.equal(fillText("Do you speak {{word}}?", { word: { ar: "", lat: "", en: "Arabic" } }, "en"), "Do you speak Arabic?");
+  assert.equal(fillText("Born in {{word}}", { word: { ar: "", lat: "", en: "May" } }, "en"), "Born in May");
+  assert.equal(fillText("{{word}} go", { word: { ar: "", lat: "", en: "may" } }, "en"), "May go");
   /* A transliteration is left as written, and so is a script with no capitals. */
   assert.equal(fillText("{{word}} kbiir", { word: { ar: "بيت", en: "house", lat: "beet" } }, "lat"), "beet kbiir");
   assert.equal(fillText("{{word}} كبير", { word: { ar: "بيت", en: "house", lat: "beet" } }), "بيت كبير");
