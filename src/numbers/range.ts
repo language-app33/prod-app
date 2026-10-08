@@ -373,7 +373,12 @@ export function askFor(range: Range, seed: string, sys: NumberSystem, composer?:
     };
   }
   const span = Math.max(0, Math.min(range.to, NUMBER_CEILING) - range.from);
-  const value = range.from + Math.floor(rnd() * (span + 1));
+  /* One draw is 32 bits, which the billions outrun: on its own it would
+     land every twenty-third number or so, and never on the rest. A second
+     draw fills in below it there — and only there, so every range that
+     fits in one draw asks exactly what it always asked. */
+  const fine = span + 1 > 4294967296 ? rnd() + rnd() / 4294967296 : rnd();
+  const value = range.from + Math.floor(fine * (span + 1));
   if (!range.counted) return { rangeId: range.id, kind: "numbers", value };
   /* Only the nouns this part can say whole, where the composer is to hand
      to say which — see countable. */
@@ -455,7 +460,7 @@ export function renderAsk(
     ask,
     text: got.text,
     digits: String(ask.value),
-    en: noun ? `${ask.value} ${englishFor(noun, got.nounForm)}` : String(ask.value),
+    en: noun ? `${ask.value} ${englishFor(noun, ask.value)}` : String(ask.value),
     tokens: got.tokens,
     warnings: got.warnings,
     nounForm: got.nounForm,
@@ -488,6 +493,14 @@ function facesLike(sys: NumberSystem | TimeSystem, t: Token): FormKey[] {
 function latOfToken(t: Token, systems: (NumberSystem | TimeSystem | null | undefined)[]): string {
   for (const sys of systems) {
     if (!sys) continue;
+    /* A noun counted in the phrase is the teacher's card, and says itself
+       the way that card does. */
+    if (t.noun) {
+      const noun = ((sys as NumberSystem).nouns || []).find((n) => n.id === t.noun);
+      const lat = noun && noun.lat ? trimmed(noun.lat[t.text]) : "";
+      if (lat) return lat;
+      continue;
+    }
     if (t.override) {
       const over = (sys.overrides || {})[t.override];
       if (over && trimmed(over.text) === t.text) return trimmed(over.lat);
@@ -610,17 +623,21 @@ function carriedHour(h: number, m: number, mark: number | undefined): number {
   return m >= 58 && mark === 0 ? (h + 1) % 24 : h;
 }
 
-/** "3 books", "1 book" — the English a counted phrase is asked in. */
-function englishFor(noun: CountedNoun, form: NounForm | undefined): string {
+/**
+ * "3 books", "1 book" — the English a counted phrase is asked in.
+ *
+ * The card's own words and nothing made up: its singular's English for
+ * one alone, and its plural's for every other count, whatever the
+ * language does — Arabic counts eleven and up with its singular, and *11
+ * book* is not English. A plural used to be guessed by putting an *s* on
+ * the singular, which turned a meaning written as *Books* into *Bookses*;
+ * a noun whose plural says no English is now not counted at all (see
+ * nouns.ts).
+ */
+function englishFor(noun: CountedNoun, value: number): string {
   const word = String(noun.en || noun.id || "").trim();
-  if (!word) return "";
-  if (form === "sg") return word;
-  /* The card's own plural, where it says one — *children*, *mice*. */
-  if (noun.enPl) return noun.enPl;
-  /* English has one plural and no dual, so the two that are not singular
-     are both said the same way. An irregular plural is the teacher's to
-     write; this is a cue, not a lesson in English. */
-  return /(s|x|z|ch|sh)$/.test(word) ? `${word}es` : `${word}s`;
+  if (value === 1) return word;
+  return String(noun.enPl || "").trim() || word;
 }
 
 /* ---- wrong answers worth offering ---- */

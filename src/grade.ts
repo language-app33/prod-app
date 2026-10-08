@@ -31,7 +31,7 @@
  */
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
-import { PASSES_TO_LEARN, cameRound, cleared, freshState, reschedule, topLevelOf } from "./scheduler.ts";
+import { PASSES_TO_LEARN, cameRound, cleared, freshState, missedTwice, reschedule, topLevelOf } from "./scheduler.ts";
 import { levelOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf } from "./dialogs.ts";
@@ -323,14 +323,20 @@ export function markedState(
    * top of its own ladder. What is left here is the one the state itself
    * knows: that the question came round rather than being practised.
    *
-   * A wrong answer puts it back to nought, wherever the card is. That is
-   * the decision that a word just forgotten has not been kept, and it is
-   * the reason a typo is not allowed to reach this far — one letter out
-   * is re-asked instead, so an evening's carelessness does not cost a
-   * learner four days. See `typoed` below.
+   * Two wrong answers running put it back to nought, wherever the card
+   * is — the same line the ladder draws, where one miss is forgiven and
+   * wrong, seen again, wrong again is what shuts a level (`missedTwice`).
+   * It used to be one miss, and that made the passes the one thing in the
+   * app a slip could take away: practice before a card is due cannot make
+   * a pass, but a miss in it took them all, so a learner drilling a small
+   * set many times a day lost passes faster than the calendar handed them
+   * back, and a number part waiting on twenty cards to be kept at once
+   * never was. A single miss still counts — it is in the record, and a
+   * second one straight after takes the passes. A typo never reaches this
+   * far: one letter out is re-asked instead. See `typoed` below.
    */
-  if (!mark.correct) s.passes = 0;
-  else if (counting && mark.advance && cameRound(before, clock)) {
+  if (missedTwice(s)) s.passes = 0;
+  else if (mark.correct && counting && mark.advance && cameRound(before, clock)) {
     s.passes = Math.min(PASSES_TO_LEARN, (before.passes || 0) + 1);
   }
   s.updated = now(clock);

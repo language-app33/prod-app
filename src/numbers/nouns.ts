@@ -40,7 +40,7 @@ const str = (x: unknown): string => (x == null ? "" : String(x).trim());
 const firstOf = (x: unknown): string => (splitAlternatives(str(x))[0] || "").trim();
 
 /** Why a noun card is not counted, said the way the number screen says it. */
-export type NounGap = "singular" | "plural" | "gender";
+export type NounGap = "singular" | "plural" | "plural-english" | "gender";
 
 export interface ReadNoun {
   /** The card's id, which is also the noun's. */
@@ -71,6 +71,9 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
   const counteds: { text: string; gender: string }[] = [];
   let gender = "";
   let human = "";
+  /* How each word is said, where the card says: the first transliteration
+     written for it. */
+  const lat: Record<string, string> = {};
   formsOf(card).forEach((form: Held, at: number) => {
     for (const answer of answersOf(form, FIELDS)) {
       const text = str(answer.text);
@@ -81,6 +84,8 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
       if (g && !gender) gender = g;
       if (h && !human) human = h;
       const en = firstOf(form.en);
+      const said = firstOf(answer.lat);
+      if (said && !lat[text]) lat[text] = said;
       if (number === "plural") {
         pls.push({ text, en, gender: g });
       } else if (number === "dual") {
@@ -115,6 +120,10 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
   const missing: NounGap[] = [];
   if (!one) missing.push("singular");
   if (!many) missing.push("plural");
+  /* The English of the plural is the card's to say, and never made up:
+     *10 books* is asked in it. A plural with no meaning written is a
+     plural no counting question can be asked in. */
+  else if (!many.en) missing.push("plural-english");
   if (!sex) missing.push("gender");
   const en = (one && one.en) || firstOf((formsOf(card)[0] || {}).en);
   if (missing.length || !one || !many) return { id, en, missing };
@@ -126,8 +135,10 @@ export function readNounCard(card: Held | null | undefined): ReadNoun | null {
     ...(afterThree ? { plCounted: afterThree.text } : null),
     gender: sex as "m" | "f",
     en,
-    ...(many.en && many.en !== en ? { enPl: many.en } : null),
+    /* As written, even where it is the singular's own word. */
+    enPl: many.en,
     ...((one.human || human) ? { human: one.human || human } : null),
+    ...(Object.keys(lat).length ? { lat } : null),
   };
   return { id, en, noun, missing: [] };
 }

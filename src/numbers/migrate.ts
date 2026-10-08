@@ -64,6 +64,7 @@ export function slotForValue(value: number): string | null {
     [100, "hundred"],
     [1000, "thousand"],
     [1000000, "million"],
+    [1000000000, "billion"],
   ] as [number, string][]) {
     if (value === unit) return `${name}.1`;
     if (value === unit * 2) return `${name}.2`;

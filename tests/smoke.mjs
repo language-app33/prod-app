@@ -940,6 +940,7 @@ async function playGrid() {
        whichever column the learner is reading, so half the pairs below are
        made the other way round, and this is what says they took. */
     fromRight: 0,
+    learnMore: false,
   };
   const early = document.querySelector('[data-el="check-button"]');
   seen.checkedEarly = !!early && /** @type {HTMLButtonElement} */ (early).disabled;
@@ -958,6 +959,9 @@ async function playGrid() {
   seen.marked =
     !!document.querySelector('[data-el="verdict"]') &&
     document.querySelectorAll(".at-matchtile.right, .at-matchtile.wrong").length > 0;
+  /* Whatever Learn more said under a grid was about its first word alone,
+     so there is none. */
+  seen.learnMore = !!document.querySelector('[data-el="also-heading"]');
   return seen;
 }
 
@@ -1227,18 +1231,16 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const dupes2 = answered.filter((n, i) => n !== "related-word" && answered.indexOf(n) !== i);
     check("and each of those means one thing too", dupes2.length === 0, dupes2.join(", "));
 
-    /* The extras open closed, behind one tap. The answer is what you came
-       back for; five blocks of context under it is a page to scroll past
-       rather than a thing to read. */
-    check("what is not the answer starts put away",
-      !document.querySelector('[data-el="also"]'), "the box is open before it is asked for");
-    const moreBtn = document.querySelector('[data-el="also-toggle"]');
-    check("and there is an invitation to open it",
-      !!moreBtn && /Learn more/.test(moreBtn.textContent), moreBtn ? moreBtn.textContent : "no toggle");
-    check("which says whether it is open", moreBtn && moreBtn.getAttribute("aria-expanded") === "false",
-      moreBtn ? String(moreBtn.getAttribute("aria-expanded")) : "");
-    click(moreBtn);
-    await sleep(120);
+    /* The extras are shown open, under a plain "Learn more" heading with
+       nothing to fold them away: they are there to be read. */
+    const moreHead = document.querySelector('[data-el="also-heading"]');
+    check("what is not the answer is headed Learn more",
+      !!moreHead && /^Learn more$/.test(moreHead.textContent.trim()), moreHead ? moreHead.textContent : "no heading");
+    check("and the heading is not a control that folds it away",
+      !!moreHead && moreHead.tagName !== "BUTTON" && !moreHead.querySelector("svg") && !moreHead.hasAttribute("aria-expanded"),
+      moreHead ? moreHead.outerHTML : "");
+    check("and the box is open without being asked for",
+      !!document.querySelector('[data-el="also"]'), "the box is closed");
 
     /* Everything that is not the answer, in one box. The members are each
        conditional, so what matters is that whichever turned up are inside
@@ -1247,7 +1249,32 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("what is not the answer is gathered into a box",
       !!alsoBox && alsoBox.classList.contains("at-alsobox") && !!alsoBox.closest(".at-exercise"),
       alsoBox ? alsoBox.className : "no box");
-    const inBox = alsoBox ? [...alsoBox.children].map((e) => e.getAttribute("data-el")) : [];
+    /* The short blocks sit two to a row, so a row is looked through to the
+       blocks it holds. */
+    const rowsIn = alsoBox ? [...alsoBox.children] : [];
+    const inBox = rowsIn
+      .flatMap((e) => (e.getAttribute("data-el") === "also-row" ? [...e.children] : [e]))
+      .map((e) => e.getAttribute("data-el"));
+    check("a row holds one or two of the short blocks, never the phrase",
+      rowsIn.filter((e) => e.getAttribute("data-el") === "also-row").every((r) =>
+        r.children.length >= 1 && r.children.length <= 2 &&
+        [...r.children].every((c) => c.getAttribute("data-el") !== "also-context")),
+      rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    /* A block alone on its row sits in the middle of it, not the left half. */
+    const lone = rowsIn.filter((e) => e.getAttribute("data-el") === "also-row" && e.children.length === 1);
+    check("a block alone on its row is centred in it",
+      lone.every((r) => {
+        const a = r.getBoundingClientRect(), b = r.children[0].getBoundingClientRect();
+        return Math.abs((b.left - a.left) - (a.right - b.right)) <= 2;
+      }),
+      lone.map((r) => r.children[0].getAttribute("data-el")).join(" "));
+    check("and every short block sits in a row, the related words included",
+      rowsIn.every((e) => ["also-row", "also-context"].includes(e.getAttribute("data-el") || "")),
+      rowsIn.map((e) => e.getAttribute("data-el")).join(" "));
+    const hintRow = alsoBox && alsoBox.querySelector('[data-el="also-hint"]');
+    const audioRow = alsoBox && alsoBox.querySelector('[data-el="also-audio"]');
+    check("how it's pronounced and how it sounds share a row",
+      !hintRow || !audioRow || hintRow.parentElement === audioRow.parentElement, "");
     const FAMILY = ["also-context", "also-script", "also-hint", "also-figures", "also-audio", "related-words"];
     check("and everything in it is one of the blocks that were loose on the page",
       inBox.length > 0 && inBox.every((n) => FAMILY.includes(n || "")), inBox.join(" ") || "empty");
@@ -1750,14 +1777,18 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const updates = readFileSync(path.resolve("src/updates.ts"), "utf8");
     const watching = updates.slice(updates.indexOf("export function watchForUpdates"));
     const applying = updates.slice(updates.indexOf("export function applyUpdate"));
-    check("the page takes the handover itself, without being asked",
-      /addEventListener\("controllerchange"/.test(watching) && /reloadOnce\(\)/.test(watching),
-      "nothing reloads when a new worker takes over");
+    check("the page takes the handover itself only when nobody has touched it",
+      /addEventListener\("controllerchange"/.test(watching) && /!touched/.test(watching),
+      "a reload could land on a page somebody is working on");
     check("but not on a first install, which updates nothing",
       /wasControlled/.test(watching), "a first install would reload for nothing");
-    check("and not on top of a question being answered",
-      /held/.test(watching) && /holdUpdates/.test(updates),
-      "a reload could land mid-session");
+    check("otherwise it says an update is ready instead of reloading",
+      /markReady\(\)/.test(watching) && /onUpdateReady/.test(src) && /at-updatebar/.test(src),
+      "nothing tells the person an update is waiting");
+    check("and never reloads just because the app is put away",
+      !/document\.hidden\)\s*\{[^}]*reload/.test(watching), "a reload on leaving the app loses unsaved work");
+    check("a reload asked for still saves what is owed first",
+      /runBeforeReloads\(\)/.test(applying), "Reload skips the last write");
     check("Reload waits for the new worker to take control",
       /addEventListener\("controllerchange"/.test(applying), "no controllerchange listener");
     check("and it does not reload the moment it is pressed",
@@ -2279,7 +2310,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   click(levelTile);
   await sleep(200);
 
-  /* ---- prep mode: decks to have learnt by a date ----
+  /* ---- prep mode: decks to have cleared or learnt by a date ----
      Set up from Progress, offered on the home screen as a session of its
      own, edited, and cleared. */
   {
@@ -2297,7 +2328,12 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const pad = (/** @type {number} */ n) => String(n).padStart(2, "0");
     const day = `${inMonth.getFullYear()}-${pad(inMonth.getMonth() + 1)}-${pad(inMonth.getDate())}`;
 
-    click(buttonNamed(/^Prep mode$/));
+    const prepHead = [...document.querySelectorAll("h3.at-sectionhead")].find((h) => /^Prep mode$/.test(h.textContent || ""));
+    check("Progress has Prep mode under a heading of its own, styled as the Courses tab's",
+      !!prepHead && !!prepHead.closest(".at-section")?.querySelector(".at-sectionlede"),
+      [...document.querySelectorAll(".at-sectionhead")].map((h) => h.textContent).join(" | "));
+    check("and its button starts one while there is none", !!buttonNamed(/^Start prep mode$/));
+    click(buttonNamed(/^Start prep mode$/));
     await sleep(250);
     check("Progress opens Prep mode on a screen of its own",
       /Prep mode/.test(((top() || {}).textContent || "")), ((top() || {}).textContent || "").slice(0, 60));
@@ -2307,11 +2343,27 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     if (nameBox) typeIn(nameBox, "Start of class");
     if (dateBox) typeIn(dateBox, day);
     await sleep(80);
-    const lessonRow = [...((top() || document).querySelectorAll("label.at-tickrow"))]
-      .find((l) => /Lesson 1/.test(l.textContent || ""));
-    check("and which decks to have learnt by then", !!lessonRow);
-    click(lessonRow && lessonRow.querySelector("input"));
+    /* The decks as a card's editor chooses them: a button opening a sheet,
+       and the chosen ones as pills. */
+    click(buttonNamed(/^Choose decks$/));
     await sleep(80);
+    const lessonPick = [...document.querySelectorAll(".at-decksheet button.at-deckpick")]
+      .find((b) => /Lesson 1/.test(b.textContent || ""));
+    check("and which decks to target, from the sheet a card's decks are chosen in", !!lessonPick);
+    click(lessonPick);
+    await sleep(80);
+    click([...document.querySelectorAll(".at-decksheet button")].find((b) => b.getAttribute("aria-label") === "Close"));
+    await sleep(80);
+    check("the deck chosen stands as a pill",
+      [...((top() || document).querySelectorAll(".at-deckpill"))].some((p) => /Lesson 1/.test(p.textContent || "")));
+    const levelPick = (/** @type {RegExp} */ re) =>
+      [...((top() || document).querySelectorAll(".at-segmented button"))].find((b) => re.test(b.textContent || ""));
+    check("and the level to have them at, Learnt to begin with",
+      !!levelPick(/^Cleared$/) && levelPick(/^Learnt$/)?.getAttribute("aria-pressed") === "true",
+      (levelPick(/^Learnt$/) || {}).outerHTML || "(no level picker)");
+    const foot = () => (top() || document).querySelector(".at-screenfoot");
+    check("Save sits in the bar at the foot of the screen",
+      !!foot()?.contains(buttonNamed(/^Start prepping$/) || null), (foot() || {}).textContent || "(no foot)");
     const readyText = () => ((document.querySelector(".at-prepready") || {}).textContent || "");
     for (let i = 0; i < 160 && (!readyText() || /Working out/.test(readyText())); i++) await sleep(250);
     check("saying how much practice being ready takes, or when it could be",
@@ -2366,7 +2418,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     /* Edited: the same screen, holding what was set. */
     click(buttonNamed(/^Progress$/));
     await sleep(300);
-    click(buttonNamed(/^Prep mode$/));
+    click(buttonNamed(/^Edit prep mode$/));
     await sleep(250);
     const again = /** @type {any} */ (document.getElementById("at-prep-name"));
     check("opening it again holds the prep as it was set",
@@ -2381,15 +2433,39 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     await sleep(300);
     check("and reaches the home screen's button",
       /^Prep for Exam$/.test((prepButton() || {}).textContent || ""), (prepButton() || {}).textContent || "(none)");
+    check("whose ring counts cards learnt",
+      / cards? learnt$/.test((prepTile()?.querySelector(".at-climbsay") || {}).textContent || ""),
+      (prepTile()?.querySelector(".at-climbsay") || {}).textContent || "(no ring)");
+
+    /* Aimed at Cleared instead: the tile counts cleared cards. */
+    click(buttonNamed(/^Progress$/));
+    await sleep(300);
+    click(buttonNamed(/^Edit prep mode$/));
+    await sleep(250);
+    click(levelPick(/^Cleared$/));
+    await sleep(80);
+    click(buttonNamed(/^Save changes$/));
+    await sleep(300);
+    click(buttonNamed(/^Home$/));
+    await sleep(300);
+    const said = () => (prepTile()?.querySelector(".at-climbsay") || {}).textContent || "";
+    check("aimed at Cleared, the tile counts cleared cards, and still offers the prep",
+      / cards? cleared$/.test(said()) || (!prepTile() && !!document.querySelector(".at-prepnote")), said() || "(no tile)");
 
     /* Cleared. */
     click(buttonNamed(/^Progress$/));
     await sleep(300);
-    click(buttonNamed(/^Prep mode$/));
+    click(buttonNamed(/^Edit prep mode$/));
     await sleep(250);
-    click(buttonNamed(/^Stop prepping$/));
+    const del = () => [...((foot() || document).querySelectorAll("button"))].find((b) => b.getAttribute("aria-label") === "Delete this prep");
+    check("the way to delete it is an icon in the same bar, before Save",
+      !!del() && !(del()?.textContent || "").trim() &&
+        !!((del()?.compareDocumentPosition(/** @type {Node} */ (buttonNamed(/^Save changes$/))) || 0) & 4),
+      (foot() || {}).innerHTML?.slice(0, 160) || "(no foot)");
+    click(del());
     await sleep(300);
-    check("stopping clears it from Progress", !document.querySelector(".at-prepnote"), note());
+    check("deleting clears it from Progress, whose button starts one again",
+      !document.querySelector(".at-prepnote") && !!buttonNamed(/^Start prep mode$/), note());
     click(buttonNamed(/^Home$/));
     await sleep(300);
     check("and from the home screen, which has its climb back",
@@ -2645,11 +2721,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   /* A card the teacher has named is listed under that name rather than
      under its own words — a verb whose word is the form a dictionary lists
-     names one cell of its table, not the verb. The name is the headline,
-     and it stands in for the meaning line rather than sitting above it, so
-     "to eat" is not followed by "he ate" correcting it. Drawn in the
-     interface face rather than the taught script's: a name is whatever was
-     typed, and every size in the stylesheet is tuned against the script. */
+     names one cell of its table, not the verb. The name stands in the
+     meaning's line and is drawn as a meaning is, so "to eat" is not
+     followed by "he ate" correcting it, and the tile is the same shape as
+     every other. */
   const named = host.querySelector(".at-mininame");
   check("a card with a name of its own is listed under it",
     !!named && /to eat/.test(named.textContent || ""),
@@ -3729,12 +3804,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     }
 
     /* Move two: what the answer screen says about where the word lives.
-       Behind "Learn more", which is where everything that is not the
-       answer lives. */
-    const more = document.querySelector('[data-el="also-toggle"]');
+       Under "Learn more", which is where everything that is not the
+       answer lives, open from the start. */
+    const more = document.querySelector('[data-el="also"]');
     if (/Choose the meaning/.test(asked) && !alsoOnMeaning) {
-      if (more) click(more);
-      await sleep(120);
       alsoOnMeaning = {
         box: !!more,
         said: ((document.querySelector('[data-el="also-hint"]') || {}).textContent || "")
@@ -3742,8 +3815,6 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       };
     }
     if (more) {
-      click(more);
-      await sleep(120);
       const where = document.querySelector('[data-el="also-context"]');
       if (where && /الكتاب كبير/.test(where.textContent || "")) {
         sawWhereItTurnedUp += 1;
@@ -3808,6 +3879,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      first meaning counted as "unpaired" could never be finished. */
   check("and pairing them all is, and gets marked",
     !!grid && grid.marked, String(grid && grid.marked));
+  check("with no Learn more under it, which could only ever speak of one word",
+    !!grid && grid.marked && !grid.learnMore, String(grid && grid.learnMore));
   /* Half the pairs above were begun from the meanings, and the grid was
      finished and marked all the same: a learner reading down the right-hand
      column starts there rather than crossing the screen first. */
@@ -4757,6 +4830,32 @@ const openPronounTables = async () => {
         `save ${buttonNamed(/^Save$/) && !/** @type {any} */ (buttonNamed(/^Save$/)).disabled ? "on" : "off"}`);
   }
 
+  /* A person's boxes, a side for each gender, all start folded under their
+     names — even where something is written, and even when they appear
+     because the card has just been said to be a person. An animal's are
+     not: they open as they appear, the way any form asked for does. */
+  await leaveScreen();
+  openFormsAsDrawn = false;
+  await newCard();
+  await pickCardKind(/^Word or phrase/);
+  await pickKind(/^Noun/);
+  {
+    const shut = () => formFolds().filter((b) => b.getAttribute("aria-expanded") === "false").length;
+    await pickToggle("Person, animal or thing", "Person");
+    await sleep(250);
+    check("a person's forms all start folded under their names",
+      formFolds().length > 2 && shut() === formFolds().length,
+      `${shut()} of ${formFolds().length} folded`);
+    await pickToggle("Person, animal or thing", "Thing");
+    await sleep(250);
+    await pickToggle("Person, animal or thing", "Animal");
+    await sleep(250);
+    check("while an animal's open as they appear",
+      formFolds().length > 2 && shut() === 0,
+      `${shut()} of ${formFolds().length} folded`);
+  }
+  openFormsAsDrawn = true;
+
   await leaveScreen();
   openFormsAsDrawn = false;
   await newCard();
@@ -5549,6 +5648,12 @@ const openPronounTables = async () => {
       check("the pronoun is one blank on the list, not three",
         names().includes("pronoun") && !names().includes("pronoun-is") && !names().includes("is-pronoun"),
         names().join(" ") || "(nothing offered)");
+      check("and so is the demonstrative, which reads this, this is or is this",
+        names().includes("demonstrative") && !names().includes("demonstrative-is") && !names().includes("is-demonstrative"),
+        names().join(" ") || "(nothing offered)");
+      check("and the noun, whose readings are asked once it is chosen rather than listed",
+        names().includes("noun") && !names().includes("noun-is") && !names().includes("is-noun"),
+        names().join(" ") || "(nothing offered)");
       click(rowFor(/^pronoun$/));
       await sleep(300);
       const title = () => {
@@ -5996,6 +6101,33 @@ const openPronounTables = async () => {
         !!newBox() && !!fillList().length &&
           !!(newBox().compareDocumentPosition(fillList()[0]) & 4),
         newBox() && fillList().length ? "above" : "(nothing to compare)");
+      /* And the same box finds a tag as it names one: what is typed there
+         narrows the list under it, so a tag that exists is found before a
+         second one like it is made. */
+      {
+        const findBox = () => /** @type {any} */ (inSheet(".at-blanknew input")[0] || null);
+        const addNew = () => /** @type {any} */ (inSheet(".at-blanknew button")[0] || null);
+        const all = fillNames();
+        typeInto(findBox(), "fri");
+        await sleep(200);
+        const narrowed = fillNames();
+        check("typing in the box narrows the tags to the ones that match",
+          narrowed.includes("friend") && narrowed.every((n) => n.includes("fri")),
+          `${all.join(", ")} → ${narrowed.join(", ") || "(none)"}`);
+        typeInto(findBox(), "zzqq");
+        await sleep(200);
+        const none = inSheet(".at-tagsheetlist .at-hint")
+          .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" ");
+        check("and says so when none matches, with Add still there to make it",
+          !fillList().length && /No tag has .zzqq. in its name/.test(none) &&
+            !!addNew() && !addNew().disabled,
+          none || "(nothing said)");
+        typeInto(findBox(), "");
+        await sleep(200);
+        check("and emptying it brings every tag back",
+          JSON.stringify(fillNames()) === JSON.stringify(all),
+          fillNames().join(", "));
+      }
       /* And the button that opens it is under the Custom tags heading, not
          over the default tags it has nothing to do with. */
       {
@@ -7125,6 +7257,61 @@ const openPronounTables = async () => {
   takeSaves = false;
 }
 
+/* ---- one card per meaning ----
+
+   The fixture's word carries two meanings on one card ("book /
+   notebook"), so the Cards tab offers it for splitting. Its editor has a
+   Meanings section, and "Another meaning of this word" saves it and opens
+   a copy with the word kept and the meaning emptied, which names the
+   original as sharing its word. */
+{
+  takeSaves = true;
+  const frameNow = () => /** @type {any} */ (document.querySelector(".at-screen.bare") || document);
+  const banner = [...frameNow().querySelectorAll(".at-reviewbanner")]
+    .find((b) => /more than one meaning/.test(b.textContent || ""));
+  check("the Cards tab says which cards have more than one meaning on them",
+    !!banner, banner ? (banner.textContent || "").trim() : "(no banner)");
+  click(banner && [...banner.querySelectorAll("button")].find((b) => /^Review$/.test((b.textContent || "").trim())));
+  await sleep(300);
+  const splits = [...document.querySelectorAll(".at-screen")]
+    .find((sc) => /^More than one meaning$/.test(((sc.querySelector(".at-screenhead h2") || {}).textContent || "").trim()));
+  check("and lists each with a way to split it or keep it",
+    !!splits && /book · notebook/.test(splits.textContent || "") && /Split into 2 cards/.test(splits.textContent || "") &&
+      /Keep as one card/.test(splits.textContent || ""),
+    splits ? (splits.textContent || "").slice(0, 160) : "(no screen)");
+  click(splits && [...splits.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+
+  const tile = [...frameNow().querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === "كتاب");
+  click(tile);
+  await sleep(450);
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+  const text = () => document.body.textContent || "";
+  check("the editor has a Meanings section with a clue",
+    /Meanings/.test(text()) && !!document.querySelector('input[aria-label="Clue"]'),
+    /Meanings/.test(text()) ? "there" : "(no section)");
+  const before = savedCards.length;
+  const another = /** @type {any} */ ([...document.querySelectorAll("button")].find((b) => /Another meaning of this word/.test(b.textContent || "")) || null);
+  click(another);
+  await sleep(600);
+  const sent = savedCards[before] || {};
+  check("another meaning saves this card first", sent.id === "k111111111111", sent.id || "(nothing saved)");
+  const heading = (([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim();
+  const inputs = [...document.querySelectorAll("input")];
+  const values = inputs.map((i) => /** @type {any} */ (i).value);
+  const meanings = values.filter((v) => /^(book|notebook|books)/.test(v));
+  check("then opens a new card with the word and its forms in it and every meaning empty",
+    /^New /.test(heading) && values.includes("كتاب") && values.includes("كتب") && meanings.length === 0,
+    `${heading} · ${values.filter(Boolean).join(" | ")}`);
+  check("which names the original as sharing its word",
+    /Same word:\s*book/.test(text()), (text().match(/Same word:[^.]{0,30}/) || ["(no line)"])[0]);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  takeSaves = false;
+}
+
 /* ---- a saved adjective opens on the table it agrees out of ----
 
    The first table that is neither a verb's nor the pronouns, so the first
@@ -7698,9 +7885,9 @@ const openPronounTables = async () => {
   check("the Cards tab's controls are three rows: buttons, search, then Select and the menus",
     rows().length === 3, `${rows().length} rows`);
   const top = /** @type {any} */ (rows()[0]);
-  check("the first row is New card and the size button, with no search box in it",
+  check("the first row is New card and the view button, with no search box in it",
     !!top && /New card/.test(top.textContent || "") &&
-      !top.querySelector("input.at-search") && !!top.querySelector(".at-sizebtn"),
+      !top.querySelector("input.at-search") && !!top.querySelector(".at-viewbtn"),
     top ? (top.textContent || "").replace(/\s+/g, " ").trim() + ` · ${top.querySelectorAll("input, button").length} controls` : "no row");
   const searchRow = /** @type {any} */ (rows()[1]);
   check("and the search box is on a line of its own under it",
@@ -7709,11 +7896,11 @@ const openPronounTables = async () => {
       !!searchRow.querySelector("input.at-search[placeholder='Search cards']"),
     searchRow ? searchRow.className : "no row");
   const sizeName = () => {
-    const btn = one(".at-sizebtn", null);
-    return btn ? btn.getAttribute("aria-label") || "" : "(no size button)";
+    const btn = one(".at-viewbtn", null);
+    return btn ? btn.getAttribute("aria-label") || "" : "(no view button)";
   };
-  check("and the size button says which size it is at and what pressing it does",
-    /^Card size: Small — press for medium$/.test(sizeName()), sizeName());
+  check("and the view button says which view it is in and what pressing it does",
+    /^View: Small grid — press for large grid$/.test(sizeName()), sizeName());
   check("the row of menus is Select, Sort and Filter, in that order",
     named(subRow()).join(" | ") === "Select | Sort | Filter",
     named(subRow()).join(" | ") || "(no second row)");
@@ -7730,8 +7917,30 @@ const openPronounTables = async () => {
   await sleep(200);
   check("and Filter replaces it rather than standing beside it",
     frame.querySelectorAll(".at-listmenu").length === 1 &&
-      sortLabels().join(" | ") === "Recordings | Forms | Decks | Blanks | Review",
+      sortLabels().join(" | ") === "Kind | Recordings | Forms | Decks | Blanks | Review",
     `${frame.querySelectorAll(".at-listmenu").length} panels · ${sortLabels().join(" | ")}`);
+
+  /* ---- and by kind, with each kind's subtypes under it ----
+     Offered once the kind is ticked and only then: "verbs" says nothing
+     about a sentence. */
+  const tickRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
+      .find((r) => re.test((((r.querySelector("b") || {}).textContent) || "").trim())) || null);
+  check("the filter offers the three kinds of card",
+    !!tickRow(/^Word or phrase$/) && !!tickRow(/^Sentence$/) && !!tickRow(/^Scene$/),
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow b")].map((b) => (b.textContent || "").trim()).join(" | "));
+  check("and no subtypes before a kind is ticked", !tickRow(/^No subtype$/) && !tickRow(/^Conversation$/), "");
+  const tilesBefore = tiles();
+  click(tickRow(/^Word or phrase$/) && tickRow(/^Word or phrase$/).querySelector("input"));
+  await sleep(250);
+  check("ticking words and phrases offers their subtypes, and no scene's",
+    !!tickRow(/^Noun$/) && !!tickRow(/^No subtype$/) && !tickRow(/^Conversation$/),
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow b")].map((b) => (b.textContent || "").trim()).join(" | "));
+  check("and narrows the list to them", tiles() <= tilesBefore, `${tiles()} of ${tilesBefore}`);
+  click(tickRow(/^Word or phrase$/) && tickRow(/^Word or phrase$/).querySelector("input"));
+  await sleep(250);
+  check("and letting go of the kind gives the list back", tiles() === tilesBefore && !tickRow(/^No subtype$/),
+    `${tiles()} of ${tilesBefore}`);
 
   /* ---- and by a blank, from either side of it ----
      A blank has two sides and a teacher wants both: the sentences it is a
@@ -7880,31 +8089,49 @@ const openPronounTables = async () => {
     !!document.querySelector(".at-menubtn.on"),
     [...document.querySelectorAll(".at-menubtn")].map((b) => (b.textContent || "").trim()).join(" | "));
 
-  /* Bigger cards: fewer to a row, each with its words set larger. The grid
-     carries the scale, so one variable moves both. */
+  /* Four views, in turn: small tiles, bigger tiles — fewer to a row, each
+     with its words set larger, the grid carrying the scale so one variable
+     moves both — a line per card, and a table. */
   const scale = () => {
     const g = one(".at-cardgrid", null);
     return g ? g.style.getPropertyValue("--tile") : "";
   };
-  const sizeBtn = () => one(".at-sizebtn", null);
+  const sizeBtn = () => one(".at-viewbtn", null);
+  const viewIcon = () => {
+    const p = one(".at-viewbtn path", null);
+    return p ? p.getAttribute("d") || "" : "";
+  };
   check("the tiles start at the size they have always been", !scale(), scale() || "(no scale set)");
+  const smallIcon = viewIcon();
   click(sizeBtn());
   await sleep(200);
-  check("pressing the size button draws them bigger", Number(scale()) > 1, scale() || "(no scale set)");
-  check("and the button now offers the next size up",
-    /Medium — press for large/.test(sizeName()), sizeName());
-  /* Kept on the device: a teacher who wants big cards wants them on the next
-     screen too, and on the next visit. */
-  check("the size is remembered on the device, not in the document",
-    localStorage.getItem("arabic-trainer-tile-size") === "1",
-    String(localStorage.getItem("arabic-trainer-tile-size")));
+  check("pressing the view button draws them bigger", Number(scale()) > 1, scale() || "(no scale set)");
+  check("and the button now offers the list",
+    /Large grid — press for list/.test(sizeName()), sizeName());
+  check("and its icon changes with the view", !!viewIcon() && viewIcon() !== smallIcon, viewIcon().slice(0, 20));
+  /* Kept on the device, and per list: the deck's view is not the Cards tab's. */
+  check("the view is remembered on the device, for this list",
+    localStorage.getItem("arabic-trainer-view:teacher-deck") === "large",
+    String(localStorage.getItem("arabic-trainer-view:teacher-deck")));
   click(sizeBtn());
   await sleep(150);
+  const lines = [...document.querySelectorAll(".at-cardline")];
+  check("the list view is a line per card, with no tiles",
+    lines.length > 0 && !one(".at-cardgrid .at-minicard", null),
+    `${lines.length} lines`);
+  click(sizeBtn());
+  await sleep(150);
+  const heads = [...document.querySelectorAll(".at-cardtable thead th")].map((th) => (th.textContent || "").trim()).filter(Boolean);
+  check("the table view has a column for everything the teacher compares",
+    heads.join(" | ") === "Word | Transliteration | Meaning | Kind | Subtype | Decks | Recording | Review | Created | Modified",
+    heads.join(" | ") || "(no table)");
+  check("and a row per card", document.querySelectorAll(".at-cardtable tbody tr[data-card]").length > 0,
+    String(document.querySelectorAll(".at-cardtable tbody tr").length));
   click(sizeBtn());
   await sleep(150);
   check("and it comes back round to where it started rather than running out",
-    !scale() && localStorage.getItem("arabic-trainer-tile-size") === "0",
-    `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-tile-size")}`);
+    !scale() && localStorage.getItem("arabic-trainer-view:teacher-deck") === "small",
+    `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-view:teacher-deck")}`);
 
   /* ---- and what a deck holds besides cards ----
      Numbers are one document per language, so a deck takes them in parts,
@@ -8194,7 +8421,8 @@ const openPronounTables = async () => {
   const tiles = [...panel().querySelectorAll(".at-numparts .at-deckcard")];
   check("the number system's editor opens on its parts, one button each",
     tiles.length >= 8 && !!tileNamed("Numbers 0 to 9") && !!tileNamed("Numbers 10 to 19") &&
-      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 and over"),
+      !!tileNamed("Numbers 20 to 99") && !!tileNamed("Numbers 1,000 to 999,999,999") &&
+      !!tileNamed("Numbers 1,000,000,000 and over"),
     tiles.map((t) => (t.textContent || "").trim()).join(" | "));
   check("and each says what it is waiting for",
     /waiting on/.test((tileNamed("Numbers 0 to 9") || {}).textContent || ""),
@@ -8277,12 +8505,21 @@ const openPronounTables = async () => {
     await sleep(200);
   }
 
-  /* Under the boxes, the number counting a thing: read only, made of the
-     word just typed and the noun card — and nothing under a number with
-     no word yet, since there is nothing to count with. */
+  /* Under the boxes, examples of the number counting things: read only,
+     made of the words typed and the noun card. Seven has a box for its
+     word before a noun, so nothing shows until that box is filled — and
+     nothing under a number with no word yet, since there is nothing to
+     count with. */
   const counts = (/** @type {string} */ n) => ((tileOf(n) || { querySelector: () => null }).querySelector(".at-numcount") || {}).textContent || "";
-  check("under a number's boxes is how it counts a thing, read only",
-    /Counting a thing/.test(counts("7")) && /sab3a/.test(counts("7")) && /7 books/.test(counts("7")) &&
+  check("no example under a number until its word before a noun is typed",
+    !counts("7"), counts("7"));
+  const sevenBefore = boxNamed("7, before a noun");
+  if (sevenBefore) {
+    typeIn(sevenBefore, "sab3at");
+    await sleep(200);
+  }
+  check("then under its boxes are examples of counting things, read only",
+    !!sevenBefore && /Examples of counting things/.test(counts("7")) && /sab3at/.test(counts("7")) && /7 books/.test(counts("7")) &&
       !(/** @type {any} */ (tileOf("7"))).querySelector(".at-numcount input"),
     counts("7") || "(nothing under seven)");
   check("and nothing under a number with no word to count with",
@@ -8447,6 +8684,16 @@ const openPronounTables = async () => {
     await sleep(200);
     check("a number it cannot say yet says what it is waiting for instead",
       /waiting on/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "800,413,901");
+    await sleep(200);
+    check("a nine-digit number is answered for itself, not for its first seven digits",
+      /800,413,901/.test(up().textContent || "") && !/8,004,139/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "123,456,789,012");
+    await sleep(200);
+    check("and one longer than eleven digits says so, rather than answering for part of it",
+      /12 digits/.test(up().textContent || "") && !/12,345,678,901/.test(up().textContent || ""),
       (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
   await goBack();
@@ -9012,7 +9259,7 @@ const openPronounTables = async () => {
   const known = (keys) => Object.fromEntries(keys.map((t) => [t, { ...solid }]));
   const level1 = ["ar2pick", "ar2en", "rec2en", "rec2img"];
   const upTo2 = known(level1);
-  const upTo4 = known([...level1, "match", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
+  const upTo4 = known([...level1, "match", "recmatch", "en2pick", "img2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr"]);
   /** @param {any[]} items */
   const walk = async (items) => {
     /* Its own five words and nothing else, as the walks above clear the
@@ -9038,7 +9285,12 @@ const openPronounTables = async () => {
     for (let t = 0; t < 100 && !startBtn(); t++) await sleep(100);
     click(startBtn());
     for (let t = 0; t < 50 && !host.querySelector(".at-instruction"); t++) await sleep(100);
-    const met = { chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0 };
+    const met = {
+      chooseImage: 0, promptPicked: 0, promptWritten: 0, answerPicture: 0, tiles: 0,
+      /* The grid of recordings, where one comes up. */
+      soundGrids: 0, soundTiles: 0, wordsInScript: false, noEnglish: false,
+      unpairs: false, playOnly: false, soundVerdict: "", learnMore: false, marked: false,
+    };
     for (let n = 0; n < 40 && host.querySelector(".at-instruction"); n++) {
       const pics = host.querySelector(".at-picchoices");
       const promptPic = host.querySelector(".at-picture.prompt");
@@ -9063,7 +9315,40 @@ const openPronounTables = async () => {
         if (promptPic) met.promptWritten += 1;
         click([...host.querySelectorAll("button")].find((b) => /^I don't know$/.test((b.textContent || "").trim())));
       } else if (host.querySelector('[data-el="answer-match"]')) {
-        await playGrid();
+        const sounds = host.querySelectorAll('[data-el="match-sound"]').length;
+        if (sounds) {
+          met.soundGrids += 1;
+          met.soundTiles = Math.max(met.soundTiles, sounds);
+          const grid = host.querySelector('[data-el="answer-match"]');
+          met.wordsInScript = [...host.querySelectorAll('[data-el="match-meaning"]')]
+            .every((el) => /[\u0600-\u06FF]/.test(el.textContent || ""));
+          met.noEnglish = !/coffee|tea|bread|water|apples/.test((grid && grid.textContent) || "");
+          /* A sound tile behaves as a word tile does: paired, then tapped
+             again, it lets go — and is left held, so one more tap puts it
+             down before the grid is played through. */
+          const w0 = () => /** @type {Element} */ (host.querySelector('[data-el="match-word"]'));
+          /* Its play button is a target of its own: pressing it plays the
+             word and leaves the tile neither held nor paired. */
+          click(w0().querySelector('[data-el="match-sound"]'));
+          await sleep(25);
+          met.playOnly = !w0().classList.contains("on") && !w0().classList.contains("paired");
+          click(w0());
+          await sleep(25);
+          click(host.querySelector('[data-el="match-meaning"]'));
+          await sleep(25);
+          const paired = w0().classList.contains("paired");
+          click(w0());
+          await sleep(25);
+          met.unpairs = paired && !w0().classList.contains("paired");
+          click(w0());
+          await sleep(25);
+        }
+        const seen = await playGrid();
+        if (sounds) {
+          met.soundVerdict = ((host.querySelector('[data-el="verdict"]') || {}).textContent || "").trim();
+          met.learnMore = !!host.querySelector('[data-el="also-heading"]');
+          met.marked = !!seen && !!seen.marked;
+        }
       }
       await sleep(120);
       if (!host.querySelector('[data-el="verdict"]')) {
@@ -9097,7 +9382,15 @@ const openPronounTables = async () => {
     return met;
   };
 
+  /* The new words alone, with no course material: the server's own lesson
+     words — a frame, a book and its plural — otherwise arrive on start and
+     take the session over, so whether a picture question came up at all
+     turned on how the shared die had been rolled by every walk above. The
+     walks after this one keep them, since the grid of recordings is
+     filled from them. */
+  materialQuiet = true;
   const fresh = await walk([0, 1, 2, 3, 4].map((i) => pictured(i)));
+  materialQuiet = false;
   check("new words with a picture are asked to hear the word and choose its picture",
     fresh.chooseImage > 0, JSON.stringify(fresh));
   check("out of four pictures, each drawn",
@@ -9111,6 +9404,25 @@ const openPronounTables = async () => {
   const fourth = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, upTo4)));
   check("and, known further, to write it from the picture",
     fourth.promptWritten > 0, JSON.stringify(fourth));
+  /* Known by ear and every other second-level question passed, the one
+     left to ask is the grid of recordings: a play button for each word, the
+     words in the script beside them, and no English anywhere. */
+  const byEar = known([...level1, "match", "en2pick", "img2pick", "ctx2pick"]);
+  const heardGrid = await walk([0, 1, 2, 3, 4].map((i) => pictured(i, byEar)));
+  check("words known by ear are asked to match each recording to its word",
+    heardGrid.soundGrids > 0, JSON.stringify(heardGrid));
+  check("five recordings, as the word grid has five words",
+    heardGrid.soundTiles === 5, JSON.stringify(heardGrid));
+  check("the other column is the words in the script, with no meaning on the screen",
+    heardGrid.wordsInScript && heardGrid.noEnglish, JSON.stringify(heardGrid));
+  check("tapping a paired recording lets go of its pair, as a word tile does",
+    heardGrid.unpairs, JSON.stringify(heardGrid));
+  check("and its play button only plays: the tile is neither picked up nor paired",
+    heardGrid.playOnly, JSON.stringify(heardGrid));
+  check("the grid is marked, and a miss is told the right words are shown",
+    heardGrid.marked && !/meanings/.test(heardGrid.soundVerdict), JSON.stringify(heardGrid));
+  check("and there is no Learn more under it",
+    !heardGrid.learnMore, JSON.stringify(heardGrid));
   check("and nothing threw while the pictures were practised",
     errors.length === before, errors.slice(before, before + 3).join(" | "));
 }
@@ -9510,7 +9822,8 @@ const openPronounTables = async () => {
   await sleep(700);
 
   const own = packs["ar-PS"].numerals;
-  const met = { pad: 0, keys: 0, askedAgain: 0, rightOnKeys: 0, named: 0, phoneOrder: 0, shut: 0 };
+  const met = { pad: 0, keys: 0, askedAgain: 0, rightOnKeys: 0, named: 0, allTen: 0, held: 0, shut: 0 };
+  const orders = new Set();
   let stopped = "after 20 questions";
   const checkBtn = () => [...host6.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim()));
   for (let i = 0; i < 20; i += 1) {
@@ -9527,8 +9840,11 @@ const openPronounTables = async () => {
       if (/Eastern Arabic numerals/.test(host6.textContent || "")) met.named += 1;
       const keys = [...pad.querySelectorAll("button")].filter((b) => /^[٠-٩]$/.test((b.textContent || "").trim()));
       met.keys = Math.max(met.keys, keys.length);
-      /* Laid out as a phone's keypad: ١ to ٩ in reading order, then ٠. */
-      if (keys.map((b) => (b.textContent || "").trim()).join("") === [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(own).join("")) met.phoneOrder += 1;
+      /* Every one of the ten, once each, in an order dealt for this
+         question rather than counting order. */
+      const order = keys.map((b) => (b.textContent || "").trim()).join("");
+      if ([...order].sort().join("") === [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(own).join("")) met.allTen += 1;
+      orders.add(order);
       /* And the box beside it never raises the phone's own keyboard. */
       if (/** @type {any} */ (input).readOnly && input.getAttribute("inputmode") === "none") met.shut += 1;
       const said = (prompt.textContent || "").trim();
@@ -9546,6 +9862,9 @@ const openPronounTables = async () => {
         else if (ch === ":") click([...pad.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === ":"));
         await sleep(30);
       }
+      /* The keys have not moved under the learner's hand. */
+      const now = [...pad.querySelectorAll("button")].filter((b) => /^[٠-٩]$/.test((b.textContent || "").trim()));
+      if (now.map((b) => (b.textContent || "").trim()).join("") === order) met.held += 1;
       click(checkBtn());
       await sleep(150);
       if (host6.querySelector(".at-shout.ok")) met.rightOnKeys += 1;
@@ -9571,8 +9890,13 @@ const openPronounTables = async () => {
   check("a figure read already is asked to be written in Eastern Arabic numerals, on a pad of the ten",
     met.pad > 0 && met.keys === 10, `${JSON.stringify(met)} — stopped ${stopped}`);
   check("and the question names them", met.named > 0, JSON.stringify(met));
-  check("the pad is a phone's keypad, ١ first and ٠ last",
-    met.pad > 0 && met.phoneOrder === met.pad, JSON.stringify(met));
+  const counting = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(own).join("");
+  check("the pad holds each of the ten figures once",
+    met.pad > 0 && met.allTen === met.pad, JSON.stringify(met));
+  check("in an order dealt again for each question, not counting order",
+    met.pad > 1 && orders.size > 1 && [...orders].some((o) => o !== counting), `${JSON.stringify(met)} — ${orders.size} orders`);
+  check("and the figures stay put while a question is answered",
+    met.pad > 0 && met.held === met.pad, JSON.stringify(met));
   check("and the answer box leaves the phone's keyboard down",
     met.pad > 0 && met.shut === met.pad, JSON.stringify(met));
   check("the right number in Arabic numerals is asked again rather than marked",

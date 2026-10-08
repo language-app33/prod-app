@@ -31,7 +31,7 @@ import type {
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
-import { ALT_SEP, answersOf } from "./answers.ts";
+import { ALT_SEP, answersOf, meaningsOf } from "./answers.ts";
 import { leadOf, subFormsOf } from "./cards.ts";
 /* And what a row is, for the one rule below that reads one: verbs.ts
    knows what a table is made of and no language at all, which is the
@@ -119,7 +119,7 @@ export const TYPES = [
   /* 1: what does it mean */
   "ar2pick", "ar2en", "rec2en", "rec2img",
   /* 2: which one is it */
-  "match", "en2pick", "img2pick", "ctx2pick",
+  "match", "recmatch", "recfig", "recown", "en2pick", "img2pick", "ctx2pick",
   /* 3: write it from a cue */
   "tr2ar", "rec2ar", "rec2attr",
   /* 4: write it from its meaning */
@@ -141,9 +141,10 @@ export const TYPES = [
 /* The one wording of "type this number in the figures English uses", read or
    heard. Every question whose answer is that — a range, one of the ten
    figures, the meaning of a number word — says it in these words, so the
-   same thing asked two ways is not described two ways. */
-const WRITE_FIGURES = "Write the number in Arabic numerals (123)";
-const HEAR_FIGURES = "Listen, then write the number in Arabic numerals (123)";
+   same thing asked two ways is not described two ways. Heard or read, the
+   words are the same: the play button already says to listen. */
+const WRITE_FIGURES = "Write in Arabic numerals (123)";
+const HEAR_FIGURES = WRITE_FIGURES;
 
 export const EX: Record<string, ExerciseSpec> = {
   /* The gentlest question in the app, and the only one that asks nothing of
@@ -176,6 +177,77 @@ export const EX: Record<string, ExerciseSpec> = {
     answerField: "en",
     answerMode: "choice",
     picks: "pair",
+    gentle: true,
+  },
+  /* The same grid heard rather than read: a play button on each tile where
+     the word would be, and the words themselves, in the script, down the
+     other side. No English anywhere on the screen — what it asks is the
+     one thing nothing else asks gently, which written word is the sound
+     just heard. Every other listening question either asks what it means
+     or asks for it written out.
+
+     The tiles look and behave exactly as the word grid's do, by the
+     owner's choice: five of them, the same numbers, and tapping a paired
+     tile frees it — which on a sound tile means hearing it again frees it
+     too. Each word standing in it needs a recording, so it needs company
+     with recordings as well: `heard`. The spare tiles on the right are
+     words in the script and need none. */
+  recmatch: {
+    level: 2,
+    instruction: "Match each recording to its word",
+    label: "Match the recordings",
+    short: "Sounds",
+    needs: ["recs", "ar", "mates", "heard"],
+    question: "Match each recording to its word",
+    placeholder: "",
+    promptField: "pairs",
+    answerField: "ar",
+    answerMode: "choice",
+    picks: "pair",
+    tiles: "audio",
+    gentle: true,
+  },
+  /* The grid of recordings again, asked of a number system's own cards:
+     the same play buttons down the left, and down the right the number
+     each one is, in figures — 47 rather than the word for it. The figures
+     English uses here, and the language's own below, where it has them.
+
+     Only a card that is one number can stand in it: *hundred* or *and*
+     has no figures to be paired with (`figure`), and each word in it
+     needs company that is a recorded number too (`heardFigures`). */
+  recfig: {
+    level: 2,
+    instruction: "Match each recording to its Arabic numeral",
+    label: "Match the recordings to Arabic numerals",
+    short: "Sounds→#",
+    needs: ["recs", "figure", "heardFigures"],
+    question: "Match each recording to its Arabic numeral",
+    placeholder: "",
+    promptField: "pairs",
+    answerField: "en",
+    answerMode: "choice",
+    picks: "pair",
+    tiles: "audio",
+    gentle: true,
+  },
+  /* And in the language's own figures — ٤٧ — which only a card that has
+     them carries (`numeral`). After the ten figures are cleared, as every
+     question that asks for them is: a miss on ٤٧ should be a miss on the
+     sound, not on ٤. */
+  recown: {
+    level: 2,
+    instruction: "Match each recording to its {own1}",
+    label: "Match the recordings to {own}",
+    short: "Sounds→{O}",
+    needs: ["recs", "numeral", "figure", "heardFigures"],
+    afterNumerals: true,
+    question: "Match each recording to its {own1}",
+    placeholder: "",
+    promptField: "pairs",
+    answerField: "numeral",
+    answerMode: "choice",
+    picks: "pair",
+    tiles: "audio",
     gentle: true,
   },
   /* The first thing ever asked of a word: here it is, which of these four
@@ -966,9 +1038,20 @@ export const typeOf = (key: string): string => String(key || "").split(KEY_SEP)[
 export const answerOf = (key: string): number =>
   Math.max(0, Math.floor(Number(String(key || "").split(KEY_SEP)[1]) || 0));
 
+/* A grid of recordings is a listening question too, though nothing is
+   played above it: it cannot be answered without sound, so "can't listen
+   right now" and being offline without the clips put it aside like the
+   rest. */
 export const isListening = (key?: string | null): boolean => {
   const spec = key ? EX[typeOf(key)] : null;
-  return !!spec && spec.promptField === "audio";
+  return !!spec && (spec.promptField === "audio" || spec.tiles === "audio");
+};
+
+/* A matching grid, of either kind: dealt when the session is built, several
+   words to a screen, and never conjured on its own for one word. */
+export const isGrid = (key?: string | null): boolean => {
+  const spec = key ? EX[typeOf(key)] : null;
+  return !!spec && spec.picks === "pair";
 };
 
 export function editDistance(a: string, b: string) {
@@ -1616,6 +1699,9 @@ export function needLabel(need: string, lang: Partial<Lang>) {
     recs: "a recording",
     images: "a picture",
     pictured: "a few more cards with a picture",
+    heard: "a few more cards with a recording",
+    figure: "a number written in figures",
+    heardFigures: "a few more numbers with a recording",
     /* Not a field to fill in: a card whose words vary cannot be the one on
        a recording, so hearing it is the one thing a variable costs. */
     fixed: "words that don't change — neither a recording, a picture nor a grid can follow a variable",
@@ -1833,17 +1919,19 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        a stored value already means. */
     options: [
       ["singular", "singular"],
-      ["plural", "plural"],
       /* A pair, where a language counts one. Arabic and Hebrew both do —
          كتابين, שעתיים — and Huế declares no axes at all, so nobody is
          offered it who has no use for it.
 
          Added here rather than appended after "na" because the list is
-         also the order the radios read in, and "one, several, doesn't
-         apply, two" is not an order. Safe to insert: normDimValue matches
-         the whole word first, and its two prefix passes only reach "du",
-         which no value stored under the old list begins with. */
+         also the order the radios read in, and a noun's boxes too: one,
+         two, several, which is the order the owner asked them in (0.401)
+         and the order a number counts them. Safe to move: normDimValue
+         matches the whole word first, and every value here starts with
+         letters no other does, so its two prefix passes reach one value
+         whatever the order. */
       ["dual", "dual"],
+      ["plural", "plural"],
       ["na", "N/A"],
     ],
     /* Most words a teacher writes are not usefully singular or plural, and
@@ -1853,8 +1941,11 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     /* What the editor falls back to where three words will not fit on one
        line. The same abbreviations the card list uses, except that "na"
        has one here: a tag saying nothing is right, and a radio button
-       labelled nothing is not. */
-    brief: { singular: "sg.", plural: "pl.", dual: "du.", counted: "pl. 3–10", na: "N/A" },
+       labelled nothing is not. Not "pl. 3–10" for the plural a few nouns
+       take after three to ten: beside a plain "pl." it reads as the
+       plural for three to ten, leaving "pl." to be the one above ten —
+       which is the singular. */
+    brief: { singular: "sg.", plural: "pl.", dual: "du.", counted: "special pl.", na: "N/A" },
     /* And on a tag, a number that does not apply names nothing — not the
        letters "N/A". */
     short: { na: "" },
@@ -1866,7 +1957,8 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     optionRules: {
       counted: {
         onlyOn: ["noun"],
-        help: "Only for the few nouns whose plural changes after three to ten, like days or months. Leave it empty for every other noun: the plural is used.",
+        help: "Only for the few nouns whose plural changes after three to ten, like days or months. Leave it empty for every other noun: three to ten take the plural, and eleven up the singular.",
+        box: "special plural after 3–10 (days, months)",
         unasked: true,
       },
     },
@@ -2612,25 +2704,22 @@ function impliedOf(
  * verb's three rows need a sentence to say which, so neither is one.
  */
 /**
- * Which of a card's forms it lends into a hole.
+ * Which of a card's forms it lends into a hole: every one it has, which is
+ * 0.139's rule. One answer, read by the session, the teacher's preview and
+ * the teaching space alike, so the three never disagree about which words
+ * are in a hole.
  *
  * A card whose forms agree with what they stand beside — an adjective, a
- * number — lends its own word only, and the sentence picks the agreeing
- * form: one that arrived by turn would stand beside the wrong noun. Every
- * other card lends every form it has, which is 0.139's rule unchanged. One
- * answer, read by the session, the teacher's preview and the teaching
- * space alike, so the three never disagree about which words are in a
- * hole.
+ * number, a demonstrative — lent its own word only until 0.379, and the
+ * sentence picked the agreeing form. It lends its whole table now, and
+ * which of it a blank takes is the blank's business: its own word where it
+ * has something to agree with or nothing said, every form in turn where
+ * the teacher linked it to nothing. See blankAdmits.
  */
 export const lendsForm = (
-  lang: Lang | null | undefined,
-  card: { category?: string } | null | undefined,
-): ((form: Record<string, unknown>) => boolean) => {
-  const spec = agreementOf(lang, card && card.category);
-  if (!spec) return () => true;
-  const rows = new Set(spec.tenses.map((t) => t.id));
-  return (form) => !rows.has(String((form && form.row) || ""));
-};
+  _lang: Lang | null | undefined,
+  _card: { category?: string } | null | undefined,
+): ((form: Record<string, unknown>) => boolean) => () => true;
 
 export const agreementOf = (
   lang: Lang | null | undefined,
@@ -2690,16 +2779,39 @@ export const tensedOf = (
  * is the he-past, which is already lent by its row, and beside *she* it
  * would be *she he-ate*. A blank that agrees with nothing takes every
  * cell and the word in turn, as it always did.
+ *
+ * `aloneFor` says whether the teacher linked the blank to nothing — see
+ * linkedToNothing in verbs.ts. A word whose forms agree (agreementOf)
+ * stands in a blank as its own word, and the sentence picks the form that
+ * agrees; with nothing to agree with that is the word as written, which is
+ * right for "the weather is {{adjective}}" with the noun written out. Linked
+ * to nothing it is every form in turn instead — "what is {{this}}?" as هاد,
+ * هاي and هدول — and the own word stands aside where a form the card lends
+ * is spelt the same, so the masculine is not asked twice.
  */
 export const blankAdmits = (
   lang: Lang | null | undefined,
   rowsFor: (slot: string) => string[],
   agreesFor: (slot: string) => boolean = () => false,
+  aloneFor: (slot: string) => boolean = () => false,
 ): ((
   card: { category?: string } | null | undefined,
   form: Record<string, unknown>,
   slot: string,
 ) => boolean) => (card, form, slot) => {
+  const agreeing = agreementOf(lang, card && card.category);
+  if (agreeing) {
+    const rows = rowIdsOf(agreeing);
+    if (!aloneFor(slot)) {
+      if (rows.has(rowOf(form))) return false;
+    } else if (!rows.has(rowOf(form))) {
+      const spelt = String(form.ar || "").trim();
+      const twin = subFormsOf(card).some(
+        (f) => f !== form && rows.has(rowOf(f)) && isLent(f) && String(f.ar || "").trim() === spelt,
+      );
+      if (twin) return false;
+    }
+  }
   const rows = rowsFor(slot) || [];
   if (rows.length) {
     /* Whether it has a pronoun on the end, where the sentence said: the
@@ -3122,9 +3234,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
          beside أيام — which is a box on a noun card, under the plural. */
       number: [
         ["singular", "singular"],
-        ["plural", "plural"],
-        ["counted", "plural after 3 to 10"],
         ["dual", "dual"],
+        ["plural", "plural"],
+        ["counted", "special plural after 3–10"],
         ["na", "N/A"],
       ],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
@@ -3173,6 +3285,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* By the names they go by in English: these are Eastern Arabic
        numerals, and 123 are Arabic numerals. */
     numeralsLabel: "Eastern Arabic numerals",
+    numeralLabel: "Eastern Arabic numeral",
     numeralsNote: "Arabic speakers often call these “Indian numerals”: أرقام هندية.",
     numerals: (n) =>
       Number.isInteger(n) && n >= 0
@@ -3227,7 +3340,11 @@ export const LANGUAGES: Record<LangId, Lang> = {
     fontStack:
       '"Noto Naskh Arabic", "Amiri", "Scheherazade New", "Traditional Arabic", "Geeza Pro", "Al Bayan", serif',
     keys: { rows: AR_KEY_ROWS, extras: AR_EXTRAS, marks: AR_MARKS, marksLabel: "ً ٌ ٍ" },
-    check: (given, expected, settings) => checkAr(given, expected, settings),
+    /* With the dialect's two ways of saying in and at — see checkArPS. */
+    check: (given, expected, settings, ctx) => checkArPS(given, expected, settings, ctx),
+    checkTranslit: (given, expected, ctx) => checkTrPS(given, expected, ctx),
+    taught: taughtInAt,
+    alsoAccepted: alsoAcceptedInAt,
     /* The skeleton, one character at a time — the same fold compareAr
        measures its letters on, so what is highlighted and what is marked
        are the same answer. A harakat, a tatweel and a space all fold to
@@ -3427,7 +3544,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     grammar: ["number", "gender", "human"],
     /* Two genders, and a dual for the nouns that have one — שעתיים. */
     grammarOptions: {
-      number: [["singular", "singular"], ["plural", "plural"], ["dual", "dual"], ["na", "N/A"]],
+      number: [["singular", "singular"], ["dual", "dual"], ["plural", "plural"], ["na", "N/A"]],
       gender: [["masculine", "masculine"], ["feminine", "feminine"]],
       human: [["thing", "a thing"], ["person", "a person"], ["animal", "an animal"]],
     },
@@ -3600,6 +3717,8 @@ export function exOf(named: string, lang: Lang = activeLang()) {
   const attr = quizAttrOf(lang);
   const ownName = lang.numeralsLabel || "its own numerals";
   const ownEg = lang.numerals ? `${ownName} (${lang.numerals(123)})` : ownName;
+  /* One of them, for an instruction about a single tile. */
+  const ownOne = lang.numeralLabel || "own numeral";
   /*
    * The two labels are different parts of speech, and that — not where they
    * land in a sentence — decides their case.
@@ -3627,6 +3746,7 @@ export function exOf(named: string, lang: Lang = activeLang()) {
       .replace(/\{Own\}/g, cap(ownName))
       .replace(/\{own\}/g, ownName)
       .replace(/\{ownEg\}/g, ownEg)
+      .replace(/\{own1\}/g, ownOne)
       .replace(/\{O\}/g, lang.numerals ? lang.numerals(1) || "#" : "#");
 
   const out: Record<string, any> = { ...spec };
@@ -3763,7 +3883,11 @@ const PERSON_NOTE = new RegExp(`\\s*\\(${NOTE_WORD}(?:[\\s,]+${NOTE_WORD})*\\)`,
 export function checkEn(given: string, expected: string) {
   const g = normEn(given);
   if (!g) return { ok: false, reason: "wrong" };
-  const split = splitForms(expected, /[/;,]/);
+  /* Alternatives are split on a slash or semicolon, not a comma: a comma
+     sits inside a phrase as often as between meanings. Splitting on it
+     marked "He is cold, he wants a jacket" wrong, written out in full,
+     and "He is cold" right. */
+  const split = splitForms(expected, /[/;]/);
   const bare = split.map((e) => e.replace(PERSON_NOTE, "")).filter((e, i) => e !== split[i]);
   const forms = split.concat(bare).map(normEn);
   if (forms.includes(g)) return { ok: true, reason: "exact" };
@@ -3970,6 +4094,271 @@ export function checkAr(given: string, expected: string, settings: Settings) {
   return worst;
 }
 
+/*
+ * In and at: في and بـ, in Palestinian.
+ *
+ * The dialect says "at work" two ways. في الشغل is the one a textbook
+ * writes; بالشغل is the one people say, and the more common of the two.
+ * Both are said with the article swallowed — fiš-šuġl, biš-šuġl — and the
+ * first is written the way it sounds, فالشغل, as often as it is written
+ * out. A learner who wrote any of these for the others had written the
+ * dialect, and was told "Very close" for the joined one and "Not quite"
+ * for بـ.
+ *
+ * So a card that says في before a word is also met by the other ways of
+ * writing it, and a card that says بالـ by في. What it takes is in two
+ * cases, because the two prepositions are not the same word everywhere:
+ *
+ * - **Spelling, never doubted.** في joined to an article — فالشغل, ف الشغل —
+ *   is the same word written as it is heard. Accepted on every exercise,
+ *   dictation included.
+ * - **The other preposition.** بـ also means *with* and *by* — بالسيارة is
+ *   by car, not in it — and في also means *there is*. Which one a card
+ *   means is in its English: "at work" is a place, "by car" and "there are
+ *   people" are not. So the swap is made where the meaning says it is a
+ *   place, and في before an article — which is almost never *there is* —
+ *   goes to بـ unless the meaning says otherwise. Never on an exercise
+ *   that is heard: writing down a recording is writing down which one was
+ *   said.
+ *
+ * Joined فالـ on a card is left alone. Written that way it is just as
+ * often ف, *so*, on the article — فالولد is "so the boy" — and reading it
+ * as في would accept an answer that changes the sentence.
+ */
+const IN_AT_MAX = 3;
+const PLACE_WORDS = /\b(in|at|on|inside|into)\b/i;
+const THERE_IS = /\bthere(\s+(is|are|was|were|will be)\b|['’]s\b)/i;
+
+export type InAt = { meaning?: string | null; heard?: boolean };
+
+/* Whether a meaning reads as a place: true, false, or null for no meaning
+   to go on. */
+export function meansPlace(meaning?: string | null): boolean | null {
+  const m = String(meaning || "").trim();
+  if (!m) return null;
+  if (THERE_IS.test(m)) return false;
+  return PLACE_WORDS.test(m);
+}
+
+/* Every way of writing each slot, multiplied out. A phrase with more than
+   IN_AT_MAX prepositions keeps the rest as written: three is more than any
+   card holds, and the product grows by four for each. */
+function spelledEveryWay(slots: string[][], join: string): string[] {
+  let out = [""];
+  for (const alts of slots) {
+    const next: string[] = [];
+    for (const head of out) for (const alt of alts) next.push(head ? head + join + alt : alt);
+    out = next;
+  }
+  return out;
+}
+
+const AR_LEAD_B = /^\u0628[\u064B-\u065F\u0670]*/;
+
+export function arInAtSpellings(expected: string, ctx: InAt = {}): string[] {
+  const words = String(expected || "").trim().split(/\s+/).filter(Boolean);
+  const bare = (w: string) => normAr(w, { stripTashkeel: true, ignoreHamza: true });
+  const place = ctx.heard ? false : meansPlace(ctx.meaning);
+  const slots: string[][] = [];
+  let swaps = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const next = words[i + 1];
+    const b = bare(w);
+    if (swaps < IN_AT_MAX && b === "في" && next) {
+      const article = bare(next).startsWith("ال");
+      /* Vowelled where the card is, so a learner who writes the kasra on
+         بِـ has written one the card agrees with. */
+      const marked = HAS_TASHKEEL.test(w);
+      const alts = [w + " " + next];
+      if (article) alts.push((marked ? "فِ" : "ف") + next);
+      if (article ? place !== false : place === true) alts.push((marked ? "بِ" : "ب") + next);
+      slots.push(alts);
+      swaps++;
+      i++;
+      continue;
+    }
+    if (swaps < IN_AT_MAX && place === true && b.startsWith("بال") && b.length >= 5) {
+      const rest = w.replace(AR_LEAD_B, "");
+      const marked = HAS_TASHKEEL.test(w.slice(0, w.length - rest.length));
+      slots.push([w, (marked ? "فِي " : "في ") + rest, (marked ? "فِ" : "ف") + rest]);
+      swaps++;
+      continue;
+    }
+    if (swaps < IN_AT_MAX && place === true && (b === "ب" || b === "بـ") && next) {
+      slots.push([w + " " + next, "في " + next]);
+      swaps++;
+      i++;
+      continue;
+    }
+    slots.push([w]);
+  }
+  if (!swaps) return [];
+  return spelledEveryWay(slots, " ").filter((s) => s !== words.join(" "));
+}
+
+/* The same two cases, in a romanisation. Folded first, so the hyphens are
+   spaces and the macrons are gone, and compared with the spaces taken out:
+   fi sh-shughl, fish-shughl and fi-sh-shughl are already one answer. What
+   is found is the preposition with the article run into it — fil, fish,
+   bit- — or standing alone before il, l, ish. */
+function trArticleFollows(tokens: string[], i: number): boolean {
+  const next = tokens[i + 1];
+  if (!next) return false;
+  if (/^[aie]?l$/.test(next)) return true;
+  const m = /^[aie]([a-z]{1,2})$/.exec(next);
+  return !!m && !!tokens[i + 2] && tokens[i + 2].startsWith(m[1]);
+}
+
+export function trInAtSpellings(expected: string, ctx: InAt = {}): string[] {
+  const tokens = normTr(expected).split(" ").filter(Boolean);
+  const place = ctx.heard ? false : meansPlace(ctx.meaning);
+  const slots: string[][] = [];
+  let swaps = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const next = tokens[i + 1];
+    const runIn = /^(fi|bi?)(l|[a-z]{1,2})$/.exec(t);
+    const joined = !!runIn && !!next && (runIn[2] === "l" || next.startsWith(runIn[2]));
+    if (swaps < IN_AT_MAX && t === "fi" && next) {
+      const article = trArticleFollows(tokens, i);
+      if (article ? place !== false : place === true) {
+        slots.push(["fi", "bi", "b"]);
+        swaps++;
+        continue;
+      }
+    }
+    if (swaps < IN_AT_MAX && joined && runIn[1] === "fi" && place !== false) {
+      slots.push([t, "bi" + runIn[2], "b" + runIn[2]]);
+      swaps++;
+      continue;
+    }
+    if (swaps < IN_AT_MAX && place === true && (t === "bi" || t === "b") && next) {
+      slots.push([t, "fi"]);
+      swaps++;
+      continue;
+    }
+    if (swaps < IN_AT_MAX && place === true && joined && runIn[1] !== "fi") {
+      slots.push([t, "fi" + runIn[2]]);
+      swaps++;
+      continue;
+    }
+    slots.push([t]);
+  }
+  if (!swaps) return [];
+  return spelledEveryWay(slots, " ").filter((s) => s !== tokens.join(" "));
+}
+
+/*
+ * Which of them is taught.
+ *
+ * The owner's call, and the dialect's: where a card says في الشغل and
+ * means a place, a question that shows the Arabic shows بالشغل — what a
+ * student will hear people say — and the card's own wording is still an
+ * accepted answer. Only where the meaning is plainly a place, and only
+ * before the article, which is where بـ is the everyday form beyond
+ * doubt; في بيتي and ببيتي are both everyday, so that is left as written.
+ * Null when there is nothing to change.
+ */
+export function arTaughtInAt(ar: string, meaning?: string | null): string | null {
+  if (meansPlace(meaning) !== true) return null;
+  const words = String(ar || "").trim().split(/\s+/).filter(Boolean);
+  const bare = (w: string) => normAr(w, { stripTashkeel: true, ignoreHamza: true });
+  const out: string[] = [];
+  let changed = false;
+  for (let i = 0; i < words.length; i++) {
+    const next = words[i + 1];
+    if (bare(words[i]) === "في" && next && bare(next).startsWith("ال")) {
+      out.push((HAS_TASHKEEL.test(words[i]) ? "بِ" : "ب") + next);
+      changed = true;
+      i++;
+      continue;
+    }
+    out.push(words[i]);
+  }
+  return changed ? out.join(" ") : null;
+}
+
+/* The romanisation to match: fi l-bēt to bi l-bēt, fiš-šuġl to biš-šuġl.
+   Only a fi with the article after it — run in or standing apart — so fi
+   standing for *there is* before a bare word is not touched. The rest of
+   the spelling is the card's own, macrons and hyphens and all. */
+const TR_FI_ARTICLE = /(^|[\s(/])([Ff])([iīIĪ])(?=[\s-]?[aieAIE]?(?:l[\s-]|([^\s-]{1,2})-\4))/gu;
+
+export function trTaughtInAt(lat: string): string {
+  return String(lat || "").replace(TR_FI_ARTICLE, (_m, lead: string, f: string, i: string) => lead + (f === "F" ? "B" : "b") + i);
+}
+
+/* A card's Arabic and romanisation as a question shows them. */
+export function taughtInAt(form: { ar?: unknown; lat?: unknown; en?: unknown }): { ar: string; lat: string } | null {
+  const ar = arTaughtInAt(String(form.ar || ""), String(form.en || ""));
+  if (!ar) return null;
+  return { ar, lat: trTaughtInAt(String(form.lat || "")) };
+}
+
+/* The other ways of writing a sentence that are marked right — what the
+   teacher's lists put under each sentence, so what gets through is read
+   along with what is shown. */
+export function alsoAcceptedInAt(ar: string, meaning?: string | null): string[] {
+  const shown = String(ar || "").trim();
+  const out: string[] = [];
+  for (const alt of arInAtSpellings(shown, { meaning })) if (alt !== shown && !out.includes(alt)) out.push(alt);
+  return out;
+}
+
+/* What to say when a learner wrote في where people say بـ: their own
+   answer, as people would say it. Empty when there is nothing to say. */
+function usualInAt(given: string, ctx: InAt, script: boolean): string {
+  if (ctx.heard) return "";
+  if (script) return arTaughtInAt(given, ctx.meaning) || "";
+  if (meansPlace(ctx.meaning) !== true) return "";
+  const said = trTaughtInAt(given);
+  return said !== given ? said : "";
+}
+
+/* Palestinian's script answers: the forms on the card, then the other ways
+   of writing its في and بـ. A miss reports the kindest of what was tried,
+   so a slip in بالشغل against a card saying في الشغل is "Very close", as
+   it would be against the card's own spelling. */
+export function checkArPS(given: string, expected: string, settings: Settings, ctx: InAt = {}) {
+  /* Right, and said the textbook's way: marked right, with the everyday
+     form beside it. The owner's call — في is not wrong in Palestinian, and
+     بـ is what people say. */
+  const right = (r: { ok: boolean; reason: string }) => {
+    const usual = usualInAt(given, ctx, true);
+    return usual ? { ...r, usual } : r;
+  };
+  const first = checkAr(given, expected, settings);
+  if (first.ok) return right(first);
+  let worst = first;
+  for (const form of splitForms(expected, /[/;]/)) {
+    for (const alt of arInAtSpellings(form, ctx)) {
+      const r = compareAr(given, alt, settings);
+      if (r.ok) return right(r);
+      if (AR_RANK[r.reason] > AR_RANK[worst.reason]) worst = r;
+    }
+  }
+  return worst;
+}
+
+export function checkTrPS(given: string, expected: string, ctx: InAt = {}) {
+  const right = (r: { ok: boolean; reason: string }) => {
+    const usual = usualInAt(given, ctx, false);
+    return usual ? { ...r, usual } : r;
+  };
+  const first = checkTr(given, expected);
+  if (first.ok) return right(first);
+  let worst = first;
+  for (const form of splitForms(expected, /[/;,]/)) {
+    for (const alt of trInAtSpellings(form, ctx)) {
+      const r = checkTr(given, alt);
+      if (r.ok) return right(r);
+      if (r.reason === "near") worst = r;
+    }
+  }
+  return worst;
+}
+
 /* A number as typed, with the notation taken off: the digits an Arabic or
    Persian keyboard writes, folded to the ones the card is stored with;
    thousands separators in the several shapes they are written — spaces of
@@ -4033,6 +4422,16 @@ export function instructionFor(spec: Record<string, any>, item: Record<string, a
   return spec.instruction;
 }
 
+/* What a language's checker may want to know about the card beyond its
+   answer: what it means, and whether the question was heard. */
+function inAtOf(item: Record<string, any> | null | undefined, spec: Record<string, any> | null | undefined): InAt {
+  const needs: string[] = (spec && spec.needs) || [];
+  return {
+    meaning: meaningsOf(item as WithAnswers).join(" / "),
+    heard: needs.includes("recs") || needs.includes("contextAudio"),
+  };
+}
+
 export function checkAnswer(typed: string, item: Record<string, any>, key: string, settings: Settings) {
   const spec = EX[typeOf(key)];
   const mode = spec.answerMode;
@@ -4077,7 +4476,7 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
     let best = { ok: false, reason: "wrong" };
     let allRight = turns.length > 0;
     for (let i = 0; i < turns.length; i++) {
-      const r = langOf(settings).check(said[i] || "", turns[i].ar, settings);
+      const r = langOf(settings).check(said[i] || "", turns[i].ar, settings, { meaning: turns[i].en });
       if (r.ok) continue;
       allRight = false;
       if (AR_RANK[r.reason] > AR_RANK[best.reason]) best = r;
@@ -4231,8 +4630,15 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
     return got === want ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
   }
   // "ar" means "the target language's own script", whatever that is.
-  if (mode === "ar") return langOf(settings).check(typed, expected, settings);
-  if (mode === "tr") return checkTr(typed, expected);
+  /* A question showing the taught form keeps the card's own wording as an
+     answer — see taughtForm in the trainer. */
+  const from = (item && item.taughtFrom) || null;
+  const also = (field: "ar" | "lat") => (from && from[field] ? `${expected} / ${from[field]}` : expected);
+  if (mode === "ar") return langOf(settings).check(typed, also("ar"), settings, inAtOf(item, spec));
+  if (mode === "tr") {
+    const own = langOf(settings).checkTranslit;
+    return own ? own(typed, also("lat"), inAtOf(item, spec)) : checkTr(typed, also("lat"));
+  }
   return checkEn(typed, expected);
 }
 

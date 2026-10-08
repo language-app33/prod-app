@@ -56,6 +56,7 @@ test("a complete system opens every range it has", () => {
     "numbers:20-99",
     "numbers:100-999",
     "numbers:1000+",
+    "numbers:1000000000+",
     "time:hours",
     "time:quarters-halves",
     "time:fives",
@@ -71,6 +72,7 @@ test("a system with no clock opens its numbers and nothing else", () => {
     "numbers:20-99",
     "numbers:100-999",
     "numbers:1000+",
+    "numbers:1000000000+",
   ]);
   /* And every stretch is counted with: the system's nouns can be said
      at every number of each of them. */
@@ -257,13 +259,16 @@ test("a number question shows the words and is answered in figures", () => {
 
 test("a counted question says what it is counting, in both languages", () => {
   const range = countingOf(must(arComposer.ranges().find((r) => r.counts), "a stretch counted with"));
-  const asked = renderAsk({ rangeId: range.id, kind: "numbers", value: 3, nounId: "book" }, arComposer, SYS);
+  /* With its plural's English, as every noun read off a card carries it:
+     the English is the card's, never made up. */
+  const sys = { ...SYS, nouns: SYS.nouns.map((/** @type {any} */ n) => (n.id === "book" ? { ...n, enPl: "books" } : n)) };
+  const asked = renderAsk({ rangeId: range.id, kind: "numbers", value: 3, nounId: "book" }, arComposer, sys);
   assert.equal(asked.en, "3 books");
   assert.equal(asked.nounForm, "pl");
-  assert.equal(renderAsk({ rangeId: range.id, kind: "numbers", value: 1, nounId: "book" }, arComposer, SYS).en, "1 book");
+  assert.equal(renderAsk({ rangeId: range.id, kind: "numbers", value: 1, nounId: "book" }, arComposer, sys).en, "1 book");
   /* Two is the one that is not a numeral at all, and the English still
      has to say two. */
-  const two = renderAsk({ rangeId: range.id, kind: "numbers", value: 2, nounId: "book" }, arComposer, SYS);
+  const two = renderAsk({ rangeId: range.id, kind: "numbers", value: 2, nounId: "book" }, arComposer, sys);
   assert.equal(two.en, "2 books");
   assert.equal(two.nounForm, "dual");
 });

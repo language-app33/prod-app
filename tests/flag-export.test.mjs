@@ -131,6 +131,24 @@ test("a card that is gone says so; a card that was never fetched says nothing", 
   assert.doesNotMatch(unasked, /The card as it stands now/);
 });
 
+test("a question the app made from a number system says so, and what it expected", () => {
+  /* Reported as "not on the site any more", which read as deleted: no
+     card is ever stored for a number, so nothing had gone. */
+  const id = "sys:n1:range:numbers:0-9";
+  const out = text([flag({ cardId: id, cardState: "made", prompt: "عشرة كتب", meaning: "10 books", answer: "10 books", expected: "10 Bookses", verdict: "near" })], { [id]: null });
+  assert.match(out, /Card: *sys:n1:range:numbers:0-9 — made by the app from a number system, never stored as a card/);
+  assert.match(out, /Expected: *"10 Bookses"/);
+  assert.match(out, /The app makes this question itself/);
+  assert.doesNotMatch(out, /not on the site/);
+  assert.doesNotMatch(out, /did not hold this card/);
+  /* And the same from a server that has not been told about it yet. */
+  assert.match(text([flag({ cardId: id, cardState: "absent" })], { [id]: null }), /made by the app/);
+});
+
+test("a report from before the expected answer was kept has no line for it", () => {
+  assert.doesNotMatch(text([flag()], { k1: card() }), /Expected:/);
+});
+
 test("a card edited since the report says so, because the report may be spent", () => {
   const out = text([flag({ cardState: "edited" })], { k1: card({ rev: 9 }) });
   assert.match(out, /Card: *k1 — edited since this was reported, so it may already be fixed/);

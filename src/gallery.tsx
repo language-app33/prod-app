@@ -135,6 +135,7 @@ const PLACES: Record<string, [string, string]> = {
   SceneOrder: [LEARN, "A practice session · putting a scene in order"],
   ScenePart: [LEARN, "A practice session · playing a part"],
   TextChoices: [LEARN, "A practice session · choosing an answer from a few"],
+  MatchGrid: [LEARN, "A practice session · matching pairs"],
   ManualSessionSheet: [LEARN, "Building a session by hand"],
   SavedSessionsSheet: [LEARN, "The sessions you kept"],
   SavedTiles: [LEARN, "The home screen · the sessions you kept, with how much of each is learnt"],
@@ -145,7 +146,6 @@ const PLACES: Record<string, [string, string]> = {
   CardLadder: [LEARN, "Opening a card from a tile · where it is on the ladder"],
   ProgressTab: [LEARN, "The Progress tab"],
   DeckScreen: [LEARN, "The Progress tab · one deck, with when it could be learnt"],
-  NumberParts: [LEARN, "The Progress tab · numbers, with the words each part is built from"],
   PrepScreen: [LEARN, "The Progress tab · Prep mode, getting decks learnt by a date"],
   PrepLine: [LEARN, "The home screen · how long is left to prep, and whether your pace gets you there"],
   ReviewItem: [LEARN, "The Progress tab · one card"],
@@ -181,6 +181,8 @@ const PLACES: Record<string, [string, string]> = {
   CastChoice: [TEACH, "Editing a card · who each blank of a line is"],
   CastBlock: [TEACH, "Editing a card · who is who in a scene"],
   SentencePicker: [TEACH, "Editing a card · picking a sentence card as a line"],
+  MeaningsBlock: [TEACH, "Editing a card · the other cards with the same word or meaning, the clue, and adding another"],
+  CarryAsk: [TEACH, "Editing a card · whether a spelling fix goes onto the other cards with the same word"],
   FormBlock: [TEACH, "Editing a card · one form"],
   PronounTable: [TEACH, "Editing a card · the pronouns on the end of a form"],
   AddFormButton: [TEACH, "Editing a card · adding a form"],
@@ -191,6 +193,7 @@ const PLACES: Record<string, [string, string]> = {
   BlankChip: [TEACH, "Editing a card · one blank, and the words that fill it"],
   BlankBar: [TEACH, "Editing a card · putting a blank into a field"],
   BlankScreen: [TEACH, "Editing a card · choosing which blank to put in"],
+  RangeTicks: [TEACH, "Editing a card · choosing which number ranges a blank covers"],
   IdBox: [TEACH, "Editing a card · the ID it answers to"],
   TagList: [TEACH, "Editing a card · its tags"],
   TagSheet: [TEACH, "Editing a card · the sheet custom tags are chosen in"],
@@ -215,6 +218,7 @@ const PLACES: Record<string, [string, string]> = {
   NumberSystemEditor: [TEACH, "A language's number system"],
   ReviewLine: [TEACH, "A card · where its sentences stand with review"],
   ReviewScreen: [TEACH, "Reviewing a card's sentences"],
+  SentenceText: [TEACH, "Reviewing a card's sentences · one sentence"],
   OverCeiling: [TEACH, "Reviewing a card's sentences · too many to read"],
   NarrowBlank: [TEACH, "Reviewing a card's sentences · narrowing a blank"],
   ReportsScreen: [TEACH, "Reports from students"],
@@ -241,6 +245,7 @@ const PLACES: Record<string, [string, string]> = {
   WrittenOutScreen: [TEACH, "A language's number system · one number written out by hand"],
   TryItScreen: [TEACH, "A language's number system · checking a number"],
   InContext: [TEACH, "The In context tab"],
+  MeaningSplits: [TEACH, "The Cards tab · cards with more than one meaning, to split or keep"],
   TryExercises: [TEACH, "A card · trying an exercise on it"],
   SelectionBar: [TEACH, "When several cards are selected"],
   CodeBox: [TEACH, "A code to hand out"],
@@ -991,8 +996,8 @@ export function ComponentGallery() {
 
       <Row
         name="ItemList"
-        what="The standard list frame: New button, search and tile size on one row; Select and the menus on the next; bulk actions, empty state, paging at 120."
-        note="match is (item, lowercasedQuery) => boolean. bulkActions is [{ label, danger, onClick(ids) }]. menus is [{ key, label, icon, busy, content }] — one open at a time, drawn under the row. resizable adds the size button, which only a grid of tiles has anything to do with."
+        what="The standard list frame: New button, search and the view button on one row; Select and the menus on the next; bulk actions, empty state, paging at 120."
+        note="match is (item, lowercasedQuery) => boolean. bulkActions is [{ label, danger, onClick(ids) }]. menus is [{ key, label, icon, busy, content }] — one open at a time, drawn under the row. views adds the view button — small grid, large grid, list, table — with { key, columns, row(item) } saying what a line and a table row show; key is where the list remembers its view."
       >
         <V label="items + renderItem" wide>
           <ItemList
@@ -1002,7 +1007,11 @@ export function ComponentGallery() {
             itemKey={(d) => d.id}
             match={(d, q) => d.title.toLowerCase().includes(q)}
             size="small"
-            resizable
+            views={{
+              key: "gallery",
+              columns: [{ key: "title", label: "Title" }],
+              row: (d) => ({ word: d.title, meaning: null, cells: { title: d.title } }),
+            }}
             menus={[
               {
                 key: "sort",

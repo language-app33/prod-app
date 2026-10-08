@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
-import type { FilterGroup, Node } from "./shared.tsx";
+import type { CardRow, CardViews, FilterGroup, Node } from "./shared.tsx";
 import { CardEditor, NewCardKind } from "./card-editor.tsx";
 import type { CardShape } from "./card-editor.tsx";
 import { formsOf, leadOf } from "./cards.ts";
@@ -54,12 +54,14 @@ import {
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
+  categoriesOf,
   scriptVars } from "./languages.ts";
-import { isDialog, linesOf } from "./dialogs.ts";
+import { isDialog, linesOf, sceneKindOf } from "./dialogs.ts";
 import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
 import { fillersFor, groupPronouns, isPronounCard, isPronounGroup, pickedCardIds } from "./card-facts.ts";
 import type { PronounGroup } from "./card-facts.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
+import { anotherMeaningOf, anotherWordDraft, carryWordChanges, meaningsOnCard, splitByMeaning } from "./meanings.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
 /* A language's numbers and its clock, written on one screen. Reached
@@ -92,6 +94,11 @@ import {
   Button,
   CardReadout,
   CardTile,
+  CARD_KINDS,
+  cardKindOf,
+  cardKindLabel,
+  cardSubtypeLabel,
+  cardWords,
   CheckList,
   ClipList,
   clipHashes,
@@ -1374,6 +1381,15 @@ const CARD_STATES: Record<string, { label: string, tone: string, what: string, o
     label: "No card on the site",
     tone: "flagged",
     what: "The site did not hold this card even when the report was sent. There is nothing to open.",
+    openable: false,
+  },
+  /* A number, a time or a thing counted: the app makes the question from
+     the number system, and no card is ever stored for it. Nothing is
+     missing, so it is not told as though something were. */
+  made: {
+    label: "Made by the app",
+    tone: "stale",
+    what: "The app makes this question itself from the number system, so there is no card to open. The report says what was asked and what was expected.",
     openable: false,
   },
 };
@@ -3693,6 +3709,13 @@ function TryExercises({ card, cards, lang, onTry, back }: {
           (c) => !isDialog(c) && !hasSlots(c) && c.drill !== false &&
             formsOf(c).some((f: any) => f.ar && Array.isArray(f.images) && f.images.length)
         ).length - (Array.isArray(unit.images) && unit.images.length ? 1 : 0),
+      /* And how many have a recording and could stand in a grid, which is
+         the company the grid of recordings needs. */
+      heardFor: (unit) =>
+        material.filter(
+          (c) => !isDialog(c) && !hasSlots(c) && c.drill !== false &&
+            formsOf(c).some((f: any) => f.ar && (f.recs || []).length)
+        ).length - ((unit.recs || []).length ? 1 : 0),
     });
   }, [mine, lang, contexts, scenes, values, material]);
 
@@ -3743,6 +3766,59 @@ function TryExercises({ card, cards, lang, onTry, back }: {
         ))}
       </div>
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------
+   More than one meaning on a card
+
+   One card per meaning is the rule — each meaning learnt, scheduled and
+   put in decks on its own — and a card written before it, or by habit,
+   may hold two: "cactus / patience". Only the teacher can say whether
+   those are two meanings or two ways of saying one (big, large), so each
+   card is a question with two answers. Split makes one card per meaning,
+   in the same decks, and a student who had the card starts each of them
+   where it stood. Keep says the meanings are learnt together, and the
+   card is not asked about again.
+   ------------------------------------------------------------------ */
+function MeaningSplits({ cards, busy, onSplit, onKeep, onClose }: {
+  cards: Card[];
+  busy?: boolean;
+  onSplit: (card: Card) => void;
+  onKeep: (card: Card) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Screen title="More than one meaning" onBack={onClose}>
+      <Help>
+        Each of these cards has more than one meaning written on it, so its meanings are learnt
+        together, on one schedule. Split it to make one card per meaning, each learnt on its own and
+        kept in the same decks; students keep the progress they had. Keep it if the meanings are
+        two ways of saying the same thing.
+      </Help>
+      {cards.length ? (
+        <ul className="at-blanklist">
+          {cards.map((c) => (
+            <li key={c.id}>
+              <div className="at-castrow">
+                <b lang={c.lang} dir="auto">{leadOf(c).ar}</b>
+                <span>{meaningsOnCard(c).join(" · ")}</span>
+              </div>
+              <div className="at-row at-mt3">
+                <Button size="sm" variant="primary" disabled={busy} onClick={() => onSplit(c)}>
+                  Split into {meaningsOnCard(c).length} cards
+                </Button>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => onKeep(c)}>
+                  Keep as one card
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Help>Nothing left to look at.</Help>
+      )}
+    </Screen>
   );
 }
 
@@ -4154,6 +4230,20 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
  * A card list's filter as it starts, narrowing nothing — and what "Clear
  * all filters" puts it back to.
  */
+/* The table view of a teacher's card lists, column by column. */
+const TEACHER_COLUMNS = [
+  { key: "word", label: "Word" },
+  { key: "lat", label: "Transliteration" },
+  { key: "meaning", label: "Meaning" },
+  { key: "kind", label: "Kind" },
+  { key: "subtype", label: "Subtype" },
+  { key: "decks", label: "Decks" },
+  { key: "audio", label: "Recording" },
+  { key: "review", label: "Review" },
+  { key: "created", label: "Created" },
+  { key: "modified", label: "Modified" },
+];
+
 export const NO_CARD_FILTER = {
   audio: "any",
   forms: "any",
@@ -4168,6 +4258,10 @@ export const NO_CARD_FILTER = {
   blankNames: [] as string[],
   /* And where a card stands with review — see filterCards. */
   review: "any",
+  /* What kind of card, and which of its kind: see filterCards. */
+  kinds: [] as string[],
+  subtypes: [] as string[],
+  sceneKinds: [] as string[],
 };
 
 /*
@@ -4198,10 +4292,21 @@ export const NO_CARD_FILTER = {
  * asked from whichever side. It does not narrow "none": "cards that do not
  * fill {{name}}" is a question nobody asks, and the list is not offered
  * there.
+ *
+ * `kinds` keeps the cards of any of the kinds ticked — word or phrase,
+ * sentence, scene — and none ticked narrows nothing. Each kind's own
+ * subtypes narrow only that kind: `subtypes` the words, by their part of
+ * speech ("none" for a word nobody has said one for), and `sceneKinds` the
+ * scenes, text or conversation. So "nouns, and every sentence" is a thing
+ * the filter can say. A subtype of a kind that is not ticked narrows
+ * nothing, which is also what the filter clears it to.
  */
 export function filterCards(
   cards: Card[],
-  { audio = "any", forms = "any", deckMode = "any", deckIds = [], blankMode = "any", blankNames = [], review = "any" }: {
+  {
+    audio = "any", forms = "any", deckMode = "any", deckIds = [], blankMode = "any", blankNames = [], review = "any",
+    kinds = [], subtypes = [], sceneKinds = [],
+  }: {
     audio?: string;
     forms?: string;
     deckMode?: string;
@@ -4212,6 +4317,9 @@ export function filterCards(
        a teacher has still to read — never reviewed, or with new sentences
        since — and "sentences" keeps every card that makes any. */
     review?: string;
+    kinds?: string[];
+    subtypes?: string[];
+    sceneKinds?: string[];
   } = {},
   /* The ids of the cards waiting for review, worked out by the caller —
      it takes the whole collection to know what a frame makes. */
@@ -4225,6 +4333,12 @@ export function filterCards(
     if (review === "waiting" && !waiting.has(c.id)) return false;
     if (review === "sentences" && !needsReview(c)) return false;
     if (forms === "several" && cardFormCount(c) < 2) return false;
+    if (kinds.length) {
+      const kind = cardKindOf(c);
+      if (!kinds.includes(kind)) return false;
+      if (kind === "word" && subtypes.length && !subtypes.includes(String(c.category || "") || "none")) return false;
+      if (kind === "scene" && sceneKinds.length && !sceneKinds.includes(sceneKindOf(c as any))) return false;
+    }
     if (deckMode === "none" && (c.decks || []).length) return false;
     if (byDeck) {
       const inOne = (c.decks || []).some((id) => deckIds.includes(id));
@@ -4352,6 +4466,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
   const [courseView, setCourseView] = useState<any | null>(null);
   const [openDeck, setOpenDeck] = useState<any | null>((back && back.deckId) || null);
   const [cards, setCards] = useState<Card[]>(last ? last.cards : []);
+  /* Whether the list of cards holding more than one meaning is open — see
+     MeaningSplits. */
+  const [splitting, setSplitting] = useState(false);
   /* The card being edited, with the decks it is to land in. null when the
      editor is shut. */
   const [editing, setEditing] = useState<{
@@ -4363,6 +4480,11 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
        exists says what it is itself. */
     making?: CardShape;
     draft?: Record<string, any>;
+    /* When this card was opened, where one editor hands straight on to
+       the next — another meaning, another word, a card the Meanings block
+       names. The editor is drawn afresh for it, rather than keeping the
+       card it was just showing. */
+    opened?: number;
   } | null>(null);
   /*
    * A card being started: everything settled about it so far, and nothing
@@ -4630,6 +4752,9 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     () => (off.length ? cards.filter((c) => inPlayWith(off, (langOfCard(c) || ({} as Lang)).id)) : cards),
     [cards, off, langOfCard]
   );
+  /* The cards written with more than one meaning on them, which the
+     teacher may want as one card each — see meaningsOnCard. */
+  const twoMeanings = useMemo(() => onCards.filter((c) => meaningsOnCard(c).length > 1), [onCards]);
   /* And the languages it leaves, for the things asked a language at a
      time — Numbers, Pronouns, In context — so a teacher looking at one
      language is not asked which. */
@@ -4737,6 +4862,85 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       }
     />
   );
+  /* Edit and Delete, on a card's tile and at the end of its row. */
+  const cardActions = (c: Card) => (
+    <>
+      <IconButton
+        icon="edit"
+        label="Edit"
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation();
+          setEditing({ card: c, decks: c.decks || [] });
+        }}
+      />
+      <IconButton
+        icon="delete"
+        label="Delete"
+        danger
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation();
+          setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
+        }}
+      />
+    </>
+  );
+  /* One card of the Cards tab or of a deck, as a tile. */
+  const cardTile = (c: Card | PronounGroup) => isPronounGroup(c) ? pronounTile(c) : (
+    <CardTile
+      card={c}
+      lang={langOfCard(c)}
+      meta={shortDate(cardAdded(c))}
+      onClick={() => setViewing(c)}
+      actions={cardActions(c)}
+    />
+  );
+  /*
+   * And as a line or a row of the table. The table is everything a teacher
+   * might want to compare across their cards: what each says, what kind it
+   * is, where it is, whether it has a recording and has been read, and when
+   * it was made and last changed.
+   *
+   * The pronouns are one entry here as on the tiles, opening the screen
+   * they are written on; what is about one card — its decks, its dates —
+   * is left empty for them rather than said eight times over.
+   */
+  const cardViews = (key: string): CardViews<Card | PronounGroup> => ({
+    key,
+    columns: TEACHER_COLUMNS,
+    row: (c): CardRow => {
+      if (isPronounGroup(c)) {
+        const said = cardWords(c, languages[c.lang as LangId]);
+        return {
+          word: said.word,
+          meaning: said.meaning,
+          cells: { word: said.word, meaning: said.en, kind: cardKindLabel(c), subtype: "Pronouns" },
+          open: () => setPronouning(c.lang as LangId),
+        };
+      }
+      const said = cardWords(c, langOfCard(c));
+      const titles = (c.decks || [])
+        .map((id) => (decks.find((d) => d.id === id) || { title: "" }).title)
+        .filter(Boolean);
+      return {
+        word: said.word,
+        meaning: said.meaning,
+        cells: {
+          word: said.word,
+          lat: said.lat,
+          meaning: said.en,
+          kind: cardKindLabel(c),
+          subtype: cardSubtypeLabel(c, langOfCard(c)),
+          decks: titles.join(", "),
+          audio: cardHasAudio(c) ? "Yes" : "",
+          review: waitingIds.has(c.id) ? "Waiting" : needsReview(c) ? "Reviewed" : "",
+          created: shortDate(c.created),
+          modified: shortDate(c.updated),
+        },
+        open: () => setViewing(c),
+        actions: cardActions(c),
+      };
+    },
+  });
   /* The ones waiting that the switch leaves on screen, which is what the
      banner over the list can promise to show. */
   const waitingOn = useMemo(
@@ -4749,6 +4953,44 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
      leaves one or says it fills one, and goes when the last of them
      stops. */
   const blanksHere = useMemo(() => blanksInUse(cards), [cards]);
+
+  /* How many cards of each kind, and of each kind of scene, for the
+     filter to say beside each choice. Over the cards in the languages
+     switched on, which are the ones the filter is narrowing. */
+  const kindCounts = useMemo(() => {
+    const n: Map<string, number> = new Map();
+    const add = (k: string) => n.set(k, (n.get(k) || 0) + 1);
+    for (const c of onCards) {
+      const kind = cardKindOf(c);
+      add(kind);
+      if (kind === "scene") add(`scene:${sceneKindOf(c as any)}`);
+    }
+    return n;
+  }, [onCards]);
+  /* And the subtypes a word can be, for the same filter: every part of
+     speech the languages switched on declare, in the order they ask them,
+     each once — Noun in Arabic and Noun in Hebrew are one choice — and
+     then the words nobody has said one for. A kind a language no longer
+     offers is listed only while some card is still of it. */
+  const subtypesHere = useMemo(() => {
+    const words = onCards.filter((c) => cardKindOf(c) === "word");
+    const used: Map<string, number> = new Map();
+    for (const c of words) {
+      const id = String(c.category || "") || "none";
+      used.set(id, (used.get(id) || 0) + 1);
+    }
+    const out: { id: string; label: string; n: number }[] = [];
+    const langs = new Set(onCards.map((c) => langOfCard(c)).filter(Boolean) as Lang[]);
+    for (const L of langs) {
+      for (const k of categoriesOf(L)) {
+        if (out.some((o) => o.id === k.id)) continue;
+        if (k.retired && !used.get(k.id)) continue;
+        out.push({ id: k.id, label: k.label, n: used.get(k.id) || 0 });
+      }
+    }
+    out.push({ id: "none", label: "No subtype", n: used.get("none") || 0 });
+    return out;
+  }, [onCards, langOfCard]);
 
   /*
    * The menus over a list of cards: how to order it, and what to leave out.
@@ -4786,6 +5028,69 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     },
   ];
   const filterGroups: FilterGroup[] = [
+    {
+      key: "kinds",
+      label: "Kind",
+      value: cardFilter.kinds.length ? "some" : "any",
+      quiet: "any",
+      wide: true,
+      /* Ticked rather than pressed, because several at once is the point:
+         words and sentences, without the scenes. A kind's subtypes are
+         offered under it once it is ticked, and only then — "verbs" says
+         nothing about a sentence. */
+      custom: (
+        <div className="at-kindfilter">
+          <CheckList
+            options={CARD_KINDS.map((k) => ({ id: k.id, title: k.label, note: kindCounts.get(k.id) || 0 }))}
+            chosen={cardFilter.kinds}
+            onToggle={(id, on) =>
+              setCardFilter((f) => ({
+                ...f,
+                kinds: on ? f.kinds.filter((x) => x !== id) : f.kinds.concat([id]),
+                /* A kind let go of takes its subtypes with it, so nothing
+                   out of sight is left narrowing the next time it is ticked. */
+                subtypes: on && id === "word" ? [] : f.subtypes,
+                sceneKinds: on && id === "scene" ? [] : f.sceneKinds,
+              }))
+            }
+          />
+          {cardFilter.kinds.includes("word") && (
+            <>
+              <p className="at-hint">Which words or phrases</p>
+              <CheckList
+                options={subtypesHere.map((t) => ({ id: t.id, title: t.label, note: t.n }))}
+                chosen={cardFilter.subtypes}
+                onToggle={(id, on) =>
+                  setCardFilter((f) => ({
+                    ...f,
+                    subtypes: on ? f.subtypes.filter((x) => x !== id) : f.subtypes.concat([id]),
+                  }))
+                }
+              />
+            </>
+          )}
+          {cardFilter.kinds.includes("scene") && (
+            <>
+              <p className="at-hint">Which scenes</p>
+              <CheckList
+                options={[
+                  { id: "text", title: "Text", note: kindCounts.get("scene:text") || 0 },
+                  { id: "conversation", title: "Conversation", note: kindCounts.get("scene:conversation") || 0 },
+                ]}
+                chosen={cardFilter.sceneKinds}
+                onToggle={(id, on) =>
+                  setCardFilter((f) => ({
+                    ...f,
+                    sceneKinds: on ? f.sceneKinds.filter((x) => x !== id) : f.sceneKinds.concat([id]),
+                  }))
+                }
+              />
+            </>
+          )}
+          {!cardFilter.kinds.length && <p className="at-hint">Tick a kind. Until you do, this narrows nothing.</p>}
+        </div>
+      ),
+    },
     {
       key: "audio",
       label: "Recordings",
@@ -5408,6 +5713,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       (editing.card ? langOfCard(editing.card) : langOfDeck(forDeck || ({ courses: [] } as any)));
     return (
       <CardEditor
+        key={`${editing.opened || ""}`}
         card={editing.card}
         lang={editLang || LANGUAGES[DEFAULT_LANGUAGE]}
         decks={decksIn(new Set([(editLang || LANGUAGES[DEFAULT_LANGUAGE]).id]), editing.decks)}
@@ -5417,7 +5723,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         allCards={lendable}
         making={editing.making}
         draft={editing.draft || null}
-        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, stripped, drill, scene: written }) =>
+        onOpenCard={(other) =>
+          setEditing({ card: other, decks: other.decks || [], lang: other.lang || (editLang || {}).id || "", opened: Date.now() })
+        }
+        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, stripped, drill, scene: written, clue, carry, next }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5511,6 +5820,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                            reason: written on the Pronouns screen only. */
                         ...(editing.card && editing.card.enIs ? { enIs: editing.card.enIs } : {}),
                         ...(editing.card && editing.card.enAsk ? { enAsk: editing.card.enAsk } : {}),
+                        /* Which meaning this card is, for a question
+                           another card shares its prompt with. Said every
+                           time, so a clue taken off comes off. */
+                        clue,
                       }),
                 },
                 inDecks
@@ -5562,6 +5875,20 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   moved.add(id);
                 }
               }
+              /*
+               * And the word itself, onto the other cards that share it,
+               * where the teacher said so — see CarryAsk. Through the same
+               * pool, so a card a rename also reached is saved once with
+               * both.
+               */
+              for (const id of (carry && carry.ids) || []) {
+                const other = pool.get(id);
+                if (!other) continue;
+                const next1 = carryWordChanges(other, carry!.changes);
+                if (!next1) continue;
+                pool.set(id, next1);
+                moved.add(id);
+              }
               for (const id of moved) {
                 const one = pool.get(id);
                 if (!one) continue;
@@ -5569,7 +5896,28 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   await sendOrKeep({ ...one, id, lang: one.lang || "" }, one.decks || []),
                 );
               }
-              setEditing(null);
+              /*
+               * And straight on to the next card, where the teacher asked
+               * for another meaning of this word or another word for this
+               * meaning: a copy of what was just saved, with what it means
+               * emptied, or a new card with only the meaning in it. In no
+               * deck either way — see MeaningsBlock.
+               */
+              const savedNow = r && r.card;
+              if (next === "meaning" && savedNow) {
+                setEditing({ card: anotherMeaningOf(savedNow), decks: [], lang: savedNow.lang || (editLang || {}).id || "", opened: Date.now() });
+              } else if (next === "word" && savedNow) {
+                setEditing({
+                  card: null,
+                  decks: [],
+                  lang: savedNow.lang || (editLang || {}).id || "",
+                  making: "word",
+                  draft: anotherWordDraft(savedNow, (savedNow.forms || [])[0] || null),
+                  opened: Date.now(),
+                });
+              } else {
+                setEditing(null);
+              }
               /* Whether the card just saved turns up in phrases already
                  written. Counted against the list with the new card in
                  it — it is the thing being looked for, and the list in
@@ -6081,7 +6429,6 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
               items={listed}
               count={mine.length === held.length ? null : `${mine.length} of ${plural(held.length, "card")}`}
               menus={cardMenus}
-              resizable
               size="small"
               busy={busy}
               empty={
@@ -6151,35 +6498,8 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   onClick: (ids) => setConfirm({ kind: "cards", ids: pickedIds(ids), action: () => {} }),
                 },
               ]}
-              renderItem={(c) => isPronounGroup(c) ? pronounTile(c) : (
-                <CardTile
-                  card={c}
-                  lang={langOfCard(c)}
-                  meta={shortDate(cardAdded(c))}
-                  onClick={() => setViewing(c)}
-                  actions={
-                    <>
-                      <IconButton
-                        icon="edit"
-                        label="Edit"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          setEditing({ card: c, decks: c.decks || [] });
-                        }}
-                      />
-                      <IconButton
-                        icon="delete"
-                        label="Delete"
-                        danger
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
-                        }}
-                      />
-                    </>
-                  }
-                />
-              )}
+              views={cardViews("teacher-deck")}
+              renderItem={cardTile}
             />
 
         {viewing && (
@@ -6667,6 +6987,39 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   </Button>
                 </div>
               )}
+              {twoMeanings.length > 0 && (
+                <div className="at-reviewbanner">
+                  <span>{`${plural(twoMeanings.length, "card")} ${twoMeanings.length === 1 ? "has" : "have"} more than one meaning on ${twoMeanings.length === 1 ? "it" : "them"}.`}</span>
+                  <Button size="sm" onClick={() => setSplitting(true)}>
+                    Review
+                  </Button>
+                </div>
+              )}
+              {splitting && (
+                <MeaningSplits
+                  cards={twoMeanings}
+                  busy={busy}
+                  onClose={() => setSplitting(false)}
+                  onSplit={(card) =>
+                    run(
+                      async () => {
+                        const { kept, made } = splitByMeaning(card);
+                        const decksOf = card.decks || [];
+                        absorbSaved(await sendOrKeep({ ...kept, lang: kept.lang || "" }, decksOf));
+                        for (const one of made) absorbSaved(await sendOrKeep({ ...one, lang: one.lang || "" }, decksOf));
+                        return made.length + 1;
+                      },
+                      (n: number) => `Split into ${n} cards`,
+                    )
+                  }
+                  onKeep={(card) =>
+                    run(
+                      async () => absorbSaved(await sendOrKeep({ ...card, together: true }, card.decks || [])),
+                      "Kept as one card",
+                    )
+                  }
+                />
+              )}
               {reports.flags.length > 0 && (
                 <div className="at-reviewbanner">
                   <span>{`${plural(reports.flags.length, "report")} from students.`}</span>
@@ -6736,7 +7089,6 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   </>
                 }
                 menus={cardMenus}
-                resizable
                 searchBelow
                 size="small"
                 busy={busy}
@@ -6784,35 +7136,8 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                     onClick: (ids) => setConfirm({ kind: "cards", ids: pickedIds(ids), action: () => {} }),
                   },
                 ]}
-                renderItem={(c) => isPronounGroup(c) ? pronounTile(c) : (
-                  <CardTile
-                    card={c}
-                    lang={langOfCard(c)}
-                    meta={shortDate(cardAdded(c))}
-                    onClick={() => setViewing(c)}
-                    actions={
-                      <>
-                        <IconButton
-                          icon="edit"
-                          label="Edit"
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setEditing({ card: c, decks: c.decks || [] });
-                          }}
-                        />
-                        <IconButton
-                          icon="delete"
-                          label="Delete"
-                          danger
-                          onClick={(e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
-                          }}
-                        />
-                      </>
-                    }
-                  />
-                )}
+                views={cardViews("teacher-cards")}
+                renderItem={cardTile}
               />
 
             </>

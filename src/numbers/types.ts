@@ -103,8 +103,10 @@ export interface CountedNoun {
   pl: string;
   gender: "m" | "f";
   en: string;
-  /** The English of the plural, where the card says it — *children*,
-      which no rule makes out of *child*. */
+  /** The English of the plural, as the card says it — *books*,
+      *children*. Every noun read off a card has one, since a plural with
+      no English is not counted; the clock's *minute* may lack it, and is
+      then said in its singular's words. Never made up. */
   enPl?: string;
   /**
    * The plural as it is said after three to ten, where that is not the
@@ -119,6 +121,10 @@ export interface CountedNoun {
   /** Whether it is a person or a thing, as the card says, so what stands
       beside a counted phrase in a sentence agrees with it. */
   human?: string;
+  /** How each of its forms is said, as the card's transliteration has it,
+      keyed by the form's own words — so a counted phrase can be said
+      whole. Only the forms the card gave one. See sayAlong. */
+  lat?: Record<string, string>;
 }
 
 /** What a teacher may hand-correct: one number, or one number in one
@@ -469,13 +475,15 @@ export interface Ask {
 /* ---- the ceiling ---- */
 
 /**
- * The largest number anything here will reach for.
+ * The largest number anything here will reach for: eleven digits.
  *
- * Above this is not a language's problem but a typing one, and no
- * exercise is improved by eight digits. It was the ceiling before this
- * directory existed and it is unchanged.
+ * It was seven, from before this directory existed, until a teacher
+ * checking a number typed nine digits and was answered for the first
+ * seven of them. Eleven is what the owner asked for in 0.391 — the
+ * billions, which every language here has one more word for, and no
+ * further.
  */
-export const NUMBER_CEILING = 9999999;
+export const NUMBER_CEILING = 99999999999;
 
 /*
  * The stretches of the number line, the same in every language.
@@ -487,14 +495,46 @@ export const NUMBER_CEILING = 9999999;
  * because it is the first number with two figures, and where a language
  * builds its teens on it (Hebrew, Vietnamese) it is where they start. The
  * two old parts are named in `was`, so nothing anybody had on them is lost.
+ *
+ * The billions are a part of their own rather than the top of the
+ * thousands, because they need a word no system had before 0.391: a part
+ * opens only when everything in it can be said, and the thousands
+ * reaching to the ceiling would have closed for every language until its
+ * teacher wrote *billion*. Up to 999,999,999 is said with the words for
+ * a million and below, so the thousands stay as open as they were.
  */
 export const NUMBER_RANGES: Range[] = [
   { id: "numbers:0-9", kind: "numbers", label: "Numbers 0 to 9", from: 0, to: 9, was: "numbers:0-10" },
   { id: "numbers:10-19", kind: "numbers", label: "Numbers 10 to 19", from: 10, to: 19, was: "numbers:11-99" },
   { id: "numbers:20-99", kind: "numbers", label: "Numbers 20 to 99", from: 20, to: 99, was: "numbers:11-99" },
   { id: "numbers:100-999", kind: "numbers", label: "Numbers 100 to 999", from: 100, to: 999 },
-  { id: "numbers:1000+", kind: "numbers", label: "Numbers 1,000 and over", from: 1000, to: NUMBER_CEILING },
+  { id: "numbers:1000+", kind: "numbers", label: "Numbers 1,000 to 999,999,999", from: 1000, to: 999999999 },
+  {
+    id: "numbers:1000000000+",
+    kind: "numbers",
+    label: "Numbers 1,000,000,000 and over",
+    from: 1000000000,
+    to: NUMBER_CEILING,
+  },
 ];
+
+/**
+ * The tag a stretch answers to in a sentence: its own two ends, or its
+ * bottom and `-plus` where it is the open one at the top.
+ *
+ * Read off the ends rather than the id, because the id of 1,000 to
+ * 999,999,999 is still `numbers:1000+` from when it was the top: written
+ * the old way, its tag and the run of it with the billions above would
+ * both have been `1000-plus`, and the name would not say which a sentence
+ * meant. `1000-plus` is the run — 1,000 to the top, which is what it
+ * meant when it was written. A part no longer in the list, which only a
+ * `was` names, keeps the tag it had.
+ */
+export function stretchTag(id: string): string {
+  const range = NUMBER_RANGES.find((r) => r.id === id);
+  if (!range) return id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
+  return range.to >= NUMBER_CEILING ? `${range.from}-plus` : `${range.from}-${range.to}`;
+}
 
 /*
  * Counting things, inside the stretches rather than beside them.

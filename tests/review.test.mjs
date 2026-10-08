@@ -207,6 +207,88 @@ test("a verb beside a blank that names no person is not asked, and one beside no
   assert.equal(turns.list.length, 4);
 });
 
+test("a lone demonstrative is its own word, and every form in turn once linked to nothing", () => {
+  /* "what is {{this}}?" has nothing to agree with. Left as it is, the
+     word as written — which is right for "the weather is {{adjective}}"
+     with the noun written out. Linked to nothing, every form of it, the
+     masculine once even though the card's own word spells it too. */
+  const thisCard = {
+    id: "this", lang: "ar-PS", category: "demonstrative", fills: ["this"], created: 3,
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "haad" },
+      { id: "this-m", ar: "هاد", en: "this", lat: "haad", row: "agreement", col: "masculine" },
+      { id: "this-f", ar: "هاي", en: "this", lat: "haay", row: "agreement", col: "feminine" },
+      { id: "this-pl", ar: "هدول", en: "these", lat: "hadool", row: "agreement", col: "plural" },
+    ],
+  };
+  const ask = (/** @type {Record<string, string> | undefined} */ agrees) => ({
+    id: "q", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "q", ar: "شو {{this}}؟", en: "what is {{this}}?", lat: "shu {{this}}?", ...(agrees ? { agrees } : {}) }],
+  });
+  const [plain] = cardSentences(ask(undefined), [thisCard], ar);
+  assert.deepEqual(plain.list.map((s) => s.ar), ["شو هاد؟"]);
+  const [every] = cardSentences(ask({ this: "-" }), [thisCard], ar);
+  assert.deepEqual(every.list.map((s) => s.ar).sort(), ["شو هاد؟", "شو هاي؟", "شو هدول؟"].sort());
+  assert.ok(every.list.some((s) => s.en === "what is these?" || s.en === "what is these"), every.list.map((s) => s.en).join(" | "));
+
+  /* Beside a noun it still agrees with it, and nothing else of it is lent. */
+  const withNoun = { id: "w", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "w", ar: "{{this}} {{noun}}", en: "{{this}} {{noun}}", lat: "" }] };
+  const [paired] = cardSentences(withNoun, [noun("car", "سيارة", "car", "feminine", 1), thisCard, withNoun], ar);
+  assert.deepEqual(paired.list.map((s) => s.ar), ["هاي سيارة"]);
+
+  /* And an adjective beside a written noun keeps its word as written. */
+  const weather = { id: "wx", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "wx", ar: "البيت {{adjective}}", en: "the house is {{adjective}}", lat: "" }] };
+  const [house] = cardSentences(weather, [big, weather], ar);
+  assert.deepEqual(house.list.map((s) => s.ar), ["البيت كبير"]);
+});
+
+/*
+ * A pronoun on the end of a noun leaves its gender where the teacher said
+ * it, on the noun's own word: هاد أختي was what "{{this-is}} {{relative}}"
+ * made of *my sister* until 0.404 — and from real cards, whose cells the
+ * editor saves as "doesn't apply" and "a thing", until 0.406. هاي is what
+ * it should.
+ */
+test("a noun with a pronoun on the end agrees as the noun it is on the end of", () => {
+  const thisCard = {
+    id: "this", lang: "ar-PS", category: "demonstrative", fills: ["this"], created: 3,
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "had" },
+      { id: "this-f", ar: "هاي", en: "this", lat: "hay", row: "agreement", col: "feminine" },
+      { id: "this-pl", ar: "هدول", en: "these", lat: "hadol", row: "agreement", col: "plural" },
+    ],
+  };
+  const sister = {
+    id: "sister", lang: "ar-PS", category: "noun", fills: ["relative"], created: 4,
+    forms: [
+      { id: "sister", ar: "أخت", en: "sister", lat: "okht", gender: "feminine", number: "singular", human: "person" },
+      { id: "sisters", ar: "خوات", en: "sisters", lat: "khawat", number: "plural" },
+      /* As the editor saves a cell: its boxes say "doesn't apply" and "a
+         thing", which is the pronoun on the end and not the sister. */
+      { id: "my-sister", ar: "أختي", en: "my sister", lat: "okhti", row: "attached", col: "me", number: "na", gender: "", human: "thing" },
+      { id: "my-sisters", ar: "خواتي", en: "my sisters", lat: "khawati", row: "attached", col: "me", of: "sisters", number: "na", gender: "", human: "thing" },
+    ],
+  };
+  const brother = {
+    id: "brother", lang: "ar-PS", category: "noun", fills: ["relative"], created: 5,
+    forms: [
+      { id: "brother", ar: "أخ", en: "brother", lat: "akh", gender: "masculine", number: "singular" },
+      { id: "my-brother", ar: "أخوي", en: "my brother", lat: "akhuy", row: "attached", col: "me", number: "na", gender: "", human: "thing" },
+    ],
+  };
+  const frame = { id: "s", lang: "ar-PS", sentence: true, created: 9,
+    forms: [{ id: "s", ar: "{{this}} {{relative}}", en: "{{this}} {{relative}}", lat: "", agrees: { this: "relative" } }] };
+  const [part] = cardSentences(frame, [thisCard, sister, brother, frame], ar);
+  const made = part.list.map((s) => s.ar);
+  assert.ok(made.includes("هاي أختي"), made.join(" | "));
+  assert.ok(made.includes("هدول خوات"), "a plural of people, said once on the card's own word");
+  assert.ok(made.includes("هدول خواتي"), "on the end of the plural, the plural");
+  assert.ok(made.includes("هاد أخوي"), "and a masculine stays masculine");
+  assert.ok(!made.includes("هاد أختي"), made.join(" | "));
+});
+
 test("where a card stands: never reviewed, reviewed with sentences waiting, and too many to read", () => {
   const pool = [noun("house", "بيت", "house", "masculine", 1), noun("car", "سيارة", "car", "feminine", 2), big, frame];
   const legacy = reviewState(frame, pool, ar);
@@ -299,7 +381,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { installIndexes, castQuestion, lentTags } = await import(path.join(out, "trainer.js"));
+const { installIndexes, castQuestion, lentTags, resolveQuestion } = await import(path.join(out, "trainer.js"));
 
 const settings = { language: "ar-PS" };
 const nameCard = (/** @type {string} */ id, /** @type {string} */ word, /** @type {string} */ en, /** @type {number} */ created) => ({
@@ -472,6 +554,31 @@ test("an adjective said about a person is one sentence per form, read as every p
   assert.ok(!checkEn("we are tired today", made.list[0].en).ok, "but not a person that form does not fit");
 });
 
+/*
+ * Asked to write it in Arabic, the learner is shown one person — drawn
+ * at random for each asking, not *I am* until it has been got right.
+ */
+test("writing a sentence about a person shows a person drawn for that asking, and keeps it", () => {
+  const items = [todayCard, tiredCard()];
+  installIndexes(items, settings);
+  const real = Math.random;
+  const shown = new Set();
+  try {
+    for (const roll of [0, 0.4, 0.9]) {
+      Math.random = () => roll;
+      const ex = { id: "T", subId: null, type: "en2ar" };
+      const first = must(resolveQuestion(items, ex, true, []), "the question").unit.en;
+      Math.random = () => (roll + 0.5) % 1;
+      assert.equal(must(resolveQuestion(items, ex, true, []), "again").unit.en, first,
+        "the same question does not change under the learner");
+      shown.add(first);
+    }
+  } finally {
+    Math.random = real;
+  }
+  assert.deepEqual([...shown], ["I am tired today", "You are tired today", "He is tired today"]);
+});
+
 test("a person whose form was left blank is left out, and nothing is said where there are no persons", () => {
   const noPlural = tiredCard({ forms: tiredCard().forms.slice(0, 2) });
   const made = sentencesOf(todayCard, todayFrame, [todayCard, noPlural], ar);
@@ -532,6 +639,32 @@ test("a student is asked it the way the teacher's list shows it", () => {
   /* And beside it, which of the three it is: the line the answer screen
      shows, in a word rather than a note in the sentence. */
   assert.deepEqual(lentTags(unit, ar), ["tired: masculine"]);
+});
+
+/*
+ * "what is {{this}}?" linked to nothing, on a student's device: each form
+ * of the demonstrative is a sentence the device can ask, named beside it.
+ */
+test("a lone blank linked to nothing is asked on the device in each form, and says which", () => {
+  const thisCard = {
+    id: "this", lang: "ar-PS", kind: "word", tags: [], created: 2, category: "demonstrative", fills: ["this"], drill: false,
+    forms: [
+      { id: "this", ar: "هاد", en: "this", lat: "haad", lang: "ar-PS", s: {} },
+      { id: "this-f", ar: "هاي", en: "this", lat: "haay", lang: "ar-PS", row: "agreement", col: "feminine", s: {} },
+      { id: "this-pl", ar: "هدول", en: "these", lat: "hadool", lang: "ar-PS", row: "agreement", col: "plural", s: {} },
+    ],
+  };
+  const frame = { id: "W", ar: "شو {{this}}؟", en: "what is {{this}}?", lat: "shu {{this}}?", lang: "ar-PS", s: {},
+    agrees: { this: "-" }, met: { "this:this": 9, "this:this-f": 9, "this:this-pl": 9 } };
+  const card = { id: "W", lang: "ar-PS", kind: "phrase", tags: [], created: 1, sentence: true, forms: [frame] };
+  const made = sentencesOf(card, frame, [card, thisCard], ar).list;
+  assert.deepEqual(made.map((s) => s.ar), ["شو هاد؟", "شو هاي؟", "شو هدول؟"]);
+  const fem = must(made.find((s) => s.ar === "شو هاي؟"), "the feminine sentence");
+  const items = [{ ...card, review: { ok: [fem.key] } }, thisCard];
+  installIndexes(items, settings);
+  const unit = must(castQuestion(items, { id: "W", subId: null, type: "ar2en" }), "the question");
+  assert.equal(unit.ar, "شو هاي؟");
+  assert.deepEqual(lentTags(unit, ar), ["this: feminine"]);
 });
 
 /*

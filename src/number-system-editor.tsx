@@ -46,7 +46,7 @@ import type {
   TimeStyle,
   TwoWords,
 } from "./numbers/types.ts";
-import { MINUTE_MARKS, countingOf, partsNow } from "./numbers/types.ts";
+import { MINUTE_MARKS, NUMBER_CEILING, countingOf, partsNow } from "./numbers/types.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { blocking, countable, countingWarnings, probeOf, rangeChecks, renderAsk, seeded } from "./numbers/range.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
@@ -54,9 +54,9 @@ import type { RangeCheck } from "./numbers/range.ts";
 import { figureOf, homesOf, partTags } from "./numbers/generate.ts";
 import { readNouns, withNouns } from "./numbers/nouns.ts";
 import type { ReadNoun } from "./numbers/nouns.ts";
-import { Button, ConfirmModal, Help, Icon, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
+import { Button, ConfirmModal, DeckSwitch, Help, Icon, Meta, Notice, Screen, Section, Segmented, Tile, plural } from "./shared.tsx";
 import { dimsFor } from "./languages.ts";
-import { DeckSwitch, RecordingScreen, ScriptInput } from "./card-editor.tsx";
+import { RecordingScreen, ScriptInput } from "./card-editor.tsx";
 
 /** A box's number in the language's own figures, under the one it is
     called by — "" where the pack has none or the box is not one number. */
@@ -1190,11 +1190,12 @@ function TwoWordsBlock({ lang, questions, onKeep }: {
  * whose was read off the spacing. Here the number heads its own boxes,
  * and what each one is for is named over it.
  *
- * Under them, on a part that is counted with, the number counting a thing
- * — read only, because it is made out of the boxes above and the noun
- * cards, and the place to change it is one of those. It is here because
- * the word before a noun is the box a teacher is least sure of, and the
- * phrase it makes is what shows whether it is right.
+ * Under them, on a part that is counted with, examples of the number
+ * counting things — read only, because it is made out of the boxes above
+ * and the noun cards, and the place to change it is one of those. It is
+ * here because the word before a noun is the box a teacher is least sure
+ * of, and the phrase it makes is what shows whether it is right; so on a
+ * number that has that box, it waits until the box is filled.
  */
 function WordGrid({ lang, draft, setDraft, slots, onRecord, countedAt }: {
   lang: Lang;
@@ -1209,7 +1210,14 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord, countedAt }: {
     <div className="at-numtiles">
       {slots.map((slot) => {
         const n = figureOf(slot.label);
-        const counted = countedAt && n != null ? countedAt(n) : null;
+        /* Where the number has a box for its word before a noun, the
+           example waits for that box: until it is filled the phrase is
+           made from a word the teacher has not said, and shows nothing
+           about whether the box is right. */
+        const forms = (draft.lexemes[slot.slot] || { forms: {} }).forms;
+        const beforeNoun = slot.formKeys.filter((key) => key.startsWith("construct."));
+        const waiting = beforeNoun.length > 0 && !beforeNoun.some((key) => (forms[key] || "").trim());
+        const counted = countedAt && n != null && !waiting ? countedAt(n) : null;
         return (
           <div className="at-part at-numtile" key={slot.slot}>
             <p className="at-groupline at-numhead">
@@ -1250,7 +1258,7 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord, countedAt }: {
             ))}
             {counted ? (
               <div className="at-numcount">
-                <span className="at-label">Counting a thing</span>
+                <span className="at-label">Examples of counting things</span>
                 <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
                   {counted.text}
                 </span>
@@ -1268,6 +1276,7 @@ function WordGrid({ lang, draft, setDraft, slots, onRecord, countedAt }: {
 const GAP_LABEL: Record<string, string> = {
   singular: "no singular",
   plural: "no plural",
+  "plural-english": "no English for the plural",
   gender: "no gender",
   sg: "no singular",
   pl: "no plural",
@@ -1410,9 +1419,9 @@ function PartTags({ range, open, counts }: { range: Range; open: boolean; counts
     name === general
       ? "Any number, from any part"
       : name === counting[1]
-        ? "Any number of things, from any part"
+        ? "Any number in its counting form, from any part"
         : name === counting[0]
-          ? `A number and a thing counted, from ${range.label.toLowerCase()}`
+          ? `A number in its counting form, from ${range.label.toLowerCase()}`
           : `A number from ${range.label.toLowerCase()}`;
   return (
     <PartBlock title="Filling blanks" role="How this part can be used to fill blanks in sentence cards">
@@ -1421,7 +1430,14 @@ function PartTags({ range, open, counts }: { range: Range; open: boolean; counts
         <Help>
           Wherever a sentence card has a blank for one of these tags, this part fills it with one of
           its numbers, written out
-          {counting.length ? <>, or for the counting tags with a noun beside it in the form the number calls for</> : null}.
+          {counting.length ? <>, or for the counting tags in the form a number takes before a noun</> : null}.
+          {counting.length ? (
+            <>
+              {" "}A counting tag brings no noun: write the noun yourself. Put a noun blank straight after it, as in{" "}
+              <span className="at-blankname">{`{{${counting[0]}}} {{animal}}`}</span>, and the number counts that
+              noun, in the form the number calls for: &ldquo;3 dogs&rdquo;.
+            </>
+          ) : null}
         </Help>
         <div className="at-ticklist at-cardtags">
           <p className="at-eyebrow">Default tags</p>
@@ -1980,11 +1996,15 @@ function TryItScreen({ lang, draft, labels, render, onWrite, onClose }: {
   onClose: () => void;
 }) {
   const [typed, setTyped] = useState("");
-  /* Digits only, and no more of them than the app will ever ask about —
-     read off what was typed rather than refused, so a stray comma or a
-     space is simply not a number and never an error message. */
-  const digits = typed.replace(/[^0-9]/g, "").slice(0, 7);
-  const value = digits === "" ? null : Number(digits);
+  /* Digits only, read off what was typed rather than refused, so a stray
+     comma or a space is simply not a number and never an error message.
+     More digits than the app will ever ask about is said, not cut: taking
+     the first seven of 800,413,901 answered for 8,004,139, a number
+     nobody typed, with nothing on the screen to say so. Eleven is
+     NUMBER_CEILING, the most anything here is asked. */
+  const digits = typed.replace(/[^0-9]/g, "");
+  const tooLong = digits.length > String(NUMBER_CEILING).length;
+  const value = digits === "" || tooLong ? null : Number(digits);
   /* The number, not what was typed: an override is keyed by the number it
      corrects, so writing one out after typing 007 has to file it under 7
      or it would be a correction the composer never looks up. */
@@ -2011,7 +2031,7 @@ function TryItScreen({ lang, draft, labels, render, onWrite, onClose }: {
   return (
     <Screen title="Check a number" onBack={onClose}>
       <Help>
-        Type any number up to seven digits and see exactly what a student would be asked. It is
+        Type any number up to eleven digits and see exactly what a student would be asked. It is
         the same words the app would use in a question — nothing here is a preview of something
         else.
       </Help>
@@ -2028,7 +2048,13 @@ function TryItScreen({ lang, draft, labels, render, onWrite, onClose }: {
         />
       </Section>
 
-      {value === null ? (
+      {tooLong ? (
+        <Notice kind="warn">
+          That is {digits.length} digits. The app never asks about a number longer than eleven
+          digits, so there is nothing to show for it — the biggest it goes to is{" "}
+          {NUMBER_CEILING.toLocaleString("en")}.
+        </Notice>
+      ) : value === null ? (
         <Help>Nothing typed yet.</Help>
       ) : (
         <>

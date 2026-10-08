@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { offersFor, canAsk, unmetNeeds } from "../src/offers.ts";
-import { EX, LANGUAGES } from "../src/languages.ts";
+import { EX, LANGUAGES, exOf } from "../src/languages.ts";
 
 const ar = LANGUAGES["ar-PS"];
 const vi = LANGUAGES["vi-Hue"];
@@ -199,6 +199,52 @@ test("choosing a picture needs other cards with pictures to choose between", () 
   );
   /* And a recording: it is a listening exercise. */
   assert.ok(unmetNeeds(word({ images: ["a".repeat(64)] }), EX.rec2img, null, [], {}, 10, 10).includes("recs"));
+});
+
+test("matching recordings needs a recording, and other recorded cards to stand beside it", () => {
+  const heard = word({ recs: [{ id: "r1" }] });
+  /* Two more recorded words: the fewest a grid is dealt with is three. */
+  assert.deepEqual(unmetNeeds(heard, EX.recmatch, null, [], {}, 10, 0, 1), ["heard"]);
+  assert.deepEqual(unmetNeeds(heard, EX.recmatch, null, [], {}, 10, 0, 2), []);
+  assert.deepEqual(
+    find(offersFor({ units: [{ unit: heard, isSub: false, scene: null }], lang: ar, matesFor: () => 10 }), "recmatch").missing,
+    ["a few more cards with a recording"],
+  );
+  assert.equal(
+    find(offersFor({ units: [{ unit: heard, isSub: false, scene: null }], lang: ar, matesFor: () => 10, heardFor: () => 4 }), "recmatch").ready,
+    true,
+  );
+  /* And its own recording first of all. */
+  assert.ok(unmetNeeds(word(), EX.recmatch, null, [], {}, 10, 0, 10).includes("recs"));
+});
+
+test("matching recordings to figures is asked of a number system's numbers alone", () => {
+  /* A box of a number system that is one number, with a recording. */
+  const forty = word({ id: "sys:s1:tens.4-f~standalone", ar: "أربعين", en: "40", numeral: "٤٠", recs: [{ id: "r1" }] });
+  assert.deepEqual(unmetNeeds(forty, EX.recfig, null, [], {}, 10, 0, 10, 2), []);
+  assert.deepEqual(unmetNeeds(forty, EX.recown, null, [], {}, 10, 0, 10, 2), []);
+  /* Company that is numbers too: the words the learner has recorded do
+     not count, however many there are. */
+  assert.deepEqual(unmetNeeds(forty, EX.recfig, null, [], {}, 10, 0, 10, 1), ["heardFigures"]);
+  /* A box that is not one number has no figures to be paired with. */
+  const hundred = { ...forty, en: "hundred" };
+  assert.deepEqual(unmetNeeds(hundred, EX.recfig, null, [], {}, 10, 0, 10, 2), ["figure"]);
+  /* The language's own figures only where the card carries them — a
+     language that writes numbers the English way. */
+  const { numeral: _n, ...plain } = forty;
+  assert.deepEqual(unmetNeeds(plain, EX.recfig, null, [], {}, 10, 0, 10, 2), []);
+  assert.deepEqual(unmetNeeds(plain, EX.recown, null, [], {}, 10, 0, 10, 2), ["numeral"]);
+  /* And a card a teacher wrote is never offered them as waiting for
+     anything, even one whose meaning happens to be figures. */
+  const written = word({ en: "40", recs: [{ id: "r1" }] });
+  const list = offersFor({ units: [{ unit: written, isSub: false, scene: null }], lang: ar, heardFiguresFor: () => 10 });
+  assert.equal(find(list, "recfig"), undefined);
+  assert.equal(find(list, "recown"), undefined);
+});
+
+test("the grids of recorded numbers say which figures they want", () => {
+  assert.equal(exOf("recfig", ar).instruction, "Match each recording to its Arabic numeral");
+  assert.equal(exOf("recown", ar).instruction, "Match each recording to its Eastern Arabic numeral");
 });
 
 test("a card whose words change is not pictured, as it is not recorded", () => {

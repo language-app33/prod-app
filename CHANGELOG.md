@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.367 — 8 October 2026
+## 0.408 — 8 October 2026
 
 **Capital letters in the right places in English sentences.**
 
@@ -26,6 +26,783 @@ and moves once per batch of work you would notice, not once per commit.
 - Worth checking by hand: a name only keeps its capital if its card is
   marked as a person or a place. A name card saved with another subtype
   will now appear in small letters mid-sentence.
+
+## 0.407 — 8 October 2026
+
+**A card's name no longer looks oversized in the card list.**
+
+- A card with a name of its own, such as a verb named "to eat", used to
+  show that name on top in large bold type, above the Arabic. Those tiles
+  came out taller and louder than every other tile in the list.
+- Now the Arabic leads on every tile, and the name sits underneath it in
+  the same small grey text as an ordinary card's meaning. Every tile in
+  the list has the same shape.
+- The trade-off: a named card is no longer headed by its name, so a list
+  of verbs reads by the Arabic first, like everything else.
+- Worth checking by hand: open a space with named verbs and look at the
+  card list on a phone.
+
+## 0.406 — 7 October 2026
+
+**"This" agrees with "my sister" on real cards too.**
+
+- 0.404 meant to fix هاد أختي, but on cards made in the editor it didn't.
+  The editor saves each "my …" form with "doesn't apply" as its number
+  and "a thing" as whether it is people. 0.404 only filled in what a form
+  left empty, so those settings won and *this* stayed masculine.
+- A form with a pronoun on the end now always takes its gender, number
+  and whether it is people from the word it is built on: هاي أختي,
+  هديك امي, هاي زوجتي, and هاد أخوي for the men. Where the word itself
+  says nothing, the form's own settings still count.
+- Nothing stored changes. Sentence cards using these forms list the
+  corrected sentences as new ones waiting for approval.
+- Worth checking by hand: open "This is my [relative]" and see each
+  relative take هاي/هاد and هديك/هداك by its gender.
+
+## 0.405 — 7 October 2026
+
+**Numbers in sentences have a transliteration, and a missing one no longer
+shows as a blank's name.**
+
+- A number in a sentence card is now transliterated, put together from the
+  transliterations written on the number screen and, for the thing
+  counted, on the noun card. Before, it never was: "I have {{count-0-9}}
+  {{animal}}" read "3indi {{count-0-9}}" in every example.
+- A number is transliterated only where every word in it has one. If one
+  word is missing, that version of the sentence has no transliteration.
+- This is true of every blank, not only numbers. If the word in a blank
+  has no transliteration, that version of the sentence is shown without
+  its transliteration. If it has no English, it is shown without its
+  English. The sentence is still made, in the examples, in your review
+  list and in practice.
+- In practice, a version with no English is not asked as a question
+  about the English (translating to or from it), and a version with no
+  transliteration is not asked as a question about the transliteration.
+  It is asked in the other questions, and the next version is asked in
+  its place.
+- Sentences you already approved whose transliteration or English
+  changed (a number that now has one, or a blank's name that is now
+  gone) wait for you to review them again.
+- Worth checking by hand: a sentence card with a counting tag and a noun
+  tag, after writing transliterations for the numbers and the noun.
+
+## 0.404 — 7 October 2026
+
+**"This" agrees with "my sister".**
+
+- A word like *this* in a sentence now takes the right form beside a
+  noun with a pronoun on the end: هاي أختي, not هاد أختي. The noun's
+  gender is set once, on its own word, and the forms with a pronoun on
+  the end did not pass it on, so *this* fell back to its masculine form.
+- The same for a noun's other forms: a plural of people such as خوات
+  now takes هدول. Whether a noun is people is set on its own word, and
+  the plural did not pass that on either.
+- Adjectives and verbs beside these forms agree the same way.
+- Nothing stored changes. A sentence card already reviewed lists the
+  corrected sentences as new ones waiting to be approved; the old wrong
+  ones drop away.
+
+## 0.403 — 7 October 2026
+
+**Counting tags bring the number only, never a noun.**
+
+- In a sentence card, `{{count-0-9}}`, `{{count}}` and the other counting
+  tags are now filled with just the number, in the form it takes before a
+  noun: تلات, not تلاتة, and no noun beside it. Before, they also brought
+  one of your nouns: "I have {{count-0-9}}" came out as "I have 3 books".
+  The noun is yours to write.
+- Write a noun tag straight after the counting tag, as in "I have
+  {{count-0-9}} {{animal}}", and the number counts that noun, as 0.402
+  added: "I have 3 dogs", with the noun in the form the number calls for.
+- In Hebrew, where the number before a noun changes with the noun's
+  gender, the tag offers both forms. If you write the noun yourself, strike
+  the sentences whose number doesn't match it. With a noun tag, the app
+  picks the right one.
+- In Palestinian Arabic, "two" is said with the noun's dual form and no
+  number word, so a counting tag only fills in 2 when a noun tag follows
+  it.
+- The counting questions the app makes to teach counting, like "3 books",
+  are unchanged.
+- Sentences you approved with a counting tag now read differently, so they
+  wait for you to review them again.
+- Worth checking by hand: a sentence card with a counting tag and a noun
+  you wrote yourself, and one with a counting tag and a noun tag.
+
+## 0.402 — 7 October 2026
+
+**A number in a sentence counts the noun you put after it.**
+
+- In a sentence card, a counting tag followed straight away by a noun
+  tag — "I have {{count-0-9}} {{animal}}" — now makes "I have 3 dogs".
+  Before, the counting tag brought a noun of its own, and the sentence
+  came out as "I have 3 books dogs".
+- The noun takes the form the number calls for: the plural, the pair, or
+  the singular after eleven in Palestinian Arabic. A word after it that
+  agrees, like an adjective, agrees with the counted noun.
+- A noun card that can't be counted with that number (because it is
+  missing a form the number needs) is left out of that sentence, rather
+  than shown wrongly.
+- It only works when nothing but a space stands between the two tags, in
+  every field of the sentence.
+- A part's "Filling blanks" section on the number screen now says this.
+- Worth checking by hand: write a sentence card like "I have
+  {{count-0-9}} {{animal}}", open its review, and see that each sentence
+  counts the animal once.
+
+## 0.401 — 7 October 2026
+
+**A noun's forms go one, two, many.**
+
+- On a noun card the boxes are now in the order **singular, dual,
+  plural, special plural after 3–10**. Before, the dual came last. A
+  person or an animal has that order on each side.
+- The same order is used wherever a word's number is picked, for every
+  kind of word, so it reads the same everywhere.
+- Nothing stored changes. Every form stays in the box it was in, only
+  the boxes have moved.
+
+## 0.400 — 7 October 2026
+
+**Three fixes from learners' reports: counting says what is counted, match
+boards stop marking right pairs wrong, and reports on number questions are
+clearer.**
+
+- **A counting question now names the thing being counted.** It used to
+  show only the number, "1", then expect "one dog" in Arabic, leaving the
+  learner to guess the dog. It now shows "1 dog".
+- **Match the pairs never puts two words that share a meaning on one
+  board.** A board could show مبسوط as "Content" beside another word
+  shown as "happy". Pairing مبسوط with "happy" was marked wrong, though
+  the card accepts "happy" too. Words that share any meaning, and two
+  forms of the same card, now go on different boards.
+- **Reports on number, time and counting questions say the app made the
+  question.** They used to say the card was "not on the site any more",
+  which read as though it had been deleted. The app builds these
+  questions itself and never stores them as cards.
+- **Every report now records the answer the app expected**, and what was
+  asked is now the question as it was shown ("عشرة كتب", not "عشرة").
+  This only applies to reports sent from this release on.
+- Worth checking by hand: practise counting and see that the noun is
+  shown beside the number.
+
+## 0.399 — 7 October 2026
+
+**A noun's "special plural" box says what it is for.**
+
+- On a noun card, the box that used to be called "Plural after 3 to 10" is
+  now **"Special plural after 3–10 (days, months)"**. Next to "Plural" the
+  old name made it look like there was one plural for 3 to 10 and another
+  for counts above 10. There isn't: 3 to 10 take the plural, and 11 up take
+  the singular. This box is only for the few nouns whose plural changes
+  after 3 to 10, like خمس تيام. Every other noun leaves it empty.
+- Its short tag, shown on narrow screens and in the card list, is now
+  "special pl." instead of "pl. 3–10".
+- The line under the box now also says what every other noun does: 3 to
+  10 take the plural, and 11 up the singular.
+- Nothing about existing cards changes. Only the names are different.
+
+## 0.398 — 8 October 2026
+
+**The English of a counted noun comes only from its card.**
+
+- When a number is practised with a noun ("10 books"), the English of the
+  plural is now always the one written in the noun card's plural box.
+  The app no longer makes a plural up by putting an "s" on the singular.
+- A noun whose plural box has no English is left out of counting until it
+  has one. On the numbers screen it is listed with what it is missing:
+  "no English for the plural".
+- A plural's English is used exactly as written, even when it is the same
+  as the singular's.
+- One thing is still the app's own choice: English uses the singular's
+  English for one and the plural's for every other number, though Arabic
+  counts eleven and up with its singular noun.
+- Worth checking by hand: on the numbers screen, under counting, see
+  whether any of your nouns now say "no English for the plural", and fill
+  those in.
+
+## 0.397 — 8 October 2026
+
+**"10 books", not "10 bookses".**
+
+- When a number is practised with a noun, the English could come out as
+  "10 Bookses". That happened when the English on the noun's singular
+  already ended in "s" ("Books") and the plural box was empty or said the
+  same thing. The app added "es" to a word that was already plural. It
+  no longer adds an ending to a word that already ends in a single "s".
+- From eleven up, the English said "11 book", because Arabic counts with
+  the singular there. The English now says "11 books": singular for one,
+  plural for every other number.
+- Worth checking by hand: a noun whose singular's English says "Books" is
+  worth correcting to "Book". It still says "1 Books" for one, which the
+  app can't tell is wrong.
+
+## 0.396 — 7 October 2026
+
+**Palestinian "in" and "at": بالشغل is taught, and every everyday spelling counts.**
+
+- Questions now show **بالشغل** where a card says في الشغل and means a
+  place ("at work", "in the house"), because that is what people say.
+  The transliteration follows: "bish-shughl" instead of "fish-shughl".
+  Cards that have a recording keep their own wording, so the text matches
+  the voice. So do listening questions.
+- Typed answers accept **بالشغل, في الشغل and فالشغل** (the joined spelling
+  used in texting) for each other. Before, فالشغل came back "Very close"
+  and بالشغل "Not quite". In transliteration, "bish-shughl" and
+  "fish-shughl" both count. "fil-shughl" is still wrong, because ش is a
+  sun letter.
+- Writing في where people say بـ is still marked right, with a line
+  underneath: "People usually say أنا بالشغل."
+- Not swapped where the two mean different things: بـ as "by" or "with"
+  (بالسيارة, by car), في as "there is" (في ناس), or a question where you
+  write down a recording.
+- The card's **Examples** and the **sentence review** show each sentence the
+  way students will see it, with an "Also accepted" line underneath listing
+  the other versions that are marked right.
+- **Check by hand:** the app judges "a place" from the card's English
+  ("in", "at", "on"). A card whose English doesn't say so keeps في as
+  written. Look over a few sentence cards that use في in the review.
+## 0.395 — 7 October 2026
+
+**One card for each meaning, learnt on its own.**
+
+A word with two meanings, like صَبِر (cactus, and patience), or two words
+for one English word, like صح and يمين (both "right"), can now be one card
+per meaning. Each card has its own progress and schedule and goes in its
+own decks.
+
+For students:
+
+- If two of your cards show the same thing, a question says which one it
+  means, in the small line under the word: the teacher's clue (such as
+  "the plant"), or the other card ruled out ("not patience"). This works
+  both ways: "right" can say "not صح".
+- Giving the other card's answer isn't marked wrong. The app says so ("Yes,
+  it also means 'patience'. Now the other meaning.") and asks again, with
+  nothing recorded.
+- In multiple choice, the other card is never one of the wrong options.
+- Reading or spelling a word you have on two cards (from its
+  transliteration, or from a recording) is only asked on one of them, so
+  you don't practise it twice.
+- If you only have one of the cards, nothing changes.
+
+For teachers, in the card editor's new **Meanings** section:
+
+- It lists your other cards with the same word ("Same word: patience") or
+  the same English ("Same English: صح"), as you type. Tap one to open it.
+- An optional **Clue** says which meaning this card is. Without one,
+  questions name the other card instead.
+- **Another meaning of this word** saves the card and opens a new one with
+  the word, its other forms and its recordings already filled in, the
+  English empty, no pictures, and no decks yet.
+- **Another word for this meaning** saves the card and opens a new one
+  with just the English filled in.
+- If you change the spelling or recordings of a word another card shares,
+  you're asked whether to change it there too.
+- The Cards tab lists cards with more than one meaning written on them
+  ("book / notebook"). **Split** makes one card per meaning in the same
+  decks, and students keep the progress they had. **Keep as one card**
+  says the meanings are learnt together, and the card isn't listed again.
+
+Worth checking by hand: split a card a student is already learning, and
+see that both new cards show the progress the original had on their
+device.
+
+## 0.394 — 7 October 2026
+
+**In the matching grid of recordings, the play button is a button of its own.**
+
+- The play button on each recording is now wider — a long rounded button
+  rather than a small circle — so it is easier to hit.
+- Tapping the play button only plays the recording. Tapping anywhere else
+  on the card picks it up to be matched, as with any other card. Before,
+  every tap on the card both played it and picked it up (or undid its
+  pair), so listening through the column to find the right one kept
+  disturbing pairs already made.
+- Pressing the play button again while it is playing stops it.
+- To check by hand: on a phone, that the play button is comfortable to
+  tap and the rest of the card still selects it.
+
+## 0.393 — 7 October 2026
+
+**Counting forms of numbers are practised with something to count.**
+
+- The form a number takes when it counts things — Arabic three to
+  nineteen before a noun, one with a masculine or a feminine word, the
+  Hebrew masculine and feminine forms of one to nineteen and two's paired
+  forms — is no longer asked on its own. Each time it comes round it is
+  asked as a short phrase: the number with one of your noun cards beside
+  it, in the shape that number needs, such as "3 books". A different noun
+  each time.
+- Only nouns the student has already learnt in that shape are used. Until
+  there is one, that counting form simply waits and isn't asked at all; it
+  doesn't take up a place among the new words meanwhile.
+- Arabic two and Hebrew two's plain masculine and feminine forms never
+  stand straight in front of a noun, so they are practised inside
+  "22 books"-style phrases, once twenty is learnt.
+- Hebrew's form for three to nine before "thousands" counts thousands, not
+  things, and is practised as before.
+- What students had already earned on these forms carries over. A right
+  answer also counts as practice on the noun.
+- The forms are still shown on each number's card for reading, and the
+  "3 books" question each stretch of numbers asks is unchanged.
+- Worth checking by hand: a student who has learnt a few nouns should see
+  phrases like "3 books" where they used to see "three · before a noun".
+
+## 0.392 — 7 October 2026
+
+**Play buttons sit in the middle of their cards.**
+
+- In "Match each recording to its word", the play button on each card
+  on the left now sits in the middle of the space beside the pairing
+  number, instead of pressed up against the number with the rest of the
+  card empty. The correction shown under a wrongly paired card after
+  checking is centred with it. The same goes for the grids that match
+  number recordings to their figures.
+
+## 0.391 — 7 October 2026
+
+**Numbers up to eleven digits, in Check a number and in practice.**
+
+- Check a number now says every number up to 99,999,999,999 as typed.
+  Before, it kept only the first seven digits without saying so:
+  800,413,901 came back as 8,004,139. A number longer than eleven digits
+  now gets a message saying so, instead of an answer for part of it.
+- A language's numbers have a new part, **Numbers 1,000,000,000 and
+  over**, with boxes for the word for a billion (one, two, and the
+  plural where the language has one). It opens for students once the
+  teacher has written those words, like any other part.
+- The part that was "Numbers 1,000 and over" is now **Numbers 1,000 to
+  999,999,999** and asks numbers up to nine digits. It needs no new
+  words, so it stays open wherever it was open. Most of its questions are
+  now nine-digit numbers, where most were seven. Any question a student
+  already had from it comes back once as a different number.
+- Number blanks in sentences have the new range to tick too. A sentence
+  already written with the 1,000-and-over blank keeps meaning 1,000 and
+  up, so it is now filled from the billions as well. Ticking only 1,000
+  to 999,999,999 gives a blank of its own, called 1000-999999999.
+
+## 0.390 — 7 October 2026
+
+**Two new matching grids for numbers you can hear.**
+
+- Beside "Match each recording to its word", sessions can now ask
+  "Match each recording to its Arabic numeral": a play button for each
+  number down one side, and figures like 40 down the other.
+- And, in Arabic, "Match each recording to its Eastern Arabic numeral":
+  the same, with ٤٠ on the other side. Like the other questions that use
+  these figures, it only starts once the ten figures ٠ to ٩ have been
+  learnt.
+- Only numbers your teacher has recorded are used, and only ones that
+  are a single number — "forty" can be in the grid, "hundred" or "and"
+  cannot. A grid needs at least three recorded numbers, and everything
+  on the right-hand side is a number, never an ordinary word.
+- Both sit on the second level of the ladder, next to the other
+  matching grids.
+
+## 0.389 — 7 October 2026
+
+**Number blanks: pick Numbers or Counting things, then tick the ranges.**
+
+- In the list of blanks for a sentence, numbers are now two entries at
+  the top: **Numbers** and **Counting things**. The separate ranges are
+  no longer listed one by one.
+- Choosing either one shows the ranges with tick boxes: 0 to 9, 10 to
+  19, 20 to 99, 100 to 999, and 1,000 and over. Tick as many as you
+  like and they make one blank. Ticking 0 to 9, 10 to 19 and 20 to 99
+  gives a blank called 0-99, and counting things gives count-0-99.
+- The ranges you tick must touch, so a blank always covers one unbroken
+  stretch of numbers. If you tick two ranges with a gap between them,
+  the ranges in between are ticked for you.
+- In a blank that covers several ranges, the ranges take turns, so each
+  comes up about as often as the others. A 0-99 blank gives a number
+  from 0 to 9 a third of the time, not one time in ten.
+- Tap a number blank that is already in a sentence to change its
+  ranges. Its ticks open as they are.
+- Ticking all five is the same blank as "any number" (or "any number of
+  things") was before.
+- Sentences you already wrote keep working as they were, including ones
+  using the old names such as 11-99.
+- **Trade-off:** a blank can't skip ranges. For example, 0 to 9 together
+  with 100 to 999 isn't possible.
+
+## 0.388 — 7 October 2026
+
+**A lone block under "Learn more" sits in the middle.**
+
+- After you answer, the things under "Learn more" sit two to a row. When
+  one is left over on a row of its own, it used to sit in the left half
+  with an empty gap beside it. It now sits centred in the row, so the box
+  looks finished rather than as if something were missing.
+
+## 0.387 — 7 October 2026
+
+**"My house is" and "my houses are" from one noun blank.**
+
+- A noun blank can now read three ways in English, like a pronoun blank
+  or *this*: the noun on its own (*my house*), with "to be" after it
+  (*my house is*), or as a question (*is my house*). The Arabic stays as
+  it is.
+- The app chooses between *is* and *are*, so a sentence comes out right
+  for every form in the blank: "my house is big" with بيتي and "my
+  houses are big" with بيوتي. Before, a teacher had to type "is" into the
+  English, and it read "houses is big" whenever a plural came up.
+- Plurals and pairs take *are*. The singular, and a word marked as having
+  no number (*water*), take *is*.
+- You are only asked about this when some noun in the blank has a
+  plural. For a singular noun, typing "is" yourself still works.
+- *With or without a pronoun on the end* is still its own question. It
+  is asked next, after you choose how the noun reads.
+- This works for a group tag and a card's ID with nouns in it too. In a
+  tag that also has adjectives, "with to be" still means "I am tired"
+  with no one named, and the nouns stay out of it, as before.
+- To check by hand: give a noun a plural, put a {{noun-is}} blank in
+  "{{noun-is}} big", and see that the examples read "… is big" for the
+  singular and "… are big" for the plural.
+
+## 0.386 — 7 October 2026
+
+**Finding a custom tag by typing its name.**
+
+- In the sheet where you add custom tags to a card, the box at the top
+  now also searches. As you type, the list underneath narrows to the tags
+  whose names contain what you typed, so with a long list you can find
+  the tag you want instead of scrolling for it — and see that a tag
+  already exists before making a second one like it.
+- If nothing matches, the sheet says so, and Add still creates a new tag
+  with that name. Clearing the box brings the whole list back.
+
+## 0.385 — 7 October 2026
+
+**A shorter, clearer list of number blanks.**
+
+- When you add a number blank to a sentence, the list now offers only
+  the current number ranges: 0 to 9, 10 to 19, 20 to 99, 100 to 999 and
+  1,000 and over, and the same five with "count" in front for counting
+  things. The old names (0 to 10, 11 to 99, and the old counting ranges
+  1 to 2, 3 to 10 and 11 to 20) were showing up next to them, which
+  made it look like there were overlapping choices.
+- Sentences you already wrote with one of the old names still work and
+  still get filled with numbers as before. You don't need to change
+  them.
+
+## 0.384 — 7 October 2026
+
+**"I am tired" sentences show the other persons too.**
+
+- Practising a sentence like تعبان اليوم from English, the person shown
+  is now picked at random each time: *I am tired today*, *you are tired
+  today* or *he is tired today*. Before, a new sentence always showed
+  *I am* until you had got it right, so it looked as if that was all it
+  meant. Any of them is still accepted when turning it into English.
+- In a card's examples, and in the list of sentences to approve, each
+  meaning now has its own line instead of being joined by slashes on one
+  line, which read like a single sentence starting with "I am".
+- Trade-off: other generated sentences with more than one meaning also
+  show one picked at random, rather than repeating the one you missed.
+- To check by hand: open a sentence card with an "I am tired" blank,
+  look at its examples and its review list, then practise it a few times
+  from English.
+## 0.383 — 7 October 2026
+
+**Every card list has a view button: small grid, large grid, list or table. Teachers can filter cards by kind and subtype.**
+
+- The card-size button over a card list is now a view button. Each press
+  moves to the next view: small grid, large grid, list, then table, and
+  back to the start. Its icon is a picture of the view the list is in.
+- The large grid is the size that used to be called Medium. The old
+  Large size has gone.
+- The list shows one line per card: the word and its meaning, or how it
+  sounds where it has no meaning written.
+- The table shows the word, transliteration, meaning, kind, subtype,
+  decks, whether it has a recording, its review status, and when it was
+  created and last modified. On a phone it scrolls sideways inside its
+  own frame.
+- Students get the view button on all three of their card lists: their
+  cards, a deck's cards, and the cards on Progress. Their table shows the
+  word, meaning, kind, subtype and level.
+- Each list remembers its own view on the device, so the Cards tab can
+  stay a table while decks stay a grid. A device that had chosen Medium
+  or Large starts on the large grid.
+- On the teacher's Cards tab and in a deck, Filter starts with *Kind*:
+  tick any of Word or phrase, Sentence and Scene. Ticking Word or phrase
+  offers its subtypes (Noun, Verb and so on, plus *No subtype*). Ticking
+  Scene offers Text and Conversation. Several can be ticked at once, and
+  a kind's subtypes narrow only that kind, so "nouns and every sentence"
+  works.
+- To check by hand: on a phone, press the view button through all four
+  views on the Cards tab, open a deck and see that it kept its own view,
+  and select a few cards in the table view.
+## 0.382 — 7 October 2026
+
+**A new version no longer restarts the app while you are using it.**
+
+- When a new version was put out, the app restarted itself onto it — at
+  the end of a session, when you switched away from the app, or straight
+  away if you were not in a session. Anything typed and not yet saved,
+  such as a card half written in the editor, was lost.
+- Now a bar at the bottom says a new version is ready, with Reload and
+  Later. Save what you are doing, then press Reload. Later hides the bar;
+  the version line in the top-right menu still offers Reload.
+- If you open or refresh the app and the new version arrives before you
+  have tapped or typed anything, the app still switches to it by itself,
+  so you do not have to refresh twice. Nothing can be lost at that point.
+- Until you reload, you keep using the version you had open. Your answers
+  are saved as before.
+
+## 0.381 — 6 October 2026
+
+**"What is this?" and "what are these?" from one sentence card.**
+
+- A blank for *this* can now read three ways in English, the same as a
+  pronoun blank: *this*, *this is*, or *is this*. The Arabic stays as it
+  is. With *Every form in turn* (0.379), شو {{is-this}}؟ comes out as
+  "what is this?" with هاد and هاي and "what are these?" with هدول,
+  where the plain {{this}} gave "what is these?".
+- The *is* or *are* follows whichever form the sentence shows, including
+  when the form is picked to match a noun beside it: "this is my friend",
+  "these are my friends".
+- When you choose a demonstrative blank in the editor, it asks how it
+  should read, as choosing a pronoun does. The same goes for a group
+  tag or a card ID with demonstratives behind it.
+- The English is worked out automatically: *this* and *that* take *is*,
+  *these* and *those* take *are*. Unlike pronouns, there is no place yet
+  to type a different wording for a demonstrative.
+- To check by hand: change the blank in "شو {{this}}؟" to the question
+  reading (*is this*), keep *Every form in turn*, and see that the
+  preview reads "what is this?" twice and "what are these?" once.
+
+## 0.380 — 6 October 2026
+
+**The examples of a sentence say when a word is shown in its main form only.**
+
+- On a sentence whose only blank is filled by "this" or an adjective,
+  the *Examples of this card with filled blanks* list now says, under
+  the sentences, which words it is showing in their main form only —
+  for example "Only the main form of هاد is used here" — and where to
+  change that: *Every form in turn* under *Which forms … uses*.
+- The line goes away once *Every form in turn* is chosen, and it never
+  shows for a word that has only one form or for a blank that takes its
+  form from another blank.
+
+## 0.379 — 6 October 2026
+
+**A sentence with "this" or an adjective as its only blank can go through every form.**
+
+- "What is {{this}}?" used to be asked with هاد only, never هاي or هدول,
+  because words like *this* and adjectives take their form from the
+  word beside them, and with only one blank there was nothing beside
+  them to pick a form.
+- A sentence whose only blank is filled by such a word now asks
+  **Which forms it uses**: *Main form* (as before) or *Every form in
+  turn*. With the second, each form is its own sentence — "what is
+  this?" with هاد, with هاي, and "what is these?" with هدول — and the
+  question says which form it is (masculine, feminine, plural).
+- The same answer already offered in sentences with more than one
+  blank, *Nothing — every form in turn*, now works for these words too.
+  Until now it only did for verbs.
+- Nothing changes until a teacher picks it. Main form stays the default
+  so that a sentence that writes the word out, like "the weather is
+  {{adjective}}", is not met with the feminine beside a masculine word.
+- To check by hand: open the sentence, choose *Every form in turn*, and
+  see that the preview lists three sentences.
+
+## 0.378 — 6 October 2026
+
+**A person's forms open folded.**
+
+- On a word card for a noun that is a person, every form — masculine and
+  feminine, singular, plural and the rest — now opens folded under its
+  name, even the ones already written in. Tap a name to open that form.
+  Before, every written form opened at once, which filled the screen with
+  fields and pronoun tables before anything else on the card.
+- Animals and things are unchanged: a form opens where something is
+  written in it.
+
+## 0.377 — 6 October 2026
+
+**Learn more: shorter labels, a centred play button, and related words like the rest.**
+
+- "This is how it's pronounced" is now "How it's pronounced", "This is
+  how it sounds" is now "How it sounds", and "This is how it's written"
+  is now "How it's written".
+- The play button sits in the middle of its half of the row instead of
+  against the left edge.
+- "Built on the same root" (and, for Vietnamese, "Also spelt this way,
+  with a different tone") now has the same small heading as the other
+  items and takes half a row like them, instead of a larger heading
+  across the full width. It shares a row with another item where there
+  is one; on its own it keeps to its half.
+- How it's pronounced and how it sounds are always the pair on one row.
+  Other items now come after that row instead of before it.
+
+## 0.376 — 6 October 2026
+
+**A new matching exercise with recordings, and no "Learn more" after matching.**
+
+- **Match the recordings**: five play buttons down the left, five words
+  in Arabic script (plus two spare) down the right. Tap a recording to
+  hear it, then tap the word it says. There is no English on the screen.
+  The tiles look and work exactly like *Match the pairs*: the same
+  numbered circles, and tapping a paired tile takes it apart again, so
+  listening to one again un-pairs it. After checking, a recording paired
+  wrong shows the word it should have been, and the tiles still play.
+- It sits on the second level, next to *Match the pairs*. It is offered
+  on a card with a recording once at least two other cards have one too,
+  and it steps aside for "Can't listen right now" and offline like the
+  other listening exercises.
+- **Trade-off:** a card with a recording now has this one more question
+  to pass before the writing exercises open. That includes cards already
+  past that point: until a learner gets it right, those cards stop
+  counting as cleared or learnt, and Prep mode dates move a little
+  later. Cards without a recording are not affected.
+- After either matching exercise, the "Learn more" section and the
+  teacher's note are gone. Both only ever described the first word in
+  the round, without saying which.
+
+## 0.375 — 6 October 2026
+
+**"Learn more" under an answer is more compact: two things to a row.**
+
+- The short items in the Learn more box now sit side by side, two to a
+  row: how a word is pronounced on the left, how it sounds (the play
+  button) on the right. Written form and the number in the language's own
+  figures pair up the same way. The box is about half as tall, so
+  Continue is closer to the answer.
+- The phrase a word turned up in, and the related words, still take the
+  full width: they are too long to share a row.
+- When there is an odd number of short items, the first one gets a row
+  to itself, so the pronunciation and the recording stay together.
+- The play buttons inside the box are a size smaller to fit half a row,
+  and where a word has a regular and a slow recording the two sit one
+  above the other. To check by hand: a long transliteration on a small
+  phone wraps onto a second line rather than squeezing the play button.
+
+## 0.374 — 6 October 2026
+
+**Progress follows numbers through their decks, and a deck counts every number in it.**
+
+- The "Numbers" section is gone from Progress. To follow how the numbers
+  are going, open a deck that holds them under Decks.
+- A deck's own screen now lists every number card in it. Before, it
+  listed only the ones being worked on, and left out numbers whose part
+  hasn't opened yet (10 to 19 while 0 to 9 is still being learnt, for
+  example). Those now appear at the end under "Opens later", and the
+  "x of y cards fully learnt" line and the bar count them too, so they
+  match the deck's tile on Progress.
+- How much is left on a deck, and when it could be done, now includes
+  those numbers as well, so the dates under a deck, and Prep mode's
+  sessions a day for a deck with numbers in it, come out a bit later
+  and closer to the truth.
+
+## 0.373 — 6 October 2026
+
+**Progress gives Prep mode a heading of its own, and the prep's delete button matches the rest.**
+
+- On Progress, Prep mode now sits under its own "Prep mode" heading, with
+  one line saying what it is for. Its button says "Start prep mode" while
+  there is no prep, and "Edit prep mode" once there is one.
+- The headings on Progress ("Prep mode", "The ladder", "Decks") are now
+  drawn like the ones on the Courses tab ("My courses", "Join a course"),
+  instead of small grey capitals.
+- The delete button at the bottom of the prep screen is now a square
+  outlined icon the height of Save, drawn like the icons beside New card
+  under Teaching › Cards. Before, it was a short, wide box.
+
+## 0.372 — 6 October 2026
+
+**"Learn more" under an answer is open from the start.**
+
+- Everything else worth knowing about a card — what it means, how it
+  sounds and is written, the phrase it turned up in — is now shown straight
+  away under the answer, beneath a plain "Learn more" heading. It used to
+  open on a tap.
+- The arrow beside "Learn more" is gone, and the box can no longer be
+  folded away. The trade-off: on a card with a lot to say, the Continue
+  button sits further down the page.
+
+## 0.371 — 6 October 2026
+
+**Prep mode can aim at Cleared, and its screen works like the rest of the app.**
+
+- A new "Target level" choice, Cleared or Learnt, under the decks. Cleared
+  means every card answered right all the way up its levels; Learnt adds
+  the two reviews a few days apart that keep it. Aiming at Cleared, the
+  home screen's prep tile counts cards cleared rather than learnt, its
+  percentage and sessions a day are worked out to Cleared, the earliest
+  date comes sooner, and the prep counts as done once every card is
+  cleared. A prep set up before this aims at Learnt, as it did.
+- "Decks to have fully learnt by then" is now "Decks to target", and the
+  decks are chosen the way a card's decks are: the chosen ones as pills
+  you can take off, and a button opening the list to add more.
+- Save sits in the bar pinned to the bottom of the screen, as on the
+  other forms. "Stop prepping" is now a delete icon at the left of that
+  same bar.
+
+## 0.370 — 6 October 2026
+
+**A meaning with a comma in it is marked as one answer.**
+
+- An answer like "He is cold, he wants a jacket" was marked wrong even
+  when typed exactly as the card has it, with or without the comma, and
+  "He is cold" on its own was marked right. The app read every comma in a
+  meaning as a break between two separate answers. Now only a slash (or a
+  semicolon) separates answers; a comma is part of the phrase, and
+  whether you type it does not matter.
+- Trade-off: a card that used a comma to list two meanings ("big, large")
+  now needs the whole thing typed. Write such a card with a slash
+  ("big / large") to accept either.
+
+## 0.369 — 6 October 2026
+
+**On a number system, the counting examples wait for the word they show.**
+
+- Under each number, the read-only line that shows it counting something
+  is now called "Examples of counting things" (it was "Counting a
+  thing").
+- On a number with a "before a noun" box, such as 3 to 19 in Arabic, the
+  examples appear only once that box is filled. Before, they showed as
+  soon as the counting word was typed, made from a word you hadn't given
+  yet. Numbers without that box show their examples as before.
+
+## 0.368 — 6 October 2026
+
+**Practising a lot moves you forward instead of holding you in place.**
+
+- One wrong answer no longer cancels a card's reviews. A cleared card
+  becomes learnt after two reviews on later days, and before this a single
+  slip, even while practising the same day, cancelled both and the wait
+  started again. Now only two wrong in a row does, the same rule that
+  moves a card down a level.
+- A number group such as 0–9 counts as learnt once its own reviews are
+  done and you know every number in it (each one cleared). Before, every
+  number and all ten numerals ٠ to ٩ had to be fully learnt at the same
+  moment, so 0–9 could sit on "Cleared" for weeks.
+- The next group of numbers, such as 10–19, opens as soon as you've
+  cleared every number in the group before it, or finished that group's
+  own questions, whichever comes first. Before, only the group's own
+  questions counted, and they come up rarely.
+- A verb's next tense opens once you've cleared the tense before it.
+  Before, it waited until the earlier tense had been remembered for four
+  days, which practising more couldn't speed up.
+- Trade-off: "learnt" is a little easier to reach, since a card with one
+  slip still gets there.
+- To check by hand: in a custom session of numbers only, 0–9 should move
+  past "Cleared" within about two weeks of steady practice.
+
+## 0.367 — 6 October 2026
+
+**The Arabic numeral keys are shuffled, so you have to know each numeral.**
+
+- On questions where you write a number in Eastern Arabic numerals
+  (١٢٣), the keypad keeps its shape, but which numeral sits on which key
+  changes with every question. Before, they were always in counting
+  order, so you could find ٤ just by counting along the keys, without
+  recognising it. The keys stay put while you answer a question.
+- Trade-off: you can no longer rely on knowing where a numeral is from
+  your phone's dialler; you have to read the keys.
+- Questions asking you to write a number as 123 now just say "Write in
+  Arabic numerals (123)", whether you read or hear it. The play button
+  already tells you to listen.
 
 ## 0.366 — 6 October 2026
 

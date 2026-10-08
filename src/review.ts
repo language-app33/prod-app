@@ -45,11 +45,12 @@ import type { Form, Lang } from "./types.ts";
 import { formsOf } from "./cards.ts";
 import { linesOf, pickedFrom } from "./dialogs.ts";
 import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, lendsInto, tensedOf, verbOf } from "./languages.ts";
+import { countedWith, standsAlone } from "./numbers/generate.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
-import { aboutPerson, fillForm, fillsOf, lentBy, refOf, slotsOf, valuesForTurn } from "./variables.ts";
+import { aboutPerson, besideAdjectives, fillForm, fillsOf, lentBy, readAs, readingOf, readingsOf, refOf, slotsOf, valuesForTurn } from "./variables.ts";
 import {
-  agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, ownSlot, partnerOf, personsOf,
+  agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, linkedToNothing, ownSlot, partnerOf, personsOf,
   rowIdsOf, rowOf, slotLinks, slotRows, subjectSlot,
 } from "./verbs.ts";
 
@@ -291,7 +292,11 @@ export function agreeTook(
     if (spec) {
       const agreed = agreedValue(owner.card, spec, value, beside ? readOff(beside, lang) : null);
       if (!agreed) return false;
-      out[slot] = agreed;
+      /* A demonstrative in a reading blank reads *these are* off the form
+         the noun chose, not *this is* off the word it was drawn as. */
+      out[slot] = agreed !== value && readingOf(owner.card, slot)
+        ? readAs(owner.card, { ...agreed, readings: readingsOf(owner.card, agreed, false) }, slot)
+        : agreed;
       return true;
     }
     const tensed = tensedOf(lang, owner.card.category);
@@ -355,6 +360,83 @@ export function ownVerb(
   return { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
 }
 
+/* Two blanks written one straight after the other, with nothing but
+   space between them. */
+const NEXT_TO = /\{\{\s*([A-Za-z0-9_-]+)\s*\}\}\s*(?=\{\{\s*([A-Za-z0-9_-]+)\s*\}\})/g;
+
+/**
+ * The blanks of a part written straight before another one, and which:
+ * `{{count-0-9}} {{animal}}` is `count-0-9` before `animal`. Only where
+ * every field that has both says so — a sentence whose English puts the
+ * two apart is not a number standing beside its noun.
+ */
+export function countPairs(part: Held | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  const fields = ["ar", "en", "lat"].map((f) => String((part && part[f]) || "")).filter((t) => t.trim());
+  const seen = (t: string) => new Set(slotsOf({ ar: t }));
+  const pairsIn = (t: string) =>
+    [...t.matchAll(NEXT_TO)].map((m) => [m[1].toLowerCase(), m[2].toLowerCase()] as [string, string]);
+  for (const [before, after] of fields.flatMap(pairsIn)) {
+    if (out[before] !== undefined) continue;
+    const together = fields.every((t) => {
+      const has = seen(t);
+      return !(has.has(before) && has.has(after)) || pairsIn(t).some(([b, a]) => b === before && a === after);
+    });
+    out[before] = together ? after : "";
+  }
+  for (const k of Object.keys(out)) if (!out[k]) delete out[k];
+  return out;
+}
+
+/**
+ * A counting blank followed by a noun blank, said as one: the number
+ * counting the noun the other blank drew.
+ *
+ * A counting blank holds a number in its counting form and nothing else —
+ * see fillerCards — so the thing counted is the teacher's to write. Where
+ * what they wrote after it is a noun blank, the number counts that noun:
+ * "I have {{count-0-9}} {{animal}}" is *I have 3 dogs*, with the noun in
+ * the form the number calls for and the words in the order the language
+ * says them (Arabic's one follows its noun). The noun blank is said by
+ * the counting one, and carries the counted phrase's number and gender, so
+ * a word agreeing with it agrees with *dogs*, not *dog*.
+ *
+ * Only the noun's own word is taken there — its plural and its pair would
+ * make the same sentence again — and a noun that cannot be counted with
+ * the number is no sentence. Nor is a number that is said only through its
+ * noun, Arabic's two, standing anywhere but before a noun blank.
+ */
+export function countTook(
+  part: Held,
+  took: Record<string, Value>,
+  ownerOf: (value: Value) => Owner | null,
+): Record<string, Value> | null {
+  const pairs = countPairs(part);
+  const out = { ...took };
+  const counted = new Set<string>();
+  for (const [slot, next] of Object.entries(pairs)) {
+    const number = took[slot];
+    const noun = took[next];
+    if (!number || !noun) continue;
+    const owner = ownerOf(noun);
+    if (!owner || String(owner.card.category || "").toLowerCase() !== "noun") continue;
+    const nounId = String(owner.card.id || "");
+    const filler = ownerOf(number);
+    const said = filler ? countedWith(String(filler.card.id || ""), nounId) : undefined;
+    if (said === undefined) continue;
+    if (!said || refOf(noun) !== nounId) return null;
+    out[slot] = { ...number, ar: said.ar, en: said.en, lat: said.lat, grammar: said.grammar, swallows: next };
+    out[next] = { ...noun, grammar: { ...(noun.grammar || {}), ...said.grammar } };
+    counted.add(slot);
+  }
+  for (const [slot, value] of Object.entries(took)) {
+    if (counted.has(slot) || !value) continue;
+    const filler = ownerOf(value);
+    if (filler && !standsAlone(String(filler.card.id || ""))) return null;
+  }
+  return out;
+}
+
 /**
  * One combination, finished: agreement applied and a verb's own place
  * filled. Null where there is no sentence to be had from it.
@@ -367,11 +449,13 @@ export function finishTook(
   ownerOf: (value: Value) => Owner | null,
   langFor: (card: Held) => Lang | null | undefined,
 ): Record<string, Value> | null {
-  const took = agreeTook(turned, drawn, ownerOf, langFor, slotLinks(part));
+  const counted = countTook(part, turned, ownerOf);
+  if (!counted) return null;
+  const took = agreeTook(counted, drawn, ownerOf, langFor, slotLinks(part));
   if (!took) return null;
   const own = ownSlot(part);
   if (own && card && slotsOf(part).includes(own)) {
-    const verb = ownVerb(part, card, langFor(card), took, leadsOf(turned, slotsOf(part), ownerOf, langFor));
+    const verb = ownVerb(part, card, langFor(card), took, leadsOf(counted, slotsOf(part), ownerOf, langFor));
     if (!verb) return null;
     took[own] = verb;
   }
@@ -404,6 +488,7 @@ export function reviewPool(
     lang,
     (slot) => slotRows(part, slot),
     (slot) => !!partnerOf(part, partSlots, slot),
+    (slot) => linkedToNothing(part, slot),
   );
   const langId = lang ? lang.id : "";
   const byAge = [...(pool || [])].sort(
@@ -411,6 +496,7 @@ export function reviewPool(
   );
   const fields = grammarFields();
   const into = lendsInto(lang);
+  const beside = besideAdjectives();
   for (const card of byAge) {
     if (!card) continue;
     if (langId && card.lang && card.lang !== langId) continue;
@@ -422,7 +508,9 @@ export function reviewPool(
       for (const slot of slots) {
         if (!values[slot]) continue;
         if (!admits(card, form, slot)) continue;
-        values[slot].push(...into(card, value, slot));
+        const made = into(card, value, slot);
+        beside.saw(card, slot, made);
+        values[slot].push(...made);
       }
     }
     for (const form of formsOf(card) as Held[]) {
@@ -430,7 +518,7 @@ export function reviewPool(
       if (ref && !owner.has(ref)) owner.set(ref, { card, form });
     }
   }
-  return { values, owner };
+  return { values: beside.sift(values), owner };
 }
 
 /** One sentence a frame makes, as a student would see it. */

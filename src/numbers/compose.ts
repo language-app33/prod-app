@@ -11,8 +11,8 @@
  * So what is here is only what both of them were already doing, character
  * for character, with the golden tables unchanged across the move:
  *
- *   * **Chunking.** Every language in the app says a number in millions,
- *     thousands and the rest. The order of those three and what joins them
+ *   * **Chunking.** Every language in the app says a number in billions,
+ *     millions, thousands and the rest. The order of those three and what joins them
  *     is each language's own and stays there.
  *   * **Which face a gender asks for**, which is a lookup and not a rule.
  *   * **The counted noun**, including what to do when the teacher has not
@@ -47,9 +47,10 @@ import type {
 
 /* ---- numbers ---- */
 
-/** The three places every language in the app says a number in. */
+/** The four places every language in the app says a number in. */
 export const chunksOf = (n: number) => ({
-  millions: Math.floor(n / 1000000),
+  billions: Math.floor(n / 1000000000),
+  millions: Math.floor((n % 1000000000) / 1000000),
   thousands: Math.floor((n % 1000000) / 1000),
   rest: n % 1000,
 });

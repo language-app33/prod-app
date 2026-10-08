@@ -28,6 +28,8 @@ import { fillerCards, FILLERS_PER_PART, homesOf, partTags } from "../src/numbers
 import { countingOf } from "../src/numbers/types.ts";
 import { fillersFor } from "../src/card-facts.ts";
 import { LANGUAGES } from "../src/languages.ts";
+import { sentencesOf } from "../src/review.ts";
+import { fieldsLost, fillForm } from "../src/variables.ts";
 
 const load = (/** @type {string} */ name) =>
   JSON.parse(readFileSync(new URL(`./golden/${name}`, import.meta.url), "utf8"));
@@ -185,7 +187,7 @@ test("nouns are judged by kind, and the answer is the one rendering each would g
 
 test("with no noun cards at all, counting waits on something to count", () => {
   const checks = rangeChecks(arComposer, { ...SYS, nouns: [] }).filter((c) => c.counting);
-  assert.equal(checks.length, 5, "every stretch is counted with");
+  assert.equal(checks.length, 6, "every stretch is counted with");
   for (const c of checks) {
     assert.equal(c.open, true, "and is asked its numbers all the same");
     assert.equal(c.counting?.open, false);
@@ -203,6 +205,7 @@ test("each box is on the screen of the first part that needs it", () => {
   assert.equal(homes.get("connector"), "numbers:20-99");
   assert.equal(homes.get("hundred.2"), "numbers:100-999");
   assert.equal(homes.get("thousand.1"), "numbers:1000+");
+  assert.equal(homes.get("billion.1"), "numbers:1000000000+");
   /* Every box the language asks for is somewhere. */
   for (const spec of arComposer.requiredSlots()) assert.ok(homes.get(spec.slot), `${spec.slot} is on no screen`);
   for (const spec of heComposer.requiredSlots()) assert.ok(homesOf(heComposer).get(spec.slot), `${spec.slot} is on no screen`);
@@ -220,13 +223,13 @@ test("each part answers to a tag of its own and a general one, the same in every
     /* The parts split out of 0 to 10 and 11 to 99 still answer to the old
        tags, so a sentence written with {{11-99}} before the split is filled. */
     ["0-9", "0-10", "number"], ["10-19", "11-99", "number"], ["20-99", "11-99", "number"],
-    ["100-999", "number"], ["1000-plus", "number"],
+    ["100-999", "number"], ["1000-999999999", "number"], ["1000000000-plus", "number"],
   ]);
   assert.deepEqual(tags(heComposer), tags(arComposer));
   /* And counting, from each stretch, under tags of its own. */
   assert.deepEqual(stretches(arComposer).map((/** @type {any} */ r) => partTags(countingOf(r))), [
     ["count-0-9", "count"], ["count-10-19", "count"], ["count-20-99", "count"],
-    ["count-100-999", "count"], ["count-1000-plus", "count"],
+    ["count-100-999", "count"], ["count-1000-999999999", "count"], ["count-1000000000-plus", "count"],
   ]);
 });
 
@@ -254,31 +257,35 @@ test("a bigger part lends an even spread of itself, not its first dozen", () => 
   assert.ok(Math.max(...values) - Math.min(...values) > 40, `${values} is bunched up`);
 });
 
-test("a stretch fills a counting blank with a number and a thing, saying which number the thing is", () => {
+test("a stretch fills a counting blank with the number in its counting form, and no noun", () => {
   const sys = withNouns({ ...SYS, nouns: [] }, countedNouns([nounCard("book"), nounCard("girl")], "ar-PS"));
   const counted = (/** @type {string} */ part) =>
     of(fillerCards(arComposer, sys), part).filter((c) => (c.fills || []).includes("count"));
   const made = counted("numbers:0-9");
   assert.ok(made.length > 0);
+  const nouns = [GOLD.book, GOLD.girl].flatMap((n) => [n.sg, n.pl, n.dual]);
   for (const card of made) {
     const form = /** @type {any} */ (card.forms[0]);
-    const n = Number(String(form.en).split(" ")[0]);
+    const n = Number(form.en);
     assert.ok(n >= 1 && n <= 9, `${form.en}: nobody counts nought books`);
+    assert.equal(form.en, String(n), "the number, and no thing beside it");
+    for (const word of nouns) assert.ok(!String(form.ar).split(" ").includes(word), `${form.ar} brings a noun`);
     /* Its own tag and the general one — and the old counting part's tag
        that held this number, so a sentence written with {{count-3-10}}
        is still filled. */
     assert.deepEqual(card.fills, ["count-0-9", n <= 2 ? "count-1-2" : "count-3-10", "count"]);
-    assert.match(form.en, /^\d+ (book|girl)s?$/);
     assert.equal(form.number, n === 1 ? "singular" : n === 2 ? "dual" : "plural", form.en);
-    assert.ok(["masculine", "feminine"].includes(form.gender));
   }
+  /* Three before a noun is not three counted aloud. */
+  const three = made.find((c) => /** @type {any} */ (c.forms[0]).en === "3");
+  const plain = of(fillerCards(arComposer, sys), "numbers:0-9").find((c) => /** @type {any} */ (c.forms[0]).en === "3");
+  assert.ok(three && plain);
+  assert.notEqual(/** @type {any} */ (three.forms[0]).ar, /** @type {any} */ (plain.forms[0]).ar);
   /* Never a plain number's blank, and never a plain number in a counting
      one. */
   assert.ok(made.every((c) => !(c.fills || []).includes("number")));
-  const plain = of(fillerCards(arComposer, sys), "numbers:0-9").filter((c) => !(c.fills || []).includes("count"));
-  assert.ok(plain.length && plain.every((c) => !(c.fills || []).some((/** @type {string} */ t) => t.startsWith("count"))));
-  /* Above twenty, the counted word is the singular again. */
-  for (const card of counted("numbers:20-99")) assert.equal(/** @type {any} */ (card.forms[0]).number, "singular");
+  const plains = of(fillerCards(arComposer, sys), "numbers:0-9").filter((c) => !(c.fills || []).includes("count"));
+  assert.ok(plains.length && plains.every((c) => !(c.fills || []).some((/** @type {string} */ t) => t.startsWith("count"))));
 });
 
 test("a sentence asking for a part's blank is shown the part's numbers on the teacher's screen", () => {
@@ -293,4 +300,126 @@ test("a sentence asking for a part's blank is shown the part's numbers on the te
 test("a part that cannot be said yet lends nothing to the sentences that ask for it", () => {
   const sys = { ...SYS, nouns: [], lexemes: {} };
   assert.deepEqual(fillerCards(arComposer, sys), []);
+});
+
+test("a counting blank with a noun blank after it counts that noun", () => {
+  const cards = [nounCard("book"), nounCard("girl")];
+  const sys = withNouns({ ...SYS, nouns: [] }, countedNouns(cards, "ar-PS"));
+  const lang = LANGUAGES["ar-PS"];
+  const sentence = {
+    id: "s1", lang: "ar-PS", sentence: true,
+    forms: [{ id: "s1", ar: "عندي {{count-0-9}} {{noun}}", en: "I have {{count-0-9}}{{noun}}.", lat: "" }],
+  };
+  const pool = /** @type {any[]} */ ([sentence, ...cards, ...fillerCards(arComposer, sys)]);
+  const { list } = sentencesOf(sentence, sentence.forms[0], pool, lang);
+  assert.ok(list.length > 0);
+  for (const s of list) {
+    /* The number counts the noun drawn beside it, and the noun is not
+       said a second time. */
+    assert.match(s.en, /^I have \d+ (book|girl)s?\.$/, s.en);
+    const noun = s.took.noun.card;
+    assert.ok(s.en.includes(noun), `${s.en} counts ${noun}`);
+    assert.doesNotMatch(s.ar, /\{\{/);
+  }
+  assert.ok(list.some((s) => s.took.noun.card === "book") && list.some((s) => s.took.noun.card === "girl"));
+  /* Once per number and noun: the plural and the pair add nothing. */
+  assert.equal(new Set(list.map((s) => s.en)).size, list.length);
+  /* Two books is the dual alone, and still counted. */
+  assert.ok(list.some((s) => s.en === "I have 2 books." && s.ar === `عندي ${GOLD.book.dual}`), list.map((s) => s.en).join(" | "));
+  /* With no noun blank after it, the counting blank brings no noun: the
+     teacher writes it. And two, said only by its noun, is not offered. */
+  const alone = { ...sentence.forms[0], ar: "عندي {{count-0-9}} كتب", en: "I have {{count-0-9}} books" };
+  const own = sentencesOf(sentence, alone, pool, lang).list;
+  assert.ok(own.length > 0);
+  for (const s of own) {
+    assert.match(s.en, /^I have \d+ books$/);
+    assert.notEqual(s.en, "I have 2 books");
+    assert.equal(s.ar.split(" ").filter((w) => w === GOLD.book.pl).length, 1, s.ar);
+  }
+});
+
+/* A system whose every word has a transliteration — made up, and made of
+   the slot it is said by, since what is tested is that it is carried. */
+const SAID = (/** @type {any} */ sys) => ({
+  ...sys,
+  lexemes: Object.fromEntries(Object.entries(sys.lexemes).map(([slot, lex]) => [slot, {
+    .../** @type {any} */ (lex),
+    lat: Object.fromEntries(Object.keys(/** @type {any} */ (lex).forms || {}).map((k) => [k, `${slot}/${k}`])),
+  }])),
+});
+/** A noun card with a transliteration on every answer. */
+const saidNoun = (/** @type {string} */ id) => {
+  const card = nounCard(id);
+  card.forms = card.forms.map((f) => ({ ...f, lat: `${id}-${f.number}` }));
+  return card;
+};
+
+test("a number in a sentence is said in the transliteration the system and the noun card give it", () => {
+  const cards = [saidNoun("book"), saidNoun("girl")];
+  const sys = withNouns(SAID({ ...SYS, nouns: [] }), countedNouns(cards, "ar-PS"));
+  const lang = LANGUAGES["ar-PS"];
+  const sentence = {
+    id: "s1", lang: "ar-PS", sentence: true,
+    forms: [{ id: "s1", ar: "عندي {{count-0-9}} {{noun}}", en: "I have {{count-0-9}} {{noun}}", lat: "3indi {{count-0-9}} {{noun}}" }],
+  };
+  const pool = /** @type {any[]} */ ([sentence, ...cards, ...fillerCards(arComposer, sys)]);
+  const { list } = sentencesOf(sentence, sentence.forms[0], pool, lang);
+  assert.ok(list.length > 0);
+  for (const s of list) {
+    assert.doesNotMatch(s.lat, /\{\{/, s.lat);
+    assert.match(s.lat, /^3indi \S/, s.lat);
+    /* The noun counted is said as its card says it, once. */
+    assert.equal((s.lat.match(new RegExp(s.took.noun.card, "g")) || []).length, 1, s.lat);
+  }
+  /* And a counting blank with nothing after it, in its own words alone. */
+  const alone = { ...sentence.forms[0], ar: "عندي {{count-0-9}} كتب", en: "I have {{count-0-9}} books", lat: "3indi {{count-0-9}} kutub" };
+  for (const s of sentencesOf(sentence, alone, pool, lang).list) {
+    assert.match(s.lat, /^3indi \S+.* kutub$/, s.lat);
+    assert.doesNotMatch(s.lat, /book-|\{\{/, s.lat);
+  }
+  /* A plain number too. */
+  const plain = { ...sentence.forms[0], ar: "{{0-9}}", en: "{{0-9}}", lat: "{{0-9}}" };
+  for (const s of sentencesOf(sentence, plain, pool, lang).list) assert.ok(s.lat && !s.lat.includes("{{"), s.lat);
+});
+
+test("a sentence whose number has no transliteration is still a sentence, with no transliteration", () => {
+  /* The golden system has none written. */
+  const cards = [saidNoun("book")];
+  const sys = withNouns({ ...SYS, nouns: [] }, countedNouns(cards, "ar-PS"));
+  const lang = LANGUAGES["ar-PS"];
+  const sentence = {
+    id: "s1", lang: "ar-PS", sentence: true,
+    forms: [{ id: "s1", ar: "عندي {{count-0-9}} {{noun}}", en: "I have {{count-0-9}} {{noun}}", lat: "3indi {{count-0-9}} {{noun}}" }],
+  };
+  const pool = /** @type {any[]} */ ([sentence, ...cards, ...fillerCards(arComposer, sys)]);
+  const { list } = sentencesOf(sentence, sentence.forms[0], pool, lang);
+  assert.ok(list.length > 0, "every sentence is still made");
+  for (const s of list) {
+    /* Two books is the noun's pair alone, with no number word, so it is
+       said whole; every other number is not. */
+    if (s.en === "I have 2 books") assert.equal(s.lat, "3indi book-dual");
+    else assert.equal(s.lat, "", "no line, rather than one with a blank's name in it");
+    assert.match(s.en, /^I have \d+ books?$/);
+    assert.doesNotMatch(s.ar, /\{\{/);
+  }
+});
+
+test("a word with no English leaves the sentence's English out, and its transliteration in", () => {
+  const value = (/** @type {any} */ v) => ({ id: "", ...v });
+  const form = { ar: "أنا {{name}}", en: "I am {{name}}", lat: "ana {{name}}", answers: [{ text: "أنا {{name}}", lat: "ana {{name}}" }] };
+  const unsaid = { name: value({ ar: "سامي", en: "", lat: "sami" }) };
+  const filled = /** @type {any} */ (fillForm(form, unsaid));
+  assert.equal(filled.en, "");
+  assert.equal(filled.lat, "ana sami");
+  assert.deepEqual(fieldsLost(form, unsaid), ["en"]);
+  const unspelt = { name: value({ ar: "سامي", en: "Sami", lat: "", proper: true }) };
+  const other = /** @type {any} */ (fillForm(form, unspelt));
+  assert.equal(other.lat, "");
+  assert.equal(other.answers[0].lat, "");
+  assert.equal(other.en, "I am Sami");
+  assert.deepEqual(fieldsLost(form, unspelt), ["lat"]);
+  /* A sentence with no transliteration of its own loses nothing. */
+  assert.deepEqual(fieldsLost({ ...form, lat: "" }, unspelt), []);
+  /* And a blank nothing was offered for still stands, as a visible bug. */
+  assert.equal(/** @type {any} */ (fillForm(form, {})).lat, "ana {{name}}");
 });

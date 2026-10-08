@@ -35,6 +35,7 @@
  */
 import { ALT_SEP, splitAlternatives } from "./answers.ts";
 import { formsOf, leadOf } from "./cards.ts";
+import { mixed, spansThrough } from "./numbers/spans.ts";
 
 /*
  * What a slot looks like: {{name}}, and nothing cleverer.
@@ -105,6 +106,55 @@ export const IS_PRONOUN_SLOT = "is-pronoun";
 export const READING_SLOTS = [PRONOUN_IS_SLOT, IS_PRONOUN_SLOT];
 
 /*
+ * And *this* and *these*, read the same three ways.
+ *
+ * شو هاد؟ is *what is this?* and شو هدول؟ *what are these?* — the *is*
+ * and the *are* follow the demonstrative exactly as they follow a
+ * pronoun, and Arabic says neither. So a demonstrative fills the same
+ * pair of readings, under its own kind and under every tag or ID that
+ * reaches it:
+ *
+ *     {{demonstrative}}      this     · these
+ *     {{demonstrative-is}}   this is  · these are
+ *     {{is-demonstrative}}   is this  · are these
+ *
+ * Read off each form's own English by beReadings, since the plural is a
+ * form of the same card. Added in 0.367.
+ */
+export const DEMONSTRATIVE_SLOT = "demonstrative";
+export const DEMONSTRATIVE_IS_SLOT = "demonstrative-is";
+export const IS_DEMONSTRATIVE_SLOT = "is-demonstrative";
+export const DEMONSTRATIVE_READING_SLOTS = [DEMONSTRATIVE_IS_SLOT, IS_DEMONSTRATIVE_SLOT];
+
+/*
+ * And a noun, read the same three ways, for its plural.
+ *
+ * بيتي كبير is *my house is big* and بيوتي كبار *my houses are big*. A
+ * teacher can write the *is* into the English for a singular, since it
+ * never changes after one; what they cannot write is a word that is *is*
+ * beside بيتي and *are* beside بيوتي in the same blank. So a noun fills a
+ * reading of every name that reaches it, and the verb follows the form:
+ *
+ *     {{noun}}      my house     · my houses
+ *     {{noun-is}}   my house is  · my houses are
+ *     {{is-noun}}   is my house  · are my houses
+ *
+ * Read off the form's number — see nounReadings — rather than its English,
+ * which for a noun says nothing about it. Whether a pronoun is on the end
+ * of the noun is the blank's other question, asked the same as before.
+ * Added in 0.387.
+ */
+export const NOUN_SLOT = "noun";
+export const NOUN_IS_SLOT = "noun-is";
+export const IS_NOUN_SLOT = "is-noun";
+export const NOUN_READING_SLOTS = [NOUN_IS_SLOT, IS_NOUN_SLOT];
+
+/** Whether a kind of word reads with *to be* — a pronoun, a demonstrative
+    or a noun. */
+export const readsWithBe = (kind: string): boolean =>
+  kind === PRONOUN_SLOT || kind === DEMONSTRATIVE_SLOT || kind === NOUN_SLOT;
+
+/*
  * An adjective, said about somebody with the pronoun left out.
  *
  * Palestinian Arabic answers "how are you?" with تعبان — *I am tired* —
@@ -128,15 +178,16 @@ export const READING_SLOTS = [PRONOUN_IS_SLOT, IS_PRONOUN_SLOT];
 export const ADJECTIVE_SLOT = "adjective";
 export const ADJECTIVE_IS_SLOT = "adjective-is";
 /** Every blank name that reads a kind of word some other way. */
-export const RESERVED_READINGS = [...READING_SLOTS, ADJECTIVE_IS_SLOT];
+export const RESERVED_READINGS = [...READING_SLOTS, ...DEMONSTRATIVE_READING_SLOTS, ...NOUN_READING_SLOTS, ADJECTIVE_IS_SLOT];
 
 /**
  * The two readings of a pronoun's English, worked out from the English.
  *
  * About English and nothing else — which verb *to be* takes after I, he
  * or you is a fact of the language every card is explained in, not of the
- * one being learnt, so it can live here. *I* takes *am*; *he*, *she* and
- * *it* take *is*; everything else takes *are*. A note in brackets — "you
+ * one being learnt, so it can live here. *I* takes *am*; *he*, *she*,
+ * *it*, *this* and *that* take *is*; everything else — *these*, *those*,
+ * *you*, *they* — takes *are*. A note in brackets — "you
  * (m)" — stays on the end, where it still reads as a note: *you are (m)*,
  * *are you (m)*.
  *
@@ -144,22 +195,58 @@ export const RESERVED_READINGS = [...READING_SLOTS, ADJECTIVE_IS_SLOT];
  * teacher who prefers *I'm* writes that instead. Empty for empty English.
  */
 export function beReadings(en: string | null | undefined): { is: string; ask: string } {
+  return withBe(en, (first) => (first === "i" ? "am" : ["he", "she", "it", "this", "that"].includes(first) ? "is" : "are"));
+}
+
+/* Some English with *to be* after it and before it, the verb chosen from
+   its first word; a note in brackets stays on the end. */
+function withBe(en: string | null | undefined, beOf: (first: string) => string): { is: string; ask: string } {
   const whole = String(en || "").trim();
   if (!whole) return { is: "", ask: "" };
   const m = whole.match(/^(.*?)\s*(\([^)]*\))?$/);
   const base = ((m && m[1]) || whole).trim() || whole;
   const note = m && m[2] && base !== whole ? ` ${m[2]}` : "";
-  const first = base.split(/\s+/)[0].toLowerCase();
-  const be = first === "i" ? "am" : ["he", "she", "it"].includes(first) ? "is" : "are";
+  const be = beOf(base.split(/\s+/)[0].toLowerCase());
   return { is: `${base} ${be}${note}`, ask: `${be} ${base}${note}` };
 }
+
+/* The numbers a noun takes *are* in: more than one, however many. */
+const MANY = ["plural", "dual", "counted"];
+
+/**
+ * Which number one form of a noun is, as English counts: "plural" for a
+ * plural, a dual or the plural after three to ten, and "" for anything
+ * else — the singular, and a word whose number does not apply, which is
+ * *water is* as much as *house is*.
+ *
+ * Read off the form, or off its first answer where the form says none.
+ * A pronoun on the end is a cell of the form it is on the end of, and
+ * that form's number is its own: بيوتي is *my houses*.
+ */
+export function nounNumberOf(card: WithSlots | null | undefined, form: WithSlots | null | undefined): "plural" | "" {
+  const forms = formsOf(card) as WithSlots[];
+  let at = form || forms[0];
+  if (at && text(at, "row") && text(at, "col")) {
+    const of = text(at, "of").trim();
+    at = (of && forms.find((f) => text(f, "id") === of)) || forms[0] || at;
+  }
+  const answers = at && Array.isArray(at.answers) ? (at.answers as WithSlots[]) : [];
+  const said = text(at, "number").trim() || text(answers[0], "number").trim();
+  return MANY.includes(said) ? "plural" : "";
+}
+
+/** A noun form's two readings: *my house is*, *are my houses*. */
+export const nounReadings = (en: string | null | undefined, plural: boolean): { is: string; ask: string } =>
+  withBe(en, () => (plural ? "are" : "is"));
 
 /**
  * The English a pronoun lends each of the two reading blanks: what the
  * teacher wrote on the Pronouns screen, or what beReadings makes of its
- * English where they wrote nothing.
+ * English where they wrote nothing. A demonstrative the same, under its
+ * own kind's names — see DEMONSTRATIVE_SLOT — and a noun, whose verb
+ * follows its number — see NOUN_SLOT.
  *
- * Empty for a card that is not a pronoun, which lends its plain English
+ * Empty for a card that is neither, which lends its plain English
  * everywhere. `form` is the form being lent — the card's own word, almost
  * always — and the teacher's readings belong to that word alone: another
  * form of a pronoun is read off its own English.
@@ -169,15 +256,20 @@ export function readingsOf(
   form: WithSlots | null | undefined,
   lead = true,
 ): Record<string, string> {
-  if (!card || String(card.category || "").toLowerCase() !== PRONOUN_SLOT) return {};
+  const kind = String((card && card.category) || "").toLowerCase();
+  if (!card || !readsWithBe(kind)) return {};
+  const [isSlot, askSlot] = readingNames(kind, kind);
   const en = (splitAlternatives(text(form, "en"))[0] || "").trim();
-  const made = beReadings(en);
-  const said = (field: string) => (lead ? text(card, field).trim() : "");
+  /* A noun's verb follows its number, and nobody writes its readings by
+     hand: there is nowhere to. */
+  const noun = kind === NOUN_SLOT;
+  const made = noun ? nounReadings(en, !!nounNumberOf(card, form)) : beReadings(en);
+  const said = (field: string) => (lead && !noun ? text(card, field).trim() : "");
   const out: Record<string, string> = {};
   const is = said("enIs") || made.is;
   const ask = said("enAsk") || made.ask;
-  if (is) out[PRONOUN_IS_SLOT] = is;
-  if (ask) out[IS_PRONOUN_SLOT] = ask;
+  if (is) out[isSlot] = is;
+  if (ask) out[askSlot] = ask;
   return out;
 }
 
@@ -233,6 +325,11 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
   if (kind === WORD_SLOT && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
   const said = String((card && card.category) || "").toLowerCase();
   if (said && !out.includes(said)) out.push(said);
+  /* And a number filler the runs of stretches its own is inside: a filler
+     from 10 to 19 stands in `{{0-99}}` and `{{10-999}}`. See spans.ts. */
+  for (const name of [...out]) {
+    for (const span of spansThrough(name)) if (!out.includes(span)) out.push(span);
+  }
   /* And a pronoun fills the blanks that read it with *to be*, and an
      adjective the one that says it about a person — the same cards, with
      a different English — under every name that reaches it: its kind,
@@ -255,15 +352,15 @@ export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[]
  * three built-in names are this rule applied to the kind, and read exactly
  * as before.
  *
- * A pronoun reads `-is` as *I am* and `is-` as *am I*; an adjective reads
- * `-is` about each person in turn; nothing else reads either, so a tag
- * with nouns and adjectives in it lends only its adjectives to
- * `{{feelings-is}}`. `{{word}}` has no readings: every word fills it, and
+ * A pronoun reads `-is` as *I am* and `is-` as *am I*, a
+ * demonstrative as *this is* and *is this*, and a noun as *my house is*
+ * and *is my house*; an adjective reads `-is` about each person in turn;
+ * nothing else reads either. `{{word}}` has no readings: every word fills it, and
  * a reading of it would be a kind of word under another name.
  */
 export function readingNames(kind: string, name: string): string[] {
   if (!name || name === WORD_SLOT) return [];
-  if (kind === PRONOUN_SLOT) return [`${name}-is`, `is-${name}`];
+  if (readsWithBe(kind)) return [`${name}-is`, `is-${name}`];
   if (kind === ADJECTIVE_SLOT) return [`${name}-is`];
   return [];
 }
@@ -288,7 +385,7 @@ export function readingBase(slot: string): { base: string; reads: "is" | "ask" }
  */
 export function readingOf(card: WithSlots | null | undefined, slot: string): "" | "is" | "ask" {
   const kind = String((card && card.category) || "").toLowerCase();
-  if (kind !== PRONOUN_SLOT && kind !== ADJECTIVE_SLOT) return "";
+  if (!readsWithBe(kind) && kind !== ADJECTIVE_SLOT) return "";
   const read = readingBase(slot);
   if (!read) return "";
   if (fillNames(card).includes(slot) || cardRef(card) === slot) return "";
@@ -301,15 +398,18 @@ export const aboutPerson = (card: WithSlots | null | undefined, slot: string): b
   String((card && card.category) || "").toLowerCase() === ADJECTIVE_SLOT && readingOf(card, slot) === "is";
 
 /*
- * One value as it stands in one blank: a pronoun in a reading of any name
- * carries the English of that reading under the blank's own name, which
- * is the key fillText reads. Its readings are worked out under the
- * built-in names — see readingsOf — and copied across here.
+ * One value as it stands in one blank: a pronoun or a demonstrative in a
+ * reading of any name carries the English of that reading under the
+ * blank's own name, which is the key fillText reads. Its readings are
+ * worked out under its kind's built-in names — see readingsOf — and
+ * copied across here.
  */
 export function readAs(card: WithSlots | null | undefined, value: Value, slot: string): Value {
   const reads = readingOf(card, slot);
-  if (!reads || String((card && card.category) || "").toLowerCase() !== PRONOUN_SLOT) return value;
-  const key = reads === "is" ? PRONOUN_IS_SLOT : IS_PRONOUN_SLOT;
+  const kind = String((card && card.category) || "").toLowerCase();
+  if (!reads || !readsWithBe(kind)) return value;
+  const [isSlot, askSlot] = readingNames(kind, kind);
+  const key = reads === "is" ? isSlot : askSlot;
   const said = value.readings && value.readings[key];
   if (!said || key === slot) return value;
   return { ...value, readings: { ...value.readings, [slot]: said } };
@@ -744,6 +844,13 @@ export interface Value {
    * wherever it stands in a sentence. See fitCase.
    */
   proper?: boolean;
+  /**
+   * The blank written straight after this one that it has said already —
+   * a counting blank counting the noun beside it, *3 dogs* standing for
+   * `{{count-0-9}} {{animal}}`. That blank is dropped where it follows
+   * this one, and filled as itself anywhere else. See countTook.
+   */
+  swallows?: string;
 }
 
 const text =(form: WithSlots | null | undefined, field: string): string => {
@@ -959,6 +1066,7 @@ export function valuesFor(
   const out: Record<string, Value[]> = {};
   for (const slot of wanted) out[slot] = [];
   if (!wanted.length) return out;
+  const beside = besideAdjectives();
   for (const card of pool || []) {
     if (lang && card.lang && card.lang !== lang) continue;
     const slots = fillsOf(card, kindOf ? kindOf(card) : "");
@@ -974,11 +1082,48 @@ export function valuesFor(
       for (const slot of slots) {
         if (!out[slot]) continue;
         if (admits && !admits(card, lent.form, slot)) continue;
-        out[slot].push(...(into ? into(card, lent.value, slot) : [readAs(card, lent.value, slot)]));
+        const made = into ? into(card, lent.value, slot) : [readAs(card, lent.value, slot)];
+        beside.saw(card, slot, made);
+        out[slot].push(...made);
       }
     }
   }
-  return out;
+  return beside.sift(out);
+}
+
+/*
+ * A reading a noun and an adjective both answer to, and mean two things
+ * by.
+ *
+ * `{{feelings-is}}` over a tag holding تعبان and حفلة: the adjective reads
+ * it as *I am tired*, with nobody named, and the noun as *the party is*.
+ * The first is what a tag of adjectives is read that way for, and was the
+ * whole of it before nouns read with *to be* (0.387) — so where any
+ * adjective says the blank about a person, the nouns in it stand aside,
+ * as they always did. Kept as values are gathered, and applied once at
+ * the end, since which cards are in a blank is known only then.
+ */
+export function besideAdjectives() {
+  const about = new Set<string>();
+  const nouns = new Map<string, Set<Value>>();
+  return {
+    saw(card: WithSlots | null | undefined, slot: string, made: Value[]) {
+      const kind = String((card && card.category) || "").toLowerCase();
+      if (aboutPerson(card, slot)) about.add(slot);
+      else if (kind === NOUN_SLOT && readingOf(card, slot) === "is") {
+        const had = nouns.get(slot) || new Set<Value>();
+        for (const v of made) had.add(v);
+        nouns.set(slot, had);
+      }
+    },
+    sift(out: Record<string, Value[]>): Record<string, Value[]> {
+      for (const slot of about) {
+        const drop = nouns.get(slot);
+        if (drop && out[slot]) out[slot] = out[slot].filter((v) => !drop.has(v));
+      }
+      return out;
+    },
+  };
 }
 
 /**
@@ -1039,7 +1184,7 @@ export function lentBy(
   formsOf(card).forEach((form, at) => {
     if (!isLent(form as WithSlots)) return;
     if (!lends(form as WithSlots)) return;
-    const lent = valueOf(form as WithSlots, fields);
+    const lent = withHost(card, form as WithSlots, valueOf(form as WithSlots, fields), fields);
     if (!lent.ar) return;
     /* The card's own word carries the card's person, where it has one —
        the form handed in above cannot know it. */
@@ -1056,6 +1201,43 @@ export function lentBy(
     out.push({ form: form as WithSlots, value: named });
   });
   return out;
+}
+
+/*
+ * What a noun is, it is in every form: أختي is as feminine as أخت, and
+ * خوات as much a word for people. The teacher says it once, on the card's
+ * own word — the editor writes whether it is people there and nowhere
+ * else — and the other forms say only what is their own: a plural box its
+ * number. Until 0.404 that is all they lent, so a demonstrative beside
+ * "sisters" stood as هاد rather than هدول. A form takes what it leaves
+ * unsaid from the card's own word.
+ *
+ * **A pronoun on the end says nothing of the noun at all**, so its cell
+ * reads the noun it is on the end of (`of`, else the card's own word)
+ * outright. The editor writes a cell's boxes as "doesn't apply" and "a
+ * thing", which is about the pronoun, not the sister — and 0.404, which
+ * filled only what a cell left empty, let those stand: هاد أختي went on
+ * being made from real cards until 0.406. What a cell says counts only
+ * where its noun says nothing — the reading nounNumberOf already gives a
+ * pronoun on the end its number.
+ */
+function withHost(card: WithSlots | null | undefined, form: WithSlots, value: Value, fields: string[]): Value {
+  const forms = formsOf(card) as WithSlots[];
+  if (!fields.length || form === forms[0]) return value;
+  const cell = !!(text(form, "row") && text(form, "col"));
+  const of = cell ? text(form, "of").trim() : "";
+  const hosts = [of && forms.find((f) => text(f, "id") === of), forms[0]].filter(
+    (f): f is WithSlots => !!f && f !== form,
+  );
+  const own = value.grammar || {};
+  const grammar: Record<string, string> = cell ? {} : { ...own };
+  for (const host of hosts) {
+    const said = valueOf(host, fields).grammar || {};
+    for (const field of fields) if (!grammar[field] && said[field]) grammar[field] = said[field];
+  }
+  for (const field of fields) if (!grammar[field] && own[field]) grammar[field] = own[field];
+  if (own.person) grammar.person = own.person;
+  return Object.keys(grammar).length ? { ...value, grammar } : value;
 }
 
 /** The same, as the values alone — which is what a pool wants. */
@@ -1140,7 +1322,9 @@ export function valuesForTurn(
   const out: Record<string, Value> = {};
   let rolled = at;
   for (const slot of slots) {
-    const list = (have && have[slot]) || [];
+    /* A number blank over several stretches takes them in turn — see
+       mixed. */
+    const list = mixed(slot, (have && have[slot]) || []);
     if (!list.length) return null;
     out[slot] = list[rolled % list.length];
     rolled = Math.floor(rolled / list.length);
@@ -1288,7 +1472,7 @@ export function fillText(
   field = "ar",
   cased = true,
 ): string {
-  return String(value || "").replace(SLOT, (whole, name, at: number, all: string) => {
+  return withoutSwallowed(String(value || ""), values).replace(SLOT, (whole, name, at: number, all: string) => {
     const slot = String(name).toLowerCase();
     const took = values && values[slot];
     if (!took) return whole;
@@ -1299,6 +1483,52 @@ export function fillText(
     const start = startsSentence(all.slice(0, at));
     return field === "en" ? fitEnglish(word, start, !!took.proper) : fitCase(word, start, !!took.proper);
   });
+}
+
+/*
+ * Whether a word standing in one of this string's blanks has nothing to
+ * say in this field — a number nobody wrote a transliteration for, a name
+ * with no English.
+ *
+ * Such a sentence has no line in that field, rather than a line with the
+ * blank's name standing in it, and rather than not being a sentence: the
+ * Arabic is whole, and a transliteration with a hole in it would be read
+ * as the whole. A blank nothing was offered for at all is not this — that
+ * is left standing, as fillText says. The script is never asked: a value
+ * with nothing in its script is not a value.
+ */
+function wants(written: string, values: Record<string, Value>, field: string): boolean {
+  for (const m of withoutSwallowed(written, values).matchAll(SLOT)) {
+    const slot = m[1].toLowerCase();
+    const took = values && values[slot];
+    if (!took) continue;
+    const read = field === "en" && took.readings ? took.readings[slot] : "";
+    const word = read || (took as unknown as Record<string, string>)[field];
+    if (!String(word || "").trim()) return true;
+  }
+  return false;
+}
+
+/** The fields a form writes that these values leave it without — see
+    `wants`. What practice reads to keep a question that asks for one of
+    them away from this filling. */
+export function fieldsLost(form: WithSlots | null | undefined, values: Record<string, Value> | null): string[] {
+  if (!values) return [];
+  return ["en", "lat"].filter((field) => {
+    const written = text(form, field);
+    return !!written && wants(written, values, field);
+  });
+}
+
+/* A string with every blank another one has said already taken out of
+   it, with the space before it — see `swallows`. */
+function withoutSwallowed(written: string, values: Record<string, Value>): string {
+  let out = written;
+  for (const [slot, value] of Object.entries(values || {})) {
+    if (!value || !value.swallows) continue;
+    out = out.replace(new RegExp(`(\\{\\{\\s*${slot}\\s*\\}\\})\\s*\\{\\{\\s*${value.swallows}\\s*\\}\\}`, "gi"), "$1");
+  }
+  return out;
 }
 
 /*
@@ -1446,6 +1676,10 @@ export function fillForm<T extends WithSlots>(
   for (const field of FILLED_FIELDS) {
     const written = text(form, field);
     if (!written) continue;
+    if (field !== "ar" && wants(written, values, field)) {
+      out[field] = "";
+      continue;
+    }
     out[field] = field === "en" ? fillEnglish(written, values, cased) : fillText(written, values, field, cased);
   }
   /* The answers array is written from `ar` and would otherwise still hold
@@ -1455,7 +1689,7 @@ export function fillForm<T extends WithSlots>(
     out.answers = (form.answers as Record<string, unknown>[]).map((a) => ({
       ...a,
       text: fillText(typeof a.text === "string" ? a.text : "", values, "ar", cased),
-      lat: fillText(typeof a.lat === "string" ? a.lat : "", values, "lat", cased),
+      lat: typeof a.lat === "string" && wants(a.lat, values, "lat") ? "" : fillText(typeof a.lat === "string" ? a.lat : "", values, "lat", cased),
     }));
   }
   out.filled = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.id || v.ar]));

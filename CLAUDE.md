@@ -74,3 +74,30 @@ section at the end, clearly marked as such.
 This applies to every plan presented for approval, every proposal offered
 in conversation, and every summary of actions taken at the end of a piece
 of work.
+
+## How to ask clarifying questions
+
+Whenever there are questions for the owner, before building or at any other
+point, ask them this way, every time:
+
+- A numbered list, grouped by topic with sub-numbers: 1a, 1b, 2a, and so on.
+- One question per item, never two in the same item.
+- Concise and non-technical, in the same plain terms as above.
+- Where what the owner said can be read more than one way, and the ways
+  are put back to them, each reading is numbered or named, so the owner
+  can answer with which one is right in a word ("2", or "the second").
+
+## How to propose fixes
+
+Whenever there is more than one way to fix something, whether in answer to a
+question, in a plan, or offered unprompted, set them out this way, every
+time:
+
+- A numbered list, one fix per item, so the owner can answer with a number.
+- Each item says, in the same plain terms as above, what changes for the
+  people using the app and what it costs or gives up.
+- Then a recommendation, naming one of the numbered fixes and saying in a
+  sentence or two why.
+
+Where there is only one sensible fix, still say which it is and why, rather
+than presenting it as a list of one.

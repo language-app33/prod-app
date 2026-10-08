@@ -37,12 +37,13 @@ import type {
   FormKey,
   NumberSystem,
   Range,
+  SlotSpec,
   TimeComposer,
   TimeSystem,
   Token,
 } from "./types.ts";
-import { askFor, countable, rangeChecks, renderAsk, probeOf, seeded } from "./range.ts";
-import { COUNTING_WAS, NUMBER_CEILING, countingOf, partsNow } from "./types.ts";
+import { askFor, blocking, countable, rangeChecks, renderAsk, probeOf, sayAlong, seeded } from "./range.ts";
+import { COUNTING_WAS, NUMBER_CEILING, countingOf, partsNow, stretchTag } from "./types.ts";
 
 /** A key may name a face with a bar in it; an id may not wear one. */
 const safe = (s: string) => String(s).replace(/\|/g, "~");
@@ -175,7 +176,7 @@ interface Made {
   systemId: string;
   slot: string;
   /** The card's own word, and the faces beside it. */
-  faces: { key: FormKey; text: string; label: string; lat?: string; audio?: string[] }[];
+  faces: { key: FormKey; text: string; label: string; lat?: string; audio?: string[]; countedAt?: number[] }[];
   en: string;
   note?: string;
   /** The number in the language's own figures, where it has them. */
@@ -238,6 +239,9 @@ function cardOf(made: Made): Item {
        its transliteration is ever put to this card. */
     lat: String(face.lat || "").trim(),
     ...(i === 0 ? null : { row: "number", col: face.key, note: face.label }),
+    /* A face that counts things is asked only with a thing to count —
+       see countedAt and faceAsk. */
+    ...(i > 0 && face.countedAt && face.countedAt.length ? { countedAt: face.countedAt } : null),
     /* On every face, because every face is asked: the question at the top
        of the card's ladder writes the word from these figures. */
     ...(made.numeral ? { numeral: made.numeral } : null),
@@ -294,6 +298,95 @@ function numeralCard(id: string, lang: LangId, systemId: string, digit: number, 
   } as Item;
 }
 
+/* ---- a face that counts things, asked with a thing to count ---- */
+
+/*
+ * A face of a number that is for counting things — *three* before a noun,
+ * *one* with a feminine word — is never asked bare. Practising the word a
+ * number takes in front of a noun with no noun there is practising half a
+ * phrase, so the face is asked as a small sentence of its own, made under
+ * the hood and shown to nobody as a card: the number, and one of the
+ * learner's noun cards in the shape that number puts it in. A different
+ * noun each time round, and only one the learner has already cleared in
+ * that shape. See DECISIONS.md, "A face that counts things is asked with a
+ * thing".
+ *
+ * Which faces those are is read off the composer rather than declared: a
+ * face is one wherever saying a number with a noun reaches for it. Three
+ * to nineteen's word before a noun does at once; Arabic two's gendered
+ * words never stand before a noun — two of a thing is the noun's pair
+ * form — and are met with one only inside twenty-two, so that is the
+ * number they are asked in. Hebrew's bound three before *thousands* is
+ * never reached for by a noun, and is asked as it always was.
+ */
+
+/* Stand-ins for a noun of each gender with every shape written, so
+   whether a face is reached for turns on the composer alone. */
+const PROBE_NOUNS: CountedNoun[] = (["m", "f"] as const).map((gender) => ({
+  id: "",
+  sg: "-",
+  dual: "-",
+  pl: "-",
+  gender,
+  en: "",
+}));
+
+const hasFace = (tokens: Token[], slot: string, key: FormKey): boolean =>
+  tokens.some((t) => t.slot === slot && t.formKey === key);
+
+/**
+ * The numbers one face of a slot is said in with a noun: its own number
+ * where that puts the face before a noun, and otherwise the number twenty
+ * above it where that does — or none, for a face no counted phrase uses.
+ */
+export function countedAt(composer: Composer, sys: NumberSystem, spec: SlotSpec, key: FormKey): number[] {
+  const n = figureOf(spec.label);
+  if (n == null || n < 1 || n > 19) return [];
+  for (const value of n < 10 ? [n, n + 20] : [n]) {
+    if (PROBE_NOUNS.some((noun) => hasFace(composer.render(value, sys, { noun }).tokens, spec.slot, key))) {
+      return [value];
+    }
+  }
+  return [];
+}
+
+/**
+ * The small sentence one counting face is asked as, this time round: one
+ * of the numbers it is said in, with one of the learner's nouns.
+ *
+ * Every pairing whose rendering puts this face in it, is whole, and whose
+ * other words — the noun in the shape it is shown in, *twenty* in twenty-two
+ * — the learner has cleared; then one of those on the seed, so a missed
+ * question comes back the same and a right one moves to another noun. The
+ * face itself is what is being practised and is not waited on. Null where
+ * no noun can be paired with it yet, and the face is then not asked.
+ */
+export function faceAsk(
+  slot: string,
+  key: FormKey,
+  values: number[],
+  seed: string,
+  set: { composer: Composer | null; sys: NumberSystem },
+  ids: Set<string>,
+  knows: Knows,
+): Ask | null {
+  const { composer, sys } = set;
+  if (!composer || !values.length) return null;
+  const rangeId = `face:${slot}|${key}`;
+  const fits: Ask[] = [];
+  for (const value of values) {
+    for (const noun of sys.nouns || []) {
+      const got = composer.render(value, sys, { noun });
+      if (!got.text || blocking(got.warnings).length || !hasFace(got.tokens, slot, key)) continue;
+      const others = got.tokens.filter((t) => !(t.slot === slot && t.formKey === key));
+      if (!tokensKnown(others, sys.id, "", ids, knows)) continue;
+      fits.push({ rangeId, kind: "numbers", value, nounId: noun.id });
+    }
+  }
+  if (!fits.length) return null;
+  return fits[Math.floor(seeded(`${rangeId} ${seed}`)() * fits.length)];
+}
+
 /* ---- the whole set ---- */
 
 export interface Generated {
@@ -331,6 +424,7 @@ export function generate({ composer, sys, timeComposer, timeSys, now, numerals }
         label: (spec.faceLabels && spec.faceLabels[key]) || labelForFace(key),
         lat: (lex.lat || {})[key],
         audio: (lex.audio || {})[key],
+        countedAt: key === spec.formKeys[0] ? [] : countedAt(composer, sys, spec, key),
       }))
       .filter((f) => f.text);
     if (!faces.length) continue;
@@ -1203,12 +1297,12 @@ export const COUNT_TAG = "count";
  * write `{{0-9}}` or `{{number}}` into a sentence card and know what
  * stands there without setting anything up — and so the names are the same
  * for every teacher and every language. A stretch's counting view answers
- * to `count-0-9` and `count` rather than `number`: a sentence that says
- * *I have {{number}}* wants *47*, and handing it *3 books* half the time
- * would make a different sentence of it.
+ * to `count-0-9` and `count` rather than `number`: it is filled with the
+ * number in the form it takes before a noun, and a sentence that says
+ * *I have {{number}}* wants the number counted aloud.
  */
 export function partTags(range: Range): string[] {
-  const tag = (id: string) => id.replace(/^numbers:/, "").replace(/\+$/, "-plus");
+  const tag = stretchTag;
   if (range.counted) return [`count-${tag(range.id)}`, COUNT_TAG];
   /* And the tag of the part it was split out of, so a sentence written
      with `{{11-99}}` before the split is still filled — from 10 to 19
@@ -1233,11 +1327,10 @@ export const OLD_COUNT_TAGS: { tag: string; from: number; to: number }[] = [
  *
  * A part answers to its tags — see partTags — and a sentence with one of
  * them in it is met with a number from that part, written out in full by
- * the composer: *I am {{0-10}}* as *I am 7*. A
- * counting part fills its blank with a number and a thing counted, both
- * agreeing — *I have {{things}}* as *I have 3 books*, with the plural, the
- * dual or the singular the number calls for — and says which of those it
- * is, so an adjective standing after it in the sentence agrees too.
+ * the composer: *I am {{0-10}}* as *I am 7*. A counting part fills its
+ * blank with the number in its counting form and no noun — the noun is the
+ * teacher's to write — and counts the noun of a noun blank written
+ * straight after it. See countingFillers.
  *
  * They are made to be borrowed, never to be asked: in no deck, not
  * practised on their own, and kept out of `{{word}}`. That makes them what
@@ -1250,6 +1343,46 @@ export const OLD_COUNT_TAGS: { tag: string; from: number; to: number }[] = [
  * nothing, and its sentences wait for it the way a sentence waits for a
  * name nobody has written.
  */
+/**
+ * A counting filler's number, counting a noun — what a sentence shows
+ * where a noun blank stands straight after the counting one: *I have
+ * {{count-0-9}} {{animal}}* as *I have 3 dogs*. See countTook in
+ * review.ts, which asks this.
+ *
+ * Undefined for anything that is not a counting filler, and null where
+ * the noun cannot be counted across the filler's part — a card missing
+ * the form that number calls for — which is no sentence rather than a
+ * wrong one. Worked out when first asked and kept: a teacher with two
+ * hundred noun cards uses a handful of them beside a number.
+ */
+export interface CountedPhrase {
+  ar: string;
+  en: string;
+  lat: string;
+  grammar: Record<string, string>;
+}
+
+const COUNTED_WITH: Map<string, (nounId: string) => CountedPhrase | null> = new Map();
+
+export const countedWith = (fillerRef: string, nounId: string): CountedPhrase | null | undefined => {
+  const counts = COUNTED_WITH.get(fillerRef);
+  return counts ? counts(nounId) : undefined;
+};
+
+/* The counting fillers with no counting form of their own. */
+const ALONE_NOT: Set<string> = new Set();
+
+/** Whether a filler may stand in a blank with no noun blank after it —
+    false only for a number counted by its noun alone, Arabic's two. */
+export const standsAlone = (fillerRef: string): boolean => !ALONE_NOT.has(fillerRef);
+
+/* What a counted phrase says about its noun, the way a card stores it. */
+const countedGrammar = (said: { nounForm?: string }, noun: CountedNoun): Record<string, string> => ({
+  number: NUMBER_OF[said.nounForm || "pl"] || "plural",
+  gender: noun.gender === "f" ? "feminine" : "masculine",
+  ...(noun.human ? { human: noun.human } : null),
+});
+
 export function fillerCards(composer: Composer | null, sys: NumberSystem | null, now: Millis = 0): Item[] {
   if (!composer || !sys) return [];
   const out: Item[] = [];
@@ -1271,44 +1404,155 @@ export function fillerCards(composer: Composer | null, sys: NumberSystem | null,
     const values = span <= FILLERS_PER_PART * 4
       ? Array.from({ length: span }, (_, i) => range.from + i)
       : [...new Set(Array.from({ length: FILLERS_PER_PART * 2 }, (_, i) => askFor(range, `${sys.id} fill ${i}`, sys).value))];
-    const pairs = range.counted
-      ? values.flatMap((value) => nouns.map((noun) => ({ value, noun })))
-      : values.map((value) => ({ value, noun: undefined as CountedNoun | undefined }));
-    const picked = spread(pairs, FILLERS_PER_PART, `${sys.id} ${range.id}`);
-    for (const { value, noun } of picked) {
-      const said = renderAsk(
-        { rangeId: range.id, kind: "numbers", value, ...(noun ? { nounId: noun.id } : null) },
-        composer,
-        sys,
-      );
+    if (range.counted) {
+      out.push(...countingFillers(range, values, nouns, composer, sys, names, now));
+      continue;
+    }
+    for (const value of spread(values, FILLERS_PER_PART, `${sys.id} ${range.id}`)) {
+      const said = renderAsk({ rangeId: range.id, kind: "numbers", value }, composer, sys);
       if (!said.text) continue;
-      const id = fillerId(sys.id, range.id, value, noun ? noun.id : "");
-      const old = noun ? OLD_COUNT_TAGS.filter((t) => value >= t.from && value <= t.to).map((t) => t.tag) : [];
-      const grammar = noun
-        ? {
-            number: NUMBER_OF[said.nounForm || "pl"] || "plural",
-            gender: noun.gender === "f" ? "feminine" : "masculine",
-            ...(noun.human ? { human: noun.human } : null),
-          }
-        : null;
-      out.push({
-        id,
-        lang: sys.languageId,
-        /* A phrase, so `{{word}}` — any word in the language — does not
-           take it. See kindOf. */
-        kind: "phrase",
-        tags: [],
-        fills: old.length ? [names[0], ...old, ...names.slice(1)] : names,
-        forms: [{ id: `${id}-f0`, ar: said.text, en: said.en || said.digits, lat: "", ...grammar, s: {} }],
-        source: { systemId: sys.id, slot: `fill:${range.id}` },
-        locked: true,
-        drill: false,
-        created: now,
-        updated: now,
-      } as Item);
+      const id = fillerId(sys.id, range.id, value);
+      out.push(fillerItem(id, sys, range, names, said.text, said.en || said.digits, said.lat || "", null, now));
     }
   }
   return out;
+}
+
+/* One filler card: a number as a blank is filled with it. */
+function fillerItem(
+  id: string,
+  sys: NumberSystem,
+  range: Range,
+  names: string[],
+  ar: string,
+  en: string,
+  lat: string,
+  grammar: Record<string, string> | null,
+  now: Millis,
+  old: string[] = [],
+): Item {
+  return {
+    id,
+    lang: sys.languageId,
+    /* A phrase, so `{{word}}` — any word in the language — does not
+       take it. See kindOf. */
+    kind: "phrase",
+    tags: [],
+    fills: old.length ? [names[0], ...old, ...names.slice(1)] : names,
+    /* How it is said, where every word of it has a transliteration — see
+       sayAlong. Empty otherwise, and then a sentence it stands in has no
+       transliteration rather than one with a hole in it: see fillForm. */
+    forms: [{ id: `${id}-f0`, ar, en, lat, ...grammar, s: {} }],
+    source: { systemId: sys.id, slot: `fill:${range.id}` },
+    locked: true,
+    drill: false,
+    created: now,
+    updated: now,
+  } as Item;
+}
+
+/* A counted phrase with its noun taken out of it: the number as it is
+   said before a noun — *tlat* where counting aloud says *tlate*. */
+function numberAlone(said: { text: string; tokens: Token[] }): string {
+  let text = ` ${said.text} `;
+  for (const token of said.tokens) {
+    if (!token.noun || !token.text) continue;
+    text = text.replace(` ${token.text} `, " ");
+  }
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * A counting part's fillers: each number in its counting form, and
+ * nothing beside it.
+ *
+ * The form a number takes before a noun, which is not always the one it
+ * is counted aloud in — Palestinian *tlat kutub* and not *tlate* — and
+ * never a noun: which thing is counted is the sentence's to say, and the
+ * teacher's to write. Worked out by counting one of the teacher's nouns
+ * and leaving the noun out. Where a language's counting form changes with
+ * the noun's gender, as Hebrew's does, there is one of each, saying which
+ * it is; where it does not, one.
+ *
+ * Where a noun blank stands straight after the counting blank, the number
+ * counts that noun — see countedWith. And a number that has no counting
+ * form of its own — Arabic says *two books* with the dual alone — is lent
+ * only to that: it stands in a counting blank with a noun blank after it,
+ * and nowhere else (see standsAlone).
+ */
+function countingFillers(
+  range: Range,
+  values: number[],
+  nouns: CountedNoun[],
+  composer: Composer,
+  sys: NumberSystem,
+  names: string[],
+  now: Millis,
+): Item[] {
+  const sample = (["m", "f"] as const).flatMap((g) => {
+    const noun = nouns.find((n) => n.gender === g);
+    return noun ? [noun] : [];
+  });
+  type Face = { value: number; text: string; lat: string; gender: "" | "m" | "f"; nounForm?: string };
+  const faces: Face[] = [];
+  for (const value of values) {
+    const each = sample.flatMap((noun) => {
+      const said = renderAsk({ rangeId: range.id, kind: "numbers", value, nounId: noun.id }, composer, sys);
+      if (!said.text) return [];
+      const text = numberAlone(said);
+      /* Said the same way, from the number's own words alone. */
+      const lat = text ? sayAlong(text, said.tokens.filter((t) => !t.noun), [sys]) : "";
+      return [{ value, text, lat, gender: noun.gender, nounForm: said.nounForm }];
+    });
+    if (!each.length) continue;
+    if (new Set(each.map((f) => f.text)).size === 1) faces.push({ ...each[0], gender: "" });
+    else faces.push(...each);
+  }
+  const out: Item[] = [];
+  for (const face of spread(faces, FILLERS_PER_PART, `${sys.id} ${range.id}`)) {
+    const id = fillerId(sys.id, range.id, face.value, face.gender);
+    const alone = !!face.text;
+    /* Lent under the number counted aloud where it has no counting form
+       of its own, so it has words to be lent with; never shown so. */
+    const aloud = alone ? null : renderAsk({ rangeId: range.id, kind: "numbers", value: face.value }, composer, sys);
+    const ar = aloud ? aloud.text : face.text;
+    if (!ar) continue;
+    const lat = aloud ? aloud.lat || "" : face.lat;
+    const grammar: Record<string, string> = {
+      number: NUMBER_OF[face.nounForm || "pl"] || "plural",
+      ...(face.gender ? { gender: face.gender === "f" ? "feminine" : "masculine" } : null),
+    };
+    COUNTED_WITH.set(id, countsFor(range, face.value, face.gender, nouns, composer, sys));
+    if (alone) ALONE_NOT.delete(id);
+    else ALONE_NOT.add(id);
+    const old = OLD_COUNT_TAGS.filter((t) => face.value >= t.from && face.value <= t.to).map((t) => t.tag);
+    out.push(fillerItem(id, sys, range, names, ar, String(face.value), lat, grammar, now, old));
+  }
+  return out;
+}
+
+/* One number of a counting part, counting whichever of its nouns it is
+   asked for — once each. A number whose counting form is one gender's
+   counts only that gender's nouns. */
+function countsFor(
+  range: Range,
+  value: number,
+  gender: "" | "m" | "f",
+  nouns: CountedNoun[],
+  composer: Composer,
+  sys: NumberSystem,
+): (nounId: string) => CountedPhrase | null {
+  const held: Map<string, CountedPhrase | null> = new Map();
+  return (nounId) => {
+    if (held.has(nounId)) return held.get(nounId) as CountedPhrase | null;
+    const noun = nouns.find((n) => n.id === nounId && (!gender || n.gender === gender));
+    const said = noun ? renderAsk({ rangeId: range.id, kind: "numbers", value, nounId }, composer, sys) : null;
+    const out = noun && said && said.text
+      ? { ar: said.text, en: said.en || said.digits, lat: said.lat || "", grammar: countedGrammar(said, noun) }
+      : null;
+    held.set(nounId, out);
+    return out;
+  };
 }
 
 /*
