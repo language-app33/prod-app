@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.409 — 8 October 2026
+
+**A card's meaning starts with a capital letter when it stands on its own.**
+
+- Wherever a card's English is shown by itself — on card tiles and in
+  card lists, at the top of a card's own screen, in the question, in the
+  choices and the matching grid, in the answer shown afterwards, and in
+  the example sentences under a card — it now starts with a capital
+  letter: "book" reads "Book", and "to eat" reads "To eat". A card that
+  means two things gets a capital on each ("Office / Desk").
+- Only how it looks changes. The card keeps what the teacher typed, and
+  answers typed in English are marked exactly as before.
+- Left as written: a meaning whose second letter is also a capital
+  (iPhone, TV), and one that opens with a number or a blank.
+- In the middle of a sentence, words still follow 0.408: no capital
+  unless the card is a person or a place.
+- Worth checking by hand: the card lists and a few questions on a phone,
+  to see nothing reads oddly with its new capital.
+
 ## 0.408 — 8 October 2026
 
 **Capital letters in the right places in English sentences.**

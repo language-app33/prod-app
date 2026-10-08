@@ -298,7 +298,7 @@ import {
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
-import { fieldsLost, fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
+import { asMeaning, fieldsLost, fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
 import { agreeTook, countTook, finishTook, leadsOf, lineGate, passes, reviewOf, sentenceKey, SCAN_LIMIT } from "./review.ts";
 import { castFill as castScene, filledScene, hasCast } from "./cast.ts";
@@ -6254,7 +6254,7 @@ function RelatedWords({ pairs, settings }: { pairs: any[]; settings: Settings })
           <span className="ar" style={{ fontWeight: 600 }}>
             {p.text}
           </span>
-          {p.en ? ` — ${p.en}` : ""}
+          {p.en ? ` — ${asMeaning(p.en)}` : ""}
         </p>
       ))}
     </div>
@@ -8222,7 +8222,7 @@ function Field({ value, field, kind, lang, name }: {
     );
   return (
     <p className="at-en" data-el={name}>
-      {value}
+      {asMeaning(value)}
     </p>
   );
 }
@@ -8325,7 +8325,7 @@ function Scene({ card, lines, lang, blankId = null, meanings = false, said = fal
               )}
               {meanings && line.en && (
                 <p className="at-scenemeaning" data-el="scene-line-meaning">
-                  {line.en}
+                  {asMeaning(line.en)}
                 </p>
               )}
               {(line.recs || []).length > 0 && (
@@ -8720,7 +8720,7 @@ function MatchGrid({
                       <Arabic text={wantedOf(w)} kind="word" lang={lang} />
                     </span>
                   ) : (
-                    <span className="at-matchfix">{wantedOf(w)}</span>
+                    <span className="at-matchfix">{asMeaning(wantedOf(w))}</span>
                   )
                 ) : null}
               </span>
@@ -8793,11 +8793,11 @@ function MatchGrid({
                 </span>
               ) : meaningTags[at] ? (
                 <span className="at-matchword">
-                  <span>{m}</span>
+                  <span>{asMeaning(m)}</span>
                   <span className="at-matchtag" data-el="match-form-tag">{meaningTags[at]}</span>
                 </span>
               ) : (
-                m
+                asMeaning(m)
               )}
             </button>
           );
@@ -8839,7 +8839,7 @@ function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase"
             disabled={disabled}
             onClick={() => onChange(text)}
           >
-            {field === "en" ? text : <Arabic text={text} kind={kind} lang={lang} />}
+            {field === "en" ? asMeaning(text) : <Arabic text={text} kind={kind} lang={lang} />}
           </button>
         );
       })}
@@ -12628,7 +12628,7 @@ export default function ArabicTrainer() {
             {session && session.learnt && session.learnt.length > 0 && qi === 0 && (
               <Help className="at-learntnote">
                 Already learnt, so not in this session:{" "}
-                {session.learnt.map((x: Item) => leadOf(x).en || leadOf(x).ar || leadOf(x).lat).join(", ")}
+                {session.learnt.map((x: Item) => asMeaning(leadOf(x).en) || leadOf(x).ar || leadOf(x).lat).join(", ")}
               </Help>
             )}
 
@@ -12902,7 +12902,7 @@ export default function ArabicTrainer() {
                         without its English falls back to the word's. */}
                     {context && (
                       <p className="at-ctxmeaning" data-el="question-context-meaning">
-                        {(spec.promptField === "context" && context.en) || item.en}
+                        {asMeaning((spec.promptField === "context" && context.en) || item.en)}
                       </p>
                     )}
                   </div>
@@ -13333,7 +13333,7 @@ export default function ArabicTrainer() {
                               name="also-context-text"
                             />
                             <p className="at-ctxmeaning" data-el="also-context-meaning">
-                              {(context || alsoContext).en}
+                              {asMeaning((context || alsoContext).en)}
                             </p>
                           </div>
                         )}
@@ -14190,7 +14190,7 @@ function CardScreen({ card, items, settings, onPriority, onBack, action }: {
 }) {
   const live = items.find((i) => i.id === card.id) || card;
   return (
-    <Screen title={leadOf(live).en || leadOf(live).ar} onBack={onBack} action={action}>
+    <Screen title={asMeaning(leadOf(live).en) || leadOf(live).ar} onBack={onBack} action={action}>
       <CardReadout
         card={{
           ...live,
@@ -16033,7 +16033,7 @@ function ManualSessionSheet({ items, allTags, settings, editing, onStart, onSave
                               {firstOfEach(leadOf(it)).ar}
                             </span>
                           )}
-                          <span className="en">{firstOfEach(leadOf(it)).en}</span>
+                          <span className="en">{asMeaning(firstOfEach(leadOf(it)).en)}</span>
                         </button>
                       ))}
                     </div>
@@ -16088,7 +16088,7 @@ function ManualSessionSheet({ items, allTags, settings, editing, onStart, onSave
                       {firstOfEach(leadOf(it)).ar}
                     </span>
                   )}
-                  <span className="en">{firstOfEach(leadOf(it)).en}</span>
+                  <span className="en">{asMeaning(firstOfEach(leadOf(it)).en)}</span>
                 </button>
               ))}
               {!searched.length && <Help>Nothing matches that.</Help>}
@@ -16266,7 +16266,7 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }: {
                 {`No ${activeLang().scriptLabel} — this form can't be practiced.`}
               </Notice>
             )}
-            {unit.en && <p className="at-en" style={{ fontSize: 20 }}>{unit.en}</p>}
+            {unit.en && <p className="at-en" style={{ fontSize: 20 }}>{asMeaning(unit.en)}</p>}
             {unit.lat && <p className="at-latin" style={{ fontSize: 17 }}>{unit.lat}</p>}
             {unit.note && <p className="at-note">{unit.note}</p>}
 
@@ -16463,7 +16463,7 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
                 className={`at-previewrow${availableTypes(leadOf(p)).length < 2 ? " weak" : ""}`}
                 key={i}
               >
-                <span className="cell en">{leadOf(p).en || "—"}</span>
+                <span className="cell en">{asMeaning(leadOf(p).en) || "—"}</span>
                 <span className="cell ar" lang={activeLang().id} dir={activeLang().direction}>
                   {leadOf(p).ar || "—"}
                 </span>

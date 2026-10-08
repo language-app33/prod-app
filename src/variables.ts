@@ -1656,6 +1656,31 @@ export function fitEnglish(phrase: string, start: boolean, proper: boolean): str
 }
 
 /*
+ * A meaning shown on its own, with the capital it would have opening a
+ * sentence: "book" on a tile reads "Book".
+ *
+ * For the screen only. What is stored stays as the teacher wrote it, and
+ * so does what an answer is marked against, so this cannot move a
+ * sentence's review fingerprint or turn a right answer wrong. Each of the
+ * ways a card is said gets its own capital — "Office / Desk" — because
+ * each is read as a meaning of its own. A word whose second letter is a
+ * capital too is left as it is (iPhone, eBay), as is a meaning opening
+ * with a blank or a figure, which has no first letter to raise.
+ */
+export function asMeaning(said: string | null | undefined): string {
+  return String(said ?? "")
+    .split(ALT_SEP)
+    .map((one) =>
+      one.replace(/^([\s"'“‘«¿¡([]*)(\p{L})(\p{L}?)/u, (whole, open: string, first: string, next: string) =>
+        next && next === next.toUpperCase() && next !== next.toLowerCase()
+          ? whole
+          : open + first.toUpperCase() + next,
+      ),
+    )
+    .join(ALT_SEP);
+}
+
+/*
  * The form, as the question asks it.
  *
  * Every field filled from the same values, which is the whole point: the

@@ -6,6 +6,7 @@ import { JSDOM } from "jsdom";
 import { build } from "esbuild";
 import path from "node:path";
 import { must } from "./helpers.mjs";
+import { asMeaning } from "../src/variables.ts";
 
 /*
  * One generator, seeded, for the whole walk.
@@ -1897,7 +1898,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   /* Its first meaning: a tile shows one of each, not every one accepted. */
   check("a tile says the word, its meaning and when it was added",
     !!tile &&
-      ((tile.querySelector(".at-minien") || {}).textContent || "").trim() === card.en.split("/")[0].trim() &&
+      ((tile.querySelector(".at-minien") || {}).textContent || "").trim() === asMeaning(card.en.split("/")[0].trim()) &&
       /\d/.test(((tile.querySelector(".at-minimeta") || {}).textContent || "")),
     shown.replace(/\s+/g, " ").trim() ||
       tiles.map((t) => (t.textContent || "").replace(/\s+/g, " ").slice(0, 16)).join(" | ") || "(no tile)");
@@ -2727,7 +2728,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      every other. */
   const named = host.querySelector(".at-mininame");
   check("a card with a name of its own is listed under it",
-    !!named && /to eat/.test(named.textContent || ""),
+    !!named && /To eat/.test(named.textContent || ""),
     named ? (named.textContent || "").trim() : "(no named tile)");
   const namedTile = named ? named.closest(".at-minicard") : null;
   check("and the script it is built on is still shown underneath",
@@ -4172,7 +4173,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   click(teachTabs[teachTabs.length - 1]);
   await sleep(500);
   const teachTiles = [...frame.querySelectorAll(".at-minicard")];
-  const phraseTile = teachTiles.find((t) => (t.textContent || "").includes("the book is big"));
+  const phraseTile = teachTiles.find((t) => (t.textContent || "").includes("The book is big"));
   check("their own cards are listed there", !!phraseTile,
     teachTiles.map((t) => (t.textContent || "").slice(0, 18)).join(" | ") || "no cards");
   click(phraseTile);
@@ -4298,7 +4299,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   /* Listed under one of them: a tile names the card, and every meaning
      it accepts is on the card itself. */
   check("the card that means two things is listed with one of them",
-    !!wordTile && /book/.test(wordTile.textContent || "") && !/notebook/.test(wordTile.textContent || ""),
+    !!wordTile && /Book/.test(wordTile.textContent || "") && !/Notebook/.test(wordTile.textContent || ""),
     wordTile ? (wordTile.textContent || "").replace(/\s+/g, " ").slice(0, 60) : "no tile");
   click(wordTile);
   await sleep(450);
@@ -4325,7 +4326,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      this, and this one has been through a session already — so what is
      checked is that it is one of them and whole, rather than which. */
   check("the question shows one meaning, not the pair",
-    ["book", "notebook"].includes(prompt()),
+    ["Book", "Notebook"].includes(prompt()),
     `${prompt() || "(no prompt)"} · ${(document.querySelector(".at-instruction") || {}).textContent || ""}`);
 
   /* And what is accepted is untouched: the answer is the word, and the
@@ -4369,7 +4370,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   click(teachTabs[teachTabs.length - 1]);
   await sleep(500);
   const bookTile = [...frame.querySelectorAll(".at-minicard")]
-    .find((t) => /book/.test(t.textContent || ""));
+    .find((t) => /book/i.test(t.textContent || ""));
   click(bookTile);
   await sleep(450);
   const tryScript = [...document.querySelectorAll(".at-try")]
@@ -5896,7 +5897,7 @@ const openPronounTables = async () => {
         verbLines().length > 0 && verbLines().every((l) => /ate/.test(l)),
         verbLines().join(" / ").slice(0, 160) || "(none shown)");
       check("and the dictionary form goes with them, being in no tense at all",
-        !verbLines().some((l) => /to eat/.test(l)),
+        !verbLines().some((l) => /to eat/i.test(l)),
         verbLines().join(" / ").slice(0, 160) || "(none shown)");
       /* The word in the other hole is not a verb, so nothing here touches
          it: a name is in no tense, and dropping it would answer a question
@@ -7099,7 +7100,7 @@ const openPronounTables = async () => {
   const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
   /* The verb, which is listed under the name its teacher gave it. */
   const tile = [...frame.querySelectorAll(".at-minicard")]
-    .find((t) => ((t.querySelector(".at-mininame") || {}).textContent || "").trim() === "to eat");
+    .find((t) => ((t.querySelector(".at-mininame") || {}).textContent || "").trim() === "To eat");
   click(tile);
   await sleep(450);
   click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
@@ -7561,7 +7562,7 @@ const openPronounTables = async () => {
   await sleep(500);
 
   const tile = [...frame.querySelectorAll(".at-minicard")]
-    .find((t) => (t.textContent || "").includes("teacher"));
+    .find((t) => /teacher/i.test(t.textContent || ""));
   check("the card whose two forms mean one thing is listed", !!tile,
     tile ? (tile.textContent || "").replace(/\s+/g, " ").slice(0, 40) : "no tile");
   click(tile);
@@ -7681,7 +7682,7 @@ const openPronounTables = async () => {
   click(tryIt);
   await sleep(600);
   const means = ((document.querySelector('[data-el="question-context-meaning"]') || {}).textContent || "").trim();
-  check("and the question gives the phrase's English, not the word's", means === "the book is big",
+  check("and the question gives the phrase's English, not the word's", means === "The book is big",
     means || "(nothing said)");
   click(buttonNamed(/^I don't know$/));
   await sleep(200);
@@ -9596,7 +9597,7 @@ const openPronounTables = async () => {
   const rows = () => [...host.querySelectorAll(".at-langmenu .at-ck")];
   const listed = () => [...((frame() || host).querySelectorAll(".at-minicard"))]
     .map((t) => (t.textContent || "").replace(/\s+/g, " "));
-  const hasHouse = () => listed().some((t) => /house/.test(t));
+  const hasHouse = () => listed().some((t) => /house/i.test(t));
   const learnOff = () => JSON.stringify((JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "{}").settings || {}).langsOff);
   const cardsTab = [...((frame() || host).querySelectorAll("button"))].filter((b) => /^Cards$/.test(b.textContent || "")).pop();
   click(cardsTab);

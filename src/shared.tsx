@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, categoryLabel, dimValues, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { isDialog, isText, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
-import { cardRef, fillNames, fillsOf, isSentence, mergeMet, slotsOf, splitSlots } from "./variables.ts";
+import { asMeaning, cardRef, fillNames, fillsOf, isSentence, mergeMet, slotsOf, splitSlots } from "./variables.ts";
 import { reviewOf } from "./review.ts";
 import type { Reader, TableGroup } from "./card-facts.ts";
 import { askLine, A_SENTENCE, blanksOn, cellTitle, CLIP_KINDS, combosOf, dimsSaid, dimText, EXAMPLES_CEILING,
@@ -678,7 +678,7 @@ export function AskedMeanings({ en }: { en?: string | null }) {
     <>
       {list.map((one, i) => (
         <span className="at-askedmeans" key={i}>
-          {one}
+          {asMeaning(one)}
         </span>
       ))}
     </>
@@ -1104,8 +1104,8 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
         * script.
         */}
       {card.name
-        ? <div className="at-minien at-mininame" dir="auto">{card.name}</div>
-        : <div className="at-minien"><Written text={lead.en} /></div>}
+        ? <div className="at-minien at-mininame" dir="auto">{asMeaning(card.name)}</div>
+        : <div className="at-minien"><Written text={asMeaning(lead.en)} /></div>}
       {showLat && lead.lat ? <div className="at-minilat"><Written text={lead.lat} /></div> : null}
       {/* One line of small print, and the caller decides what it says.
           It used to carry the language, the decks the card was in, how
@@ -1541,7 +1541,7 @@ export function cardWords(card: Record<string, any>, lang?: Lang | null): { word
   /* A scene is known by its first line, its meaning as much as its words. */
   const lead = firstOfEach(isDialog(card as any) ? linesOf(card as any)[0] : leadOf(card));
   const face = lead.ar || String(card.numeral || "");
-  const said = card.name || lead.en;
+  const said = asMeaning(card.name || lead.en);
   return {
     word: (
       <span className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
@@ -2411,7 +2411,7 @@ function ReadSaid({ form, lang }: { form: Record<string, any>; lang: Lang }) {
       ))}
       {form.en ? (
         <p className="at-readmeaning">
-          <Written text={String(form.en)} />
+          <Written text={asMeaning(form.en)} />
         </p>
       ) : null}
     </>
@@ -2624,7 +2624,7 @@ function ReadBlanks({ card, lang, cards }: {
                       {value.ar}
                     </b>
                     {value.lat ? <em>{value.lat}</em> : null}
-                    {value.en ? <i>{value.en}</i> : null}
+                    {value.en ? <i>{asMeaning(value.en)}</i> : null}
                   </li>
                 ))}
                 {words.length > FILLS_SHOWN ? (
@@ -2871,7 +2871,7 @@ export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
           {/* Its name, which is where a conversation keeps the words a word
               card keeps in its own script: the card is the scene, and the
               scene is what it is called. */}
-          <ReadRow label="Called">{String(leadOf(card).en || "")}</ReadRow>
+          <ReadRow label="Called">{asMeaning(leadOf(card).en)}</ReadRow>
           {/* Two people, one down each side — which is how a conversation
               is read everywhere else, and the difference between scanning
               a scene and parsing it. Three or four stay a list: there is
@@ -2890,7 +2890,7 @@ export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
                     style={{ fontFamily: L.fontStack, direction: L.direction, ...scriptVars(L) }}>
                     <Written text={line.ar} />
                   </p>
-                  {line.en ? <p className="at-scenemeaning"><Written text={line.en} /></p> : null}
+                  {line.en ? <p className="at-scenemeaning"><Written text={asMeaning(line.en)} /></p> : null}
                   {line.lat ? <p className="at-scenemeaning"><Written text={line.lat} /></p> : null}
                   {clipsOf(line).length ? <ClipList clips={clipsOf(line)} /> : null}
                   {/* A line of a text is never asked on its own, so there is

@@ -57,7 +57,7 @@ import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { sentencesOf } from "./review.ts";
-import { aboutPerson, cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
+import { aboutPerson, asMeaning, cardRef, fillNames, fillsOf, isLent, slotsOf, splitSlots, valuesFor } from "./variables.ts";
 import { citationOf, colOf, isCell, linkedToNothing, NO_PARTNER, ownerOf, partnerOf, personsOf, rowIdsOf, rowOf, slotLinks, slotRows, tensesOf } from "./verbs.ts";
 
 /* A card, a form of one, a turn of one, or a half-written draft — open for
@@ -131,6 +131,10 @@ const asWritten = (value: unknown): string[] =>
   splitSlots(str(value))
     .flatMap((run) => (run.slot ? [run.slot] : [run.text.trim()]))
     .filter(Boolean);
+
+/** A meaning, which the screen draws with the capital it would open a
+    sentence with — see asMeaning. */
+const asMeaningWritten = (value: unknown): string[] => asWritten(asMeaning(str(value)));
 
 /** The same, for the two fields that hold every accepted answer at once,
     slash-separated: each spelling is drawn on its own line. */
@@ -898,7 +902,7 @@ export const CARD_FACTS: FieldRule[] = [
     label: "",
     what: "What it means — the English a student is asked for and marked against.",
     reader: "both",
-    shown: asWritten,
+    shown: asMeaningWritten,
   },
   {
     key: "lat",

@@ -44,7 +44,7 @@ import type { SceneKind } from "./dialogs.ts";
 import { castFill, castOf, castReport, filledScene, memberBase, memberLabel, newMember, recast, roleIn } from "./cast.ts";
 import { reviewPool, sentencesOf } from "./review.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, DEMONSTRATIVE_READING_SLOTS, DEMONSTRATIVE_SLOT, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, NOUN_READING_SLOTS, NOUN_SLOT, nounNumberOf, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, renameSlot, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
+import { ADJECTIVE_IS_SLOT, asMeaning, ADJECTIVE_SLOT, cardRef, DEMONSTRATIVE_READING_SLOTS, DEMONSTRATIVE_SLOT, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, NOUN_READING_SLOTS, NOUN_SLOT, nounNumberOf, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, renameSlot, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
 import { agreeingBlanks, combosOf, mainFormOnly, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
@@ -6615,7 +6615,7 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
             <WithHoles text={l.ar} />
           </p>
           {l.lat ? <p className="at-scenemeaning"><WithHoles text={l.lat} /></p> : null}
-          {l.en ? <p className="at-scenemeaning"><WithHoles text={l.en} /></p> : null}
+          {l.en ? <p className="at-scenemeaning"><WithHoles text={asMeaning(l.en)} /></p> : null}
           <Button variant="ghost" size="sm" className="at-mt2" onClick={() => talk.unpick(i)}>
             Type it here instead
           </Button>
@@ -7576,7 +7576,7 @@ function BlankChip({ slot, values, lang }: {
                     {value.ar}
                   </b>
                   {value.lat ? <em>{value.lat}</em> : null}
-                  {value.en ? <i>{value.en}</i> : null}
+                  {value.en ? <i>{asMeaning(value.en)}</i> : null}
                 </li>
               ))}
             </ul>
@@ -9365,7 +9365,7 @@ function CastBlock({ talk, lang, allCards }: { talk: SceneDraft; lang: Lang; all
                     style={{ fontFamily: lang.fontStack, direction: lang.direction }}>
                     {line.ar}
                   </p>
-                  {line.en ? <p className="at-scenemeaning">{line.en}</p> : null}
+                  {line.en ? <p className="at-scenemeaning">{asMeaning(line.en)}</p> : null}
                 </div>
               </div>
             ))}
@@ -9446,9 +9446,9 @@ function SentencePicker({ lang, allCards, selfId, onPick, onClose }: {
                 </b>
                 {c.name ? <span className="at-sheetnote">{c.name}</span> : null}
                 <span>
-                  <WithHoles text={leadOf(c).en} />
+                  <WithHoles text={asMeaning(leadOf(c).en)} />
                 </span>
-                {ex ? <em>For example: {ex.en || ex.ar}</em> : null}
+                {ex ? <em>For example: {asMeaning(ex.en) || ex.ar}</em> : null}
               </button>
             </li>
           );

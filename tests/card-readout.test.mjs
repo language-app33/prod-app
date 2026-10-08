@@ -167,7 +167,7 @@ test("a student's card says the card and not the teacher's side of it", () => {
   );
   const screen = markup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   /* The word itself, and what it means. */
-  assert.ok(screen.includes("book"), "a student cannot read their own card");
+  assert.ok(screen.includes("Book"), "a student cannot read their own card");
   /* And none of what is the teacher's to get right. */
   assert.ok(!screen.includes("Where it lives"), "a student is shown which decks carry the card");
   assert.ok(!screen.includes("The card's ID"), "a student is shown what other cards call it");

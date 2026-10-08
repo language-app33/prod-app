@@ -57,7 +57,7 @@ import {
   categoriesOf,
   scriptVars } from "./languages.ts";
 import { isDialog, linesOf, sceneKindOf } from "./dialogs.ts";
-import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
+import { asMeaning, cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
 import { fillersFor, groupPronouns, isPronounCard, isPronounGroup, pickedCardIds } from "./card-facts.ts";
 import type { PronounGroup } from "./card-facts.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
@@ -3943,7 +3943,7 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
                         style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
                         {pair.word.ar}
                       </span>
-                      <span className="at-findgloss">{pair.word.en}</span>
+                      <span className="at-findgloss">{asMeaning(pair.word.en)}</span>
                     </p>
                     {/* A turn says whose it is. Without the name it reads
                         as a phrase from nowhere, and a teacher deciding
@@ -4125,7 +4125,7 @@ function ContextReport({ cards, lang }: { cards: Card[]; lang: Partial<Lang> }) 
                     <b lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
                       {w.ar}
                     </b>
-                    <i>{w.en}</i>
+                    <i>{asMeaning(w.en)}</i>
                   </p>
                   <ul className="at-ctxlist">
                     {w.contexts.map((c) => (
@@ -4133,7 +4133,7 @@ function ContextReport({ cards, lang }: { cards: Card[]; lang: Partial<Lang> }) 
                         <span lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
                           {c.ar}
                         </span>
-                        <em>{c.en}</em>
+                        <em>{asMeaning(c.en)}</em>
                       </li>
                     ))}
                   </ul>
@@ -4155,7 +4155,7 @@ function ContextReport({ cards, lang }: { cards: Card[]; lang: Partial<Lang> }) 
                 <b lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
                   {w.ar}
                 </b>
-                <i>{w.en}</i>
+                <i>{asMeaning(w.en)}</i>
               </span>
             ))}
           </div>
@@ -6504,7 +6504,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
 
         {viewing && (
           <Screen
-            title={leadOf(viewing).en || leadOf(viewing).ar}
+            title={asMeaning(leadOf(viewing).en) || leadOf(viewing).ar}
             onBack={() => setViewing(null)}
             action={
               <Button variant="primary" size="sm"
@@ -6941,7 +6941,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
 
               {viewing && (
                 <Screen
-                  title={leadOf(viewing).en || leadOf(viewing).ar}
+                  title={asMeaning(leadOf(viewing).en) || leadOf(viewing).ar}
                   onBack={() => setViewing(null)}
                   action={
                     <Button variant="primary" size="sm"

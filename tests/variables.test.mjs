@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { must } from "./helpers.mjs";
 
 import {
+  asMeaning,
   fillForm,
   fillText,
   hasSlots,
@@ -1242,6 +1243,22 @@ test("a blank's first letter fits where it stands", () => {
   assert.equal(fillText("{{word}} كبير", { word: { ar: "بيت", en: "house", lat: "beet" } }), "بيت كبير");
   /* And uncased is the words as written, which is what a review is keyed on. */
   assert.equal(fillText("{{word}} ngon", { word: sách }, "ar", false), "sách ngon");
+});
+
+/* A meaning on its own opens with a capital, as a sentence would — each
+   of the ways it is said — and is otherwise left as written. */
+test("a meaning shown on its own starts with a capital", () => {
+  assert.equal(asMeaning("book"), "Book");
+  assert.equal(asMeaning("to eat"), "To eat");
+  assert.equal(asMeaning("office / desk"), "Office / Desk");
+  assert.equal(asMeaning("the book is big"), "The book is big");
+  assert.equal(asMeaning("“hello”"), "“Hello”");
+  assert.equal(asMeaning("iPhone"), "iPhone");
+  assert.equal(asMeaning("TV"), "TV");
+  assert.equal(asMeaning("{{name}} is here"), "{{name}} is here");
+  assert.equal(asMeaning("3 books"), "3 books");
+  assert.equal(asMeaning(""), "");
+  assert.equal(asMeaning(undefined), "");
 });
 
 test("a person or a place says so on the value it lends", () => {
