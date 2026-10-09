@@ -94,6 +94,11 @@ question, in a plan, or offered unprompted, set them out this way, every
 time:
 
 - A numbered list, one fix per item, so the owner can answer with a number.
+- Where there are several things to decide at once, each with its own
+  fixes, number the things and letter the fixes under each: 1a, 1b, 2a,
+  2b. Never 1.1 and 1.2, and never a second list restarting at 1 under a
+  numbered heading — every option must have a label of its own, so the
+  owner can answer "1b, 2a" and be understood.
 - Each item says, in the same plain terms as above, what changes for the
   people using the app and what it costs or gives up.
 - Then a recommendation, naming one of the numbered fixes and saying in a
