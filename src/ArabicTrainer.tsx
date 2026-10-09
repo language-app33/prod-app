@@ -298,12 +298,13 @@ import {
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
-import { fieldsLost, fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
+import { asMeaning, fieldsLost, fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
 import { agreeTook, countTook, finishTook, leadsOf, lineGate, passes, reviewOf, sentenceKey, SCAN_LIMIT } from "./review.ts";
 import { castFill as castScene, filledScene, hasCast } from "./cast.ts";
 import type { Review } from "./review.ts";
 import { liftSubtypeTagsIn } from "./subtype-tags.ts";
+import { tickCapitals } from "./capitals.ts";
 import { spellRuns, typoed } from "./spelling.ts";
 import type { Run } from "./spelling.ts";
 
@@ -353,13 +354,160 @@ export const cardStandings = (
   const held = words + figures;
   if (!held) return rows;
   const top = rows[rows.length - 1];
-  return rows.slice(0, -1).concat([{
+  const kept = rows.slice(0, -1).concat([{
     ...top,
     status: top.status === "done" ? "cleared" : top.status,
     held,
     ...(figures ? { heldFigures: figures } : null),
   }]);
+  return cappedAt(kept, weakestLevel(it, among, settings, keys));
 };
+
+/*
+ * A number part is never further up than the weakest of its members.
+ *
+ * Its own questions only ever ask numbers whose words are cleared, so a
+ * part could climb its own ladder to the top while *one* and *eight*
+ * were still being learnt — and "0 to 9, level 4" over a learner who
+ * cannot yet write eight says more than is true. So the part's rows stop
+ * at the level its weakest member is working on: that row is still being
+ * learnt, whatever its own answers say, and every row above it has not
+ * been started. Nothing is taken off the part's schedules; the moment the
+ * member climbs, the rows come back as they were. The questions above the
+ * line wait as well (see RANGE_CAPS), so the screen and the session agree.
+ */
+function cappedAt(rows: Standing[], cap: number | null): Standing[] {
+  if (cap == null || !rows.length) return rows;
+  /* The part's own highest level at or under the member's — a part with
+     nothing on level three stops at two for a member writing figures. */
+  const under = rows.filter((r) => r.level <= cap);
+  const line = under.length ? under[under.length - 1].level : rows[0].level;
+  return rows.map((r) =>
+    r.level > line
+      ? { ...r, status: "none" }
+      : r.level === line && (r.status === "done" || r.status === "cleared")
+      ? { ...r, status: "learning" }
+      : r,
+  );
+}
+
+/*
+ * The level the weakest member of a number part is working on — its
+ * words, and the ten figures where it is written in them — or null where
+ * every member is cleared, or the card is not a part.
+ *
+ * Read as the lowest level a member has not finished, rather than its
+ * standing: a member shown as "level 4, paused" is being asked level 2.
+ * A member that can be asked nothing holds nothing back, as everywhere.
+ */
+export function weakestLevel(
+  it: Item,
+  among: Item[],
+  settings: Settings,
+  keys: (unit: Form, settings: Settings) => string[] = laddered,
+): number | null {
+  if (!isRangeSkill(it)) return null;
+  const members = (it.parts ? partsOf(it, among, settings, keys) : []).concat(numeralsOf(it, among, settings, keys));
+  let low: number | null = null;
+  for (const m of members) {
+    if (m.known !== false) continue;
+    const rows = standingsOf(m.card, (u) => keys(u, settings));
+    const at = rows.find((r) => r.status !== "done" && r.status !== "cleared");
+    if (at && (low == null || at.level < low)) low = at.level;
+  }
+  return low;
+}
+
+/* Whether every member of a number part is cleared — and there is at
+   least one — which is what moves the part itself up quickly: see
+   creditNumbers. */
+function membersCleared(it: Item, among: Item[], settings: Settings): boolean {
+  const members = (it.parts ? partsOf(it, among, settings) : []).concat(numeralsOf(it, among, settings));
+  return members.some((m) => m.known === true) && members.every((m) => m.known !== false);
+}
+
+/*
+ * The word cards a figure goes with: ٣ with تلاتة, read off the figure
+ * both carry. From the same system, and the box's own card rather than a
+ * number written out by hand. Empty where the teacher has not filled that
+ * box, and the figure then comes in on its own.
+ */
+const DIGIT_WORDS: WeakMap<Item[], Map<string, Item[]>> = new WeakMap();
+export function wordsOfDigit(digit: Item, among: Item[]): Item[] {
+  let index = DIGIT_WORDS.get(among);
+  if (!index) {
+    index = new Map();
+    for (const it of among) {
+      if (!isFromSystem(it) || isNumeralCard(it) || isRangeSkill(it) || !it.numeral) continue;
+      const slot = String(((it.source as { slot?: unknown } | undefined) || {}).slot || "");
+      if (slot.startsWith("override:")) continue;
+      const key = `${systemIdOf(it)}|${it.numeral}`;
+      index.set(key, (index.get(key) || []).concat([it]));
+    }
+    DIGIT_WORDS.set(among, index);
+  }
+  return index.get(`${systemIdOf(digit)}|${digit.numeral}`) || [];
+}
+
+/* Whether a word card's own word has been answered at all, and whether it
+   is cleared — read off its lead form, the word itself: a face that counts
+   things waits on a noun and says nothing about the word. */
+const wordMet = (word: Item, settings: Settings): boolean =>
+  laddered(leadOf(word), settings).some((k) => stateOf(leadOf(word), k).phase !== "new");
+const wordCleared = (word: Item, settings: Settings): boolean => {
+  const ladder = laddered(leadOf(word), settings);
+  return !!ladder.length && cleared(ladder, (k) => stateOf(leadOf(word), k));
+};
+
+/*
+ * The schedules a collection is owed by its number words, as the cards
+ * with them written in — or the same list back where nothing is owed.
+ *
+ * Two things, both run after every answer, so a word cleared tonight is
+ * felt tonight:
+ *
+ *   * **A figure starts higher for a word already cleared.** ٣ untouched
+ *     beside a تلاتة the learner has cleared is given its reading
+ *     (٣ → 3) as done, and opens on writing it. Only a figure never
+ *     answered, so nothing a learner has earned on one is written over.
+ *   * **A part moves up once all its members are cleared.** Every level
+ *     under its top is counted as done — liftLevel, the same write "this
+ *     was too easy" makes — so it goes straight to the top, where its own
+ *     two right answers and its reviews are still asked of it. Nothing is
+ *     written while its top is already open.
+ *
+ * Read through the ladder the app installed; the caller writes the result.
+ */
+export function creditNumbers(items: Item[], settings: Settings): Item[] {
+  let out: Item[] | null = null;
+  const put = (at: number, it: Item) => {
+    if (!out) out = items.slice();
+    out[at] = it;
+  };
+  items.forEach((it, at) => {
+    if (!isFromSystem(it) || !isDrillable(it, settings)) return;
+    const unit = leadOf(it);
+    const keys = laddered(unit, settings);
+    if (!keys.length) return;
+    let lifted: Record<string, ExerciseState> = {};
+    if (isNumeralCard(it)) {
+      const untouched = keys.every((k) => stateOf(unit, k).phase === "new");
+      if (!untouched || !wordsOfDigit(it, items).some((w) => wordCleared(w, settings))) return;
+      lifted = liftLevel(keys, (k) => statesOf(unit)[k], keys.slice().sort((a, b) => levelOf(a) - levelOf(b))[0]);
+    } else if (isRangeSkill(it)) {
+      const top = topLevelOf(keys);
+      const below = keys.filter((k) => levelOf(k) < top).sort((a, b) => levelOf(b) - levelOf(a));
+      if (!below.length) return;
+      if (openTypesOf(keys, (k) => statesOf(unit)[k]).some((k) => levelOf(k) === top)) return;
+      if (!membersCleared(it, items, settings)) return;
+      lifted = liftLevel(keys, (k) => statesOf(unit)[k], below[0]);
+    } else return;
+    if (!Object.keys(lifted).length) return;
+    const forms = formsOf(it).map((f) => (f.id === unit.id ? { ...f, s: { ...f.s, ...lifted }, updated: Date.now() } : f));
+    put(at, { ...it, forms, updated: Date.now() });
+  });
+  return out || items;
+}
 
 /**
  * How far one card is towards learnt, as every percentage counts it: where
@@ -2163,6 +2311,7 @@ export function installIndexes(items: Item[], settings: Settings, systems: Syste
   setQuietUnits(quiet);
   setQuietUnits(withFacesWaiting(quiet, items, settings, systems));
   setEasedUnits(easedUnits(items, settings));
+  setRangeCaps(rangeCapsOf(items, settings));
 }
 
 /* ------------------------------------------------------------------
@@ -3489,7 +3638,31 @@ function reachedTypes(it: Form, settings: Settings): string[] {
    only `enabledTypes` — which decides whether a card counts as drillable
    at all — left the card in the session and the silent question in it. */
 function openTypes(it: Form, settings: Settings): string[] {
-  return reachedTypes(it, settings).filter((k) => typeAllowedNow(k, it));
+  const cap = RANGE_CAPS.get(it && it.id);
+  return reachedTypes(it, settings).filter((k) => typeAllowedNow(k, it) && (cap == null || levelOf(k) <= cap));
+}
+
+/*
+ * How far up each number part may be asked: no higher than the level its
+ * weakest member is working on — see cappedAt, which is the same line on
+ * the screen. By the part's form, and absent where nothing holds it.
+ * Worked out with the rest of the indexes, after the quiet set, since it
+ * reads the ladder.
+ */
+let RANGE_CAPS: Map<string, number> = new Map();
+
+function setRangeCaps(caps: Map<string, number>) {
+  RANGE_CAPS = caps || new Map();
+}
+
+export function rangeCapsOf(items: Item[], settings: Settings): Map<string, number> {
+  const out: Map<string, number> = new Map();
+  for (const it of items) {
+    if (!isRangeSkill(it) || !isDrillable(it, settings)) continue;
+    const cap = weakestLevel(it, items, settings);
+    if (cap != null) out.set(leadOf(it).id, cap);
+  }
+  return out;
 }
 
 /*
@@ -3528,7 +3701,9 @@ export function handCounts(items: Item[], settings: Settings, numbers?: KnownNum
     const through = drillableUnits(it, settings).every(({ unit }) =>
       throughDoor(laddered(unit, settings), (t: string) => stateOf(unit, t))
     );
-    if (!through) front += 1;
+    /* A figure that comes in with its word holds no place of its own:
+       the word's place is how it came in. See ridesWithWord. */
+    if (!through && !(isNumeralCard(it) && wordsOfDigit(it, items).length)) front += 1;
   }
   return { front, inHand };
 }
@@ -4578,12 +4753,30 @@ export function buildSession({
     /* Which ones, mixed by kind against what is already in the front door
        — see byVariety. Picked in the order they will be reached, so a
        session with room for only some of them still takes a mix. */
-    const admitted = byVariety(
-      candidates.filter((c) => c.isNew && !c.urgent),
+    /*
+     * And a figure comes in with its word: ٣ the session تلاتة is first
+     * met, or any session after. It is not offered a place of its own, so
+     * the ten figures neither wait their turn behind the words — a learner
+     * reading تلاتة with ٣ still "not started" — nor take ten of a
+     * beginner's places from them. A figure whose box the teacher has not
+     * filled has no word to wait for, and comes in as any card does.
+     */
+    const rides = (c: { it: Item }) => isNumeralCard(c.it) && wordsOfDigit(c.it, items).length > 0;
+    const picked = byVariety(
+      candidates.filter((c) => c.isNew && !c.urgent && !rides(c)),
       room,
       candidates.filter((c) => c.climbing),
       (c) => varietyOf(c.it, settings)
     );
+    /* Each right behind its word, so a session with room for only some of
+       them never takes a figure and leaves its word out; and one whose
+       word is already under way first, since that word is in hand. */
+    const riders = candidates.filter((c) => c.isNew && !c.urgent && rides(c));
+    const behindWord = (word: Item) => riders.filter((d) => wordsOfDigit(d.it, items).includes(word));
+    const admitted = riders
+      .filter((d) => wordsOfDigit(d.it, items).some((w) => wordMet(w, settings)))
+      .concat(picked.flatMap((c) => [c, ...behindWord(c.it)]))
+      .filter((c, i, all) => all.indexOf(c) === i);
     candidates = candidates.filter(
       /* Except one the learner asked for by name. Both rules above are the
          app protecting somebody from more new words than they can hold,
@@ -6254,7 +6447,7 @@ function RelatedWords({ pairs, settings }: { pairs: any[]; settings: Settings })
           <span className="ar" style={{ fontWeight: 600 }}>
             {p.text}
           </span>
-          {p.en ? ` — ${p.en}` : ""}
+          {p.en ? ` — ${asMeaning(p.en)}` : ""}
         </p>
       ))}
     </div>
@@ -6580,6 +6773,7 @@ function liftAnswers(form: Record<string, any>): Record<string, any> {
 const CARD_ONLY = new Set([
   "kind", "tags", "locked", "flags", "source", "fills", "ref", "name", "category",
   "drill", "uses", "note", "lines", "speakers", "you", "subs", "forms", "sceneKind",
+  "capitals",
 ]);
 
 /* One of a stored card's forms, with nothing of the card left on it. */
@@ -6590,7 +6784,10 @@ function liftItem(stored: Record<string, any>, settings: Record<string, any> = {
   /* A custom tag that is also a subtype, folded into the subtype — see
      subtype-tags.ts. In the card's own language, or the one this device
      is learning where an older card never said. */
-  const it = liftSubtypeTagsIn(stored, stored.lang || settings.language || DEFAULT_LANGUAGE) || stored;
+  const lifted = liftSubtypeTagsIn(stored, stored.lang || settings.language || DEFAULT_LANGUAGE) || stored;
+  /* And "keeps its capital letters" ticked on a card the old list of words
+     kept a capital on, where nobody has answered — see capitals.ts. */
+  const it = tickCapitals(lifted) || lifted;
   return {
     ...it,
     tags: Array.isArray(it.tags) ? it.tags : [],
@@ -8222,7 +8419,7 @@ function Field({ value, field, kind, lang, name }: {
     );
   return (
     <p className="at-en" data-el={name}>
-      {value}
+      {asMeaning(value)}
     </p>
   );
 }
@@ -8325,7 +8522,7 @@ function Scene({ card, lines, lang, blankId = null, meanings = false, said = fal
               )}
               {meanings && line.en && (
                 <p className="at-scenemeaning" data-el="scene-line-meaning">
-                  {line.en}
+                  {asMeaning(line.en)}
                 </p>
               )}
               {(line.recs || []).length > 0 && (
@@ -8720,7 +8917,7 @@ function MatchGrid({
                       <Arabic text={wantedOf(w)} kind="word" lang={lang} />
                     </span>
                   ) : (
-                    <span className="at-matchfix">{wantedOf(w)}</span>
+                    <span className="at-matchfix">{asMeaning(wantedOf(w))}</span>
                   )
                 ) : null}
               </span>
@@ -8793,11 +8990,11 @@ function MatchGrid({
                 </span>
               ) : meaningTags[at] ? (
                 <span className="at-matchword">
-                  <span>{m}</span>
+                  <span>{asMeaning(m)}</span>
                   <span className="at-matchtag" data-el="match-form-tag">{meaningTags[at]}</span>
                 </span>
               ) : (
-                m
+                asMeaning(m)
               )}
             </button>
           );
@@ -8839,7 +9036,7 @@ function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase"
             disabled={disabled}
             onClick={() => onChange(text)}
           >
-            {field === "en" ? text : <Arabic text={text} kind={kind} lang={lang} />}
+            {field === "en" ? asMeaning(text) : <Arabic text={text} kind={kind} lang={lang} />}
           </button>
         );
       })}
@@ -10253,6 +10450,10 @@ export default function ArabicTrainer() {
      meaning. Beside the gate above and worked out the same way. */
   const eased = useMemo(() => easedUnits(asking, settings), [asking, settings]);
   setEasedUnits(eased);
+  /* And how far up each number part may be asked, which reads the ladder
+     the lines above settle — see RANGE_CAPS. */
+  const rangeCaps = useMemo(() => rangeCapsOf(asking, settings), [asking, settings]);
+  setRangeCaps(rangeCaps);
 
   /* Every recording the cards refer to, for taking a course offline. */
   const allClipIds = useMemo(() => {
@@ -11928,7 +12129,7 @@ export default function ArabicTrainer() {
     const prep = prepOf(settings);
     const forPrep = !!prep && prepDeckOf(prep.decks)(parentItem);
     persist((cur) => {
-      const graded = gradeInto(cur.items, marks, {
+      const marked = gradeInto(cur.items, marks, {
         ...gradingFor(exercise, settings),
         /* The question a lift has already moved up its ladder: answered,
            and neither rewarded nor lapsed. */
@@ -11938,7 +12139,10 @@ export default function ArabicTrainer() {
       /* Nothing written — every card named has been withdrawn, or the one
          mark was the question the lift moved — so the document is left
          exactly as it was. */
-      if (!graded) return cur;
+      if (!marked) return cur;
+      /* And what the number words now cleared are owed: a figure's head
+         start, a part moved up — see creditNumbers. */
+      const graded = creditNumbers(marked, settings);
       /*
        * And what this answer moved, worked out here because here is the
        * only place that holds the card both before and after it.
@@ -12628,7 +12832,7 @@ export default function ArabicTrainer() {
             {session && session.learnt && session.learnt.length > 0 && qi === 0 && (
               <Help className="at-learntnote">
                 Already learnt, so not in this session:{" "}
-                {session.learnt.map((x: Item) => leadOf(x).en || leadOf(x).ar || leadOf(x).lat).join(", ")}
+                {session.learnt.map((x: Item) => asMeaning(leadOf(x).en) || leadOf(x).ar || leadOf(x).lat).join(", ")}
               </Help>
             )}
 
@@ -12902,7 +13106,7 @@ export default function ArabicTrainer() {
                         without its English falls back to the word's. */}
                     {context && (
                       <p className="at-ctxmeaning" data-el="question-context-meaning">
-                        {(spec.promptField === "context" && context.en) || item.en}
+                        {asMeaning((spec.promptField === "context" && context.en) || item.en)}
                       </p>
                     )}
                   </div>
@@ -13333,7 +13537,7 @@ export default function ArabicTrainer() {
                               name="also-context-text"
                             />
                             <p className="at-ctxmeaning" data-el="also-context-meaning">
-                              {(context || alsoContext).en}
+                              {asMeaning((context || alsoContext).en)}
                             </p>
                           </div>
                         )}
@@ -14190,7 +14394,7 @@ function CardScreen({ card, items, settings, onPriority, onBack, action }: {
 }) {
   const live = items.find((i) => i.id === card.id) || card;
   return (
-    <Screen title={leadOf(live).en || leadOf(live).ar} onBack={onBack} action={action}>
+    <Screen title={asMeaning(leadOf(live).en) || leadOf(live).ar} onBack={onBack} action={action}>
       <CardReadout
         card={{
           ...live,
@@ -16033,7 +16237,7 @@ function ManualSessionSheet({ items, allTags, settings, editing, onStart, onSave
                               {firstOfEach(leadOf(it)).ar}
                             </span>
                           )}
-                          <span className="en">{firstOfEach(leadOf(it)).en}</span>
+                          <span className="en">{asMeaning(firstOfEach(leadOf(it)).en)}</span>
                         </button>
                       ))}
                     </div>
@@ -16088,7 +16292,7 @@ function ManualSessionSheet({ items, allTags, settings, editing, onStart, onSave
                       {firstOfEach(leadOf(it)).ar}
                     </span>
                   )}
-                  <span className="en">{firstOfEach(leadOf(it)).en}</span>
+                  <span className="en">{asMeaning(firstOfEach(leadOf(it)).en)}</span>
                 </button>
               ))}
               {!searched.length && <Help>Nothing matches that.</Help>}
@@ -16266,7 +16470,7 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }: {
                 {`No ${activeLang().scriptLabel} — this form can't be practiced.`}
               </Notice>
             )}
-            {unit.en && <p className="at-en" style={{ fontSize: 20 }}>{unit.en}</p>}
+            {unit.en && <p className="at-en" style={{ fontSize: 20 }}>{asMeaning(unit.en)}</p>}
             {unit.lat && <p className="at-latin" style={{ fontSize: 17 }}>{unit.lat}</p>}
             {unit.note && <p className="at-note">{unit.note}</p>}
 
@@ -16463,7 +16667,7 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
                 className={`at-previewrow${availableTypes(leadOf(p)).length < 2 ? " weak" : ""}`}
                 key={i}
               >
-                <span className="cell en">{leadOf(p).en || "—"}</span>
+                <span className="cell en">{asMeaning(leadOf(p).en) || "—"}</span>
                 <span className="cell ar" lang={activeLang().id} dir={activeLang().direction}>
                   {leadOf(p).ar || "—"}
                 </span>

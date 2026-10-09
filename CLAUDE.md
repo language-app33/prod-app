@@ -86,3 +86,23 @@ point, ask them this way, every time:
 - Where what the owner said can be read more than one way, and the ways
   are put back to them, each reading is numbered or named, so the owner
   can answer with which one is right in a word ("2", or "the second").
+
+## How to propose fixes
+
+Whenever there is more than one way to fix something, whether in answer to a
+question, in a plan, or offered unprompted, set them out this way, every
+time:
+
+- A numbered list, one fix per item, so the owner can answer with a number.
+- Where there are several things to decide at once, each with its own
+  fixes, number the things and letter the fixes under each: 1a, 1b, 2a,
+  2b. Never 1.1 and 1.2, and never a second list restarting at 1 under a
+  numbered heading — every option must have a label of its own, so the
+  owner can answer "1b, 2a" and be understood.
+- Each item says, in the same plain terms as above, what changes for the
+  people using the app and what it costs or gives up.
+- Then a recommendation, naming one of the numbered fixes and saying in a
+  sentence or two why.
+
+Where there is only one sensible fix, still say which it is and why, rather
+than presenting it as a list of one.

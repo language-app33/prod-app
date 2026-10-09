@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { must } from "./helpers.mjs";
 
 import {
+  asMeaning,
   fillForm,
   fillText,
   hasSlots,
@@ -1219,14 +1220,52 @@ test("a blank's first letter fits where it stands", () => {
   assert.equal(fillText("Chào. {{word}} ngon", { word: sách }), "Chào. Sách ngon");
   assert.equal(fillText("tôi ở {{place}}", { place: huế }), "tôi ở Huế");
   assert.equal(fillText("tôi xem {{word}}", { word: { id: "t", ar: "TV", en: "TV", lat: "" } }), "tôi xem TV");
-  /* English adds the capital at the start and keeps the teacher's elsewhere. */
+  /* English: a capital at the start, none in the middle — in every word
+     the blank brings — and always one on a person or a place. */
   assert.equal(fillText("{{word}} is good", { word: sách }, "en"), "Book is good");
-  assert.equal(fillText("I like {{word}}", { word: cà }, "en"), "I like Coffee");
+  assert.equal(fillText("I like {{word}}", { word: cà }, "en"), "I like coffee");
+  assert.equal(fillText("I live in a {{word}}", { word: { ar: "", lat: "", en: "Big House" } }, "en"), "I live in a big house");
+  assert.equal(fillText("I live in {{place}}", { place: { ar: "", lat: "", en: "hue", proper: true } }, "en"), "I live in Hue");
+  assert.equal(fillText("I swam in the {{place}}", { place: { ar: "", lat: "", en: "gulf of Aqaba", proper: true } }, "en"), "I swam in the Gulf of Aqaba");
+  assert.equal(fillText("Is that {{word}}?", { word: { ar: "", lat: "", en: "TV" } }, "en"), "Is that TV?");
+  /* The start of each sentence, and of each way of saying it. */
+  assert.equal(fillText("Yes. {{word}} is good", { word: cà }, "en"), "Yes. Coffee is good");
+  assert.equal(fillText("I like it / {{word}} is good", { word: sách }, "en"), "I like it / Book is good");
+  /* No list of words: Monday is cased like any other word unless its card
+     keeps its capitals (the teacher's tick) — then it is left exactly as
+     typed, and only raised where it opens a sentence. */
+  assert.equal(fillText("See you on {{word}}", { word: { ar: "", lat: "", en: "Monday" } }, "en"), "See you on monday");
+  const kept = (/** @type {string} */ en) => ({ ar: "", lat: "", en, keepsCase: true });
+  assert.equal(fillText("See you on {{word}}", { word: kept("Monday") }, "en"), "See you on Monday");
+  assert.equal(fillText("See you {{word}}", { word: kept("on Monday") }, "en"), "See you on Monday");
+  assert.equal(fillText("{{word}} is fine", { word: kept("on Monday") }, "en"), "On Monday is fine");
+  assert.equal(fillText("Do you speak {{word}}?", { word: kept("Arabic") }, "en"), "Do you speak Arabic?");
+  assert.equal(fillText("Today {{word}}", { word: kept("monday") }, "en"), "Today monday", "typed small, kept small");
+  /* The tick is the English's alone: the word being learnt is cased as before. */
+  assert.equal(fillText("hẹn gặp {{word}}", { word: { ar: "Thứ hai", en: "Monday", lat: "", keepsCase: true } }), "hẹn gặp thứ hai");
+  /* The abbreviation guess stays: TV keeps its capitals with no tick. */
+  assert.equal(fillText("I watch {{word}}", { word: { ar: "", lat: "", en: "TV" } }, "en"), "I watch TV");
   /* A transliteration is left as written, and so is a script with no capitals. */
   assert.equal(fillText("{{word}} kbiir", { word: { ar: "بيت", en: "house", lat: "beet" } }, "lat"), "beet kbiir");
   assert.equal(fillText("{{word}} كبير", { word: { ar: "بيت", en: "house", lat: "beet" } }), "بيت كبير");
   /* And uncased is the words as written, which is what a review is keyed on. */
   assert.equal(fillText("{{word}} ngon", { word: sách }, "ar", false), "sách ngon");
+});
+
+/* A meaning on its own opens with a capital, as a sentence would — each
+   of the ways it is said — and is otherwise left as written. */
+test("a meaning shown on its own starts with a capital", () => {
+  assert.equal(asMeaning("book"), "Book");
+  assert.equal(asMeaning("to eat"), "To eat");
+  assert.equal(asMeaning("office / desk"), "Office / Desk");
+  assert.equal(asMeaning("the book is big"), "The book is big");
+  assert.equal(asMeaning("“hello”"), "“Hello”");
+  assert.equal(asMeaning("iPhone"), "iPhone");
+  assert.equal(asMeaning("TV"), "TV");
+  assert.equal(asMeaning("{{name}} is here"), "{{name}} is here");
+  assert.equal(asMeaning("3 books"), "3 books");
+  assert.equal(asMeaning(""), "");
+  assert.equal(asMeaning(undefined), "");
 });
 
 test("a person or a place says so on the value it lends", () => {

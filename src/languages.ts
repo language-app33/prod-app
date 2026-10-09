@@ -37,7 +37,7 @@ import { leadOf, subFormsOf } from "./cards.ts";
    knows what a table is made of and no language at all, which is the
    same direction every other import here goes. */
 import { agreedValue, asSubject, citedCell, colOf, isCell, isRowLead, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows, tensesOf } from "./verbs.ts";
-import { aboutPerson, ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, beReadings, isLent, readAs } from "./variables.ts";
+import { aboutPerson, ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, beReadings, fitEnglish, isLent, readAs } from "./variables.ts";
 import type { Value } from "./variables.ts";
 /*
  * How each language builds its numbers and tells the time.
@@ -2608,6 +2608,15 @@ export function aboutPersons(
   const persons = subjectPersonsOf(lang);
   const en = String(value.en || "").trim();
   if (!persons.length || !en) return [];
+  /*
+   * The adjective's English as it reads after *I am* — "tired", not the
+   * "Tired" a card is often written as — cased here, once, because what
+   * comes back is marked as keeping its capitals: the person in front is
+   * the app's own words, and its *I* is the one capital that is never
+   * lost (the persons' other labels are written small). Without that the
+   * rule in fitEnglish, which lists no words, would write "i am tired".
+   */
+  const said = fitEnglish(en, false, !!value.proper, !!value.keepsCase);
   const spec = agreementOf(lang, String((card && card.category) || ""));
   const verb = verbOf(lang);
   const groups: { ar: string; lat: string; reads: string[]; shape: string }[] = [];
@@ -2618,7 +2627,7 @@ export function aboutPersons(
     /* The person as English says it — *I am*, *you are* — with no note in
        brackets. Which *you* it is goes beside the sentence, in words: see
        `tag` below. */
-    const read = `${beReadings(bareLabel(person.label)).is} ${en}`;
+    const read = `${beReadings(bareLabel(person.label)).is} ${said}`;
     const had = groups.find((g) => g.ar === form.ar);
     if (had) {
       if (!had.reads.includes(read)) had.reads.push(read);
@@ -2635,7 +2644,9 @@ export function aboutPersons(
     return {
       ...value,
       ar: g.ar,
+      en: said,
       lat: g.lat,
+      keepsCase: true,
       readings: { ...(value.readings || {}), [slot]: g.reads.join(ALT_SEP) },
       ...(tag ? { tag } : {}),
     };

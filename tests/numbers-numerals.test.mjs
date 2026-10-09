@@ -145,9 +145,14 @@ test("a number is not learnt until the ten figures are, and the screen says whic
   const three = [numeralId(SYS.id, 2), numeralId(SYS.id, 5), numeralId(SYS.id, 8)];
   const waiting = collection((it) => (three.includes(it.id) ? keptBut(it, ["fig2dig"]) : keptBut(it)));
   installIndexes(waiting, settings, SETS);
-  const at = statusOf(waiting.find((/** @type {any} */ it) => it.id === stretch.id), waiting);
-  assert.equal(at.status, "cleared");
-  assert.equal(at.heldFigures, 3);
+  const rows = cardStandings(waiting.find((/** @type {any} */ it) => it.id === stretch.id), settings, waiting);
+  /* No further up than the level the three are on — writing them — and
+     still being learnt there, with nothing above it started. */
+  const at = must(standing(rows), "no standing");
+  assert.ok(at.level <= 3, `level ${at.level}`);
+  assert.equal(at.status, "learning");
+  assert.ok(rows.filter((/** @type {any} */ r) => r.level > at.level).every((/** @type {any} */ r) => r.status === "none"));
+  assert.equal(rows[rows.length - 1].heldFigures, 3);
   /* And the deck it is in is short of a hundred for it. */
   assert.ok(climbOf(waiting, settings, waiting).pct < 100);
 

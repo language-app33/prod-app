@@ -8,6 +8,118 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.411 — 9 October 2026
+
+**Teachers decide which words keep their capital letters.**
+
+- A word or phrase card now has a tick, "Keeps its capital letters", for
+  words English always writes with a capital: Monday, English, TV, on
+  Monday. Ticked, the card's English is left exactly as it was typed when
+  it is dropped into the middle of a sentence ("See you on Monday"). It
+  still gets a capital when it opens a sentence.
+- The app no longer keeps its own list of such words (days, months, a few
+  language names). A word that isn't ticked is written the usual way: a
+  capital at the start of a sentence, none in the middle.
+- The tick is offered on nouns, adjectives, pronouns and "Something
+  else". It isn't offered on people and places, which always keep their
+  capital, nor on verbs, prepositions and demonstratives.
+- "I" keeps its capital with no tick: in the "I" columns of a verb table
+  ("Yesterday I ate"), on the pronoun "I" written on the Pronouns screen,
+  and in sentences like "Today I am tired".
+- Cards the old list used to catch were ticked once, automatically, so
+  nothing that read "Monday" yesterday reads "monday" today. A teacher can
+  untick any of them, and an untick stays.
+- Abbreviations such as TV still keep their capitals with no tick.
+- The trade-off: a new card for a day, a month or a language (or any
+  word English capitalises) needs its tick, or it will appear in small
+  letters mid-sentence. And a ticked word typed in small letters stays
+  small.
+- Worth checking by hand: open a card for a day or a language and see the
+  tick is on; and look at a few sentences with "I" in the middle.
+
+## 0.410 — 9 October 2026
+
+**The digit cards and the number groups keep step with the number words.**
+
+- A digit card (٠ to ٩) now opens together with its word: ٣ comes in the
+  same session as تلاتة, straight after it, and does not wait for a place
+  of its own among the new words. A digit whose word the teacher has not
+  written yet still comes in on its own, as before.
+- For a learner who has already cleared a word, its digit card skips the
+  reading step and starts at writing the digit. A digit card that has
+  already been practised is left exactly where it is.
+- A group card such as "Numbers 0 to 9" is never shown at a higher level
+  than its weakest number. If 8 is still being learnt at level 1, the group
+  shows level 1, and it is not asked anything higher until 8 catches up.
+  Nothing it earned is lost: as its numbers climb, it goes back to where
+  its own answers had put it.
+- Once every number in a group (and every digit it is written in) is
+  cleared, the group jumps straight to its top level. It still has to be
+  answered right twice there, and still needs its reviews, before it counts
+  as learnt.
+- The trade-off: digits arrive in the same sessions as their words, so the
+  first sessions of numbers carry a few more new cards. And a group can
+  appear to drop a level when one of its numbers slips.
+- These take effect after the learner's next answer, so a learner who
+  already cleared the words sees the change one question into their next
+  session.
+- Worth checking by hand: on a learner part-way through 0 to 9 and 10 to
+  19, that the group cards now read sensibly, and that the digit cards
+  start moving in the next session.
+
+## 0.409 — 8 October 2026
+
+**A card's meaning starts with a capital letter when it stands on its own.**
+
+- Wherever a card's English is shown by itself — on card tiles and in
+  card lists, at the top of a card's own screen, in the question, in the
+  choices and the matching grid, in the answer shown afterwards, and in
+  the example sentences under a card — it now starts with a capital
+  letter: "book" reads "Book", and "to eat" reads "To eat". A card that
+  means two things gets a capital on each ("Office / Desk").
+- Only how it looks changes. The card keeps what the teacher typed, and
+  answers typed in English are marked exactly as before.
+- Left as written: a meaning whose second letter is also a capital
+  (iPhone, TV), and one that opens with a number or a blank.
+- In the middle of a sentence, words still follow 0.408: no capital
+  unless the card is a person or a place.
+- Worth checking by hand: the card lists and a few questions on a phone,
+  to see nothing reads oddly with its new capital.
+
+## 0.408 — 8 October 2026
+
+**Capital letters in the right places in English sentences.**
+
+- When a sentence has a word filled into a blank — in practice questions,
+  in conversations, and in the examples a teacher sees under a card — the
+  English now follows the usual rule: a capital letter at the start of a
+  sentence, and none in the middle. Before, a word kept whatever capital
+  its card was written with, so a question could read "I like Coffee".
+- People and places always keep their capital, wherever they stand, even
+  if the card was written in small letters ("I live in Hue").
+- A few words English always capitalises are left that way: "I" (and
+  "I'm", "I'll" and so on), the days of the week, the months, and the
+  names of languages such as Arabic and English. Abbreviations such as TV
+  are left as written.
+- Worth checking by hand: a name only keeps its capital if its card is
+  marked as a person or a place. A name card saved with another subtype
+  will now appear in small letters mid-sentence.
+
+## 0.407 — 8 October 2026
+
+**A card's name no longer looks oversized in the card list.**
+
+- A card with a name of its own, such as a verb named "to eat", used to
+  show that name on top in large bold type, above the Arabic. Those tiles
+  came out taller and louder than every other tile in the list.
+- Now the Arabic leads on every tile, and the name sits underneath it in
+  the same small grey text as an ordinary card's meaning. Every tile in
+  the list has the same shape.
+- The trade-off: a named card is no longer headed by its name, so a list
+  of verbs reads by the Arabic first, like everything else.
+- Worth checking by hand: open a space with named verbs and look at the
+  card list on a phone.
+
 ## 0.406 — 7 October 2026
 
 **"This" agrees with "my sister" on real cards too.**

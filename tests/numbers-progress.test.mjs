@@ -156,9 +156,14 @@ test("a word not yet cleared is never asked inside a number", () => {
 test("a part is learnt only once every word it is built from is known", () => {
   const held = allLearntBut([ninety]);
   const part = must(held.find((/** @type {any} */ it) => it.id === partId), PART);
-  const at = must(standing(cardStandings(part, settings, held)), "no standing");
-  assert.equal(at.status, "cleared", "learnt while ninety is not");
-  assert.equal(at.held, 1);
+  const rows = cardStandings(part, settings, held);
+  const at = must(standing(rows), "no standing");
+  /* And no further up than ninety, which has not been started: the part
+     is on ninety's level, still being learnt, whatever its own answers. */
+  assert.equal(at.level, 1, "further up than its weakest word");
+  assert.equal(at.status, "learning");
+  assert.ok(rows.slice(1).every((/** @type {any} */ r) => r.status === "none"));
+  assert.equal(rows[rows.length - 1].held, 1);
   const words = partsOf(part, held, settings);
   assert.equal(words.filter((/** @type {any} */ p) => p.validated === false).length, 1);
 

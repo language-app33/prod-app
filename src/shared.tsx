@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, categoryLabel, dimValues, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { isDialog, isText, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
-import { cardRef, fillNames, fillsOf, isSentence, mergeMet, slotsOf, splitSlots } from "./variables.ts";
+import { asMeaning, cardRef, fillNames, fillsOf, isSentence, mergeMet, slotsOf, splitSlots } from "./variables.ts";
 import { reviewOf } from "./review.ts";
 import type { Reader, TableGroup } from "./card-facts.ts";
 import { askLine, A_SENTENCE, blanksOn, cellTitle, CLIP_KINDS, combosOf, dimsSaid, dimText, EXAMPLES_CEILING,
@@ -678,7 +678,7 @@ export function AskedMeanings({ en }: { en?: string | null }) {
     <>
       {list.map((one, i) => (
         <span className="at-askedmeans" key={i}>
-          {one}
+          {asMeaning(one)}
         </span>
       ))}
     </>
@@ -1080,25 +1080,6 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
       {/* Which of the two kinds of scene, which says more on a tile than
           that it is a scene at all. */}
       {isDialog(card) ? <div className="at-minikind">{isText(card) ? "Text" : "Conversation"}</div> : null}
-      {/*
-        * A name, where the card has one, is what it is listed under.
-        *
-        * A verb in a language with no infinitive is saved as the form a
-        * dictionary lists, so a list read as "he ate" — which names one
-        * cell of its table rather than the verb. Where the teacher has said
-        * what to call it, that is the headline and the dictionary form's
-        * own meaning goes: the name is the card's meaning now, and "he ate"
-        * under "to eat" reads as a correction of it.
-        *
-        * Written in `dir="auto"` and without the script's font or sizing,
-        * because a name is whatever the teacher typed — "to eat" as often
-        * as the verbal noun in the taught script — and every size in this
-        * file is tuned by eye against it. Latin left at a script-tuned size is the bug 0.113
-        * fixed for a hole in a card; this is the same bug one field over.
-        * The script itself keeps its line underneath, so a card list does
-        * not stop showing the language.
-        */}
-      {card.name ? <div className="at-mininame" dir="auto">{card.name}</div> : null}
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
         <Written text={face} />
       </div>
@@ -1106,7 +1087,25 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
           does — every field with words in it leaves the same blanks — so
           they are drawn the same way, and a tile shows one card rather
           than a frame beside two lines of braces. */}
-      {card.name ? null : <div className="at-minien"><Written text={lead.en} /></div>}
+      {/*
+        * A name, where the card has one, takes the meaning's line.
+        *
+        * A verb in a language with no infinitive is saved as the form a
+        * dictionary lists, so its meaning reads "he ate" — one cell of its
+        * table rather than the verb. Where the teacher has said what to call
+        * it, the name is the card's meaning now, and "he ate" beside "to
+        * eat" reads as a correction of it.
+        *
+        * In the meaning's place and the meaning's style, not as a headline
+        * above the script: a bold name on top made named tiles taller and
+        * louder than every other tile in the list, and the script is what
+        * the list is for. `dir="auto"` because a name is whatever the
+        * teacher typed — "to eat" as often as the verbal noun in the taught
+        * script.
+        */}
+      {card.name
+        ? <div className="at-minien at-mininame" dir="auto">{asMeaning(card.name)}</div>
+        : <div className="at-minien"><Written text={asMeaning(lead.en)} /></div>}
       {showLat && lead.lat ? <div className="at-minilat"><Written text={lead.lat} /></div> : null}
       {/* One line of small print, and the caller decides what it says.
           It used to carry the language, the decks the card was in, how
@@ -1542,7 +1541,7 @@ export function cardWords(card: Record<string, any>, lang?: Lang | null): { word
   /* A scene is known by its first line, its meaning as much as its words. */
   const lead = firstOfEach(isDialog(card as any) ? linesOf(card as any)[0] : leadOf(card));
   const face = lead.ar || String(card.numeral || "");
-  const said = card.name || lead.en;
+  const said = asMeaning(card.name || lead.en);
   return {
     word: (
       <span className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
@@ -2412,7 +2411,7 @@ function ReadSaid({ form, lang }: { form: Record<string, any>; lang: Lang }) {
       ))}
       {form.en ? (
         <p className="at-readmeaning">
-          <Written text={String(form.en)} />
+          <Written text={asMeaning(form.en)} />
         </p>
       ) : null}
     </>
@@ -2625,7 +2624,7 @@ function ReadBlanks({ card, lang, cards }: {
                       {value.ar}
                     </b>
                     {value.lat ? <em>{value.lat}</em> : null}
-                    {value.en ? <i>{value.en}</i> : null}
+                    {value.en ? <i>{asMeaning(value.en)}</i> : null}
                   </li>
                 ))}
                 {words.length > FILLS_SHOWN ? (
@@ -2872,7 +2871,7 @@ export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
           {/* Its name, which is where a conversation keeps the words a word
               card keeps in its own script: the card is the scene, and the
               scene is what it is called. */}
-          <ReadRow label="Called">{String(leadOf(card).en || "")}</ReadRow>
+          <ReadRow label="Called">{asMeaning(leadOf(card).en)}</ReadRow>
           {/* Two people, one down each side — which is how a conversation
               is read everywhere else, and the difference between scanning
               a scene and parsing it. Three or four stay a list: there is
@@ -2891,7 +2890,7 @@ export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
                     style={{ fontFamily: L.fontStack, direction: L.direction, ...scriptVars(L) }}>
                     <Written text={line.ar} />
                   </p>
-                  {line.en ? <p className="at-scenemeaning"><Written text={line.en} /></p> : null}
+                  {line.en ? <p className="at-scenemeaning"><Written text={asMeaning(line.en)} /></p> : null}
                   {line.lat ? <p className="at-scenemeaning"><Written text={line.lat} /></p> : null}
                   {clipsOf(line).length ? <ClipList clips={clipsOf(line)} /> : null}
                   {/* A line of a text is never asked on its own, so there is
@@ -4266,6 +4265,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
     /* And which meaning it is, where the teacher wrote a clue: what a
        question puts under a prompt another card shares — see clueFor. */
     ...(card.clue ? { clue: String(card.clue) } : null),
+    /* And whether its English keeps the capitals it was typed with: what
+       a sentence leaves alone when the card stands in it — see keepsCase.
+       No as well as yes, so the one-time tick here does not undo it. */
+    ...(typeof card.capitals === "boolean" ? { capitals: card.capitals } : null),
     /* And the card it was split out of, as this device names cards: what
        starts it where the original stood — see foldCourses. */
     ...(card.splitFrom ? { splitFrom: localIdFor(String(card.splitFrom)) } : null),

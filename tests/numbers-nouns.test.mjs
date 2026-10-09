@@ -412,7 +412,7 @@ test("a word with no English leaves the sentence's English out, and its translit
   assert.equal(filled.en, "");
   assert.equal(filled.lat, "ana sami");
   assert.deepEqual(fieldsLost(form, unsaid), ["en"]);
-  const unspelt = { name: value({ ar: "سامي", en: "Sami", lat: "" }) };
+  const unspelt = { name: value({ ar: "سامي", en: "Sami", lat: "", proper: true }) };
   const other = /** @type {any} */ (fillForm(form, unspelt));
   assert.equal(other.lat, "");
   assert.equal(other.answers[0].lat, "");

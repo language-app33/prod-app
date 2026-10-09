@@ -44,10 +44,11 @@ import type { SceneKind } from "./dialogs.ts";
 import { castFill, castOf, castReport, filledScene, memberBase, memberLabel, newMember, recast, roleIn } from "./cast.ts";
 import { reviewPool, sentencesOf } from "./review.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { ADJECTIVE_IS_SLOT, ADJECTIVE_SLOT, cardRef, DEMONSTRATIVE_READING_SLOTS, DEMONSTRATIVE_SLOT, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, NOUN_READING_SLOTS, NOUN_SLOT, nounNumberOf, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, renameSlot, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
+import { ADJECTIVE_IS_SLOT, asMeaning, ADJECTIVE_SLOT, cardRef, DEMONSTRATIVE_READING_SLOTS, DEMONSTRATIVE_SLOT, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, NOUN_READING_SLOTS, NOUN_SLOT, nounNumberOf, PRONOUN_SLOT, readingBase, readingNames, READING_SLOTS, refClash, renameSlot, RESERVED_READINGS, slotName, slotsIn, slotsOf, slotTrouble, SPEAKER_COLUMNS, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
 import { agreeingBlanks, combosOf, mainFormOnly, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks, whyStarved } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
+import { subtypeTakesCapitals, tickCapitals } from "./capitals.ts";
 import { readSpan, spanTag } from "./numbers/spans.ts";
 import type { Span } from "./numbers/spans.ts";
 import { NUMBER_RANGES } from "./numbers/types.ts";
@@ -6615,7 +6616,7 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
             <WithHoles text={l.ar} />
           </p>
           {l.lat ? <p className="at-scenemeaning"><WithHoles text={l.lat} /></p> : null}
-          {l.en ? <p className="at-scenemeaning"><WithHoles text={l.en} /></p> : null}
+          {l.en ? <p className="at-scenemeaning"><WithHoles text={asMeaning(l.en)} /></p> : null}
           <Button variant="ghost" size="sm" className="at-mt2" onClick={() => talk.unpick(i)}>
             Type it here instead
           </Button>
@@ -7576,7 +7577,7 @@ function BlankChip({ slot, values, lang }: {
                     {value.ar}
                   </b>
                   {value.lat ? <em>{value.lat}</em> : null}
-                  {value.en ? <i>{value.en}</i> : null}
+                  {value.en ? <i>{asMeaning(value.en)}</i> : null}
                 </li>
               ))}
             </ul>
@@ -9365,7 +9366,7 @@ function CastBlock({ talk, lang, allCards }: { talk: SceneDraft; lang: Lang; all
                     style={{ fontFamily: lang.fontStack, direction: lang.direction }}>
                     {line.ar}
                   </p>
-                  {line.en ? <p className="at-scenemeaning">{line.en}</p> : null}
+                  {line.en ? <p className="at-scenemeaning">{asMeaning(line.en)}</p> : null}
                 </div>
               </div>
             ))}
@@ -9446,9 +9447,9 @@ function SentencePicker({ lang, allCards, selfId, onPick, onClose }: {
                 </b>
                 {c.name ? <span className="at-sheetnote">{c.name}</span> : null}
                 <span>
-                  <WithHoles text={leadOf(c).en} />
+                  <WithHoles text={asMeaning(leadOf(c).en)} />
                 </span>
-                {ex ? <em>For example: {ex.en || ex.ar}</em> : null}
+                {ex ? <em>For example: {asMeaning(ex.en) || ex.ar}</em> : null}
               </button>
             </li>
           );
@@ -9555,6 +9556,37 @@ export function NewCardKind({ onPick, onClose }: {
         </Button>
       </div>
     </Screen>
+  );
+}
+
+/*
+ * "Keeps its capital letters": one tick, on a word or phrase.
+ *
+ * A word dropped into a sentence is written the way English writes it: a
+ * capital at the start, none in the middle — "I like coffee", not "I like
+ * Coffee". The words English capitalises wherever they stand are the
+ * teacher's to say, since the owner had the app's list of them taken out:
+ * ticked, the English is left exactly as it was typed, and only raised
+ * where it opens a sentence. The English only — the word being learnt is
+ * cased by its own language's rule.
+ */
+function CapitalsBlock({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <div className="at-formblock at-mt5">
+      <div className="at-formhead">
+        <span className="at-formnum">Capital letters</span>
+        <span className="at-formrole">How the English is written inside a sentence.</span>
+      </div>
+      <CheckList
+        options={[{
+          id: "capitals",
+          title: "Keeps its capital letters",
+          note: "For words English always writes with a capital: Monday, English, TV. Left as you typed them in the middle of a sentence.",
+        }]}
+        chosen={on ? ["capitals"] : []}
+        onToggle={(_, wasOn) => onChange(!wasOn)}
+      />
+    </div>
   );
 }
 
@@ -9701,7 +9733,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], stripped: string[], drill: boolean, scene: { title: string, setting: string, sceneKind: SceneKind, speakers: string[], you: number | null, lines: any[] } | null, clue: string, carry: { ids: string[], changes: WordChange[] } | null, next: "meaning" | "word" | null }) => void;
+  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], stripped: string[], drill: boolean, scene: { title: string, setting: string, sceneKind: SceneKind, speakers: string[], you: number | null, lines: any[] } | null, clue: string, capitals?: boolean, carry: { ids: string[], changes: WordChange[] } | null, next: "meaning" | "word" | null }) => void;
   /** Open another of the teacher's cards in place of this one — the
       cards the Meanings block names. */
   onOpenCard?: (card: Card) => void;
@@ -9759,13 +9791,33 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
      see MeaningsBlock. Only on a word: a sentence and a conversation
      carry their own context. */
   const [clue, setClue] = useState(String((card && card.clue) || ""));
+  /* Whether its English keeps the capitals it was typed with — see
+     CapitalsBlock. The teacher's answer where there is one; otherwise
+     ticked where the app would tick it once anyway (see tickCapitals), so
+     opening and saving a card does not undo what the server is about to
+     do. */
+  const [capitals, setCapitals] = useState(() =>
+    card && typeof card.capitals === "boolean" ? card.capitals : !!(card && tickCapitals(card)),
+  );
+  /* Asked of a word whose subtype takes it — not a person or a place,
+     which keep their capital already, and not a verb, whose *I* is kept by
+     its column. Sent only where it is asked, so a card turned into a
+     person drops the answer rather than carrying one nobody can see. */
+  const asksCapitals = shape === "word" && subtypeTakesCapitals(word.category) &&
+    /* Nor the pronoun *I* the Pronouns screen wrote, which keeps its
+       capital by its column, as a verb's *I* does. */
+    !(card && SPEAKER_COLUMNS.has(String(card.person || "")));
   /* The question a change to a shared word asks, while it is being asked:
      what would be saved, and which cards it would be offered to. */
   const [carrying, setCarrying] = useState<{ written: ReturnType<typeof writtenCard>, cards: Card[], changes: WordChange[], next: "meaning" | "word" | null } | null>(null);
   const meanings = shape === "word";
   const save = (next: "meaning" | "word" | null = null) => {
     const written = writtenCard({ word, talk, shape, chosen });
-    const extra = { clue: meanings ? clue.trim() : "", next: meanings ? next : null };
+    const extra = {
+      clue: meanings ? clue.trim() : "",
+      next: meanings ? next : null,
+      capitals: asksCapitals ? capitals : undefined,
+    };
     const changes = stored && meanings ? wordChanges(card, written.forms as any) : [];
     const others = cardsSharingChange(allCards, { id: selfId, lang: lang.id }, changes);
     if (others.length) {
@@ -9843,6 +9895,8 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             }
           />
 
+          {asksCapitals && <CapitalsBlock on={capitals} onChange={setCapitals} />}
+
           {meanings && (
             <MeaningsBlock
               lang={lang}
@@ -9893,6 +9947,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             onSave({
               ...written,
               clue: clue.trim(),
+              capitals: asksCapitals ? capitals : undefined,
               next,
               carry: carry ? { ids: cards.map((c) => c.id), changes } : null,
             });

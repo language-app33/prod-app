@@ -5750,3 +5750,26 @@ English is used as written, even the singular's own word. The one choice
 left to the app is which of the two the English takes: the singular for
 one, the plural for every other count, whatever the language's own noun
 does after eleven.
+
+## Which English words keep their capitals is the teacher's tick, not a list
+
+**9 October 2026** · `src/capitals.ts`, `src/variables.ts` (`fitEnglish`,
+`keepsCase`, `SPEAKER_COLUMNS`), `src/languages.ts` (`aboutPersons`)
+
+0.408 cased a word dropped into a sentence the way English is written and
+kept a list of words English always capitalises — I, the days, the
+months, seven language names. The owner had the list taken out: it could
+never be complete, and the teacher knows their own words. A word card
+(not a person, place, verb, preposition or demonstrative) carries
+`capitals`, the teacher's tick; ticked, its English is left exactly as
+typed and only raised at the start of a sentence (the owner chose this
+over "always starts with a capital", which would write "On Monday"
+mid-sentence). The English only; the learnt language is cased as before.
+
+*I* is kept by position, not by a word: a verb form typed in an *I*
+column, the pronoun the Pronouns screen wrote for one, and the *I am* the
+app writes in `{{adjective-is}}` (owner's choice over ticking verbs, which
+nobody would remember). The abbreviation guess — a second capital letter —
+stays. Cards the old list caught were ticked once (`tickCapitals`, in the
+same stamped pass as the tag lift, now at v2); an explicit no is stored as
+`false` so the pass never puts it back.

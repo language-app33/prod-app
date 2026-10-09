@@ -28,6 +28,7 @@ import { rangeChecks } from "../../src/numbers/range.ts";
 import { partsNow } from "../../src/numbers/types.ts";
 import { migrateCards } from "../../src/numbers/migrate.ts";
 import { liftSubtypeTagsIn } from "../../src/subtype-tags.ts";
+import { tickCapitals } from "../../src/capitals.ts";
 
 /*
  * Courses, decks and the people who use them.
@@ -1223,7 +1224,9 @@ export default async (req) => {
     }
 
     /**
-     * Fold a person's subtype-named custom tags into the subtype, once.
+     * Fold a person's subtype-named custom tags into the subtype, once —
+     * and, since 0.411, tick "keeps its capital letters" on the cards the
+     * old list of words kept a capital on (see tickCapitals), once.
      *
      * A lift in the mould of seedSystems: stamped per person, run from the
      * teacher's own screen and from their students' polls, and it deletes
@@ -1237,7 +1240,11 @@ export default async (req) => {
     async function liftTags(owner) {
       if (!owner) return;
       const done = await readJson(store, K.tagLift(owner));
-      if (done && done.v >= 1) return;
+      /* 2: and the tick for the capitals, on the cards the old list of
+         words kept a capital on — see tickCapitals. A teacher whose tags
+         were folded at 1 has this pass run once more for it; folding
+         them again changes nothing. */
+      if (done && done.v >= 2) return;
       /** @type {string[]} */
       const ids = (await readJson(store, K.myCards(owner))) || [];
       /** @type {Set<string>} */
@@ -1246,7 +1253,8 @@ export default async (req) => {
       for (const id of ids) {
         let changed = null;
         await updateJson(store, K.card(id), (card) => {
-          changed = card ? liftSubtypeTagsIn(card, card.lang) : null;
+          const lifted = card ? liftSubtypeTagsIn(card, card.lang) : null;
+          changed = tickCapitals(lifted || card) || lifted;
           return changed;
         });
         if (!changed) continue;
@@ -1262,7 +1270,7 @@ export default async (req) => {
       /* Stamped after rather than before, so a pass cut short runs again.
          Two polls racing through it both find the same cards and write
          the same answer: the lift changes nothing the second time. */
-      await writeJson(store, K.tagLift(owner), { v: 1, at: Date.now() });
+      await writeJson(store, K.tagLift(owner), { v: 2, at: Date.now() });
     }
 
     /* Delete cards the person may delete. Returns what happened to each id,
@@ -1390,7 +1398,8 @@ export default async (req) => {
          it will be once it has, so the editor never offers the tag it is
          about to lose. Saving it stores it that way. */
       const cards = cardRows.concat(extra).filter(Boolean)
-        .map((c) => liftSubtypeTagsIn(c, c.lang) || c);
+        .map((c) => liftSubtypeTagsIn(c, c.lang) || c)
+        .map((c) => tickCapitals(c) || c);
       return json({ ok: true, cards: cards.map((c) => ({ ...c, decks: holding[c.id] || [] })) });
     }
 
@@ -1446,6 +1455,12 @@ export default async (req) => {
            was written, which reads as the other card's answer ruled out.
            See clueFor in src/meanings.ts. */
         clue: String(card.clue || "").trim().slice(0, 80) || undefined,
+        /* Whether its English keeps the capitals it was typed with — the
+           teacher's tick. Kept as false as well as true, because an
+           answer of no is what stops the one-time tick (see capitals.ts)
+           putting it back; absent where nobody has answered, which is
+           every card the editor does not ask. */
+        capitals: typeof card.capitals === "boolean" ? card.capitals : undefined,
         /* Which card this one was split out of, where it was — see
            splitByMeaning. Written once, by the save that makes the card,
            and kept through every later save, which does not send it: so
