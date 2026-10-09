@@ -3675,6 +3675,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(300);
 }
 
+/* The seeded words this file's walks lean on, both ways round, for a walk
+   that has to answer a choice question right rather than by draw. Longest
+   first, so "books" is found before "book" in a prompt that says Books. */
+const FIXTURE_PAIRS = [
+  ["كتاب", "book"], ["كتب", "books"], ["بيت", "house"], ["باب", "door"],
+  ["شمس", "sun"], ["قمر", "moon"], ["نجم", "star"], ["ورد", "roses"],
+];
+/** @param {Element[]} tiles @param {string} shown */
+const rightTile = (tiles, shown) => {
+  const said = shown.trim().toLowerCase();
+  const pair = [...FIXTURE_PAIRS]
+    .sort((a, b) => b[1].length - a[1].length)
+    .find(([ar, en]) => said === ar || said === en);
+  if (!pair) return null;
+  const want = said === pair[0] ? pair[1] : pair[0];
+  return tiles.find((b) => (b.textContent || "").trim().toLowerCase() === want) || null;
+};
+
 /* ---- a word, and the phrase it turns up in ----
    The seeded course holds كتاب and "الكتاب كبير", and the phrase says it
    teaches the word. What that link is worth is the whole of this block:
@@ -3788,7 +3806,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       };
       if (/Choose the meaning/.test(asked)) meaningTiles = seen;
       if (/Choose the word/.test(asked)) wordTiles = seen;
-      click(tiles[0]);
+      /* The right tile where the walk knows it, and the first where it does
+         not. Tapping the first blindly missed كتاب twice on its first level
+         whenever the draw put a wrong tile there, which shuts the level the
+         gap-fill sits on, and the walk then waited for a question the app
+         was right not to ask. Which tile comes first is a draw this walk is
+         not about. */
+      click(rightTile(tiles, (document.querySelector('[data-el="question-prompt-text"]') || {}).textContent || "") || tiles[0]);
       await sleep(40);
     } else if (document.querySelector('[data-el="answer-match"]')) {
       grid = (await playGrid()) || grid;
