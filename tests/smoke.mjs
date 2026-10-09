@@ -3817,8 +3817,26 @@ const rightTile = (tiles, shown) => {
     } else if (document.querySelector('[data-el="answer-match"]')) {
       grid = (await playGrid()) || grid;
     } else if (document.querySelector('[data-el="answer-input"]')) {
-      click(buttonNamed(/^I don't know$/));
-      await sleep(200);
+      /* كتاب's first level, written: what it means, read or heard (only
+         كتاب has a recording here). Answered right, for the reason the
+         tiles above are: giving up on one of these twice running shuts
+         the level the gap-fill sits on, and whether the gap-fill comes up
+         before that is the order of the queue, which is a draw. Every
+         other written question is still given up on. */
+      const shownText = ((document.querySelector('[data-el="question-prompt-text"]') || {}).textContent || "").trim();
+      const firstLevel = /Write in English/.test(asked) && shownText === "كتاب" || /Listen, then write it in English/.test(asked);
+      const box = /** @type {any} */ (document.querySelector('[data-el="answer-input"]'));
+      if (firstLevel && box) {
+        const setValue = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "the input's value descriptor").set;
+        must(setValue, "the input's value setter").call(box, "book");
+        box.dispatchEvent(new w.Event("input", { bubbles: true }));
+        await sleep(40);
+        click(document.querySelector('[data-el="check-button"]'));
+        await sleep(200);
+      } else {
+        click(buttonNamed(/^I don't know$/));
+        await sleep(200);
+      }
     } else if (document.querySelector('[data-el="check-button"]')) {
       click(document.querySelector('[data-el="check-button"]'));
       await sleep(200);

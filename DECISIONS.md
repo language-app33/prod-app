@@ -5774,6 +5774,30 @@ stays. Cards the old list caught were ticked once (`tickCapitals`, in the
 same stamped pass as the tag lift, now at v2); an explicit no is stored as
 `false` so the pass never puts it back.
 
+## Reports from students are the administrator's alone
+
+**9 October 2026** · `server/api/courses.js` (`my-reports`,
+`dismiss-reports`), `TeachSpace` in `src/spaces.tsx`
+
+0.246 sent each report to every teacher who could change its card, so the
+person who could fix it would hear. The owner reversed that in 0.412:
+reports are for the administrator only. A report is a learner's word about
+the course, and sometimes about its teacher.
+
+**The endpoints stay and answer non-administrators with nothing** — an
+empty list from `my-reports`, `deleted: 0` from `dismiss-reports` — rather
+than a refusal, because builds from before 0.412 call `my-reports` when the
+teaching space opens and should show no reports, not an error. The teaching
+space hides its reports button and banner unless the account is an
+administrator, so an administrator who also teaches keeps the screen.
+
+**What it costs.** A teacher no longer learns directly that a card is
+wrong, nor strikes a reported sentence from the report; the administrator
+has to relay it.
+
+**Revisit if** teachers are to see reports again, perhaps without the
+student's name — the gate is the first line of each endpoint.
+
 ## Every answer on a screen is one shape
 
 **9 October 2026** · `src/chance.ts` (`lookAlikes`, `matchGroups`,

@@ -951,8 +951,8 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
     teacher's own, and the words they tick tagged with it).
   - **A report names the sentence.** The trainer puts `reviewKey` on the
     filled question and a report carries it as `sentence`; `my-reports`
-    hands a teacher the reports on cards they can change, where one tap
-    strikes it. `src/review-sheet.tsx` is the three screens.
+    hands an administrator the reports (teachers too until 0.412), where
+    one tap strikes it. `src/review-sheet.tsx` is the three screens.
   - **Numbers and times are sent as saved.** They run to millions, so
     nobody reads them sentence by sentence: students are sent the version
     recorded under `syssigned:`, and since 0.325 every save records its

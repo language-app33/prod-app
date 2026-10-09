@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.412 — 9 October 2026
+## 0.413 — 9 October 2026
 
 **The answers to choose from all look alike, so none gives itself away.**
 
@@ -36,6 +36,25 @@ and moves once per batch of work you would notice, not once per commit.
   A made-up number may be one the learner hasn't been taught yet.
 - Worth checking by hand: a session with numbers, words and phrases in
   it, looking at the choices and grids; and a number question's choices.
+
+## 0.412 — 9 October 2026
+
+**Reports from students are for the administrator only.**
+
+- Teachers no longer see what students report about questions. The flag
+  button and the "reports from students" banner are gone from the Cards
+  tab for anyone who isn't an administrator, and a teacher can no longer
+  dismiss a report.
+- The administrator sees every report as before, in Admin → Flags, and
+  in the teaching space if they also teach.
+- Students report exactly as before; nothing changes for them.
+- The trade-off: a teacher no longer hears directly that one of their
+  cards is wrong, nor can strike a reported sentence from the report. The
+  administrator has to pass that on.
+- Teachers on an older copy of the app see an empty reports list until it
+  updates, rather than the reports.
+- Worth checking by hand: sign in as a teacher who is not an administrator
+  and see there is no flag button on the Cards tab.
 
 ## 0.411 — 9 October 2026
 
