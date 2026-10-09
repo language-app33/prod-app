@@ -87,6 +87,142 @@ const word = (/** @type {number} */ i) => ({
 const courseOf = (/** @type {number} */ n) => Array.from({ length: n }, (_, i) => word(i + 1));
 
 /**
+ * A course shaped like a teacher's rather than a list of identical words.
+ *
+ * Mostly nouns, every other one with its plural as a second form drilled
+ * in its own right; some adjectives with their feminine; and every tenth
+ * card a sentence built out of them, which can be asked nothing until its
+ * words are cleared. Spread through the course in the order a teacher
+ * would write it, so a sentence turns up after the words it is made of.
+ */
+function mixedCourseOf(/** @type {number} */ n) {
+  /** @type {any[]} */
+  const out = [];
+  for (let i = 1; out.length < n; i += 1) {
+    if (i % 10 === 0) {
+      out.push({
+        id: `s${i}`, lang: "ar-PS", sentence: true, created: i,
+        forms: [{ id: `s${i}`, ar: `{{noun}} {{adjective}} ${i}`, en: `a {{adjective}} {{noun}} ${i}`, lat: `{{noun}} {{adjective}} ${i}` }],
+      });
+    } else if (i % 7 === 0) {
+      out.push({
+        id: `a${i}`, lang: "ar-PS", category: "adjective", created: i,
+        forms: [
+          { id: `a${i}`, ar: `صفة${i}`, en: `adjective ${i}`, lat: `sifa${i}` },
+          { id: `a${i}-f`, ar: `صفة${i}ة`, en: `adjective ${i}`, lat: `sifa${i}e`, row: "agreement", col: "feminine" },
+        ],
+      });
+    } else {
+      const gender = i % 3 ? "masculine" : "feminine";
+      /** @type {any[]} */
+      const forms = [{ id: `n${i}`, ar: `اسم${i}`, en: `noun ${i}`, lat: `ism${i}`, number: "singular", gender, human: "thing" }];
+      if (i % 2) forms.push({ id: `n${i}-p`, ar: `اسماء${i}`, en: `nouns ${i}`, lat: `asma${i}`, number: "plural", gender, human: "thing" });
+      out.push({ id: `n${i}`, lang: "ar-PS", category: "noun", created: i, forms });
+    }
+  }
+  return out;
+}
+
+/*
+ * A learner who forgets.
+ *
+ * Every other learner in this file answers everything right, which makes
+ * them the upper bound on pace and blind to the one cost the caps exist
+ * for: words forgotten because too many are in play at once. This one has
+ * a memory of each form, hidden from the app, and answers from it.
+ *
+ * The model is the usual one and deliberately simple. Each form has a
+ * strength in days; the chance of recalling it falls away with the time
+ * since it was last seen, as exp(-days / strength). Recalling it makes it
+ * stronger, and by more the closer it was to being lost — so the same
+ * word answered five times in an hour gains a little, and answered after a
+ * gap gains a lot. Missing it weakens it, but never below where it was
+ * the first time it was seen: a miss shows the answer and the app asks it
+ * again before the sitting ends, so a missed word is taught again rather
+ * than lost.
+ *
+ * Calibrated to the common figures rather than fitted to anything here: a
+ * word met in one sitting and got right twice there is recalled about two
+ * times in three the next day, and one recalled after a day's gap lasts
+ * about five more. Words differ in how hard they
+ * are, and `memory` scales the whole learner: 1 is typical, 0.5 somebody
+ * who struggles.
+ *
+ * Seeded, so the learner's luck is the same from one run to the next and
+ * only the session builder's shuffle moves the figures.
+ */
+const SEEN_STRENGTH = 1;
+const FLOOR = 0.3;
+const GROWTH = 3;
+const LAPSE = 0.4;
+
+/** @param {number} seed */
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** How hard a word is, from 0.6 to 1.6, fixed by its id. */
+function hardness(/** @type {string} */ id) {
+  let h = 2166136261;
+  for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return 0.6 + ((h >>> 0) % 1000) / 1000;
+}
+
+function forgetter({ memory = 1, seed = 1 } = {}) {
+  const roll = seeded(seed);
+  /** @type {Map<string, { strength: number, last: number }>} */
+  const held = new Map();
+  let answered = 0;
+  let right = 0;
+  const recall = (/** @type {{ strength: number, last: number }} */ m, /** @type {number} */ at) =>
+    Math.exp(-Math.max(0, at - m.last) / DAY / m.strength);
+  return {
+    /** Answer a question on one form at `at`; true when it was right. */
+    answer(/** @type {string} */ itemId, /** @type {string | null} */ subId, /** @type {number} */ at) {
+      const key = `${itemId}/${subId || ""}`;
+      const gain = memory / hardness(itemId);
+      const m = held.get(key);
+      /* The first time a form is put to the learner it is being taught,
+         with the answer in front of them. It is seen, not recalled. */
+      if (!m) {
+        held.set(key, { strength: SEEN_STRENGTH * gain, last: at });
+        return true;
+      }
+      const r = recall(m, at);
+      const ok = roll() < r;
+      answered += 1;
+      if (ok) right += 1;
+      m.strength = ok ? m.strength * (1 + gain * (FLOOR + GROWTH * (1 - r))) : Math.max(SEEN_STRENGTH * gain, m.strength * LAPSE);
+      m.last = at;
+      return ok;
+    },
+    /**
+     * What the learner would get right if tested at `at` with no more
+     * practice: summed over the words met, each as its weakest form.
+     */
+    knownAt(/** @type {number} */ at) {
+      /** @type {Map<string, number>} */
+      const worst = new Map();
+      for (const [key, m] of held) {
+        const id = key.split("/")[0];
+        worst.set(id, Math.min(worst.get(id) ?? 1, recall(m, at)));
+      }
+      let sum = 0;
+      for (const r of worst.values()) sum += r;
+      return sum;
+    },
+    accuracy: () => (answered ? right / answered : 1),
+  };
+}
+
+/**
  * Sit down and work through one session.
  *
  * Every question is answered right, which is the kindest case and
@@ -101,6 +237,7 @@ function sitDown(
   /** @type {number} */ at,
   /** @type {number} */ budget,
   /** @type {Record<string, number>} */ log = {},
+  /** @type {ReturnType<typeof forgetter> | null} */ learner = null,
 ) {
   const clock = { now: () => at, random: () => 0.5 };
   installIndexes(items, settings);
@@ -124,10 +261,17 @@ function sitDown(
   let cards = items;
   /** @type {Set<string>} */
   const dealt = new Set();
+  let nth = 0;
   for (const ex of built.exercises || []) {
+    nth += 1;
     dealt.add(ex.id);
     log[day] = (log[day] || 0) + 1;
-    const marks = [{ id: ex.id, subId: ex.subId || null, rating: "good", correct: true, advance: true }];
+    /* A learner who forgets answers from memory; one who doesn't, right.
+       The questions in a sitting are a minute apart, so a form asked twice
+       in one is a minute's gap rather than none. */
+    const asked = at + nth * 60000;
+    const ok = !learner || learner.answer(ex.id, ex.subId || null, asked);
+    const marks = [{ id: ex.id, subId: ex.subId || null, rating: ok ? "good" : "again", correct: ok, advance: true }];
     /* A grid is a question about every word in it, and the app marks each
        of them — moving a word's schedule only where its own question was
        due. Marking the first word alone, as this did until 0.281, had every
@@ -138,11 +282,12 @@ function sitDown(
       const u = it && unitsOf(it).find((/** @type {any} */ x) => (m.subId ? x.unit.id === m.subId : !x.isSub));
       const st = u && u.unit.s && u.unit.s[ex.type];
       dealt.add(m.id);
+      const mateOk = !learner || learner.answer(m.id, m.subId || null, asked);
       marks.push({
         id: m.id,
         subId: m.subId || null,
-        rating: "good",
-        correct: true,
+        rating: mateOk ? "good" : "again",
+        correct: mateOk,
         advance: !st || st.phase === "new" || (st.due || 0) <= at,
       });
     }
@@ -164,9 +309,9 @@ function sitDown(
 /**
  * A learner's life, day by day.
  *
- * @param {{ cards: any[], days: number, budget?: number, sessionsPerDay?: number }} how
+ * @param {{ cards: any[], days: number, budget?: number, sessionsPerDay?: number, learner?: ReturnType<typeof forgetter> | null }} how
  */
-function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
+function live({ cards, days, budget = 18, sessionsPerDay = 1, learner = null }) {
   let items = cards;
   let asked = 0;
   /** @type {Record<string, number>} */
@@ -199,7 +344,7 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
     for (let s = 0; s < sessionsPerDay; s += 1) {
       /* Spread through the day so a second session is genuinely later. */
       const at = START + d * DAY + s * 3600000;
-      const ran = sitDown(items, at, budget, log);
+      const ran = sitDown(items, at, budget, log, learner);
       items = ran.cards;
       asked += ran.asked;
       deals += ran.dealt.size;
@@ -254,6 +399,12 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
     ),
     asked,
     daily,
+    /* For a learner who forgets: what they would get right the morning
+       after the last day, and a month after that with no practice at all
+       — the honest measure of what the course left them with. */
+    knownNow: learner ? learner.knownAt(START + days * DAY) : null,
+    knownInAMonth: learner ? learner.knownAt(START + (days + 30) * DAY) : null,
+    accuracy: learner ? learner.accuracy() : 1,
     /* The day each word was first met, for counting what arrived when. */
     firstSeen,
     /* The number the last attempt at this regressed. */
@@ -568,3 +719,59 @@ test("and the pool only grows for somebody who practises a lot", () => {
   assert.equal(inHandFor(270), 270, "fifteen sittings of eighteen: two words for each of 135");
   assert.equal(inHandFor(100000), IN_HAND_MAX, "and a runaway day stops at the ceiling");
 });
+
+/* ------------------------------------------------------------------
+   A learner who forgets, on a course shaped like a teacher's
+
+   Every figure above is a learner who never gets anything wrong, on a
+   course of identical words. That can show what letting more words in
+   gains and never what it costs, so every limit in the app was set
+   without seeing its cost. These are the same lives with a learner who
+   forgets (see `forgetter`) on a mixed course (see `mixedCourseOf`), and
+   what they report is the outcome that matters: how many words the
+   learner would actually get right, the morning after and a month later.
+   ------------------------------------------------------------------ */
+
+/** @type {Map<string, ReturnType<typeof live>>} */
+const lived = new Map();
+/* Each life is lived once and read by whichever test asks, because the
+   keen one takes minutes. */
+const honestLife = (/** @type {{ sessionsPerDay: number, memory?: number }} */ how) => {
+  const key = `${how.sessionsPerDay}/${how.memory ?? 1}`;
+  if (!lived.has(key)) {
+    lived.set(key, live({
+      cards: mixedCourseOf(400),
+      days: 90,
+      sessionsPerDay: how.sessionsPerDay,
+      learner: forgetter({ memory: how.memory ?? 1, seed: 7 }),
+    }));
+  }
+  return /** @type {ReturnType<typeof live>} */ (lived.get(key));
+};
+
+const report = (/** @type {string} */ who, /** @type {ReturnType<typeof live>} */ got) =>
+  console.log(
+    `    ${who}: met ${got.met}, cleared ${got.cleared}, learnt ${got.learnt}; ` +
+      `${Math.round(got.accuracy * 100)}% of answers right; ` +
+      `would know ${Math.round(got.knownNow ?? 0)} the next morning, ${Math.round(got.knownInAMonth ?? 0)} a month on`,
+  );
+
+test("a learner who forgets: what ninety days leave them knowing", () => {
+  for (const sittings of [1, 3, 15]) {
+    const got = honestLife({ sessionsPerDay: sittings });
+    report(`${sittings} a day, typical memory`, got);
+    assert.ok(got.met > 0 && (got.knownNow ?? 0) > 0, `${sittings} a day learnt nothing`);
+  }
+});
+
+test("a learner who struggles is given fewer new words, not more to forget", () => {
+  /* The claim the caps rest on and nothing had measured: somebody who
+     keeps forgetting has words that never settle, those words hold their
+     places, and new ones slow down on their own. */
+  const typical = honestLife({ sessionsPerDay: 3 });
+  const weak = honestLife({ sessionsPerDay: 3, memory: 0.5 });
+  report("3 a day, typical memory", typical);
+  report("3 a day, struggling", weak);
+  assert.ok(weak.met <= typical.met, `the struggling learner met ${weak.met} against ${typical.met}`);
+});
+

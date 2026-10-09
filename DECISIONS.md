@@ -5797,3 +5797,48 @@ has to relay it.
 
 **Revisit if** teachers are to see reports again, perhaps without the
 student's name — the gate is the first line of each endpoint.
+
+## The pace simulation has a learner who forgets
+
+**9 October 2026** · `tests/pace.test.mjs` (`forgetter`, `mixedCourseOf`,
+`honestLife`)
+
+Every limit on new words was set by `tests/pace.test.mjs`, whose learner
+answered everything right on a course of identical words. That shows what
+letting more words in gains and never what it costs, and the claim that a
+struggling learner is protected had never been measured. The owner chose to
+measure honestly before changing any limit.
+
+**The learner.** Each form has a hidden strength in days; recall falls off
+as exp(-days / strength); a success grows it, by more the nearer it was to
+being lost; a miss weakens it, never below where it started, since the
+answer is shown and asked again. Calibrated to common figures (a word got
+right twice in one sitting is recalled about two times in three the next
+day), not fitted to anything here, and seeded. **The course** is mostly
+nouns, half with a plural, some adjectives with a feminine, and every tenth
+card a sentence built from them.
+
+**What it found** (400-card course, 90 days, the limits as they stand):
+
+| | met | learnt | answers right | known a month after |
+|---|---|---|---|---|
+| 1 sitting a day | 32 | 18 | 89% | 22 |
+| 3 a day | 95 | 68 | 97% | 79 |
+| 15 a day | 400 | 366 | 98% | 389 |
+| 3 a day, struggling (half the memory) | 64 | 49 | 79% | 24 |
+
+The perfect learner meets 46 words once a day on the same course, so
+forgetting costs the steady learner about a third of their pace, and what
+they meet they mostly keep. The keen learner is not harmed by the wide
+limits — in this model. **The struggling learner is the finding:** new
+words slow by only a third, they clear 61 words and keep 24 a month later.
+Clearing — two right in a row, which one sitting can supply — lets words
+out of the front door that memory has not held, so the claim that a
+struggling learner "falls out" of the caps is only partly true.
+
+**What it cannot see.** Nothing in the model makes one word harder because
+many others are in play, so the cost of a wide pool shows only as each word
+coming round less often. A real keen learner may do worse than this one.
+
+**What it costs.** About six minutes more on the test run, mostly the
+fifteen-a-day life; each life is lived once and shared between the tests.
