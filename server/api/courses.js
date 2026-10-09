@@ -2295,16 +2295,19 @@ export default async (req) => {
     }
 
     /*
-     * The reports learners have sent about cards this person can change.
+     * The reports learners have sent, for an administrator working in the
+     * teaching space — with the card, so the screen can open its review
+     * without a second request, and with what has become of it since, the
+     * way the administrator's list says.
      *
-     * Reports went to the administrator alone, who can read them and can
-     * change nothing about a course they do not teach. The teacher who can
-     * fix the card is who should hear, so every report about a card this
-     * person may edit is theirs to read too — with the card, so the screen
-     * can open its review without a second request, and with what has
-     * become of it since, the way the administrator's list says.
+     * From 0.246 to 0.411 these went to every teacher who could change the
+     * card. The owner asked in 0.412 for reports to be the administrator's
+     * alone: a report is a learner's word about the course, sometimes about
+     * its teacher. Anyone else gets an empty list rather than a refusal, so
+     * an older build still on a teacher's device simply shows none.
      */
     if (action === "my-reports") {
+      if (!iAmAdmin) return json({ ok: true, flags: [], cards: [] });
       const flagIds = await readIndex(store, "flags");
       const rows = (await readManyJson(store, flagIds.map((x) => K.flag(x)))).filter(Boolean);
       /** @type {Map<string, any>} */
@@ -2334,10 +2337,11 @@ export default async (req) => {
       return json({ ok: true, flags: out.reverse(), cards });
     }
 
-    /* A report read and dealt with, by a teacher who may change its card.
-       The administrator's own list loses it too: there is one report, and
-       it has been answered. */
+    /* A report read and dealt with, from the teaching space. Only an
+       administrator's dismissal counts — see my-reports. The Flags list
+       loses it too: there is one report, and it has been answered. */
     if (action === "dismiss-reports") {
+      if (!iAmAdmin) return json({ ok: true, deleted: 0 });
       const wanted = new Set((Array.isArray(body.flagIds) ? body.flagIds : []).map(String).slice(0, 100));
       if (!wanted.size) return json({ ok: true, deleted: 0 });
       const ids = await readIndex(store, "flags");

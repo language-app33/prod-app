@@ -4308,7 +4308,8 @@ test("a sentence card waits for review, and only its teachers can review it or r
   });
   assert.equal(helped.status, 200, "a teacher of the course can");
 
-  /* A student's report names the sentence, and reaches the teachers. */
+  /* A student's report names the sentence, and reaches the administrator
+     alone: not even a teacher who can change the card sees it. */
   const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Yousef" } });
   await api("/api/courses?action=join-course", { method: "POST", key: student.json.key, body: { code: course.json.course.code } });
   const sent = await api("/api/courses?action=report-flag", {
@@ -4317,18 +4318,24 @@ test("a sentence card waits for review, and only its teachers can review it or r
             prompt: "اسمي سامي", meaning: "my name is Sami", courseId, deckId, sentence: k1 },
   });
   assert.equal(sent.status, 200, sent.text);
-  const theirs = await api("/api/courses?action=my-reports", { key: coteacher.json.key });
-  const got = must(theirs.json.flags.find((/** @type {any} */ f) => f.id === sent.json.id), "the report, for a teacher");
+  const theirs = await api("/api/courses?action=my-reports", { key: akey });
+  const got = must(theirs.json.flags.find((/** @type {any} */ f) => f.id === sent.json.id), "the report, for the administrator");
   assert.equal(got.sentence, k1, "naming the sentence it was about");
   assert.ok(theirs.json.cards.some((/** @type {any} */ c) => c.id === cardId), "with the card to strike it on");
-  const notTheirs = await api("/api/courses?action=my-reports", { key: stranger.json.key });
-  assert.equal(notTheirs.json.flags.some((/** @type {any} */ f) => f.id === sent.json.id), false);
-  const nope = await api("/api/courses?action=dismiss-reports", {
-    method: "POST", key: stranger.json.key, body: { flagIds: [sent.json.id] },
-  });
-  assert.equal(nope.json.deleted, 0, "nor dismiss it");
+  for (const who of [coteacher, stranger]) {
+    const notTheirs = await api("/api/courses?action=my-reports", { key: who.json.key });
+    assert.equal(notTheirs.status, 200, "an older build asking is answered, with nothing");
+    assert.deepEqual(notTheirs.json.flags, [], "a teacher is not shown reports");
+    assert.deepEqual(notTheirs.json.cards, []);
+    const nope = await api("/api/courses?action=dismiss-reports", {
+      method: "POST", key: who.json.key, body: { flagIds: [sent.json.id] },
+    });
+    assert.equal(nope.json.deleted, 0, "nor can dismiss one");
+  }
+  const stillThere = overviewOf(await api("/api/courses?action=admin-overview", { key: akey })).flags;
+  assert.ok(stillThere.some((f) => f.id === sent.json.id), "so it is still on the administrator's list");
   const dismissed = await api("/api/courses?action=dismiss-reports", {
-    method: "POST", key: coteacher.json.key, body: { flagIds: [sent.json.id] },
+    method: "POST", key: akey, body: { flagIds: [sent.json.id] },
   });
   assert.equal(dismissed.json.deleted, 1);
   const left = overviewOf(await api("/api/courses?action=admin-overview", { key: akey })).flags;
