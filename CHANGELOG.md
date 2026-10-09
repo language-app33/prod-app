@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.412 — 9 October 2026
+
+**The answers to choose from all look alike, so none gives itself away.**
+
+- On every question that offers four answers (choose the meaning, choose
+  the word, which word is missing, picture → choose), the three wrong
+  answers are now the same kind as the right one: numbers beside numbers,
+  single words beside single words, phrases beside phrases, and sentences
+  beside sentences of about the same length. Until now they were drawn
+  from anything the learner had met, so a number among three words, or a
+  sentence among three single words, could be picked without knowing it.
+- A number's wrong answers are made up rather than borrowed: numbers that
+  are easy to mix up with it, as the number-range questions already did.
+  Asked what خمسة means, the choices are things like 5, 15, 50 and 4, not
+  5, book, house and water. Asked for the word for 40, the choices are
+  other number words of one word each.
+- Matching grids follow the same rule: a grid holds one kind only, and its
+  spare meanings match. Words, phrases and sentences that are due together
+  are put in separate grids.
+- "Which word is missing" now needs other cards like the answer, as the
+  other choice questions already did, and the teacher's list of what a
+  card is waiting for says "a few more cards like it in this language".
+- The trade-off: a card with fewer than four others of its kind (a
+  learner's only two sentences, say) is not asked these questions, nor
+  put in a grid, until more arrive; it is asked the other ways instead.
+  A made-up number may be one the learner hasn't been taught yet.
+- Worth checking by hand: a session with numbers, words and phrases in
+  it, looking at the choices and grids; and a number question's choices.
+
 ## 0.411 — 9 October 2026
 
 **Teachers decide which words keep their capital letters.**

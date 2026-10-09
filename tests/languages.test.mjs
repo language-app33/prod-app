@@ -346,11 +346,11 @@ test("the two that offer four whole cards ask opposite ways round", () => {
 });
 
 test("every exercise that stands a card beside other cards asks for company", () => {
-  /* The grid and the two pickers put whole cards up together, and a card
+  /* The grid and the pickers put whole cards up together, and a card
      whose words change cannot be one of them — offers.ts reads that off
      this need rather than naming the three. */
   assert.deepEqual(TYPES.filter((t) => EX[t].needs.includes("mates")).sort(),
-    ["ar2pick", "en2pick", "img2pick", "match", "recmatch"]);
+    ["ar2pick", "ctx2pick", "en2pick", "img2pick", "match", "recmatch"]);
 });
 
 /* --- listening exercises --- */

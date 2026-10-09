@@ -125,6 +125,7 @@ import {
   LANGUAGES,
   TYPES,
   activeLang,
+  answerShape,
   checkAnswer,
   answersInFigures,
   instructionFor,
@@ -247,7 +248,7 @@ import {
   shuffled,
 } from "./scheduler.ts";
 import type { Move, Standing } from "./scheduler.ts";
-import { PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "./chance.ts";
+import { PAIR_WORDS, PICK_OPTIONS, lookAlikes, matchGroups, matchSet, optionsFor } from "./chance.ts";
 import {
   EMPTY_SIBLINGS,
   answersAlike,
@@ -2301,6 +2302,7 @@ export function installIndexes(items: Item[], settings: Settings, systems: Syste
    * last of the setters first means the answers are worked out once.
    */
   setSiblingState(siblingStateOf(items, settings));
+  setUnitShapes(unitShapesOf(items, settings));
   setMateCounts(countMates(items, settings));
   setPicturedCounts(countPictured(items, settings));
   setHeardCounts(countHeard(items, settings));
@@ -2379,22 +2381,65 @@ export function siblingsAsked(card: Item | null | undefined, unit: Form | null |
   );
 }
 
-let MATE_COUNTS: Map<LangId, number> = new Map();
+let MATE_COUNTS: Map<string, number> = new Map();
+/* Whether the counts say what shape each word is, or only how many there
+   are — see matesFor. */
+let MATES_BY_SHAPE = false;
+
+/* What shape each form's answer is — a number, a word, a phrase or a
+   sentence; see answerShape. A form does not carry its card's kind, and
+   the kind is the card's, so it is read off the cards once and looked up
+   by form. */
+let UNIT_SHAPES: Map<string, string> = new Map();
+
+export function setUnitShapes(map: Map<string, string>) {
+  UNIT_SHAPES = map || new Map();
+  forgetTypes();
+}
+
+/* The shapes of every form the learner holds. */
+export function unitShapesOf(items: Item[], settings: Settings): Map<string, string> {
+  const out: Map<string, string> = new Map();
+  for (const card of items) {
+    if (isDialog(card)) continue;
+    const lang = LANGUAGES[langIdOf(card, settings)] || langOf(settings);
+    for (const { unit } of unitsOf(card)) {
+      if (unit && unit.id) out.set(unit.id, answerShape(card, unit, lang));
+    }
+  }
+  return out;
+}
+
+/* A form's shape: the card's where the cards were read, and otherwise
+   guessed from the form alone. */
+export function shapeOfUnit(unit: Form | null | undefined): string {
+  if (!unit) return "";
+  return UNIT_SHAPES.get(unit.id) || answerShape(null, unit, LANGUAGES[String(unit.lang || "")] || activeLang());
+}
+
+const shapeKey = (id: LangId | string, shape: string) => `${id}\u0000${shape}`;
 
 /* Exported for the reason setValueIndex is: how many other words a deck
    holds is a fact about the deck, and whether a word can be told apart
    from anything depends on it. A test that wants the pick exercises on the
    table has to be able to say the deck is not empty. */
-export function setMateCounts(map: Map<LangId, number>) {
+export function setMateCounts(map: Map<string, number>) {
   MATE_COUNTS = map || new Map();
+  MATES_BY_SHAPE = [...MATE_COUNTS.keys()].some((k) => k.includes("\u0000"));
   forgetTypes();
 }
 
-/* Everything else in this language that could stand beside it. Its own
-   card is in the count, so one is taken off. */
+/* Everything else in this language that could stand beside it: of its
+   own shape, since nothing else can stand beside it on one screen without
+   giving the answer away (see answerShape). Its own card is in the count,
+   so one is taken off.
+
+   Counts that say nothing of shapes — a test saying only that the deck is
+   not empty — are read as company of every shape. */
 function matesFor(unit: Form, settings?: Settings): number {
   const id = (unit && unit.lang) || (settings && settings.language) || activeLang().id;
-  return Math.max(0, (MATE_COUNTS.get(id) || 0) - 1);
+  const count = MATES_BY_SHAPE ? MATE_COUNTS.get(shapeKey(id, shapeOfUnit(unit))) : MATE_COUNTS.get(id);
+  return Math.max(0, (count || 0) - 1);
 }
 
 /* The same count for pictures: how many words in each language carry one.
@@ -2479,11 +2524,12 @@ function countHeard(items: Item[], settings: Settings): Map<LangId, number> {
 /* Cards that can be a tile in a grid: a word with a meaning, in one
    language. A conversation is not one of them — a scene has no single
    wording to put on a tile. */
-function countMates(items: Item[], settings: Settings): Map<LangId, number> {
-  const counts: Map<LangId, number> = new Map();
+function countMates(items: Item[], settings: Settings): Map<string, number> {
+  const counts: Map<string, number> = new Map();
   for (const card of items) {
     if (isDialog(card)) continue;
     const id = langIdOf(card, settings);
+    const lang = LANGUAGES[id] || langOf(settings);
     for (const { unit } of unitsOf(card)) {
       /* A card with a variable in it is not one of them: a grid pairs
          words, and only the card being asked is filled in — a frame
@@ -2492,7 +2538,12 @@ function countMates(items: Item[], settings: Settings): Map<LangId, number> {
          and pairing it with its own meaning is the question its card was
          marked as not being. */
       if (card.drill === false) continue;
-      if (unit.ar && unit.en && !hasSlots(unit)) counts.set(id, (counts.get(id) || 0) + 1);
+      if (unit.ar && unit.en && !hasSlots(unit)) {
+        counts.set(id, (counts.get(id) || 0) + 1);
+        /* And by shape, which is the company a word can actually keep. */
+        const key = shapeKey(id, answerShape(card, unit, lang));
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
     }
   }
   return counts;
@@ -5139,6 +5190,7 @@ function withGrids(
         likeness: (a, b) => wordLikeness(a.ar, b.ar, lg),
         familyOf: (u) => placeOf.get(u.id)?.id || u.id,
         meaningsOf: (u) => gridOthers(type, u),
+        shapeOf: shapeOfUnit,
       });
       for (const grid of grids) {
         leadOf.set(gridKey(type, grid[0].id), grid.slice(1));
@@ -5576,7 +5628,10 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
   /* A grid of numbers stands numbers beside each other and nothing else:
      a spare reading "book" among figures is not a spare anybody weighs. */
   const numbers = !!specOf(exercise.type)?.needs.includes("figure");
-  const fits = (u: Form) => !!u.ar && !!other(u) && (!numbers || isFigureForm(u));
+  /* And every grid stands its own shape beside itself — numbers, words,
+     phrases or sentences — see matchGroups. */
+  const shape = shapeOfUnit(item);
+  const fits = (u: Form) => !!u.ar && !!other(u) && (!numbers || isFigureForm(u)) && shapeOfUnit(u) === shape;
   /* Two units a learner would read as one tile: the same word, or the
      same meaning, after both have been narrowed to the one the question
      shows. matchSet is the gate that refuses them; this is the same
@@ -5639,7 +5694,96 @@ export function gridFor(item: Form, exercise: Question, asking: Item[], settings
     meaningOf: other,
     familyOf,
     meaningsOf: othersOf,
+    shapeOf: shapeOfUnit,
   });
+}
+
+/*
+ * The answers a question offering a few puts up — "choose the meaning",
+ * "choose the word", "which word is missing" — the right one and three
+ * that look like it.
+ *
+ * Every answer on the screen has to be one the learner could believe is
+ * right. A wrong answer is drawn only from cards of the right one's shape
+ * (see answerShape and lookAlikes): a number beside three words, or a
+ * sentence beside three single words, is chosen by its shape by somebody
+ * who knows none of them. Whether there are enough of them to ask at all
+ * was settled where the exercise was offered, on the same shapes.
+ *
+ * **A number's wrong answers are made up**, not borrowed: the numbers
+ * worth confusing with it — 74, 57 and 46 beside 47 — which the range
+ * questions already offer (see confusablesOf). In figures where the
+ * answers are meanings, and said by the language's own number system
+ * where they are words, keeping only those said in as many words as the
+ * right one. Other number cards the learner holds make up the count where
+ * too few can be said.
+ *
+ * `pool` is the learner's other cards, already narrowed by the caller to
+ * the ones this question may offer at all.
+ */
+export function pickChoices({
+  item,
+  parentItem,
+  picks,
+  pool,
+  seed,
+  systems,
+}: {
+  item: Form;
+  parentItem: Item | null | undefined;
+  picks: "meaning" | "word";
+  pool: Form[];
+  seed: string;
+  systems: SystemSet[];
+}): Form[] {
+  const field = picks === "meaning" ? "en" : "ar";
+  const textOf = (w: Form) => String(w[field] || "");
+  const alike = lookAlikes({
+    answer: item,
+    pool,
+    shapeOf: shapeOfUnit,
+    sizeOf: (w) => textOf(w).replace(/\s+/g, "").length,
+  });
+  const made = shapeOfUnit(item) === "number" ? nearNumbers(item, parentItem, field, systems) : [];
+  return optionsFor({
+    answer: item,
+    pool: made.length >= PICK_OPTIONS - 1 ? made : made.concat(alike),
+    wanted: PICK_OPTIONS,
+    seed,
+    textOf,
+  });
+}
+
+/* The numbers worth confusing with this one, as answers to choose from:
+   in figures written the way the card writes its own, or in words said
+   by the number system the card came from. A card with no system to say
+   them makes up only the figures. */
+function nearNumbers(item: Form, parentItem: Item | null | undefined, field: "en" | "ar", systems: SystemSet[]): Form[] {
+  const written = String(item.en || "").trim();
+  const value = Number(written.replace(/,/g, ""));
+  if (!Number.isInteger(value)) return [];
+  const near = confusablesOf(value);
+  if (field === "en") {
+    const commas = written.includes(",");
+    return near.map((v) => {
+      const en = commas ? v.toLocaleString("en-US") : String(v);
+      return { id: `near:${v}`, ar: "", en, lat: "" };
+    });
+  }
+  const set = systemFor(parentItem, systems);
+  const composer = set ? composerFor(set.numbers.languageId) : null;
+  if (!set || !composer) return [];
+  const lang = LANGUAGES[set.numbers.languageId] || null;
+  const shape = guessKind(item.ar, lang);
+  const out: Form[] = [];
+  for (const v of near) {
+    const said = renderAsk({ rangeId: "", kind: "numbers", value: v }, composer, set.numbers);
+    /* As many words as the right one, or the one said in three words
+       among single ones is the answer given away all over again. */
+    if (!said.text || guessKind(said.text, lang) !== shape) continue;
+    out.push({ id: `near:${v}`, ar: said.text, en: String(v), lat: "" });
+  }
+  return out;
 }
 
 /**
@@ -10411,6 +10555,8 @@ export default function ArabicTrainer() {
      siblingStateOf. Rebuilt with the cards, which is when it can change. */
   const siblingState = useMemo(() => siblingStateOf(asking, settings), [asking, settings]);
   setSiblingState(siblingState);
+  const unitShapes = useMemo(() => unitShapesOf(asking, settings), [asking, settings]);
+  setUnitShapes(unitShapes);
   const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
   setMateCounts(mateCounts);
   const picturedCounts = useMemo(() => countPictured(asking, settings), [asking, settings]);
@@ -11426,35 +11572,37 @@ export default function ArabicTrainer() {
        the same way, upstream in castMeaning. */
     if (spec.picks === "meaning") {
       const reps = (statesOf(item)[(exercise && exercise.type) || ""] || {}).reps || 0;
-      return optionsFor({
-        answer: item,
+      return pickChoices({
+        item,
+        parentItem,
+        picks: "meaning",
         pool: wordPool(companyOf(asking, exercise), settings, qLang.id, item)
           .filter((u) => u.en && !twins.some((t) => t.id === u.id) && !ofSibling(u))
           .map((u) => oneOf(u, exercise ? exercise.type : "")),
-        wanted: PICK_OPTIONS,
         seed: `${item.id} meaning ${reps}`,
-        textOf: (w) => w.en,
+        systems,
       });
     }
-    return optionsFor({
-      answer: item,
+    return pickChoices({
+      item,
+      parentItem,
+      picks: "word",
       /* One spelling a tile, like the answer's own: a card accepting two
          would otherwise put both on one tile, and the long one among three
          short ones is the answer given away by its shape. */
       pool: wordPool(companyOf(asking, exercise), settings, qLang.id, item)
         .filter((u) => !twins.some((t) => t.id === u.id) && !ofSibling(u))
         .map((u) => oneOf(u, exercise ? exercise.type : "")),
-      wanted: PICK_OPTIONS,
       /* A question with no phrase behind it — "which of these means this"
          — has the number of askings for a seed instead, so the three wrong
          answers are not the same three for ever. */
       seed: `${item.id} ${(exercise && exercise.ctx) || ""}${
         exercise && !exercise.ctx ? (statesOf(item)[exercise.type] || {}).reps || 0 : ""
       }`,
-      textOf: (w) => w.ar,
+      systems,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, asking.length, siblingCards.join(" ")]);
+  }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, asking.length, siblingCards.join(" "), systems]);
 
   /*
    * Whether the prompt has to say which form it wants.

@@ -55,6 +55,7 @@ import {
   LANGUAGES,
   DEFAULT_LANGUAGE,
   categoriesOf,
+  answerShape,
   scriptVars } from "./languages.ts";
 import { isDialog, linesOf, sceneKindOf } from "./dialogs.ts";
 import { asMeaning, cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
@@ -3697,11 +3698,15 @@ function TryExercises({ card, cards, lang, onTry, back }: {
       /* How many other cards could stand beside it in a matching grid —
          the one thing a card cannot answer about itself. A card with a
          variable in it is not one of them: a grid pairs words, and a frame
-         with a hole in it is not a word. */
-      matesFor: () =>
-        material.filter(
-          (c) => !isDialog(c) && leadOf(c).ar && leadOf(c).en && !hasSlots(c) && c.drill !== false
-        ).length - 1,
+         with a hole in it is not a word. Nor one of another shape: a
+         phrase among single words gives itself away (see answerShape). */
+      matesFor: (unit) => {
+        const shape = answerShape(mine, unit, lang);
+        return material.filter(
+          (c) => !isDialog(c) && leadOf(c).ar && leadOf(c).en && !hasSlots(c) && c.drill !== false &&
+            answerShape(c, leadOf(c), lang) === shape
+        ).length - 1;
+      },
       /* And how many have a picture, which is what "Listen → picture"
          draws its wrong answers from. */
       picturedFor: (unit) =>

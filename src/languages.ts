@@ -444,13 +444,15 @@ export const EX: Record<string, ExerciseSpec> = {
 
      On the second level for the same reason en2pick is: what it asks for
      is the word, picked out of four, and a word is asked for only once
-     what it means is known. */
+     what it means is known. And it needs the company en2pick does: the
+     three wrong answers are other cards of the word's own shape, and a
+     word with none beside it would be offered alone. */
   ctx2pick: {
     level: 2,
     instruction: "Which word is missing?",
     label: "In a phrase → choose",
     short: "P→C",
-    needs: ["ar", "contexts"],
+    needs: ["ar", "contexts", "mates"],
     question: "Which word is missing?",
     placeholder: "",
     promptField: "context",
@@ -1161,6 +1163,31 @@ export const kindOf = (
   return guessKind(word.ar || word.en || word.lat, lang);
 };
 
+/* A meaning that is a number in figures — 5, 47, 1,000 — and nothing else. */
+export const NUMBER_TEXT = /^\d{1,3}(,\d{3})+$|^\d+$/;
+
+/**
+ * What an answer looks like beside other answers: a number, a word, a
+ * phrase or a sentence.
+ *
+ * The question it settles is which cards may stand together on one
+ * screen — the wrong answers beside a right one, the tiles of one grid.
+ * A number among words, or a sentence among single words, is picked out
+ * by its shape by somebody who does not know the answer, so every answer
+ * on a screen has to be one of these alike. The kind is the card's, as
+ * kindOf reads it — a teacher's own word for it first — and a form whose
+ * meaning is a number in figures is a number whatever else is true of it.
+ */
+export function answerShape(
+  card: Record<string, any> | null | undefined,
+  unit: { en?: string; ar?: string; lat?: string } | null | undefined,
+  lang: { guessKind?: (text: string) => string } | null = null,
+): string {
+  if (unit && NUMBER_TEXT.test(String(unit.en || "").trim())) return "number";
+  if (card) return kindOf(card, lang);
+  return guessKind((unit && (unit.ar || unit.en || unit.lat)) || "", lang);
+}
+
 /**
  * @param text  Whatever the card holds, which for an empty field is nothing at all.
  * @param lang  A pack, or as much of one as the caller has: only its own rule is read.
@@ -1692,7 +1719,7 @@ export function needLabel(need: string, lang: Partial<Lang>) {
     }
   }
   const names: Record<string, string> = {
-    mates: "a few more cards in this language",
+    mates: "a few more cards like it in this language — words, phrases, sentences or numbers",
     ar: `the word in ${script}`,
     en: "the meaning",
     lat: `the ${translit}`,

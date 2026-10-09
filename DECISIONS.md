@@ -5773,3 +5773,28 @@ nobody would remember). The abbreviation guess — a second capital letter —
 stays. Cards the old list caught were ticked once (`tickCapitals`, in the
 same stamped pass as the tag lift, now at v2); an explicit no is stored as
 `false` so the pass never puts it back.
+
+## Every answer on a screen is one shape
+
+**9 October 2026** · `src/chance.ts` (`lookAlikes`, `matchGroups`,
+`matchSet`), `src/languages.ts` (`answerShape`), `src/ArabicTrainer.tsx`
+(`pickChoices`, `nearNumbers`, `unitShapesOf`, `matesFor`),
+`src/offers.ts` (the `mates` need)
+
+The wrong answers beside a right one, and the tiles of a grid, were drawn
+from anything the learner held, so a number among words or a sentence
+among single words was chosen by its shape. The owner's rule: everything
+on one screen is one shape — a number, or the card's kind (word, phrase,
+sentence; the teacher's word type first, as `kindOf` reads it) — and
+sentences within half and double each other's length where enough are.
+
+Of the fixes offered the owner chose (1c) to make up a number's wrong
+answers from `confusablesOf`, as the range questions do, rather than wait
+for other number cards; and (2a) to hold grids to the same rule. Where a
+word lacks company of its shape, the question is not offered at all
+(the `mates` need counts by shape, and `ctx2pick` now asks for it too)
+rather than asked with a give-away: the app already prefers a question
+that waits to one that answers itself. Made-up numbers pass that need on
+a number system's own cards, except in a grid, where every word is a card
+somebody is marked on. A made-up number on the script side is kept only
+when said in as many words as the right one.

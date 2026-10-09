@@ -28,3 +28,4 @@ tests/.session-fill-build/
 tests/.backup-build/
 tests/.counted-faces-build/
 tests/.missing-lines-build/
+tests/.look-alike-build/
