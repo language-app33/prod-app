@@ -8,6 +8,36 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.410 — 9 October 2026
+
+**The digit cards and the number groups keep step with the number words.**
+
+- A digit card (٠ to ٩) now opens together with its word: ٣ comes in the
+  same session as تلاتة, straight after it, and does not wait for a place
+  of its own among the new words. A digit whose word the teacher has not
+  written yet still comes in on its own, as before.
+- For a learner who has already cleared a word, its digit card skips the
+  reading step and starts at writing the digit. A digit card that has
+  already been practised is left exactly where it is.
+- A group card such as "Numbers 0 to 9" is never shown at a higher level
+  than its weakest number. If 8 is still being learnt at level 1, the group
+  shows level 1, and it is not asked anything higher until 8 catches up.
+  Nothing it earned is lost: as its numbers climb, it goes back to where
+  its own answers had put it.
+- Once every number in a group (and every digit it is written in) is
+  cleared, the group jumps straight to its top level. It still has to be
+  answered right twice there, and still needs its reviews, before it counts
+  as learnt.
+- The trade-off: digits arrive in the same sessions as their words, so the
+  first sessions of numbers carry a few more new cards. And a group can
+  appear to drop a level when one of its numbers slips.
+- These take effect after the learner's next answer, so a learner who
+  already cleared the words sees the change one question into their next
+  session.
+- Worth checking by hand: on a learner part-way through 0 to 9 and 10 to
+  19, that the group cards now read sensibly, and that the digit cards
+  start moving in the next session.
+
 ## 0.409 — 8 October 2026
 
 **A card's meaning starts with a capital letter when it stands on its own.**

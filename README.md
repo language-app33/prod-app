@@ -1074,6 +1074,27 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   Numbers section still counts them by it. `knownCard` and `cardStandings`
   in the app.
 
+  **And a part is never further up than its weakest member.** Its own
+  questions ask only numbers whose words are cleared, so it could climb to
+  level 4 while *one* and *eight* were still being learnt. Since 0.410 its
+  rows stop at the level the weakest of its words or figures is working on
+  — that row learning, every row above not started — and its questions
+  above that line wait as well, so the screen and the session agree
+  (`weakestLevel` and `cappedAt`, and `RANGE_CAPS` for the asking). Nothing
+  is taken off its schedules. The other way round, **once every member is
+  cleared it goes straight to its top**: every level under the top is
+  written as done, the write "this was too easy" makes, and its top is
+  still its own to answer and keep (`creditNumbers`, run after every
+  answer).
+
+  **A figure comes in with its word.** ٣ is not offered a place of its
+  own among the new words: it comes in the session تلاتة is first met,
+  right behind it, or any session after, and holds no place in the front
+  door (`wordsOfDigit`, read in `buildSession` and `handCounts`). A figure
+  whose box is empty comes in as any card. And one never answered beside a
+  word already cleared is given its reading as done and starts on writing
+  — `creditNumbers` again.
+
   **A deck holds the parts it teaches.** A system is one document per
   language and not cards, so a deck cannot list it among its cards: it
   names the ranges it teaches (`parts` on the deck, set through
