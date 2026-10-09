@@ -48,7 +48,7 @@ import { agreementOf, blankAdmits, grammarFields, kindOf, lendsForm, lendsInto, 
 import { countedWith, standsAlone } from "./numbers/generate.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
-import { aboutPerson, besideAdjectives, fillForm, fillsOf, lentBy, readAs, readingOf, readingsOf, refOf, slotsOf, valuesForTurn } from "./variables.ts";
+import { aboutPerson, besideAdjectives, fillForm, fillsOf, lentBy, readAs, readingOf, readingsOf, refOf, slotsOf, speaks, valuesForTurn } from "./variables.ts";
 import {
   agreedCell, agreedValue, agreeWith, asSubject, colOf, followable, linkedPartner, linkedToNothing, ownSlot, partnerOf, personsOf,
   rowIdsOf, rowOf, slotLinks, slotRows, subjectSlot,
@@ -310,7 +310,9 @@ export function agreeTook(
     const partner = readOff(beside, lang);
     const cell = agreedCell(owner.card, tensed, rowOf(owner.form), partner ? partner.grammar : null);
     if (!cell || !String(cell.ar || "").trim()) return false;
-    out[slot] = { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
+    /* A form under *I* keeps its capitals, as it does when it is drawn
+       on its own — see SPEAKER_COLUMNS. */
+    out[slot] = { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat, ...(speaks(cell) ? { keepsCase: true } : {}) };
     personAt[slot] = colOf(cell);
     return true;
   };

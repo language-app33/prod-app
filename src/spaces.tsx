@@ -5726,7 +5726,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
         onOpenCard={(other) =>
           setEditing({ card: other, decks: other.decks || [], lang: other.lang || (editLang || {}).id || "", opened: Date.now() })
         }
-        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, stripped, drill, scene: written, clue, carry, next }) =>
+        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, stripped, drill, scene: written, clue, capitals, carry, next }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5824,6 +5824,10 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                            another card shares its prompt with. Said every
                            time, so a clue taken off comes off. */
                         clue,
+                        /* And whether its English keeps its capitals,
+                           where the editor asked: yes or no, so a no
+                           stays a no — see capitals.ts. */
+                        ...(typeof capitals === "boolean" ? { capitals } : {}),
                       }),
                 },
                 inDecks

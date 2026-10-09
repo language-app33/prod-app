@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.411 — 9 October 2026
+
+**Teachers decide which words keep their capital letters.**
+
+- A word or phrase card now has a tick, "Keeps its capital letters", for
+  words English always writes with a capital: Monday, English, TV, on
+  Monday. Ticked, the card's English is left exactly as it was typed when
+  it is dropped into the middle of a sentence ("See you on Monday"). It
+  still gets a capital when it opens a sentence.
+- The app no longer keeps its own list of such words (days, months, a few
+  language names). A word that isn't ticked is written the usual way: a
+  capital at the start of a sentence, none in the middle.
+- The tick is offered on nouns, adjectives, pronouns and "Something
+  else". It isn't offered on people and places, which always keep their
+  capital, nor on verbs, prepositions and demonstratives.
+- "I" keeps its capital with no tick: in the "I" columns of a verb table
+  ("Yesterday I ate"), on the pronoun "I" written on the Pronouns screen,
+  and in sentences like "Today I am tired".
+- Cards the old list used to catch were ticked once, automatically, so
+  nothing that read "Monday" yesterday reads "monday" today. A teacher can
+  untick any of them, and an untick stays.
+- Abbreviations such as TV still keep their capitals with no tick.
+- The trade-off: a new card for a day, a month or a language (or any
+  word English capitalises) needs its tick, or it will appear in small
+  letters mid-sentence. And a ticked word typed in small letters stays
+  small.
+- Worth checking by hand: open a card for a day or a language and see the
+  tick is on; and look at a few sentences with "I" in the middle.
+
 ## 0.410 — 9 October 2026
 
 **The digit cards and the number groups keep step with the number words.**

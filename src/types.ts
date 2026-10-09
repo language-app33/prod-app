@@ -953,6 +953,16 @@ export type Card = {
    */
   clue?: string;
   /**
+   * Whether its English keeps the capitals it was typed with when it is
+   * dropped into a sentence — the teacher's tick, "keeps its capital
+   * letters": Monday, English, TV, on Monday. Raised at the start of a
+   * sentence like any word, and otherwise left exactly as written. False
+   * where the teacher said no; absent where nobody has said, which is
+   * cased the ordinary way. Offered on word cards only, and not on a
+   * person, a place or a verb — see capitals.ts.
+   */
+  capitals?: boolean;
+  /**
    * The card this one was split out of, where a card holding two
    * meanings was made into one card each — see splitByMeaning. A
    * learner's device that held the original starts this one where the
@@ -1302,6 +1312,8 @@ export type Item = {
   drill?: boolean;
   /** Which meaning this card is, where another card shares its prompt. See Card. */
   clue?: string;
+  /** Whether its English keeps the capitals it was typed with. See Card. */
+  capitals?: boolean;
   /** The card it was split out of, by this device's id. See Card. */
   splitFrom?: string;
   /** What a teacher approved of the sentences it makes, where they have

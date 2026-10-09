@@ -1231,13 +1231,20 @@ test("a blank's first letter fits where it stands", () => {
   /* The start of each sentence, and of each way of saying it. */
   assert.equal(fillText("Yes. {{word}} is good", { word: cà }, "en"), "Yes. Coffee is good");
   assert.equal(fillText("I like it / {{word}} is good", { word: sách }, "en"), "I like it / Book is good");
-  /* And the words English capitalises whatever they are. */
-  assert.equal(fillText("Today {{pronoun}} am here", { pronoun: { ar: "", lat: "", en: "I" } }, "en"), "Today I am here");
-  assert.equal(fillText("Today {{word}}", { word: { ar: "", lat: "", en: "i'm tired" } }, "en"), "Today I'm tired");
-  assert.equal(fillText("See you on {{word}}", { word: { ar: "", lat: "", en: "Monday" } }, "en"), "See you on Monday");
-  assert.equal(fillText("Do you speak {{word}}?", { word: { ar: "", lat: "", en: "Arabic" } }, "en"), "Do you speak Arabic?");
-  assert.equal(fillText("Born in {{word}}", { word: { ar: "", lat: "", en: "May" } }, "en"), "Born in May");
-  assert.equal(fillText("{{word}} go", { word: { ar: "", lat: "", en: "may" } }, "en"), "May go");
+  /* No list of words: Monday is cased like any other word unless its card
+     keeps its capitals (the teacher's tick) — then it is left exactly as
+     typed, and only raised where it opens a sentence. */
+  assert.equal(fillText("See you on {{word}}", { word: { ar: "", lat: "", en: "Monday" } }, "en"), "See you on monday");
+  const kept = (/** @type {string} */ en) => ({ ar: "", lat: "", en, keepsCase: true });
+  assert.equal(fillText("See you on {{word}}", { word: kept("Monday") }, "en"), "See you on Monday");
+  assert.equal(fillText("See you {{word}}", { word: kept("on Monday") }, "en"), "See you on Monday");
+  assert.equal(fillText("{{word}} is fine", { word: kept("on Monday") }, "en"), "On Monday is fine");
+  assert.equal(fillText("Do you speak {{word}}?", { word: kept("Arabic") }, "en"), "Do you speak Arabic?");
+  assert.equal(fillText("Today {{word}}", { word: kept("monday") }, "en"), "Today monday", "typed small, kept small");
+  /* The tick is the English's alone: the word being learnt is cased as before. */
+  assert.equal(fillText("hẹn gặp {{word}}", { word: { ar: "Thứ hai", en: "Monday", lat: "", keepsCase: true } }), "hẹn gặp thứ hai");
+  /* The abbreviation guess stays: TV keeps its capitals with no tick. */
+  assert.equal(fillText("I watch {{word}}", { word: { ar: "", lat: "", en: "TV" } }, "en"), "I watch TV");
   /* A transliteration is left as written, and so is a script with no capitals. */
   assert.equal(fillText("{{word}} kbiir", { word: { ar: "بيت", en: "house", lat: "beet" } }, "lat"), "beet kbiir");
   assert.equal(fillText("{{word}} كبير", { word: { ar: "بيت", en: "house", lat: "beet" } }), "بيت كبير");

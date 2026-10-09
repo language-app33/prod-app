@@ -659,9 +659,9 @@ export function isRowLead(
 export function agreedValue(
   card: unknown,
   spec: VerbSpec | null | undefined,
-  own: { id?: string; ar: string; en: string; lat: string },
+  own: { id?: string; ar: string; en: string; lat: string; proper?: boolean; keepsCase?: boolean },
   partner: { grammar?: Record<string, string> } | null | undefined,
-): { id?: string; ar: string; en: string; lat: string } | null {
+): { id?: string; ar: string; en: string; lat: string; proper?: boolean; keepsCase?: boolean } | null {
   const rows = tensesOf(spec);
   if (rows.length !== 1) return own;
   const grammar = partner ? partner.grammar : null;
@@ -669,7 +669,14 @@ export function agreedValue(
   if (!person) return genderUnsaid(spec, grammar) ? null : own;
   const cell = cellAt(card, rows[0].id, person.id);
   if (!cell || !String(cell.ar || "").trim()) return null;
-  return { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
+  /* The other form is still this card, so it is cased as the card is: an
+     adjective ticked as keeping its capitals — Arabic — keeps them in its
+     feminine as in its own word. */
+  return {
+    id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat,
+    ...(own.proper ? { proper: true } : {}),
+    ...(own.keepsCase ? { keepsCase: true } : {}),
+  };
 }
 
 /*

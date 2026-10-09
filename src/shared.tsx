@@ -4265,6 +4265,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
     /* And which meaning it is, where the teacher wrote a clue: what a
        question puts under a prompt another card shares — see clueFor. */
     ...(card.clue ? { clue: String(card.clue) } : null),
+    /* And whether its English keeps the capitals it was typed with: what
+       a sentence leaves alone when the card stands in it — see keepsCase.
+       No as well as yes, so the one-time tick here does not undo it. */
+    ...(typeof card.capitals === "boolean" ? { capitals: card.capitals } : null),
     /* And the card it was split out of, as this device names cards: what
        starts it where the original stood — see foldCourses. */
     ...(card.splitFrom ? { splitFrom: localIdFor(String(card.splitFrom)) } : null),

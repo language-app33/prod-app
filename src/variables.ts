@@ -845,6 +845,17 @@ export interface Value {
    */
   proper?: boolean;
   /**
+   * Whether its English keeps the capitals it was written with, wherever
+   * it stands: the teacher ticked "keeps its capital letters" on the card
+   * — Monday, English, TV, on Monday — or it is a verb's form under *I*,
+   * or the pronoun *I* itself, which nobody ticks and which is never
+   * "i eat". Raised at the start of
+   * a sentence like anything else, and otherwise left alone. The English
+   * only: the word in the language being learnt is cased as before. See
+   * fitEnglish.
+   */
+  keepsCase?: boolean;
+  /**
    * The blank written straight after this one that it has said already —
    * a counting blank counting the noun beside it, *3 dogs* standing for
    * `{{count-0-9}} {{animal}}`. That blank is dropped where it follows
@@ -1190,7 +1201,12 @@ export function lentBy(
        the form handed in above cannot know it. */
     const person = at === 0 ? text(card, "person").trim() : "";
     const asName = isProper(card) ? { ...lent, proper: true } : lent;
-    const withPerson = person ? { ...asName, grammar: { ...(asName.grammar || {}), person } } : asName;
+    /* And keeps its capitals, where the teacher ticked that or it is the
+       verb's *I* — see keepsCase. */
+    const kept = keepsCapitals(card) || speaksAsCard(at === 0 ? card : null, form as WithSlots)
+      ? { ...asName, keepsCase: true }
+      : asName;
+    const withPerson = person ? { ...kept, grammar: { ...(kept.grammar || {}), person } } : kept;
     /* And the English it reads as in the blanks that add *to be*, where it
        is a pronoun — see readingsOf. */
     const readings = readingsOf(card, form as WithSlots, at === 0);
@@ -1294,6 +1310,7 @@ export function valueOf(card: WithSlots | null | undefined, fields: string[] = [
     ...(Object.keys(grammar).length ? { grammar } : {}),
     ...(Object.keys(readings).length ? { readings } : {}),
     ...(isProper(card) ? { proper: true } : {}),
+    ...(keepsCapitals(card) || speaksAsCard(card, word) ? { keepsCase: true } : {}),
   };
 }
 
@@ -1481,7 +1498,7 @@ export function fillText(
     if (word === undefined || word === "") return whole;
     if (!cased || field === "lat") return word;
     const start = startsSentence(all.slice(0, at));
-    return field === "en" ? fitEnglish(word, start, !!took.proper) : fitCase(word, start, !!took.proper);
+    return field === "en" ? fitEnglish(word, start, !!took.proper, !!took.keepsCase) : fitCase(word, start, !!took.proper);
   });
 }
 
@@ -1581,6 +1598,30 @@ const isProper = (card: WithSlots | null | undefined): boolean =>
   PROPER_KINDS.includes(text(card, "category").trim().toLowerCase()) ||
   fillNames(card).some((n) => PROPER_KINDS.includes(n));
 
+/* Whether the teacher ticked "keeps its capital letters": the English is
+   written the way English always writes it, so a sentence leaves it be.
+   See Card.capitals. */
+const keepsCapitals = (card: WithSlots | null | undefined): boolean => !!card && card.capitals === true;
+
+/*
+ * The columns of a verb table that are *I* — the speaker, a man or a
+ * woman — by the ids every language's table gives them (see
+ * SUBJECT_PERSONS and its kin in languages.ts; a test holds the two
+ * together, since this module imports no language).
+ *
+ * A form under one of them keeps its capitals in a sentence's English:
+ * "Yesterday I ate", never "i ate". It goes by where the teacher typed the
+ * form, not by what they typed, so it is no list of words: as the owner
+ * set it, a verb takes no tick, and its *I* is right without one.
+ */
+export const SPEAKER_COLUMNS: ReadonlySet<string> = new Set(["i", "i-f"]);
+export const speaks = (form: WithSlots | null | undefined): boolean =>
+  SPEAKER_COLUMNS.has(text(form, "col").trim());
+/* And the pronoun the Pronouns screen wrote for that column — أنا, *I* —
+   which is the same column named on the card rather than on a form. */
+const speaksAsCard = (card: WithSlots | null | undefined, form: WithSlots | null | undefined): boolean =>
+  speaks(form) || SPEAKER_COLUMNS.has(text(card, "person").trim());
+
 /* Whether a blank written after `before` opens a sentence: nothing but
    space and opening marks since the start, or since a full stop, a
    question or an exclamation — or since the slash between two ways of
@@ -1622,33 +1663,24 @@ export function fitCase(word: string, start: boolean, proper: boolean): string {
  * the start of a sentence and none in the middle of it, in every word it
  * brings, not only its first — "Big house" is "a big house".
  *
- * Kept as written all the same: an abbreviation (TV), and the few words
- * English capitalises whatever they are — I and its contractions, the
- * days and the months, and the names of languages a card is likely to
- * mean. Without them the rule would write "i" and "on monday", which are
- * not what anybody means by properly capitalised.
+ * Kept as written all the same: an abbreviation (TV), which fitCase
+ * knows by its second letter being a capital too; and an English the
+ * teacher marked as keeping its capitals — Monday, English, on Monday —
+ * or a verb's form under *I* (see keepsCase). Those are raised at the
+ * start of a sentence and left exactly as written everywhere else.
+ *
+ * Until 0.411 a list of words did that job — I, the days, the months, a
+ * few language names — and missed every word nobody had thought of. The
+ * owner had it taken out: the teacher knows which of their words English
+ * capitalises, and says so with the tick. The cards the list used to
+ * catch were ticked once, by the app (see capitals.ts).
  */
-const ALWAYS_CAPITAL = new Set(
-  (
-    "i i'm i've i'll i'd " +
-    "monday tuesday wednesday thursday friday saturday sunday " +
-    "january february march april may june july august september october november december " +
-    "english arabic hebrew vietnamese french german spanish"
-  ).split(" "),
-);
-/* May and March are ordinary words too; only the days are safe to read as
-   names wherever they stand. A month that is also a word is left as the
-   teacher wrote it rather than guessed at. */
-const AMBIGUOUS_MONTHS = new Set(["may", "march"]);
-
-export function fitEnglish(phrase: string, start: boolean, proper: boolean): string {
+export function fitEnglish(phrase: string, start: boolean, proper: boolean, keep = false): string {
   let first = true;
   return phrase.replace(/[\p{L}\p{M}'’]+/gu, (word) => {
     const lead = first;
     first = false;
-    const bare = word.toLowerCase().replace(/’/g, "'");
-    if (AMBIGUOUS_MONTHS.has(bare)) return lead && start ? fitCase(word, true, false) : word;
-    if (ALWAYS_CAPITAL.has(bare)) return fitCase(word, true, false);
+    if (keep) return lead && start ? fitCase(word, true, false) : word;
     /* A name keeps the rest of itself as written: the Gulf of Aqaba. */
     if (proper) return lead ? fitCase(word, true, false) : word;
     return fitCase(word, lead && start, false);

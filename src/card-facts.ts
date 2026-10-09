@@ -715,6 +715,14 @@ export const CARD_FACTS: FieldRule[] = [
     shown: (value) => (str(value) ? [str(value)] : []),
   },
   {
+    key: "capitals",
+    on: "card",
+    label: "Keeps its capital letters",
+    what: "Whether the card's English keeps the capitals it was typed with when it is dropped into a sentence — Monday, English, TV. Ticked by the teacher, or by the app once, in 0.411, on the cards the old list of words caught. Absent means cased the ordinary way: a capital at the start of a sentence, none in the middle.",
+    reader: "both",
+    shown: (value) => (value === true ? ["Yes"] : value === false ? ["No"] : []),
+  },
+  {
     key: "splitFrom",
     on: "card",
     label: "Split from",

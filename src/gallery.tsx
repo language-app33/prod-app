@@ -181,6 +181,7 @@ const PLACES: Record<string, [string, string]> = {
   CastChoice: [TEACH, "Editing a card · who each blank of a line is"],
   CastBlock: [TEACH, "Editing a card · who is who in a scene"],
   SentencePicker: [TEACH, "Editing a card · picking a sentence card as a line"],
+  CapitalsBlock: [TEACH, "Editing a card · the tick for whether its English keeps its capital letters in a sentence"],
   MeaningsBlock: [TEACH, "Editing a card · the other cards with the same word or meaning, the clue, and adding another"],
   CarryAsk: [TEACH, "Editing a card · whether a spelling fix goes onto the other cards with the same word"],
   FormBlock: [TEACH, "Editing a card · one form"],

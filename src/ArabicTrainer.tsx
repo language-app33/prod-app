@@ -304,6 +304,7 @@ import { agreeTook, countTook, finishTook, leadsOf, lineGate, passes, reviewOf, 
 import { castFill as castScene, filledScene, hasCast } from "./cast.ts";
 import type { Review } from "./review.ts";
 import { liftSubtypeTagsIn } from "./subtype-tags.ts";
+import { tickCapitals } from "./capitals.ts";
 import { spellRuns, typoed } from "./spelling.ts";
 import type { Run } from "./spelling.ts";
 
@@ -6772,6 +6773,7 @@ function liftAnswers(form: Record<string, any>): Record<string, any> {
 const CARD_ONLY = new Set([
   "kind", "tags", "locked", "flags", "source", "fills", "ref", "name", "category",
   "drill", "uses", "note", "lines", "speakers", "you", "subs", "forms", "sceneKind",
+  "capitals",
 ]);
 
 /* One of a stored card's forms, with nothing of the card left on it. */
@@ -6782,7 +6784,10 @@ function liftItem(stored: Record<string, any>, settings: Record<string, any> = {
   /* A custom tag that is also a subtype, folded into the subtype — see
      subtype-tags.ts. In the card's own language, or the one this device
      is learning where an older card never said. */
-  const it = liftSubtypeTagsIn(stored, stored.lang || settings.language || DEFAULT_LANGUAGE) || stored;
+  const lifted = liftSubtypeTagsIn(stored, stored.lang || settings.language || DEFAULT_LANGUAGE) || stored;
+  /* And "keeps its capital letters" ticked on a card the old list of words
+     kept a capital on, where nobody has answered — see capitals.ts. */
+  const it = tickCapitals(lifted) || lifted;
   return {
     ...it,
     tags: Array.isArray(it.tags) ? it.tags : [],
