@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.416 — 10 October 2026
+
+**Higher numbers open once most of the numbers below are known, not all of them.**
+
+- Until now, 10 to 19 (and everything above it) stayed closed until every
+  word for 0 to 9 was fully mastered on every exercise. A learner who knew
+  nine of the ten digits had nothing higher to practise, sometimes for days.
+  Now the next stretch opens once most of the words below are known: eight
+  of the ten digits, and the same share for every stretch after.
+- A number is still only asked once every word in it is known. A learner
+  who hasn't got *seven* yet can be asked 12, but not 17, until *seven*
+  is known.
+- One word slipping back no longer closes everything above it again. The
+  word itself comes back for practice, and the numbers built on it wait for
+  it, but the rest of the stretch stays open.
+- Stretches with three words or fewer still want all of them.
+- To check by hand: a learner who has cleared eight of the ten digits sees
+  10 to 19 questions, using only the digits they know.
+
 ## 0.415 — 10 October 2026
 
 **Arabic words in a matching grid all line up on the right.**

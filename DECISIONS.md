@@ -5935,3 +5935,26 @@ real chance; the pace file reads them as directions.
 times a day at fifteen sittings), or the struggling figure settles below
 the old one over more runs.
 
+## A stretch of the number line opens on most of its words below (0.416)
+
+**What was wrong.** The stretch above 0 to 9 waited until every word for 0
+to 9 was cleared at every exercise in every face, or until 0 to 9's own
+questions were, and both were read afresh. One weak digit on one exercise
+held everything above it shut, and one slip shut it again. The owner saw a
+learner who knew almost every digit with nothing higher to do.
+
+**What changed.** The word route now asks for most of the words below, 80%
+rounded up (eight of ten; every word where a stretch has three or fewer),
+and a word counts once it has been through its first learning on every
+exercise, so a slip back to relearning keeps it counted. The stretch's own
+questions still open the way they did.
+
+**Why this is safe.** Each number is still asked only once every word in it
+is cleared (askingsKnown). The stretch gate decides when the new words of
+the stretch above start coming in; it was never what kept a learner from
+being asked a number built on a word they did not know.
+
+**Measured alternatives.** Dropping the gate (new words at the top of the
+number line from day one) and opening on recognised words alone (still
+all-or-nothing) were offered; the owner chose this one.
+
