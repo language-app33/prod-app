@@ -3494,7 +3494,15 @@ body.at-screening .at-chromebar { display:none; }
 /* What a tile stacks: the word, whichever of its form's grammar is worth
    saying, and — once checked — the meaning it should have been paired with.
    The meanings use it too, for the tag under them. */
-.at-matchword { display:flex; flex-direction:column; gap:2px; min-width:0; }
+/* It fills the rest of the tile. Left to the width of its text, a word in a
+   right-to-left script sat against the circle while it fitted on one line
+   and jumped to the far edge the moment it wrapped, so one column held
+   words on both sides. Filling it, every such word sits at the edge its
+   script starts from, wrapped or not. */
+.at-matchword { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 auto; }
+/* The small print under a right-to-left word — which form it is, what it
+   should have been — sits under the word rather than across the tile. */
+.at-matchword.rtl > .at-matchtag, .at-matchword.rtl > .at-matchfix { text-align:right; }
 .at-matchfix { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--rose); line-height:1.3; }
 /* Which form a tile is, where two forms of one card are in the grid and
    nothing else tells them apart. Small print in the interface font on both

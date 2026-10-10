@@ -5773,3 +5773,165 @@ nobody would remember). The abbreviation guess — a second capital letter —
 stays. Cards the old list caught were ticked once (`tickCapitals`, in the
 same stamped pass as the tag lift, now at v2); an explicit no is stored as
 `false` so the pass never puts it back.
+
+## Reports from students are the administrator's alone
+
+**9 October 2026** · `server/api/courses.js` (`my-reports`,
+`dismiss-reports`), `TeachSpace` in `src/spaces.tsx`
+
+0.246 sent each report to every teacher who could change its card, so the
+person who could fix it would hear. The owner reversed that in 0.412:
+reports are for the administrator only. A report is a learner's word about
+the course, and sometimes about its teacher.
+
+**The endpoints stay and answer non-administrators with nothing** — an
+empty list from `my-reports`, `deleted: 0` from `dismiss-reports` — rather
+than a refusal, because builds from before 0.412 call `my-reports` when the
+teaching space opens and should show no reports, not an error. The teaching
+space hides its reports button and banner unless the account is an
+administrator, so an administrator who also teaches keeps the screen.
+
+**What it costs.** A teacher no longer learns directly that a card is
+wrong, nor strikes a reported sentence from the report; the administrator
+has to relay it.
+
+**Revisit if** teachers are to see reports again, perhaps without the
+student's name — the gate is the first line of each endpoint.
+
+## The pace simulation has a learner who forgets
+
+**9 October 2026** · `tests/pace.test.mjs` (`forgetter`, `mixedCourseOf`,
+`honestLife`)
+
+Every limit on new words was set by `tests/pace.test.mjs`, whose learner
+answered everything right on a course of identical words. That shows what
+letting more words in gains and never what it costs, and the claim that a
+struggling learner is protected had never been measured. The owner chose to
+measure honestly before changing any limit.
+
+**The learner.** Each form has a hidden strength in days; recall falls off
+as exp(-days / strength); a success grows it, by more the nearer it was to
+being lost; a miss weakens it, never below where it started, since the
+answer is shown and asked again. Calibrated to common figures (a word got
+right twice in one sitting is recalled about two times in three the next
+day), not fitted to anything here, and seeded. **The course** is mostly
+nouns, half with a plural, some adjectives with a feminine, and every tenth
+card a sentence built from them.
+
+**What it found** (400-card course, 90 days, the limits as they stand):
+
+| | met | learnt | answers right | known a month after |
+|---|---|---|---|---|
+| 1 sitting a day | 32 | 18 | 89% | 22 |
+| 3 a day | 95 | 68 | 97% | 79 |
+| 15 a day | 400 | 366 | 98% | 389 |
+| 3 a day, struggling (half the memory) | 64 | 49 | 79% | 24 |
+
+The perfect learner meets 46 words once a day on the same course, so
+forgetting costs the steady learner about a third of their pace, and what
+they meet they mostly keep. The keen learner is not harmed by the wide
+limits — in this model. **The struggling learner is the finding:** new
+words slow by only a third, they clear 61 words and keep 24 a month later.
+Clearing — two right in a row, which one sitting can supply — lets words
+out of the front door that memory has not held, so the claim that a
+struggling learner "falls out" of the caps is only partly true.
+
+**What it cannot see.** Nothing in the model makes one word harder because
+many others are in play, so the cost of a wide pool shows only as each word
+coming round less often. A real keen learner may do worse than this one.
+
+**What it costs.** About six minutes more on the test run, mostly the
+fifteen-a-day life; each life is lived once and shared between the tests.
+
+## Every answer on a screen is one shape
+
+**9 October 2026** · `src/chance.ts` (`lookAlikes`, `matchGroups`,
+`matchSet`), `src/languages.ts` (`answerShape`), `src/ArabicTrainer.tsx`
+(`pickChoices`, `nearNumbers`, `unitShapesOf`, `matesFor`),
+`src/offers.ts` (the `mates` need)
+
+The wrong answers beside a right one, and the tiles of a grid, were drawn
+from anything the learner held, so a number among words or a sentence
+among single words was chosen by its shape. The owner's rule: everything
+on one screen is one shape — a number, or the card's kind (word, phrase,
+sentence; the teacher's word type first, as `kindOf` reads it) — and
+sentences within half and double each other's length where enough are.
+
+Of the fixes offered the owner chose (1c) to make up a number's wrong
+answers from `confusablesOf`, as the range questions do, rather than wait
+for other number cards; and (2a) to hold grids to the same rule. Where a
+word lacks company of its shape, the question is not offered at all
+(the `mates` need counts by shape, and `ctx2pick` now asks for it too)
+rather than asked with a give-away: the app already prefers a question
+that waits to one that answers itself. Made-up numbers pass that need on
+a number system's own cards, except in a grid, where every word is a card
+somebody is marked on. A made-up number on the script side is kept only
+when said in as many words as the right one.
+
+## The session mix
+
+**10 October 2026** · `src/session-mix.ts`, `src/session-layout.ts`,
+`buildSession` and `mixCardsOf` in `src/ArabicTrainer.tsx`,
+`tests/session-mix.test.mjs`, `tests/pace.test.mjs`
+
+The owner replaced every rule about which cards a session practises with
+one, worked out over a long conversation and measured on the forgetting
+learner first (see the entry above). **One rule for every session**: a
+pool (all cards, a prep's decks, the cards picked); three shares of 40%
+cards in learning, 30% Cleared due, 30% Learnt due; empty places to
+overdue Cleared, overdue Learnt, learning, then not yet due; cards
+practised in the last three hours sit out unless overdue; new cards only
+to fill the learning share's gap, never past 20 in learning in the pool,
+none while overdue reviews pass three days' practice; asked-for cards on
+top; a digit card rides with its word.
+
+**What it replaced.** The front door (10, widening to 20 with practice),
+the hand (60, growing to 400), `KEEN_DAY` ordering, `KEEN_POOL`,
+`byVariety`, the half-hour and two-hour rests, `throughDoor`, and
+`newWithin` — counting a custom session in its pool is now what every
+session does. The Build screen's modes and Weak skills are the same rule
+over a narrower pool or set of questions. Sessions went from 18 questions
+to 20, so the shares divide ten cards exactly.
+
+**Why two files.** The mix (which cards) is the part a future learning
+mode would swap, so it holds nothing but that and reads nothing of the
+app: the caller says where each card stands. The layout (length, how much
+of each card, order) is everything else about a session's shape. Building
+a question — the phrase, the number, a grid's partners — stays in the app.
+The pace simulation runs the very rule the app does.
+
+**Decisions inside it, and why.**
+- *A question never asked on a card already met reads as due now*, not as
+  never due: it is a level that has just opened. Read as never due, a
+  learner's due cards sorted behind ones a week off.
+- *Recent cards come last, not never*, so a pool with nothing else is still
+  a session — the reason "being due" stopped refusing sessions.
+- *Ultimate keeps no length*: the Build screen asks none, so it asks every
+  question of every card the mix lets in, rather than 20.
+- *The home screen's count reads a met card with a newly opened level as
+  waiting*, not new: a learner with 88 number cards at the top of their
+  ladder was shown nothing ready under the 20-in-learning limit.
+- *`NEW_PER_DAY` for the prep forecast is 30*, measured at fifteen sittings
+  a day never wrong (29–31), because the forecast's floor is the fastest.
+- *Weak skills no longer leads with the worst-going card*: the universal
+  order is easiest first. Within a card, what went worst is still asked
+  first.
+
+**Measured** (forgetting learner, mixed 400-card course, 90 days, two runs):
+
+| | met (was) | known a month on (was) |
+|---|---|---|
+| 1 a day | 25–28 (32) | 23–24 (22) |
+| 3 a day | 74–80 (95) | 67–75 (79) |
+| 15 a day | 387–392 (400) | 376–378 (389) |
+| 3 a day, struggling | 42–51 (64) | 22–36 (24) |
+
+The prototype that chose the numbers predicted the struggling learner
+keeping about a third more; the real rule varies too much between runs to
+say that yet. The figures move because the session builder shuffles with
+real chance; the pace file reads them as directions.
+
+**Revisit if** keen learners find sessions repetitive (each card about three
+times a day at fifteen sittings), or the struggling figure settles below
+the old one over more runs.
+

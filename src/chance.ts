@@ -82,6 +82,49 @@ export function optionsFor<T extends { id: string }>({
   return shuffledBy(wrong.concat([answer]), `${seed} place`, (x) => x.id);
 }
 
+/*
+ * The wrong answers worth drawing from: only those that look like the
+ * right one.
+ *
+ * A wrong answer of another shape is not a wrong answer anybody weighs.
+ * A number beside three words, or a sentence beside three single words,
+ * is picked out by its shape alone, and the question asks nothing. So
+ * the pool is kept to the answer's own shape — a number, a word, a
+ * phrase or a sentence, whatever `shapeOf` calls them — and sentences,
+ * which vary most, to the ones within half and double the answer's
+ * length. Where too few sentences are that close, the nearest of the
+ * rest make up the number: about the same length, as near as the cards
+ * allow.
+ *
+ * What is left can be fewer than a question needs. Whether a question
+ * is asked with that few is decided where the exercise is offered, on
+ * the same shapes, and not here.
+ */
+export function lookAlikes<T>({
+  answer,
+  pool,
+  shapeOf,
+  sizeOf,
+  wanted = PICK_OPTIONS,
+}: {
+  answer: T;
+  pool: T[];
+  shapeOf: (x: T) => string;
+  sizeOf: (x: T) => number;
+  wanted?: number;
+}): T[] {
+  const shape = shapeOf(answer);
+  const same = pool.filter((x) => x && shapeOf(x) === shape);
+  if (shape !== "sentence") return same;
+  const size = Math.max(1, sizeOf(answer));
+  const apart = (x: T) => Math.abs(Math.log(Math.max(1, sizeOf(x)) / size));
+  const near = same.filter((x) => apart(x) <= Math.LN2);
+  const short = Math.max(0, wanted - 1 - near.length);
+  if (!short) return near;
+  const rest = same.filter((x) => !near.includes(x)).sort((a, b) => apart(a) - apart(b));
+  return near.concat(rest.slice(0, short));
+}
+
 /* How many words a matching grid puts up, and how many spare meanings
    stand beside them.
 
@@ -141,18 +184,16 @@ export const MIN_PAIR_WORDS = 3;
  * whole line, and then the first was shown as "Content", the second as
  * "happy", and a learner who paired the first with "happy" was marked
  * wrong for an answer the card itself accepts. A learner reported it.
+ *
+ * **And a grid is all one shape**, when `shapeOf` says what each word
+ * is: numbers with numbers, words with words, phrases with phrases,
+ * sentences with sentences. One sentence among four single words is
+ * paired by its length by somebody who knows none of them. Words of
+ * different shapes are dealt into grids of their own, each filled from
+ * spares of its shape, and one that cannot be filled is asked another
+ * way, as any short grid is.
  */
-export function matchGroups<T extends { id: string }>({
-  wanting,
-  spares,
-  size = PAIR_WORDS,
-  min = MIN_PAIR_WORDS,
-  textOf,
-  meaningOf,
-  likeness = () => 0,
-  familyOf = (x) => x.id,
-  meaningsOf = (x) => [meaningOf(x)],
-}: {
+export function matchGroups<T extends { id: string }>(args: {
   wanting: T[];
   spares: T[];
   size?: number;
@@ -162,10 +203,39 @@ export function matchGroups<T extends { id: string }>({
   likeness?: (a: T, b: T) => number;
   familyOf?: (x: T) => string;
   meaningsOf?: (x: T) => string[];
+  shapeOf?: (x: T) => string;
 }): { grids: T[][]; dropped: T[] } {
+  const {
+    wanting,
+    spares,
+    size = PAIR_WORDS,
+    min = MIN_PAIR_WORDS,
+    textOf,
+    meaningOf,
+    likeness = () => 0,
+    familyOf = (x) => x.id,
+    meaningsOf = (x) => [meaningOf(x)],
+    shapeOf = () => "",
+  } = args;
   const asked = wanting.filter((w) => w && plain(textOf(w)) && plain(meaningOf(w)));
   const dropped: T[] = wanting.filter((w) => !asked.includes(w));
   if (!asked.length) return { grids: [], dropped };
+
+  const shapes = Array.from(new Set(asked.map(shapeOf)));
+  if (shapes.length > 1) {
+    const grids: T[][] = [];
+    for (const shape of shapes) {
+      const one = matchGroups({
+        ...args,
+        wanting: asked.filter((w) => shapeOf(w) === shape),
+        spares: spares.filter((w) => w && shapeOf(w) === shape),
+      });
+      grids.push(...one.grids);
+      dropped.push(...one.dropped);
+    }
+    return { grids, dropped };
+  }
+  const shape = shapes[0];
 
   const count = Math.max(1, Math.ceil(asked.length / size));
   const grids: T[][] = Array.from({ length: count }, () => []);
@@ -199,7 +269,9 @@ export function matchGroups<T extends { id: string }>({
     dropped.push(w);
   });
 
-  const pool = spares.filter((w) => w && !used.has(w.id) && plain(textOf(w)) && plain(meaningOf(w)));
+  const pool = spares.filter(
+    (w) => w && !used.has(w.id) && plain(textOf(w)) && plain(meaningOf(w)) && shapeOf(w) === shape,
+  );
   for (let g = 0; g < count; g++) {
     while (grids[g].length < size) {
       let best = -1;
@@ -255,6 +327,10 @@ export function matchGroups<T extends { id: string }>({
  * is taken by one more spare, so the grid is the size it was meant to be
  * and elimination is no easier. It is simply not asked this time: a
  * question nobody can answer is worth less than one that waits.
+ *
+ * A spare is of the same shape as the words up — see matchGroups — or
+ * it is the one meaning on the board that nobody needs to read to rule
+ * out.
  */
 export function matchSet<T extends { id: string }>({
   answers,
@@ -265,6 +341,7 @@ export function matchSet<T extends { id: string }>({
   meaningOf,
   familyOf = (x) => x.id,
   meaningsOf = (x) => [meaningOf(x)],
+  shapeOf = () => "",
 }: {
   answers: T[];
   pool: T[];
@@ -274,6 +351,7 @@ export function matchSet<T extends { id: string }>({
   meaningOf: (x: T) => string;
   familyOf?: (x: T) => string;
   meaningsOf?: (x: T) => string[];
+  shapeOf?: (x: T) => string;
 }): { words: T[]; meanings: string[]; said: T[] } {
   const saidText = new Set<string>();
   const saidMeaning = new Set<string>();
@@ -312,6 +390,7 @@ export function matchSet<T extends { id: string }>({
   for (const cand of pool) {
     if (spare.length >= want) break;
     if (!cand || asked.has(cand.id) || kin.has(familyOf(cand))) continue;
+    if (words.length && shapeOf(cand) !== shapeOf(words[0])) continue;
     const text = plain(textOf(cand));
     const meaning = plain(meaningOf(cand));
     if (!text || !meaning) continue;

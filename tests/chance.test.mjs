@@ -9,7 +9,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MIN_PAIR_WORDS, PAIR_DECOYS, PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "../src/chance.ts";
+import { MIN_PAIR_WORDS, PAIR_DECOYS, PAIR_WORDS, PICK_OPTIONS, lookAlikes, matchGroups, matchSet, optionsFor } from "../src/chance.ts";
 
 /** @param {string} id @param {string} [ar] @param {string} [en] */
 const word = (id, ar = `ع${id}`, en = `meaning ${id}`) => ({ id, ar, en });
@@ -316,4 +316,76 @@ test("a pool with nothing usable in it still offers the answer alone", () => {
   const answer = { id: "a", text: "نعم" };
   const got = optionsFor({ answer, pool: [], wanted: PICK_OPTIONS, seed: "s", textOf: (x) => x.text });
   assert.deepEqual(got.map((x) => x.id), ["a"]);
+});
+
+/* ------------------------------------------------------------------
+   Every answer on a screen looks like it could be the right one
+
+   A number among words, or a sentence among single words, is picked out
+   by its shape by somebody who knows none of them. So the answers that
+   stand together — the wrong ones beside a right one, the tiles of one
+   grid — are all one shape.
+   ------------------------------------------------------------------ */
+
+/** A card with a shape: "number", "word", "phrase" or "sentence". */
+const shaped = (/** @type {string} */ id, /** @type {string} */ shape, /** @type {string} */ text = `${shape} ${id}`) =>
+  ({ id, shape, ar: `ع${id}`, en: text });
+/** @typedef {{ id: string, shape: string, ar: string, en: string }} Shaped */
+const shapeOf = (/** @type {Shaped} */ x) => x.shape;
+const sizeOf = (/** @type {Shaped} */ x) => x.en.length;
+
+test("the wrong answers drawn from are only those of the right one's shape", () => {
+  const pool = [
+    shaped("n1", "number", "5"), shaped("n2", "number", "47"),
+    shaped("w1", "word", "book"), shaped("w2", "word", "house"), shaped("w3", "word", "pen"),
+    shaped("p1", "phrase", "good morning"),
+    shaped("s1", "sentence", "Where is the station, please?"),
+  ];
+  const ofShape = (/** @type {any} */ answer) => ids(lookAlikes({ answer, pool, shapeOf, sizeOf })).sort();
+  assert.deepEqual(ofShape(shaped("a", "word", "cat")), ["w1", "w2", "w3"]);
+  assert.deepEqual(ofShape(shaped("a", "number", "9")), ["n1", "n2"]);
+  assert.deepEqual(ofShape(shaped("a", "phrase", "thank you")), ["p1"]);
+});
+
+test("a sentence stands beside sentences of about its own length", () => {
+  const answer = shaped("a", "sentence", "x".repeat(40));
+  const near = [30, 45, 60, 25].map((n, i) => shaped(`near${i}`, "sentence", "x".repeat(n)));
+  const far = [5, 200].map((n, i) => shaped(`far${i}`, "sentence", "x".repeat(n)));
+  const got = ids(lookAlikes({ answer, pool: near.concat(far), shapeOf, sizeOf }));
+  assert.deepEqual(got.sort(), ids(near).sort(), "only those within half and double its length");
+  /* Too few that close, and the nearest of the rest make up the number —
+     never the farthest. */
+  const pool = [near[0], shaped("tiny", "sentence", "x".repeat(4)), shaped("mid", "sentence", "x".repeat(100)), shaped("huge", "sentence", "x".repeat(900))];
+  const few = ids(lookAlikes({ answer, pool, shapeOf, sizeOf }));
+  assert.deepEqual(few.sort(), ["mid", "near0", "tiny"].sort());
+});
+
+test("a grid is dealt in one shape, each shape in grids of its own", () => {
+  const wanting = [
+    shaped("w1", "word"), shaped("w2", "word"), shaped("w3", "word"),
+    shaped("s1", "sentence"), shaped("s2", "sentence"), shaped("s3", "sentence"),
+  ];
+  const spares = [shaped("w4", "word"), shaped("s4", "sentence"), shaped("n1", "number", "5")];
+  const { grids, dropped } = matchGroups({ wanting, spares, textOf, meaningOf, shapeOf });
+  assert.deepEqual(dropped, []);
+  for (const g of grids) {
+    assert.equal(new Set(g.map(shapeOf)).size, 1, `a grid of mixed shapes: ${ids(g).join(" ")}`);
+  }
+  assert.ok(!grids.flat().some((w) => w.id === "n1"), "and no spare of a shape nobody asked");
+});
+
+test("a word whose shape has too few beside it is asked another way, not among others", () => {
+  const wanting = [shaped("w1", "word"), shaped("w2", "word"), shaped("s1", "sentence")];
+  const spares = [shaped("w3", "word"), shaped("w4", "word")];
+  const { grids, dropped } = matchGroups({ wanting, spares, textOf, meaningOf, shapeOf });
+  assert.deepEqual(ids(dropped), ["s1"]);
+  assert.equal(grids.length, 1);
+  assert.ok(grids[0].every((w) => w.shape === "word"));
+});
+
+test("a grid's spare meanings are of its own shape", () => {
+  const answers = [shaped("w1", "word"), shaped("w2", "word"), shaped("w3", "word")];
+  const pool = [shaped("s1", "sentence"), shaped("n1", "number", "5"), shaped("w4", "word"), shaped("w5", "word")];
+  const { said } = matchSet({ answers, pool, seed: "s", textOf, meaningOf, shapeOf });
+  assert.deepEqual(ids(said.filter((w) => !answers.includes(w))).sort(), ["w4", "w5"]);
 });

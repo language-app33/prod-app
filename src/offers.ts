@@ -54,9 +54,11 @@ export function unmetNeeds(
   /** What each of the unit's variables can be filled with, where it has any. */
   values: Record<string, unknown[]> = {},
   /**
-   * How many other cards in this language could stand beside it. Only the
-   * matching grid asks, and it asks because its question is the company a
-   * word keeps: one card alone has nothing to be told apart from.
+   * How many other cards in this language of its own shape — numbers,
+   * words, phrases or sentences — could stand beside it. The matching grid
+   * asks, because its question is the company a word keeps: one card alone
+   * has nothing to be told apart from. So does every question offering a
+   * few answers to choose from, whose wrong answers are those cards.
    */
   mates = 0,
   /**
@@ -125,7 +127,13 @@ export function unmetNeeds(
   if (holes.length && (spec.promptField === "audio" || spec.needs.includes("mates") || spec.needs.includes("images"))) return ["fixed"];
   return spec.needs.filter((f: string) => {
     if (f === "recs") return !(unit.recs || []).length;
-    if (f === "mates") return mates < MIN_PAIR_MATES;
+    /* Company of its own shape — see answerShape — except where the wrong
+       answers are made up rather than borrowed: a number system's own
+       number is offered beside numbers worth confusing with it (47 beside
+       74, 57, 46), which the app can always say, so it never waits for
+       other cards. A grid is not one of those: every word in it is
+       somebody's card, asked and marked. */
+    if (f === "mates") return mates < MIN_PAIR_MATES && !(spec.picks && spec.picks !== "pair" && isFigureForm(unit));
     /* A picture of its own — an empty list is not one, which the generic
        rule below would take it for. */
     if (f === "images") return !(Array.isArray(unit.images) && unit.images.length);

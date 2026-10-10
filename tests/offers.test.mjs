@@ -27,6 +27,7 @@ const offers = (card, opts = {}) =>
     units: [{ unit: card, isSub: false, scene: null }],
     lang: opts.lang || ar,
     contextsFor: () => opts.contexts || [],
+    matesFor: () => opts.mates || 0,
   });
 
 /** @param {any[]} list @param {string} type */
@@ -51,7 +52,7 @@ test("and the ones it cannot do say what they are waiting for", () => {
 });
 
 test("a phrase that uses the word is what the gap-fill was waiting for", () => {
-  const withPhrase = offers(word(), { contexts: [{ id: "p1", ar: "الكتاب كبير", recs: [] }] });
+  const withPhrase = offers(word(), { contexts: [{ id: "p1", ar: "الكتاب كبير", recs: [] }], mates: 10 });
   assert.equal(find(withPhrase, "ctx2ar").ready, true);
   assert.equal(find(withPhrase, "ctx2pick").ready, true, "and choosing it out of a few");
   /* Hearing the phrase needs the phrase to have been recorded, which is a
@@ -60,6 +61,31 @@ test("a phrase that uses the word is what the gap-fill was waiting for", () => {
   assert.deepEqual(find(withPhrase, "rec2ctx").missing, ["a recorded phrase that uses it"]);
   const recorded = offers(word(), { contexts: [{ id: "p1", ar: "الكتاب كبير", recs: [{ id: "r" }] }] });
   assert.equal(find(recorded, "rec2ctx").ready, true);
+});
+
+test("choosing a word waits for other cards like it to choose between", () => {
+  /* The three wrong answers are other cards of the same shape — words
+     beside a word — so with too few of them nothing is offered rather
+     than the answer alone, or the answer beside a sentence. */
+  const alone = offers(word(), { contexts: [{ id: "p1", ar: "الكتاب كبير", recs: [] }] });
+  for (const t of ["ctx2pick", "en2pick", "ar2pick", "match"]) {
+    assert.equal(find(alone, t).ready, false, t);
+    assert.deepEqual(find(alone, t).missing, ["a few more cards like it in this language — words, phrases, sentences or numbers"], t);
+  }
+});
+
+test("a number system's own number is offered made-up numbers, but a grid still needs cards", () => {
+  /* 47 beside 74, 57 and 46: the app can always say them, so the choice
+     questions never wait for other cards. Every word in a grid is a card
+     somebody is asked, so the grid does. */
+  const forty = { id: "sys:golden-ar:n.40-f~standalone", ar: "أربعين", en: "40", lat: "", recs: [], s: {} };
+  const on = { unit: forty, scene: null, contexts: [], mates: 0 };
+  assert.ok(canAsk(on, "ar2pick", ar), "choose the meaning");
+  assert.ok(canAsk(on, "en2pick", ar), "choose the word");
+  assert.ok(!canAsk(on, "match", ar), "but not the grid");
+  /* A number a teacher wrote has no system to say others with, and waits
+     for company like any card. */
+  assert.ok(!canAsk({ ...on, unit: { ...forty, id: "w40" } }, "en2pick", ar));
 });
 
 test("what is not about this shape of card is left out, not greyed out", () => {

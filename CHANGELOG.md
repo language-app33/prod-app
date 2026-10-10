@@ -8,6 +8,119 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.415 — 10 October 2026
+
+**Arabic words in a matching grid all line up on the right.**
+
+- In "Match each word to its meaning", an Arabic word that fit on one line
+  sat on the left of its card, beside the circle, while one long enough to
+  wrap onto two lines sat on the right. Every Arabic word now starts from
+  the right edge of its card, as Arabic is read, whether it wraps or not,
+  so the column reads as one straight edge.
+- The small print under an Arabic word — which form it is, or what it
+  should have been once the grid is checked — sits under the word on the
+  right too, rather than across the card from it.
+- The English column is unchanged.
+- To check by hand: a grid on a phone with a mix of short words and
+  phrases long enough to wrap.
+
+## 0.414 — 10 October 2026
+
+**Every session follows one rule for which cards it practises: the session mix.**
+
+- Every kind of session now works the same way: the home screen, a prep,
+  and every mode on the Build screen. A session draws from its *pool* —
+  all your cards, a prep's decks, or the cards you picked — and splits
+  itself into three shares: 40% cards you're learning, 30% Cleared cards
+  due for review, 30% Learnt cards due for review. When a share can't be
+  filled, its places go to overdue Cleared cards, then overdue Learnt
+  cards, then cards you're learning, then cards not yet due.
+- New cards come in only to fill a gap in the learning share. Cards
+  practised in the last three hours sit out, so somebody who comes back
+  soon gets new cards and somebody who practises once a day works through
+  what they have first. Never more than 20 cards in learning at once, and
+  no new cards while overdue reviews add up to more than three days'
+  practice — the app says "Catching up first" when that happens.
+- This replaces the old limits (ten new words "at the front door", sixty to
+  four hundred "in hand"), both of the rules that grew them with practice,
+  the separate ordering for people who practise a lot, and the different
+  counting in custom sessions.
+- Sessions are 20 questions instead of 18 — ten cards, which the three
+  shares divide exactly. Timed sessions are unchanged at about six a minute.
+- The order of questions: still easiest first, with the three shares
+  mixed together; never the same card twice in a row; a missed question
+  comes back later, not straight after; and, new, no more than two cards
+  of the same kind (word, sentence, number) in a row where the order allows.
+- Matching grids are filled only from the session's own pool, so a grid in
+  a session on one deck uses that deck's cards. A small deck gets fewer
+  grids.
+- The Build screen's modes are the same rule over a narrower pool: Fix
+  mistakes, Not seen lately and Weak skills narrow which cards; Get started
+  asks recognition questions only; Ultimate asks every question each card
+  has, of every card the mix lets in.
+- The number of cards ready on the home screen and a prep's forecast date
+  follow the new rule.
+- **Trade-offs:** in the practice simulation (two runs each, 90 days), a
+  learner practising three times a day meets fewer new cards than before
+  (74–80 against 95) and keeps a few fewer a month later (67–75 against
+  79); once a day keeps about the same (24 against 22); a struggling
+  learner's result moved a lot between runs (22–36 kept against 24), so
+  it is not yet a clear gain. A keen learner sees each card about three
+  times a day. Weak skills no
+  longer always opens on the worst-going card. A custom session on a fresh
+  deck now always starts, even with cards in learning elsewhere.
+- **Worth checking by hand:** a session from a deck you haven't started; a
+  prep session; one session of each Build-screen mode; and, after a few
+  days away with reviews piling up, the "Catching up first" message.
+
+## 0.413 — 9 October 2026
+
+**The answers to choose from all look alike, so none gives itself away.**
+
+- On every question that offers four answers (choose the meaning, choose
+  the word, which word is missing, picture → choose), the three wrong
+  answers are now the same kind as the right one: numbers beside numbers,
+  single words beside single words, phrases beside phrases, and sentences
+  beside sentences of about the same length. Until now they were drawn
+  from anything the learner had met, so a number among three words, or a
+  sentence among three single words, could be picked without knowing it.
+- A number's wrong answers are made up rather than borrowed: numbers that
+  are easy to mix up with it, as the number-range questions already did.
+  Asked what خمسة means, the choices are things like 5, 15, 50 and 4, not
+  5, book, house and water. Asked for the word for 40, the choices are
+  other number words of one word each.
+- Matching grids follow the same rule: a grid holds one kind only, and its
+  spare meanings match. Words, phrases and sentences that are due together
+  are put in separate grids.
+- "Which word is missing" now needs other cards like the answer, as the
+  other choice questions already did, and the teacher's list of what a
+  card is waiting for says "a few more cards like it in this language".
+- The trade-off: a card with fewer than four others of its kind (a
+  learner's only two sentences, say) is not asked these questions, nor
+  put in a grid, until more arrive; it is asked the other ways instead.
+  A made-up number may be one the learner hasn't been taught yet.
+- Worth checking by hand: a session with numbers, words and phrases in
+  it, looking at the choices and grids; and a number question's choices.
+
+## 0.412 — 9 October 2026
+
+**Reports from students are for the administrator only.**
+
+- Teachers no longer see what students report about questions. The flag
+  button and the "reports from students" banner are gone from the Cards
+  tab for anyone who isn't an administrator, and a teacher can no longer
+  dismiss a report.
+- The administrator sees every report as before, in Admin → Flags, and
+  in the teaching space if they also teach.
+- Students report exactly as before; nothing changes for them.
+- The trade-off: a teacher no longer hears directly that one of their
+  cards is wrong, nor can strike a reported sentence from the report. The
+  administrator has to pass that on.
+- Teachers on an older copy of the app see an empty reports list until it
+  updates, rather than the reports.
+- Worth checking by hand: sign in as a teacher who is not an administrator
+  and see there is no flag button on the Cards tab.
+
 ## 0.411 — 9 October 2026
 
 **Teachers decide which words keep their capital letters.**

@@ -41,10 +41,13 @@ await build({
 });
 const { lentTags, varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
   fillersIn, buildWeakSession, weakness, isWeak, movesAmong, mergeMoves,
-  saidMoves, sumMoves, laddered, castQuestion, handCounts } = await import(path.join(out, "trainer.js"));
+  saidMoves, sumMoves, laddered, castQuestion, mixCardsOf } = await import(path.join(out, "trainer.js"));
 const langs = await import(path.join(here, "..", "src", "languages.ts"));
 const { TYPES } = langs;
-const { FRONT_DOOR_CAP, FRONT_DOOR_MAX } = await import(path.join(here, "..", "src", "scheduler.ts"));
+const { MAX_IN_LEARNING, inLearningOf } = await import(path.join(here, "..", "src", "session-mix.ts"));
+const { SESSION_SIZE, PER_UNIT } = await import(path.join(here, "..", "src", "session-layout.ts"));
+/* How many cards a session of the usual length has places for. */
+const PLACES = SESSION_SIZE / PER_UNIT;
 
 /** @param {string} id @param {string} type */
 const q = (id, type) => ({ id, type, subId: null });
@@ -339,19 +342,14 @@ const dueDeck = (/** @type {number} */ n) =>
 
 test("a course does not arrive all at once, however many words are waiting", () => {
   /*
-   * New words are introduced only while there is room at the front door.
-   * A course of sixty strangers is not sixty words tonight — it is what
-   * the door admits, met properly, with the rest waiting. Getting this
-   * wrong in the other direction is a first week of sixty words met once
-   * each and nothing learnt.
-   *
-   * The bound is the door and not the session: the old rule was three a
-   * session, which meant ten short sittings in an evening were thirty new
-   * words for the same work. See FRONT_DOOR_CAP.
+   * New cards come in only to fill places in a session — the learning
+   * share, and the places the reviews leave empty. A course of sixty
+   * strangers is not sixty words tonight: it is one session's places, met
+   * properly, with the rest waiting.
    */
   const got = deal(deckOf(60));
   const cards = new Set(got.exercises.map((/** @type {any} */ e) => e.id));
-  assert.ok(cards.size <= FRONT_DOOR_CAP, `${cards.size} new words opened at once`);
+  assert.ok(cards.size <= PLACES, `${cards.size} new words opened at once`);
   assert.ok(cards.size >= 1, "and at least one");
 });
 
@@ -650,19 +648,19 @@ test("a sitting reaches past the words the last one just did", () => {
 });
 
 test("but anything actually due still comes first", () => {
-  /* The care this rule needs: it decides the order a session reaches past
-     the due line in, and must never hold back work that is genuinely
-     waiting — a card due this morning is due whether or not it was also
-     practised at breakfast. */
+  /* The care this rule needs: a card due this morning is due whether or not
+     it was also practised at breakfast, so the three-hour gap never holds
+     back backlog — every one of these is dealt, and cards not yet due only
+     fill what places are left. */
   const dueNow = dueDeck(9).map((it) => ({
     ...it,
     forms: [{ ...it.forms[0], s: { ...it.forms[0].s, ar2en: { ...it.forms[0].s.ar2en, updated: Date.now() } } }],
   }));
   const rested = ["r1", "r2", "r3", "r4", "r5", "r6"].map((id) => settledWord(id, 20, 3 * 24 * 60));
   const got = deal(dueNow.concat(rested));
-  const dealt = new Set(got.exercises.map((/** @type {any} */ e) => e.id));
-  const reached = rested.filter((it) => dealt.has(it.id)).length;
-  assert.equal(reached, 0, `${reached} cards ahead of schedule came before cards that were due`);
+  const dealt = dealtCards(got);
+  const missed = dueNow.filter((it) => !dealt.has(it.id)).map((it) => it.id);
+  assert.equal(missed.length, 0, `due cards left out for cards ahead of schedule: ${missed.join(" ")}`);
 });
 
 test("a card asked a moment ago gives way, even while it is waiting", () => {
@@ -765,11 +763,10 @@ test("the one thing you keep failing is a session on its own", () => {
   assert.ok(got.exercises.every((/** @type {any} */ e) => e.id === "s1" && e.type === "ar2en"));
 });
 
-test("wrong twice running is asked before a single slip", () => {
+test("a gap and a slip are both asked, as often as the session has room", () => {
   const got = weak([slipping("once", [1, 0]), slipping("twice", [0, 0])].concat(deckOf(4)));
   assert.deepEqual([...new Set(got.exercises.map((/** @type {any} */ e) => e.id))].sort(), ["once", "twice"], "both are in it");
   assert.equal(got.exercises.length, 8, "each asked four times, with nothing else going wrong to fill it");
-  assert.equal(got.exercises[0].id, "twice", "and the gap leads the slip");
 });
 
 test("a deck with nothing going wrong says so rather than building a session", () => {
@@ -1084,7 +1081,7 @@ test("practising ahead never brings in more new words than there is room for", (
      take on at once. */
   const got = deal(deckOf(60));
   const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));
-  assert.ok(dealt.size <= FRONT_DOOR_CAP, `${dealt.size} new words in one session`);
+  assert.ok(dealt.size <= PLACES, `${dealt.size} new words in one session`);
 });
 
 /*
@@ -1131,7 +1128,7 @@ test("and a session nobody has marked anything in is the size it always was", ()
      a learner who has made none is dealt exactly what they were before. */
   const deck = Array.from({ length: 30 }, (_, i) => settled(`f${i + 1}`, -1));
   const got = deal(deck);
-  assert.ok(got.exercises.length <= 18, `${got.exercises.length} questions with nothing marked`);
+  assert.ok(got.exercises.length <= SESSION_SIZE, `${got.exercises.length} questions with nothing marked`);
 });
 
 /** A word met but not yet cleared: answered right once since the ladder
@@ -1145,19 +1142,19 @@ const learningWord = (/** @type {string} */ id) => {
   return w;
 };
 
-test("a full front door stops new words, and does not stop the held ones being practised", () => {
-  /* The wall itself, and the whole point of the two pools. The front door
-     is full of words the learner cannot recognise yet, so nothing new may
-     come in — and they used to be told there was nothing to practise while
-     holding a handful of words they were midway through learning. */
-  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+test("twenty cards in learning stop new ones, and do not stop those being practised", () => {
+  /* The limit itself. Twenty cards are in learning, so nothing new may come
+     in — and the learner is still given a session of the ones they hold,
+     even though every one of them was practised a moment ago. */
+  const held = Array.from({ length: MAX_IN_LEARNING }, (_, i) => learningWord(`h${i + 1}`));
   const waiting = deckOf(20);
   const got = deal(held.concat(waiting));
   assert.equal(got.reason, null, `refused: ${got.reason}`);
   const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));
+  assert.ok(dealt.size > 0, "nothing dealt");
   assert.ok(
     [...dealt].every((id) => String(id).startsWith("h")),
-    `let a new word in past a full door: ${[...dealt].join(" ")}`,
+    `let a new word in past twenty in learning: ${[...dealt].join(" ")}`,
   );
 });
 
@@ -1172,41 +1169,45 @@ const climbingWord = (/** @type {string} */ id) => {
   return w;
 };
 
-test("for somebody who practises a lot, the words still climbing come first", () => {
-  /* Three words in the front door, each with a question waiting, among
-     thirty reviews that are just as due. Shuffled together, a session's
-     nine places reach all three about one time in seventy; a keen learner
-     is dealt all three every time, because a new word asked in a third of
-     their sittings took six days to clear and held its place all along. */
+test("cards in learning always have their share of a session", () => {
+  /* Three cards in learning, each with a question waiting, among thirty
+     reviews that are just as due. Shuffled together, a session's places
+     would reach all three about one time in seventy; with a share of their
+     own they are dealt every time, however often the learner practises. */
   const items = ["c1", "c2", "c3"].map(climbingWord)
     .concat(Array.from({ length: 30 }, (_, i) => settled(`r${i + 1}`, -1)));
-  for (let i = 0; i < 5; i += 1) {
-    const dealt = new Set(deal(items, { perDay: 300 }).exercises.map((/** @type {any} */ x) => x.id));
-    for (const id of ["c1", "c2", "c3"]) {
-      assert.ok(dealt.has(id), `a keen learner's climbing word ${id} was left out: ${[...dealt].join(" ")}`);
+  for (const perDay of [20, 300]) {
+    for (let i = 0; i < 5; i += 1) {
+      const dealt = new Set(deal(items, { perDay }).exercises.map((/** @type {any} */ x) => x.id));
+      for (const id of ["c1", "c2", "c3"]) {
+        assert.ok(dealt.has(id), `climbing word ${id} was left out: ${[...dealt].join(" ")}`);
+      }
     }
   }
 });
 
-test("and for somebody who sits down once a day, they wait their turn as before", () => {
-  /* Their reviews passed over now are not reached later today, so the
-     order stays the shuffle it was. Five sessions all dealing every one of
-     the three would happen about once in a billion. */
-  const items = ["c1", "c2", "c3"].map(climbingWord)
-    .concat(Array.from({ length: 30 }, (_, i) => settled(`r${i + 1}`, -1)));
-  let everyTime = true;
-  for (let i = 0; i < 5; i += 1) {
-    const dealt = new Set(deal(items, { perDay: 18 }).exercises.map((/** @type {any} */ x) => x.id));
-    if (!["c1", "c2", "c3"].every((id) => dealt.has(id))) everyTime = false;
-  }
-  assert.ok(!everyTime, "a once-a-day learner's climbing words jumped the queue");
+test("with plenty of every kind, a session holds the three shares", () => {
+  /* Ten places: four for cards in learning, three for Cleared cards due,
+     three for Learnt cards due. Plenty of each is waiting, so each share is
+     filled from its own group and none spills into another. */
+  const learning = Array.from({ length: 10 }, (_, i) => climbingWord(`c${i + 1}`));
+  const reviews = Array.from({ length: 30 }, (_, i) => settled(`r${i + 1}`, -1));
+  const items = learning.concat(reviews);
+  installIndexes(items, settings);
+  const rows = mixCardsOf(items, items, settings);
+  const standingOf = new Map(rows.map((/** @type {any} */ r) => [r.id, r.standing]));
+  const got = deal(items);
+  const seen = [...new Set(got.exercises.map((/** @type {any} */ x) => x.id))];
+  const count = (/** @type {string} */ st) => seen.filter((id) => standingOf.get(id) === st).length;
+  assert.equal(count("learning"), 4, `in learning: ${seen.join(" ")}`);
+  assert.equal(count("cleared") + count("learnt"), seen.length - 4, "and the rest reviews");
 });
 
-test("and a word leaves the front door as soon as it is cleared", () => {
-  /* The release valve. These are up every level, so they are through the
-     door and no longer block a newcomer, even though they have their
-     passes still to make. */
-  const known = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => settled(`k${i + 1}`, 1));
+test("and a card no longer counts as in learning once it is cleared", () => {
+  /* The release valve. These are up every level, so they are Cleared and
+     no longer hold a place in learning, even though they have their passes
+     still to make — twenty of them, and new cards still come in. */
+  const known = Array.from({ length: MAX_IN_LEARNING }, (_, i) => settled(`k${i + 1}`, 1));
   const got = deal(known.concat(deckOf(20)));
   const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));
   assert.ok(
@@ -1216,36 +1217,40 @@ test("and a word leaves the front door as soon as it is cleared", () => {
 });
 
 
-test("a keen learner may hold more strangers, and a once-a-day one no more than before", () => {
-  /* Twenty-two new words waiting in front of a full ten-word door. Once a
-     day, that door is full; at twenty sittings' worth a day it has room. */
-  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
-  const items = held.concat(deckOf(22));
+test("coming back within three hours brings new cards in; once a day does not", () => {
+  /* Ten cards in learning, twenty-two new ones waiting. Practised a moment
+     ago, the ten sit out the next sitting and new cards fill the learning
+     share in their place — which is how somebody who practises often comes
+     to have more cards on the go. Practised this morning, the ten are what
+     the next sitting is for, and nothing new comes in. */
   const isNew = (/** @type {string} */ id) => String(id).startsWith("w");
-  const daily = dealtCards(deal(items, { perDay: 18 }));
-  assert.ok(![...daily].some(isNew), `a once-a-day learner was let past a full door: ${[...daily].join(" ")}`);
-  const keen = dealtCards(deal(items, { perDay: 20 * 18 }));
-  assert.ok([...keen].some(isNew), `a keen learner's wider door let nothing in: ${[...keen].join(" ")}`);
-  assert.ok([...keen].filter(isNew).length <= FRONT_DOOR_MAX - FRONT_DOOR_CAP, "and no more than it holds");
+  const justNow = Array.from({ length: 10 }, (_, i) => learningWord(`h${i + 1}`));
+  const often = dealtCards(deal(justNow.concat(deckOf(22))));
+  assert.ok([...often].some(isNew), `nothing new came in for somebody back within the hour: ${[...often].join(" ")}`);
+  const thisMorning = justNow.map((w) => ({
+    ...w,
+    forms: [{ ...w.forms[0], s: Object.fromEntries(Object.entries(w.forms[0].s).map(([k, st]) => [k, { ...st, updated: Date.now() - 5 * 3600000 }])) }],
+  }));
+  const daily = dealtCards(deal(thisMorning.concat(deckOf(22))));
+  assert.ok(![...daily].some(isNew), `new cards came in while ten in learning were waiting: ${[...daily].join(" ")}`);
 });
 
-test("the new cards a session opens are of more than one kind", () => {
-  /* Thirty nouns and a handful of other kinds. Drawn by the due order
-     alone, nine new cards would be nearly all nouns most times; mixed,
-     every kind there is gets a place in every sitting. */
-  const nouns = Array.from({ length: 30 }, (_, i) =>
-    word(`n${i + 1}`, `اسم${i + 1}`, `noun ${i + 1}`, { category: "noun" }));
-  const others = [
-    word("a1", "صفة", "adjective one", { category: "adjective" }),
-    word("a2", "صفتين", "adjective two", { category: "adjective" }),
-    word("p1", "كلمة تانية", "a phrase", { kind: "phrase" }),
-    word("p2", "كلمة تالتة", "another phrase", { kind: "phrase" }),
+test("no more than two cards of one kind run together, where the order allows", () => {
+  /* Words and sentences, two questions each: the order keeps the other
+     rules — never one card twice running, never one exercise twice running
+     — and no three of one kind in a row. */
+  const list = [
+    q("w1", "ar2en"), q("w1", "en2ar"), q("w2", "ar2en"), q("w2", "en2ar"),
+    q("w3", "ar2en"), q("w3", "en2ar"), q("s1", "ar2en"), q("s1", "en2ar"),
+    q("s2", "ar2en"), q("s2", "en2ar"),
   ];
-  for (let i = 0; i < 5; i += 1) {
-    const dealt = [...dealtCards(deal(nouns.concat(others)))];
-    for (const k of ["n", "a", "p"]) {
-      assert.ok(dealt.some((id) => id.startsWith(k)), `no ${k} among ${dealt.join(" ")}`);
-    }
+  const kindOf = (/** @type {any} */ x) => (String(x.id).startsWith("s") ? "sentence" : "word");
+  const got = varyTypes(list, null, kindOf);
+  assert.equal(got.length, list.length);
+  assert.ok(!backToBack(got), ids(got));
+  for (let i = 2; i < got.length; i += 1) {
+    const run = [got[i - 2], got[i - 1], got[i]].map(kindOf);
+    assert.ok(!(run[0] === run[1] && run[1] === run[2]), `three ${run[0]}s running: ${ids(got)}`);
   }
 });
 
@@ -1436,11 +1441,11 @@ test("the session ends on the last card the learner asked for, and not a questio
    * measured from the marked card's own place in the queue rather than
    * padded.
    */
-  /* Twenty of them, which is more than a session's own length can hold
-     however the questions fall — so the reach below is always the marks
-     doing the stretching rather than the ordinary budget. */
+  /* Thirty of them, which is more than a session's own length can hold
+     however the questions fall — grids included — so the reach below is
+     always the marks doing the stretching rather than the ordinary budget. */
   const deck = Array.from({ length: 30 }, (_, i) => settled(`f${i + 1}`, 30 + i));
-  const asked = Array.from({ length: 20 }, (_, i) => ({ ...settled(`a${i + 1}`, 60), priority: true }));
+  const asked = Array.from({ length: 30 }, (_, i) => ({ ...settled(`a${i + 1}`, 60), priority: true }));
   const ordinary = deal(deck).exercises.length;
   const got = deal(deck.concat(asked));
   const marked = new Set(asked.map((it) => it.id));
@@ -1571,7 +1576,7 @@ test("built by hand in Regular, new words are let in as a dealt session lets the
   });
   const dealt = buildSession({ items, settings, inDeck: anyDeck, budget: 50 });
   assert.equal(byHand.reason, null, byHand.reason || "");
-  assert.ok(dealtCards(byHand).size <= FRONT_DOOR_CAP,
+  assert.ok(dealtCards(byHand).size <= MAX_IN_LEARNING,
     `${dealtCards(byHand).size} new words in one session`);
   assert.equal(dealtCards(byHand).size, dealtCards(dealt).size, "the same number a dealt session takes");
 });
@@ -1602,12 +1607,11 @@ test("and only the cards picked are dealt", () => {
   assert.equal(got.manual, true, "and it is still a session built by hand");
 });
 
-test("built by hand on decks, the new words already in hand elsewhere do not count", () => {
+test("built by hand on decks, the cards in learning elsewhere do not count", () => {
   /* Ten words midway through learning in one deck, none due, and a deck
-     nobody has started. Built by hand on the new deck, it used to come up
-     empty — "nothing new to bring in" over a deck that was all new —
-     because the limit was read over the words in the other deck. */
-  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+     nobody has started. The limit is counted in the pool, so the new deck
+     starts at once — a session's places of it, and no more. */
+  const held = Array.from({ length: 10 }, (_, i) => learningWord(`h${i + 1}`));
   const fresh = deckOf(20);
   const items = held.concat(fresh);
   installIndexes(items, settings);
@@ -1617,26 +1621,27 @@ test("built by hand on decks, the new words already in hand elsewhere do not cou
   assert.equal(got.reason, null, `refused: ${got.reason}`);
   const dealt = dealtCards(got);
   assert.ok(dealt.size > 0 && [...dealt].every((id) => fresh.some((f) => f.id === id)), [...dealt].join(" "));
-  /* Still a few at a time: the deck's own words are rationed as before. */
-  assert.ok(dealt.size <= FRONT_DOOR_CAP, `${dealt.size} new words in one session`);
+  assert.ok(dealt.size <= PLACES, `${dealt.size} new words in one session`);
 });
 
-test("but the everyday session still counts every deck, and a full door keeps new words out", () => {
-  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+test("and so does a prep: every session counts the cards in learning in its own pool", () => {
+  /* One rule for every session. A prep's decks are its pool, and twenty in
+     learning elsewhere do not keep its new cards out. */
+  const held = Array.from({ length: MAX_IN_LEARNING }, (_, i) => learningWord(`h${i + 1}`));
   const fresh = deckOf(20);
   const items = held.concat(fresh);
   installIndexes(items, settings);
   const onlyFresh = (/** @type {any} */ it) => fresh.some((f) => f.id === it.id);
   const got = buildSession({ items, settings, inDeck: onlyFresh });
-  assert.equal(got.exercises.length, 0, "new words came in past a full door");
-  assert.equal(got.reason, "nothing-due");
+  assert.equal(got.reason, null, `refused: ${got.reason}`);
+  assert.ok(got.exercises.length > 0, "a fresh prep deck came up empty");
 });
 
-test("built by hand, a deck whose own new words fill the door practises those", () => {
-  /* The limit read over the chosen decks still holds new words back, and
-     the deck's words in progress are what is asked instead — so the
-     session is not empty. */
-  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+test("built by hand, a deck with twenty in learning practises those", () => {
+  /* Twenty in learning in the deck picked hold its new words back, and the
+     deck's words in progress are what is asked instead — so the session is
+     not empty. */
+  const held = Array.from({ length: MAX_IN_LEARNING }, (_, i) => learningWord(`h${i + 1}`));
   const fresh = deckOf(5);
   const items = held.concat(fresh);
   installIndexes(items, settings);
@@ -1816,8 +1821,8 @@ test("a form lent to sentences and not asked on its own is introduced by the sen
   assert.ok(shown.includes("كُتُب كبار"), `the plural stands in it: ${shown.join(" | ")}`);
 });
 
-test("a sentence met already and waiting for its words holds no new-card place", () => {
-  /* A learner part-way through a course met this sentence under the old
+test("a sentence met already and waiting for its words holds no place in learning", () => {
+  /* A learner part-way through a course met this sentence under an old
      rule, with its word answered once. It now waits for that word to be
      cleared, and a place it held would be one fewer for the words it is
      waiting on. */
@@ -1826,8 +1831,10 @@ test("a sentence met already and waiting for its words holds no new-card place",
   const noun = word("n1", "كِتاب", "book", { category: "noun" });
   noun.forms[0].s = { ar2en: missedOnce() };
   installIndexes([frame, noun], settings);
-  assert.deepEqual(handCounts([frame, noun], settings), { front: 1, inHand: 1 }, "the word alone");
+  const pool = () => mixCardsOf([frame, noun], [frame, noun], settings);
+  assert.deepEqual(pool().map((/** @type {any} */ r) => r.id), ["n1"], "the word alone");
+  assert.equal(inLearningOf(pool()), 1);
   noun.forms[0].s = upOn(noun.forms[0], () => true);
   installIndexes([frame, noun], settings);
-  assert.equal(handCounts([frame, noun], settings).front, 1, "and the sentence, once it can be asked");
+  assert.equal(inLearningOf(pool()), 1, "and the sentence, once it can be asked");
 });

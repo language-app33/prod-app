@@ -55,6 +55,7 @@ import {
   LANGUAGES,
   DEFAULT_LANGUAGE,
   categoriesOf,
+  answerShape,
   scriptVars } from "./languages.ts";
 import { isDialog, linesOf, sceneKindOf } from "./dialogs.ts";
 import { asMeaning, cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
@@ -3697,11 +3698,15 @@ function TryExercises({ card, cards, lang, onTry, back }: {
       /* How many other cards could stand beside it in a matching grid —
          the one thing a card cannot answer about itself. A card with a
          variable in it is not one of them: a grid pairs words, and a frame
-         with a hole in it is not a word. */
-      matesFor: () =>
-        material.filter(
-          (c) => !isDialog(c) && leadOf(c).ar && leadOf(c).en && !hasSlots(c) && c.drill !== false
-        ).length - 1,
+         with a hole in it is not a word. Nor one of another shape: a
+         phrase among single words gives itself away (see answerShape). */
+      matesFor: (unit) => {
+        const shape = answerShape(mine, unit, lang);
+        return material.filter(
+          (c) => !isDialog(c) && leadOf(c).ar && leadOf(c).en && !hasSlots(c) && c.drill !== false &&
+            answerShape(c, leadOf(c), lang) === shape
+        ).length - 1;
+      },
       /* And how many have a picture, which is what "Listen → picture"
          draws its wrong answers from. */
       picturedFor: (unit) =>
@@ -4559,10 +4564,13 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
      from students are open — both take over the screen, like the editor. */
   const [reviewing, setReviewing] = useState<Card | null>(null);
   const [reportsOpen, setReportsOpen] = useState(false);
-  /* What students have reported about this teacher's cards, with the cards
-     themselves — a co-teacher's card may not be in the list above. */
+  /* What students have reported, with the cards themselves — a card may
+     not be in the list above. An administrator's alone: a teacher is not
+     shown reports, and is not asked for them (see my-reports). */
+  const seesReports = !!account.admin;
   const [reports, setReports] = useState<{ flags: Flag[]; cards: Card[] }>({ flags: [], cards: [] });
   const loadReports = useCallback(async () => {
+    if (!seesReports) return;
     try {
       const r = await API.myReports();
       setReports({ flags: r.flags || [], cards: r.cards || [] });
@@ -4570,7 +4578,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
       /* Reports are a side panel: a failure to read them leaves the rest
          of the space exactly as it was, and the next look tries again. */
     }
-  }, []);
+  }, [seesReports]);
   useEffect(() => {
     void loadReports();
   }, [loadReports]);
@@ -5605,7 +5613,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
     );
   }
 
-  if (reportsOpen) {
+  if (reportsOpen && seesReports) {
     return (
       <ReportsScreen
         flags={reports.flags}
@@ -7024,7 +7032,7 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                   }
                 />
               )}
-              {reports.flags.length > 0 && (
+              {seesReports && reports.flags.length > 0 && (
                 <div className="at-reviewbanner">
                   <span>{`${plural(reports.flags.length, "report")} from students.`}</span>
                   <Button size="sm" onClick={() => { setReportsOpen(true); void loadReports(); }}>
@@ -7053,14 +7061,16 @@ export function TeachSpace({ account, languages, settings, langsOff, onLangChoic
                    word is on the screen it opens. */
                 tools={
                   <>
-                    <IconButton
-                      icon="flag"
-                      label="Reports from students"
-                      onClick={() => {
-                        setReportsOpen(true);
-                        void loadReports();
-                      }}
-                    />
+                    {seesReports && (
+                      <IconButton
+                        icon="flag"
+                        label="Reports from students"
+                        onClick={() => {
+                          setReportsOpen(true);
+                          void loadReports();
+                        }}
+                      />
+                    )}
                   {numberLangsOn.length || pronounLangsOn.length ? (
                     <>
                       {numberLangsOn.length ? (
