@@ -26,7 +26,10 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Twenty, not ten: from 0.413 the unit tests alone take about seven and
+    # a half minutes on a runner, and the smoke walk-through and build were
+    # being cut off, so every run read "cancelled" rather than red or green.
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
