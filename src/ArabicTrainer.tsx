@@ -9025,7 +9025,7 @@ function MatchGrid({
               ) : (
                 <span className="at-matchnum empty" aria-hidden="true" />
               )}
-              <span className={`at-matchword${heard ? " heard" : ""}`}>
+              <span className={`at-matchword${heard ? " heard" : lang.direction === "rtl" ? " rtl" : ""}`}>
                 {heard ? (
                   /* The play button drawn wherever a recording is, drawn
                      long here, and a button of its own: it plays and does
@@ -9126,7 +9126,7 @@ function MatchGrid({
               {scripted ? (
                 /* The words in the script, as the word grid shows them on
                    its left — or the figures it writes numbers in. */
-                <span className="at-matchword">
+                <span className={`at-matchword${lang.direction === "rtl" ? " rtl" : ""}`}>
                   <Arabic text={m} kind="word" lang={lang} />
                   {meaningTags[at] ? (
                     <span className="at-matchtag" data-el="match-form-tag">{meaningTags[at]}</span>

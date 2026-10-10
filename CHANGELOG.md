@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.414 — 10 October 2026
+
+**Arabic words in a matching grid all line up on the right.**
+
+- In "Match each word to its meaning", an Arabic word that fit on one line
+  sat on the left of its card, beside the circle, while one long enough to
+  wrap onto two lines sat on the right. Every Arabic word now starts from
+  the right edge of its card, as Arabic is read, whether it wraps or not,
+  so the column reads as one straight edge.
+- The small print under an Arabic word — which form it is, or what it
+  should have been once the grid is checked — sits under the word on the
+  right too, rather than across the card from it.
+- The English column is unchanged.
+- To check by hand: a grid on a phone with a mix of short words and
+  phrases long enough to wrap.
+
 ## 0.413 — 9 October 2026
 
 **The answers to choose from all look alike, so none gives itself away.**
