@@ -21,10 +21,6 @@ import {
   MAX_EASE,
   MATURE_DAYS,
   MASTERED_DAYS,
-  FRONT_DOOR_CAP,
-  FRONT_DOOR_MAX,
-  DOOR_OUTINGS,
-  IN_HAND_CAP,
   LEARN_STEPS,
   GRADUATE_DAYS,
   EASY_DAYS,
@@ -56,20 +52,11 @@ import {
   standings,
   standing,
   turnOf,
-  roomForNew,
-  frontDoorCap,
-  byVariety,
   formatGap,
   dayKey,
   shuffled,
   inOrder,
   dueRank,
-  justPractised,
-  JUST_PRACTISED,
-  restingNow,
-  recognised,
-  throughDoor,
-  JUST_ASKED,
 } from "../src/scheduler.ts";
 import { EX, TYPES, levelOf } from "../src/languages.ts";
 import { must } from "./helpers.mjs";
@@ -321,23 +308,6 @@ test("the limits are the ones promised", () => {
   assert.equal(MIN_EASE, 1.3, "a card can get this much harder than default and no more");
   assert.equal(MAX_EASE, 3.0);
   assert.equal(MAX_DAYS, 365, "a year");
-});
-
-/*
- * And the two numbers the README states in words.
- *
- * Every other test that touches these imports them, so the assertion moves
- * with the constant and changing one goes green — which is the right shape
- * for a rule ("nothing new past the cap") and the wrong one for a number a
- * person decided. `tests/pace.test.mjs` measures what they cost a learner
- * in days and would report a change; this is what makes changing one go
- * red, so it is a decision rather than a drift. README, *A new word is
- * earned by learning one*: "at most ten words the learner cannot yet
- * recognise, and at most sixty in hand altogether".
- */
-test("the two pools are the sizes the README says they are", () => {
-  assert.equal(FRONT_DOOR_CAP, 10, "words not yet recognisable");
-  assert.equal(IN_HAND_CAP, 60, "words in hand altogether");
 });
 
 test("a minute and a day are what they are everywhere else", () => {
@@ -798,100 +768,6 @@ test("the settings say which level each exercise stands on, and every one has a 
 
 /* ---- room for what is new ---- */
 
-test("a new word is earned, by one of the words in hand being learnt", () => {
-  /* Two pools and no third thing. There is deliberately no per-session and
-     no per-day allowance in here: ten short sittings in an evening used to
-     be thirty new words where one long sitting was three, for the same
-     work, because the allowance was counted in sessions. */
-  const empty = { front: 0, inHand: 0 };
-  assert.equal(roomForNew(empty), FRONT_DOOR_CAP, "an empty hand opens the front door wide");
-  assert.equal(roomForNew({ front: FRONT_DOOR_CAP - 1, inHand: 0 }), 1, "the last place at the door");
-  assert.equal(roomForNew({ front: FRONT_DOOR_CAP, inHand: 0 }), 0, "the door is full");
-  assert.equal(roomForNew({ front: FRONT_DOOR_CAP + 5, inHand: 0 }), 0, "and never negative");
-
-  /* The second pool is the ceiling on total load, and it binds on its own:
-     a learner may be recognising everything they hold and still be holding
-     too much of it. */
-  assert.equal(roomForNew({ front: 0, inHand: IN_HAND_CAP }), 0, "too much in hand already");
-  assert.equal(roomForNew({ front: 0, inHand: IN_HAND_CAP - 2 }), 2, "two places left in hand");
-  assert.ok(IN_HAND_CAP > FRONT_DOOR_CAP, "the door is the narrower of the two");
-});
-
-test("the front door widens with practice, from ten to twenty", () => {
-  /* Ten for anybody who practises a few times a day, as it always was:
-     only a learner whose day reaches enough words to keep each one in a
-     wider door at DOOR_OUTINGS a day is given one. */
-  assert.equal(frontDoorCap(0), FRONT_DOOR_CAP, "nobody's door is narrower than ten");
-  assert.equal(frontDoorCap(45), FRONT_DOOR_CAP, "five sittings' words: still ten");
-  assert.equal(frontDoorCap(15 * DOOR_OUTINGS), 15, "one place per DOOR_OUTINGS words a day");
-  assert.equal(frontDoorCap(1000), FRONT_DOOR_MAX, "and never wider than the ceiling");
-  assert.equal(frontDoorCap(NaN), FRONT_DOOR_CAP, "a log that says nothing is read as nought");
-  assert.equal(roomForNew({ front: 12, inHand: 0 }, IN_HAND_CAP, FRONT_DOOR_MAX), FRONT_DOOR_MAX - 12,
-    "a wider door has room past the first ten");
-  assert.ok(FRONT_DOOR_MAX < IN_HAND_CAP, "and is still narrower than the hand");
-});
-
-test("new cards are let in mixed by kind, in the order given within a kind", () => {
-  const kind = (/** @type {string} */ x) => x[0];
-  /* Eight nouns ahead of everything else in the due order: left alone the
-     first four places would be all nouns. */
-  const pool = ["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "v1", "v2", "s1"];
-  assert.deepEqual(byVariety(pool, 4, [], kind), ["n1", "v1", "s1", "n2"]);
-  /* What is already held counts: two verbs in hand, so the verb waits. */
-  assert.deepEqual(byVariety(pool, 3, ["v0", "v9"], kind), ["n1", "s1", "n2"]);
-  /* Never more than the room, never more than there is. */
-  assert.deepEqual(byVariety(pool, 0, [], kind), []);
-  assert.equal(byVariety(pool, 50, [], kind).length, pool.length);
-  /* One kind only is the due order exactly. */
-  assert.deepEqual(byVariety(["a1", "a2", "a3"], 2, [], kind), ["a1", "a2"]);
-});
-
-test("a word is recognised when every rung of its first level is mastered", () => {
-  /* Four days, which is the same bar that opens the level above it — so
-     "learnt" means one thing in this app rather than two. */
-  const first = TYPES.filter((/** @type {string} */ t) => levelOf(t) === 1);
-  const all = (/** @type {any} */ st) => () => st;
-  assert.equal(recognised(first, all(state({ phase: "review", interval: MASTERED_DAYS }))), true);
-  assert.equal(recognised(first, all(state({ phase: "review", interval: MASTERED_DAYS - 1 }))), false);
-  assert.equal(recognised(first, all(freshState())), false, "never answered is not recognised");
-  assert.equal(recognised([], all(freshState())), true, "no first-level material: nothing to recognise");
-  /* Higher rungs are not asked about: a word is through the door as soon
-     as it can be recognised, and goes on climbing behind the newcomers. */
-  const mixed = (/** @type {string} */ t) =>
-    levelOf(t) === 1 ? state({ phase: "review", interval: MASTERED_DAYS }) : freshState();
-  assert.equal(recognised(TYPES, mixed), true, "the climb does not hold the door");
-});
-
-test("and a word is through the door recognised or cleared, whichever comes first", () => {
-  /* Cleared alone halved what a once-a-day learner met; recognised alone
-     made an evening's clearing buy nothing for four days. */
-  const early = state({ phase: "review", interval: 1, hist: [1] });
-  const solidEarly = state({ phase: "review", interval: 1, hist: [1, 1] });
-  const firstHeld = (/** @type {string} */ t) =>
-    levelOf(t) === 1 ? state({ phase: "review", interval: MASTERED_DAYS, hist: [1] }) : early;
-  assert.equal(throughDoor(TYPES, () => early), false, "neither yet");
-  assert.equal(throughDoor(TYPES, () => solidEarly), true, "cleared tonight, no gap");
-  assert.equal(throughDoor(TYPES, firstHeld), true, "held four days, not cleared");
-  assert.equal(throughDoor([], () => early), true, "nothing to climb holds nothing");
-});
-
-test("a card asked a moment ago rests, even while it is waiting", () => {
-  /* What rotates a learner through what they hold. A card being learnt is
-     nearly always waiting — a retest set by the last answer, or a level
-     that last answer opened — and it used to go first in every sitting
-     for exactly that reason. */
-  assert.equal(restingNow(T - 11 * MIN, [T - MIN], still), true, "a retest the last answer set");
-  assert.equal(restingNow(T - 5 * MIN, [0, T + DAY], still), true, "a level the last answer opened");
-  assert.equal(restingNow(T - JUST_ASKED, [0], still), false, "the rest has an end");
-  assert.equal(restingNow(0, [0], still), false, "a card never asked has nothing to rest from");
-});
-
-test("but backlog never rests", () => {
-  /* A question due since yesterday is due whatever else on the card was
-     answered at breakfast: the schedule set it, not the last sitting. */
-  assert.equal(restingNow(T - 5 * MIN, [T - DAY, T + DAY], still), false);
-});
-
 test("a family is as hard as its hardest form", () => {
   const easy = state({ right: 10, wrong: 0, ease: 2.5 });
   const hard = state({ right: 1, wrong: 9, ease: 1.4, lapses: 4, skips: 3 });
@@ -1008,16 +884,6 @@ test("everything already due is equally due", () => {
      reaches past what is due reaches for the nearest thing first. */
   assert.equal(dueRank(T + DAY, still), T + DAY);
   assert.ok(dueRank(T + DAY, still) < dueRank(T + 2 * DAY, still));
-});
-
-test("a card just answered is known to have been just answered", () => {
-  /* Which is what stops a session that has run out of due cards reaching
-     for the same nine words every twenty minutes all day. */
-  assert.equal(justPractised(T - MIN, still), true);
-  assert.equal(justPractised(T - JUST_PRACTISED + MIN, still), true);
-  assert.equal(justPractised(T - JUST_PRACTISED, still), false, "the window has an end");
-  assert.equal(justPractised(T - DAY, still), false);
-  assert.equal(justPractised(0, still), false, "a card never answered is not one just answered");
 });
 
 test("so two sessions built from the same cards are not the same session", () => {

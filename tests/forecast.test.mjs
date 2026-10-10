@@ -60,12 +60,14 @@ const {
   prepStatus,
   prepDeckOf,
   buildSession,
+  NEW_PER_DAY,
   climbOf,
   gridFor,
   gridOther,
 } = await import(path.join(out, "trainer.js"));
 const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
-const { FRONT_DOOR_CAP, PASSES_TO_LEARN } = await import(path.join(here, "..", "src", "scheduler.ts"));
+const { PASSES_TO_LEARN } = await import(path.join(here, "..", "src", "scheduler.ts"));
+const { SESSION_SIZE } = await import(path.join(here, "..", "src", "session-layout.ts"));
 
 setOfflineNow(false);
 setAudibleClips(null);
@@ -108,7 +110,7 @@ test("the work is counted off each card's own ladder", () => {
   /* Two right answers for every question on its ladder, and a pass on each
      question at the top — so at least twice as many as the passes. */
   assert.ok(one.questions >= 2 * PASSES_TO_LEARN, `${one.questions} questions`);
-  assert.equal(all.sessions, all.questions / (18 * PROGRESS_SHARE));
+  assert.equal(all.sessions, all.questions / (SESSION_SIZE * PROGRESS_SHARE));
 });
 
 test("a card part way up needs less than one never met", () => {
@@ -128,10 +130,10 @@ test("a learnt deck needs nothing, and is learnt now", () => {
   assert.deepEqual(readyFor(w, FROM + 10 * DAY, FROM), { kind: "already" });
 });
 
-test("new words come in ten at a time, so a big deck has a later floor", () => {
+test("new words come in a session's worth a day at most, so a big deck has a later floor", () => {
   installIndexes(collection, settings);
-  assert.equal(workloadOf(deck(), settings, FROM).earliestDays, LEARN_DAYS + Math.ceil(12 / FRONT_DOOR_CAP) - 1);
-  assert.equal(workloadOf(collection.slice(0, 40), settings, FROM).earliestDays, LEARN_DAYS + 3);
+  assert.equal(workloadOf(deck(), settings, FROM).earliestDays, LEARN_DAYS + Math.ceil(12 / NEW_PER_DAY) - 1);
+  assert.equal(workloadOf(collection.slice(0, 40), settings, FROM).earliestDays, LEARN_DAYS + Math.ceil(40 / NEW_PER_DAY) - 1);
   assert.equal(workloadOf(deck().slice(0, 5), settings, FROM).earliestDays, LEARN_DAYS);
 });
 
@@ -156,9 +158,9 @@ test("being ready by a date: the work spread over the days, or too soon", () => 
 });
 
 test("the pace is said as sittings a day, to a decimal under one", () => {
-  assert.equal(paceWords(18 * 12), "about 12 sessions a day");
-  assert.equal(paceWords(18), "about 1 session a day");
-  assert.equal(paceWords(9), "about 0.5 sessions a day");
+  assert.equal(paceWords(SESSION_SIZE * 12), "about 12 sessions a day");
+  assert.equal(paceWords(SESSION_SIZE), "about 1 session a day");
+  assert.equal(paceWords(SESSION_SIZE / 2), "about 0.5 sessions a day");
   assert.equal(paceWords(1), "about 0.1 sessions a day");
 });
 
@@ -295,32 +297,32 @@ test("a prep session is dealt from the prep's decks alone", () => {
 test("what a prep's forecast says", () => {
   const date = "2026-10-20";
   assert.match(readyWords({ kind: "already" }, date, 0), /already learnt/);
-  assert.match(readyWords({ kind: "rate", rate: 5.2 }, date, 36), /^About 6 sessions a day will get you ready before .+\. You're doing about 2 sessions a day at the moment\.$/);
+  assert.match(readyWords({ kind: "rate", rate: 5.2 }, date, 2 * SESSION_SIZE), /^About 6 sessions a day will get you ready before .+\. You're doing about 2 sessions a day at the moment\.$/);
   assert.match(readyWords({ kind: "rate", rate: 5.2 }, date, 0), /^About 6 sessions a day will get you ready before [^.]+\.$/);
   assert.match(readyWords({ kind: "late", earliest: FROM + 30 * DAY }, date, 0), /can't be fully ready before .+ the earliest is/);
 });
 
 test("the home screen's prep tile says whether the pace gets you there", () => {
-  const on = prepGlance(12, { kind: "rate", rate: 2 }, 54, 0);
+  const on = prepGlance(12, { kind: "rate", rate: 2 }, 3 * SESSION_SIZE, 0);
   assert.deepEqual([on.days, on.tone, on.status, on.detail], [12, "good", "On track", ""]);
-  const more = prepGlance(12, { kind: "rate", rate: 5.2 }, 36, 0);
+  const more = prepGlance(12, { kind: "rate", rate: 5.2 }, 2 * SESSION_SIZE, 0);
   assert.deepEqual([more.tone, more.status], ["push", ""]);
   assert.equal(more.detail, "About 6 sessions a day will get you ready");
   assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).detail, "About 0.4 sessions a day will get you ready");
   /* Counted from now, not FROM: the line says how far off the date is from
      today, and a fixed date stops being "in N days" once the calendar
      catches up with it. */
-  const late = prepGlance(3, { kind: "late", earliest: Date.now() + 6 * DAY }, 36, 0);
+  const late = prepGlance(3, { kind: "late", earliest: Date.now() + 6 * DAY }, 2 * SESSION_SIZE, 0);
   assert.deepEqual([late.tone, late.status], ["late", "Too soon"]);
   assert.match(late.detail, /^Too soon to learn it all — the earliest you could be ready is .+\(in \d+ days\)$/);
   assert.match(prepGlance(3, { kind: "late", earliest: null }, 0, 0).detail, /more than two years$/);
   /* The line says the same figure as today's goal, made this morning: 13
      sessions done of 30 days' worth leave the live rate at 13, and both
      say 14 — the rate before today's work, rounded up. */
-  const midday = prepGlance(30, { kind: "rate", rate: 13 }, 0, 13 * 18);
+  const midday = prepGlance(30, { kind: "rate", rate: 13 }, 0, 13 * SESSION_SIZE);
   assert.deepEqual([midday.done, midday.goal], [13, 14]);
   assert.match(midday.detail, /^About 14 sessions a day will get you ready/);
-  const all = prepGlance(5, { kind: "already" }, 36, 0);
+  const all = prepGlance(5, { kind: "already" }, 2 * SESSION_SIZE, 0);
   assert.deepEqual([all.days, all.tone, all.status, all.detail], [5, "good", "All learnt", ""]);
 });
 
@@ -347,24 +349,24 @@ test("only a question on a prep card counts towards the prep, whatever session a
 });
 
 test("the home screen counts today's sessions against what today needs", () => {
-  /* 18 questions to a session. Nothing done: the rate, rounded up. */
+  /* SESSION_SIZE questions to a session. Nothing done: the rate, rounded up. */
   assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.3 }, 0), { done: 0, goal: 3 });
   assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.3 }, 0), { done: 0, goal: 3 });
   /* Two sessions done, and the rate read afterwards has fallen by about
      what they did: the goal stays where it was this morning. */
-  assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.1 }, 36), { done: 2, goal: 3 });
-  assert.equal(prepGlance(10, { kind: "rate", rate: 2.1 }, 0, 36).goal, 3);
+  assert.deepEqual(prepToday(10, { kind: "rate", rate: 2.1 }, 2 * SESSION_SIZE), { done: 2, goal: 3 });
+  assert.equal(prepGlance(10, { kind: "rate", rate: 2.1 }, 0, 2 * SESSION_SIZE).goal, 3);
   /* A session half done is not counted yet. */
-  assert.equal(prepToday(10, { kind: "rate", rate: 2.1 }, 45).done, 2);
+  assert.equal(prepToday(10, { kind: "rate", rate: 2.1 }, 2.5 * SESSION_SIZE).done, 2);
   assert.deepEqual(
-    (({ done, goal }) => ({ done, goal }))(prepGlance(10, { kind: "rate", rate: 1.8 }, 0, 54)),
+    (({ done, goal }) => ({ done, goal }))(prepGlance(10, { kind: "rate", rate: 1.8 }, 0, 3 * SESSION_SIZE)),
     { done: 3, goal: 3 },
   );
   /* Under a session a day still asks for one today. */
   assert.equal(prepGlance(1, { kind: "rate", rate: 0.4 }, 0, 0).goal, 1);
   /* No rate to keep to: just what was done. */
   assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 0).goal, null);
-  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, 18).done, 1);
+  assert.equal(prepGlance(3, { kind: "late", earliest: null }, 0, SESSION_SIZE).done, 1);
 });
 
 test("a sentence whose words are not cleared yet starts after them", () => {
@@ -391,7 +393,7 @@ test("aiming at cleared: less work, a nearer floor, and a cleared card needs not
   const cleared = workloadOf(deck(), settings, FROM, "cleared");
   assert.equal(cleared.left, 12);
   assert.ok(cleared.questions < learnt.questions, `${cleared.questions} against ${learnt.questions}`);
-  assert.equal(cleared.earliestDays, CLEAR_DAYS + Math.ceil(12 / FRONT_DOOR_CAP) - 1);
+  assert.equal(cleared.earliestDays, CLEAR_DAYS + Math.ceil(12 / NEW_PER_DAY) - 1);
 
   const up = deck().map((it) => withStates(it, clearedState));
   assert.equal(workloadOf(up, settings, FROM).left, 12, "cleared is not learnt");

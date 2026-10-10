@@ -221,22 +221,13 @@ import {
   freshStates,
   isAsked,
   itemDifficulty as itemDifficultyOf,
-  justPractised,
   maturity,
   missedTwice,
   openTypes as openTypesOf,
   passesMade,
   reachedLevel,
   solid,
-  FRONT_DOOR_CAP,
-  roomForNew,
-  inHandCap,
-  frontDoorCap,
-  byVariety,
   typicalDay,
-  restingNow,
-  throughDoor,
-  familyMaturity,
   standing,
   standings as standingsOf,
   stateReady,
@@ -247,7 +238,21 @@ import {
   inOrder,
   shuffled,
 } from "./scheduler.ts";
-import type { Move, Standing } from "./scheduler.ts";
+import type { Move, Standing, Unit } from "./scheduler.ts";
+import { mixSession, roomForNew as roomForNewIn } from "./session-mix.ts";
+import type { MixCard } from "./session-mix.ts";
+import {
+  SESSION_SIZE,
+  PER_UNIT,
+  MAX_UNITS_PER_FAMILY,
+  MAX_DIALOG_LINES,
+  TIMED_PER_MINUTE,
+  cutAtLength,
+  varyTypes,
+  requeueMissed,
+  fillSession,
+} from "./session-layout.ts";
+export { varyTypes, requeueMissed, mayFollow } from "./session-layout.ts";
 import { PAIR_WORDS, PICK_OPTIONS, lookAlikes, matchGroups, matchSet, optionsFor } from "./chance.ts";
 import {
   EMPTY_SIBLINGS,
@@ -450,11 +455,9 @@ export function wordsOfDigit(digit: Item, among: Item[]): Item[] {
   return index.get(`${systemIdOf(digit)}|${digit.numeral}`) || [];
 }
 
-/* Whether a word card's own word has been answered at all, and whether it
-   is cleared — read off its lead form, the word itself: a face that counts
-   things waits on a noun and says nothing about the word. */
-const wordMet = (word: Item, settings: Settings): boolean =>
-  laddered(leadOf(word), settings).some((k) => stateOf(leadOf(word), k).phase !== "new");
+/* Whether a word card's own word is cleared — read off its lead form, the
+   word itself: a face that counts things waits on a noun and says nothing
+   about the word. */
 const wordCleared = (word: Item, settings: Settings): boolean => {
   const ladder = laddered(leadOf(word), settings);
   return !!ladder.length && cleared(ladder, (k) => stateOf(leadOf(word), k));
@@ -1903,7 +1906,7 @@ export function easedUnits(items: Item[], settings: Settings): Set<string> {
  * stretch had cleared first: its questions ask only numbers whose words
  * are cleared, so it can clear before the last spelling of the last word
  * has. Either one lets the stretch above through — the same shape as the
- * front door's `throughDoor` — so nobody waits longer than they did.
+ * old front door had, recognised or cleared — so nobody waits longer than they did.
  *
  * Read through availableTypes and not laddered, because laddered reads the
  * quiet set this is in the middle of working out. A word with nothing to
@@ -3717,62 +3720,61 @@ export function rangeCapsOf(items: Item[], settings: Settings): Map<string, numb
 }
 
 /*
- * The two numbers that decide whether a new word may be met.
+ * Where each card of a pool stands, as the session mix reads it.
  *
- * Counted over everything the learner holds in this language rather than
- * the deck in front of them: the deck is what they chose to look at, the
- * load is what they carry.
+ * Over what each card can be asked today (`typesOf`, askableTypes unless a
+ * session narrows it): a card with nothing it can be asked — a sentence
+ * waiting on its words, a word whose every form is shut — is not in the
+ * pool at all, so it neither takes a place nor counts as one in learning.
+ * The places are how its words come in.
  *
- * The front door is words met and not yet recognised or cleared. A word never
- * touched is *not* in it — it is waiting outside, which is the whole point
- * — so a course of three hundred strangers does not fill the pool and
- * block itself.
+ * Its standing is the one the learner is shown on the card — Learning,
+ * Cleared, Learnt — so the shares are of the same three things the learner
+ * sees. Never answered is new.
  *
- * Exported for the pace simulation, which reports what a course costs a
- * learner in days and is the only honest way to choose the two caps.
+ * Exported for the pace simulation, which deals the very rule the app does.
  */
-export function handCounts(items: Item[], settings: Settings, numbers?: KnownNumbers) {
-  let front = 0;
-  let inHand = 0;
-  for (const it of items) {
-    if (!isDrillable(it, settings)) continue;
-    const stage = familyMaturity(it, (u: Form) => reachedTypes(u, settings));
-    /* Never met: outside both pools. */
-    if (stage === "new") continue;
-    /* Met, and waiting for its building blocks — a sentence whose words the
-       learner has not cleared yet, which can be asked nothing until they
-       are. It holds no place: the places are how those words come in. */
-    if (waitsOnBlocks(it, settings)) continue;
-    /* And a number part waiting on its words the same way — see
-       knownNumbers — where the caller can say. */
-    if (numbers && isRangeSkill(it) && !numbers.ready(it)) continue;
-    if (stage !== "mature") inHand += 1;
-    /* Over the whole ladder, not the levels reached: cleared is read up
-       all of it, which is what the learner is shown. */
-    const through = drillableUnits(it, settings).every(({ unit }) =>
-      throughDoor(laddered(unit, settings), (t: string) => stateOf(unit, t))
-    );
-    /* A figure that comes in with its word holds no place of its own:
-       the word's place is how it came in. See ridesWithWord. */
-    if (!through && !(isNumeralCard(it) && wordsOfDigit(it, items).length)) front += 1;
+export function mixCardsOf(
+  pool: Item[],
+  items: Item[],
+  settings: Settings,
+  typesOf: (unit: Form) => string[] = (u) => askableTypes(u, settings),
+): MixCard<{ it: Item; units: Unit[] }>[] {
+  const out: MixCard<{ it: Item; units: Unit[] }>[] = [];
+  for (const it of pool) {
+    const units = drillableUnits(it, settings).filter(({ unit }) => typesOf(unit).length > 0);
+    if (!units.length) continue;
+    const dues: number[] = [];
+    let lastSeen = 0;
+    let fresh = true;
+    for (const { unit } of units) {
+      for (const t of typesOf(unit)) {
+        const st = stateOf(unit, t);
+        dues.push(st.due || 0);
+        lastSeen = Math.max(lastSeen, st.updated || 0);
+        if (st.phase !== "new") fresh = false;
+      }
+    }
+    const held = fresh ? null : standing(cardStandings(it, settings, items));
+    /* A question never asked on a card already met — a level that has just
+       opened — is waiting from the moment it exists, so it reads as due now
+       rather than as never due. It is not backlog, though: see `overdue`. */
+    const at = now();
+    const words = isNumeralCard(it) ? wordsOfDigit(it, items).map((w) => w.id) : [];
+    out.push({
+      card: { it, units },
+      id: it.id,
+      standing: fresh ? "new" : held && held.status === "done" ? "learnt" : held && held.status === "cleared" ? "cleared" : "learning",
+      due: dues.length ? Math.min(...dues.map((d) => d || at)) : 0,
+      lastSeen,
+      overdue: !!lastSeen && dues.some((d) => d > 0 && d <= at && d <= lastSeen),
+      askedFor: isUrgent(it, settings),
+      ...(words.length ? { ridesWith: words } : null),
+    });
   }
-  return { front, inHand };
+  return out;
 }
 
-/*
- * Whether a card is waiting on its building blocks and nothing else: it
- * leaves blanks, it has levels open, and not one of them can be filled
- * with words the learner has cleared. Only a card with blanks is asked,
- * since every other card has nothing it could be waiting on.
- */
-function waitsOnBlocks(it: Item, settings: Settings): boolean {
-  const units = drillableUnits(it, settings);
-  if (!units.some(({ unit }) => slotsOf(unit).length > 0)) return false;
-  return units.every(({ unit }) => {
-    const open = openTypes(unit, settings);
-    return open.length > 0 && !open.some((t) => fillableAt(unit, t, settings));
-  });
-}
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
    family is drillable when its main form qualifies. */
@@ -3890,7 +3892,7 @@ const shuffle: <T>(arr: T[]) => T[] = (arr) => shuffled(arr);
  *
  * Read by the matching grid, which uses it to choose words worth confusing.
  * The session builder used to read it too, to gather related cards into one
- * sitting; it no longer does — see SESSION_SIZE below for why.
+ * sitting; it no longer does — see MAX_UNITS_PER_FAMILY in session-layout.ts.
  */
 function wordLikeness(a: string, b: string, lang: Lang): number {
   const key = lang.similarityKey || ((x: string) => String(x || ""));
@@ -3911,7 +3913,11 @@ function wordLikeness(a: string, b: string, lang: Lang): number {
 /* ------------------------------------------------------------------
    Session building
 
-   The shape of a session is fixed, and this is where it is fixed.
+   The shape of a session is fixed, in two files: which cards a session
+   practises is the session mix (session-mix.ts), and how they become its
+   questions — length, how much of each card, the order — is the session
+   layout (session-layout.ts). What is here builds the questions themselves
+   and joins the two.
 
    It used to be six sliders under an Advanced disclosure — how long a
    session runs, how many ways each form is drilled, how many new cards it
@@ -3926,167 +3932,9 @@ function wordLikeness(a: string, b: string, lang: Lang): number {
    reason the same words kept coming round: three exercises per form meant
    an eighteen-question session was six cards, and gathering similar cards
    meant those six were as alike as the list allowed. Two each and no
-   gathering makes it nine cards, met once apiece in two ways.
+   gathering made it nine cards, met once apiece in two ways; twenty
+   questions since 0.414 make it ten.
    ------------------------------------------------------------------ */
-
-/* How long a session runs. Long enough to be worth opening, short enough
-   to finish on a bus. */
-const SESSION_SIZE = 18;
-
-/*
- * How many ways one form is drilled in a sitting.
- *
- * Two, not three. A form is asked in its own right on every one of these,
- * so the third asking cost a whole other card its place in the session —
- * and a third angle on a word you met ninety seconds ago teaches less than
- * a first angle on a word you have not seen today.
- */
-const PER_UNIT = 2;
-
-/*
- * How many words may be in hand for somebody whose typical day answers
- * `perDay` questions.
- *
- * A form is asked PER_UNIT ways a sitting, so a day of `perDay` questions
- * reaches about `perDay / PER_UNIT` words, and the pool is sized to that:
- * each word a day's practice holds is met about once, rather than the same
- * sixty two or three times over. Nobody is given less than the fixed
- * sixty — see `inHandCap`. Exported for the pace simulation.
- */
-export function inHandFor(perDay?: number): number {
-  return inHandCap(((perDay || 0) / PER_UNIT) * KEEN_POOL);
-}
-
-/*
- * Two words in hand for every word a day reaches, not one.
- *
- * One was the first answer, and it was enough while a new word took six
- * days to clear. Once the words still climbing come first for a keen
- * learner (see KEEN_DAY) they clear in about a day, and the pool, not the
- * front door, became what stopped new words: about 130 met in two months
- * at fifteen sittings a day. At two it is about 255, and nearly all of them
- * learnt. It changes nothing below sixty — which is where anybody doing
- * fewer than about three sittings a day already sits — so only the keen
- * are affected.
- */
-const KEEN_POOL = 2;
-
-/*
- * How many strangers this learner may hold at once — the front door, sized
- * to how much they practise.
- *
- * A typical day reaches `perDay / PER_UNIT` words, and the door holds one
- * for every DOOR_OUTINGS of them: ten for anybody doing up to about five
- * sittings a day, as it always was, rising to twenty at about ten. See
- * FRONT_DOOR_MAX. Exported for the pace simulation.
- */
-export function frontDoorFor(perDay?: number): number {
-  return frontDoorCap((perDay || 0) / PER_UNIT);
-}
-
-/*
- * What kind of card this is, for mixing the new cards a learner is given.
- *
- * Words by what the teacher says they are — a noun, a verb, a name — so a
- * door's worth of strangers is not all one part of speech; then phrases,
- * sentences, conversations and texts, each a kind of its own; and a number
- * skill, which is none of those. See byVariety.
- */
-export function varietyOf(it: Item, settings: Settings): string {
-  if (isRangeSkill(it)) return "skill";
-  if (isDialog(it)) return isText(it) ? "text" : "conversation";
-  const kind = kindOf(it, LANGUAGES[langIdOf(it, settings)] || langOf(settings));
-  return kind === "word" && it.category ? `word:${it.category}` : kind;
-}
-
-/*
- * More than two full sittings' worth of questions on a typical day: the
- * learner who comes back later the same day, so a review passed over now
- * is still reached before it goes stale. It decides one thing — whether
- * the words still climbing jump the queue. See buildSession.
- */
-const KEEN_DAY = 2 * SESSION_SIZE;
-
-/*
- * How many forms of one card a session will take.
- *
- * Two, and it is the other half of the repetition fix. A verb lays out
- * twenty-odd cells and a word with pronouns on it a dozen, all of them
- * forms of one word; the budget is divided by how many forms a card brings,
- * so at four a session of verbs was two words and eighteen questions about
- * them. At two, the cells still each get their turn — they are scheduled in
- * their own right and come round on their own — but no single word can be
- * half an evening.
- */
-const MAX_UNITS_PER_FAMILY = 2;
-
-/*
- * The most times one form is asked in one session, when the session has
- * nothing else to ask — see buildSession. Two is the rule (PER_UNIT); four
- * is a beginner with only their ten new words to practise, asked each of
- * them a second round rather than handed a session half the length they
- * chose.
- */
-const MAX_ASKS_PER_UNIT = 4;
-
-/*
- * Where a queue reaches a session's length, which is counted in screens:
- * a grid is one screen however many words are in it, so a session of
- * twenty shows twenty on its counter. The owner's choice over counting the
- * words in a grid, which made a session of twenty read "1 / 16".
- */
-function cutAtLength(queue: unknown[], length: number): number {
-  return Math.min(queue.length, length);
-}
-
-/* And of a conversation, in one sitting. Deliberate rather than
-   discovered: without it a six-line scene is the whole session, and the
-   first thing anyone would have written is a scene with six lines. */
-const MAX_DIALOG_LINES = 2;
-
-/*
- * A question answered wrong, put back into what is left of the session.
- *
- * It is the same question deliberately — the point of asking again is to
- * test the thing that failed, not to change the subject. And it goes to the
- * back of the queue, which gives it a gap the size of whatever is left: a
- * long session re-asks it in fifteen questions' time, a short one in three,
- * and both are a retest rather than a copy of an answer still on the
- * screen.
- *
- * What was wrong was that it went there *blind*. The queue is spaced out
- * when it is built — no two questions running about the same card, see
- * varyTypes — and everything added afterwards skipped that pass, so missing
- * a card's two questions put its two retries back to back at the end. So
- * the same rule is applied here: back up over any neighbour about the same
- * card, and stop short of it.
- *
- * `from` is the first question not yet answered; everything before it is
- * done and is never moved. With nothing left after it the retry is the very
- * next question, which is the one case this cannot improve on — dropping it
- * instead would end a session of one question the moment it was got wrong,
- * having taught nothing, and would break the promise Ultimate makes in as
- * many words. Standing next to itself is only a fault while there is
- * something to stand between.
- */
-export function requeueMissed(list: Question[], from: number, ex: Question): Question[] {
-  const put = (at: number) => list.slice(0, at).concat([{ ...ex }], list.slice(at));
-  /* The back of the queue, then forward off any neighbour it may not stand
-     beside — about the same card, or the same exercise — on both sides,
-     because stopping in front of one is as bad as stopping behind it. Never
-     as far as `from`: the question there is the miss itself, still on the
-     screen. The exercise is the rule that gives way first, as it does when
-     the queue is built. */
-  const clean = (at: number) => mayFollow(list[at - 1], ex) && mayFollow(ex, list[at]);
-  const apart = (at: number) =>
-    [list[at - 1], list[at]].every((q) => !q || !cardsIn(q).some((id) => cardsIn(ex).includes(id)));
-  for (const ok of [clean, apart]) {
-    for (let at = list.length; at > from; at -= 1) if (ok(at)) return put(at);
-  }
-  /* Nowhere clean — what is left is the card's own questions, or there is
-     nothing left at all. The end, which is where it used to go. */
-  return put(list.length);
-}
 
 const MODES = {
   regular: {
@@ -4132,13 +3980,6 @@ function notSeenLately(unit: Form, settings: Settings) {
   return now() - last >= UNSEEN_DAYS * 86400000;
 }
 
-/*
- * How many questions a timed session is given to work through: about one
- * every ten seconds. Only Regular reads it, because it is the one mode
- * whose cards are chosen to fit a length — the rest take everything picked
- * and let the clock end it.
- */
-const TIMED_PER_MINUTE = 6;
 
 /* Did this form go wrong in either of its last two outings? Read in the
    card's own language, and through stateOf, which answers for a key that
@@ -4160,109 +4001,6 @@ function hasRecentMistake(unit: Form, settings: Settings) {
   return false;
 }
 
-/* Every card a question is about: its own, and in a grid every word
-   standing in it too, since each of those is asked there as well. */
-function cardsIn(q: Question): string[] {
-  return q.mates ? [q.id, ...q.mates.map((m) => m.id)] : [q.id];
-}
-
-/* May `b` be asked straight after `a`? Not about any card `a` was about,
-   and not the same exercise. */
-export function mayFollow(a: Question | null | undefined, b: Question | null | undefined): boolean {
-  if (!a || !b) return true;
-  if (a.type === b.type) return false;
-  const was = cardsIn(a);
-  return !cardsIn(b).some((id) => was.includes(id));
-}
-
-/*
- * Two rules for the order of a session: no two questions running about the
- * same card, and no two running of the same exercise.
- *
- * It used to be a greedy pass — take the first question that differs from
- * the one before — and that is exactly what broke the first rule. A greedy
- * pass spends the other cards early and leaves whatever card has the most
- * questions (a verb bringing two of its forms, say) piled at the end, where
- * they can only stand next to each other: in a simulation of ordinary
- * sessions about four in ten ended with one card twice running when an
- * order without it existed. So the whole order is planned instead: a search
- * that tries the queue's own order first (easiest first, a card the learner
- * asked for ahead of all of it) and turns aside only where following it
- * would leave the rest with no way to be kept apart. `prev` is a question
- * already asked, for when only the tail of a session is being put in order.
- *
- * Where the material cannot keep both rules — one card and nothing else, a
- * weak-skills session all of one exercise — the search gives up on a
- * budget and the old greedy pass deals it, bending as little as it can,
- * the card first: a question is never dropped to keep a rule.
- */
-export function varyTypes(list: Question[], prev: Question | null = null): Question[] {
-  const n = list.length;
-  if (n < 2 && !prev) return list.slice();
-
-  /* How many of each card and each exercise are left, for the pruning: a
-     kind that holds more than half of what is left, rounded up, cannot be
-     kept apart — and none of it may come first after one of its own. */
-  const cardLeft: Map<string, number> = new Map();
-  const typeLeft: Map<string, number> = new Map();
-  const bump = (m: Map<string, number>, k: string, by: number) => m.set(k, (m.get(k) || 0) + by);
-  for (const q of list) {
-    bump(cardLeft, q.id, 1);
-    bump(typeLeft, q.type, 1);
-  }
-  const fits = (left: number, last: Question | null) => {
-    for (const [k, c] of cardLeft) {
-      if (c > Math.ceil(left / 2)) return false;
-      if (last && c > Math.floor(left / 2) && cardsIn(last).includes(k)) return false;
-    }
-    for (const [k, c] of typeLeft) {
-      if (c > Math.ceil(left / 2)) return false;
-      if (last && c > Math.floor(left / 2) && last.type === k) return false;
-    }
-    return true;
-  };
-
-  const used = new Array(n).fill(false);
-  const out: Question[] = [];
-  let budget = 200 * n + 1000;
-  const search = (last: Question | null): boolean => {
-    if (out.length === n) return true;
-    if (budget-- <= 0) return false;
-    for (let i = 0; i < n; i++) {
-      if (used[i] || !mayFollow(last, list[i])) continue;
-      const q = list[i];
-      used[i] = true;
-      out.push(q);
-      bump(cardLeft, q.id, -1);
-      bump(typeLeft, q.type, -1);
-      if (fits(n - out.length, q) && search(q)) return true;
-      bump(cardLeft, q.id, 1);
-      bump(typeLeft, q.type, 1);
-      out.pop();
-      used[i] = false;
-      if (budget <= 0) return false;
-    }
-    return false;
-  };
-  if (fits(n, prev) && search(prev)) return out;
-
-  /* No clean order, or none found in time. */
-  const dealt: Question[] = [];
-  const rest = list.slice();
-  let last = prev;
-  const sameCard = (a: Question | null, b: Question) => !!a && cardsIn(b).some((id) => cardsIn(a).includes(id));
-  while (rest.length) {
-    let pick = rest.findIndex((e) => mayFollow(last, e));
-    if (pick === -1) pick = rest.findIndex((e) => !sameCard(last, e));
-    if (pick === -1) pick = rest.findIndex((e) => !last || e.type !== last.type);
-    if (pick === -1) pick = 0;
-    const [e] = rest.splice(pick, 1);
-    dealt.push(e);
-    last = e;
-  }
-  return dealt;
-}
-
 /*
  * `reason` names why a session came back empty, so the button that asked
  * for it can say something rather than appear broken. `items` and `units`
@@ -4279,6 +4017,9 @@ interface Session {
      practising for the sake of it is never left thinking they have made
      more headway through their schedule than they have. */
   due?: number;
+  /* New cards are waiting while the learner catches up on overdue reviews
+     — see isBehind in session-mix.ts — and the screen says so. */
+  catchingUp?: boolean;
 }
 
 /*
@@ -4428,19 +4169,10 @@ const borrowsPhrase = (t: string) => {
 /*
  * A session of numbers and nothing else keeps to them: a deck of number
  * parts, or one put together from number words. Every card in it from a
- * number system, and then no question stands a word in a phrase — neither
- * an exercise that needs one nor the phrase any other is shown in, which
- * would be a sentence from another deck — and each carries `within`, so
- * its wrong answers and the company in its grid are other number words.
- * buildSession makes the same moves in line as it deals.
+ * number system, and then no question stands a word in a phrase, and each
+ * carries `within`, so its wrong answers and the company in its grid are
+ * other number words. buildSession makes these moves as it deals.
  */
-function keptToNumbers(plans: Question[]): Question[] {
-  if (!plans.length || !plans.every((q) => isFromSystem(q))) return plans;
-  return plans
-    .filter((q) => !borrowsPhrase(q.type))
-    .map(({ ctx: _phrase, ...q }) => ({ ...q, within: "numbers" as const }));
-}
-
 /* The cards a session's grids may be filled from: number words alone in a
    session kept to the numbers. */
 const gridCompany = (plans: Question[], items: Item[]): Item[] =>
@@ -4531,30 +4263,31 @@ function drawRange(
   return options.length >= PICK_OPTIONS - 1 ? { ask, options } : { ask };
 }
 
+
 /**
- * The same drawing, over a queue somebody else built.
+ * The kinds of session. Regular is the everyday one, on the home screen, a
+ * prep's decks or the cards picked on the Build screen; the rest are the
+ * Build screen's other modes. Under the session mix every one of them is
+ * the same rule over a different pool, or the same rule asking a different
+ * set of questions:
  *
- * buildSession draws as it deals; the session built by hand and the
- * weak-skills sitting plan their questions their own way and come through
- * here afterwards, so a range they ask is never put on screen with nothing
- * to read. One that cannot be drawn — no composer for its language — is
- * left out rather than asked bare.
+ * - **Fix mistakes:** the pool is cards gone wrong in their last outings.
+ * - **Not seen lately:** cards not practised for a few days, new ones
+ *   included — which come in through the learning share like anywhere else.
+ * - **Weak skills:** cards with something going wrong now, asked the
+ *   questions that went wrong.
+ * - **Get started:** recognition questions only.
+ * - **Ultimate:** every question each card has open.
  */
-function drawRanges(exercises: Question[], items: Item[], sets: SystemSet[], settings: Settings): Question[] {
-  const numbers = knownNumbers(items, settings, sets);
-  const out: Question[] = [];
-  for (const ex of exercises) {
-    const item = byIdOf(items).get(ex.id);
-    const unit = item && ex.subId ? formsOf(item).find((f) => f.id === ex.subId) : null;
-    const face = !!(unit && unit.countedAt);
-    if (!item || !(item.range || face) || ex.ask) {
-      out.push(ex);
-      continue;
-    }
-    const drawn = drawRange(item, unit && face ? unit : item.forms[0], ex.type, sets, items, settings, numbers);
-    if (drawn.ask) out.push({ ...ex, ...drawn });
-  }
-  return out;
+export type SessionMode = "regular" | "ultimate" | "started" | "mistakes" | "unseen" | "weak";
+
+/* What sort of card this is, for the order of questions: no more than two
+   of one kind running. The owner's three — a word, a sentence (a phrase, a
+   sentence, a scene), a number. */
+function orderKindOf(it: Item | undefined, settings: Settings): string {
+  if (!it) return "word";
+  if (isFromSystem(it)) return "number";
+  return kindOf(it, LANGUAGES[langIdOf(it, settings)] || langOf(settings)) === "word" ? "word" : "sentence";
 }
 
 export function buildSession({
@@ -4566,31 +4299,24 @@ export function buildSession({
   budget: budgetIn,
   perDay,
   systems,
-  newWithin,
+  mode = "regular",
 }: {
   items: Item[];
   settings: Settings;
+  /** The pool: the cards this session may draw from. */
   inDeck: (it: Item) => boolean;
+  /**
+   * Deal everything in the pool, by due date, without the mix. Nothing the
+   * learner can open does this; tests and the pace simulation use it to
+   * put a whole fixture in front of them.
+   */
   practice?: boolean;
   includeAll?: boolean;
   budget?: number;
   /**
-   * Count the new words already in hand among the chosen cards only.
-   *
-   * The limit on new words is the learner's, across everything they hold,
-   * and on the home screen it should be: it is what keeps new words from
-   * piling up. A practice somebody builds on particular decks is them
-   * asking for those decks, and a deck nobody has started then came up
-   * empty because of words in some other deck — "nothing new to bring in"
-   * over a deck that is all new. So there the limit is read over the
-   * chosen cards: the deck's own new words still come in a few at a time.
-   */
-  newWithin?: boolean;
-  /**
    * Questions this learner answers on a typical day — `typicalDay` over
-   * the activity log. It sizes how many words may be in hand at once (see
-   * `inHandFor`); left out, it is the fixed sixty that suits somebody who
-   * sits down once a day.
+   * the activity log. It sets how far behind on reviews pauses new cards:
+   * three days of this, and never less than three sessions.
    */
   perDay?: number;
   /**
@@ -4602,10 +4328,11 @@ export function buildSession({
    * with nothing in it.
    */
   systems?: SystemSet[];
+  mode?: SessionMode;
 }): Session {
   const sets = systems || [];
   const numbers = knownNumbers(items, settings, sets);
-  const pool = items
+  const drillable = items
     .filter((it) => inDeck(it) && isDrillable(it, settings))
     /* A skill whose system this device no longer holds — a course left,
        a teacher's language dropped — is a schedule with nothing behind
@@ -4614,323 +4341,105 @@ export function buildSession({
        asked yet, because the words they are built of are not recognised:
        the words are in the deck beside it and come first. */
     .filter((it) => !isRangeSkill(it) || (systemFor(it, sets) && numbers.ready(it)));
-  if (!pool.length) return { exercises: [], reason: "none-drillable" };
+  if (!drillable.length) return { exercises: [], reason: "none-drillable" };
 
-  /* Numbers and nothing else — see keptToNumbers. */
-  const onlyNumbers = pool.every((it) => isFromSystem(it));
-
-  const budget = Math.max(4, budgetIn || SESSION_SIZE);
-
-  /* --- candidate families --- */
-  let candidates = pool.map((it) => {
-    const units = drillableUnits(it, settings);
-    /* Over the open levels only. A level not yet reached is all fresh
-       states, and a fresh state is ready by definition — counted, it would
-       have every card in the deck due at once. */
-    const dues: number[] = [];
-    /* And when any of it was last answered, which decides nothing until
-       the learner has run out of cards that are actually due — see
-       justPractised. */
-    let lastSeen = 0;
-    for (const { unit } of units) {
-      for (const t of askableTypes(unit, settings)) {
-        const st = stateOf(unit, t);
-        dues.push(st.due || 0);
-        lastSeen = Math.max(lastSeen, st.updated || 0);
-      }
-    }
-    /* Askable rather than merely open, so a frame with nothing to fill it
-       yet is not counted as waiting: it would be picked, admitted against
-       the room for new cards, and then deal no question at all — a new
-       card's place spent on a card that cannot be asked. */
-    /* The learner asked for this one, so it goes to the front whatever its
-       schedule says — see isUrgent. */
-    const urgent = isUrgent(it, settings);
-    /* Whether the card was *due* used to be worked out here and used to
-       cut the list. Nothing asks it any more: being due decides where a
-       card sits in the order, which `soonest` above already carries, and
-       no longer decides whether it may be practised at all. What is
-       genuinely waiting is still counted, for the number on the home
-       screen — see countReady, which is a question about the learner's
-       day rather than about this session. */
-    const isNew = units.every(({ unit }) =>
-      askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
-    );
-    const soonest = dues.length ? Math.min(...dues) : 0;
-    /* Waiting only because it was asked a moment ago — see restingNow. A
-       card the learner asked for never rests. */
-    const resting = !urgent && restingNow(lastSeen, dues);
-    /* Met and still climbing: one of the words in the front door, which
-       holds its place there until it is cleared — see KEEN_DAY. */
-    const climbing =
-      !isNew &&
-      units.some(({ unit }) => !throughDoor(laddered(unit, settings), (t: string) => stateOf(unit, t)));
-    return { it, units, soonest, isNew, urgent, lastSeen, resting, climbing };
-  })
-    /* And a card with nothing it can be asked yet is not a candidate at
-       all: a word waiting with a stretch that has not opened (see
-       homeStretch), or one whose every form is resting. It has no units,
-       so it read as new — every() over nothing — and took a place in the
-       room for new cards that it could never use. A beginner's numbers
-       session was two or four questions, the rest of its places spent on
-       the words for ninety and a million. */
-    .filter((c) => c.units.length > 0);
-
-  /* Ordered before anything is filtered, because the filter below keeps
-     the first few new cards and "the first few" is decided here. Anything
-     already due ranks together and is shuffled, so which new cards a
-     session opens with, and which of the overdue ones it reaches, differ
-     from one sitting to the next — and a card the learner asked for ranks
-     above all of it. */
-  candidates = inOrder(candidates, (c) => (c.urgent ? -1 : dueRank(c.soonest)));
-
-  /*
-   * And among what is *not* due, a card just practised gives way to one
-   * that was not.
-   *
-   * Only among what is not due, which is the whole of the care needed
-   * here: everything genuinely waiting still comes first, in the order
-   * above, and a card the learner asked for still outranks all of it. What
-   * this decides is the order a session reaches past the due line in, and
-   * that order used to be "nearest to due" and nothing else — so the
-   * second sitting of an afternoon reached for the same cards as the
-   * first, and the thirtieth for the same cards as the twenty-ninth. A
-   * learner practising all day was handed nine words and never the rest of
-   * what they were learning.
-   *
-   * Written as a partition rather than another rank because the order
-   * inside each half is one already settled above, and shuffling it again
-   * would throw away the nearest-first reach that a practice session is
-   * for.
-   */
-  /*
-   * And a card asked in the last half hour rests, behind all of it.
-   *
-   * The rule above never reached the cards being learnt, because they are
-   * nearly always waiting: a retest a minute or ten after the last answer,
-   * or a level that opened with every question on it due at once. So
-   * those went first in every sitting, and a learner who came back three
-   * times in an hour was dealt the same words three times. A resting card
-   * is still dealt — last, and in the order it had — and backlog never
-   * rests: a question that was due before the card was last touched keeps
-   * the card in the first group. See restingNow.
-   */
-  const unrested = candidates.filter((c) => !c.resting);
-  const waitingNow = (c: { urgent: boolean; soonest: number }) =>
-    c.urgent || dueRank(c.soonest) === 0;
-  const ahead = unrested.filter((c) => !waitingNow(c));
-  /*
-   * And for somebody who practises a lot, the words still climbing come
-   * first among what is waiting.
-   *
-   * Everything waiting ranks together and is shuffled, which for a keen
-   * learner meant the ten words in the front door drew lots for a session's
-   * nine places with twenty-odd reviews. A new word was dealt in about a
-   * third of their sittings, took about six days to clear, and held its
-   * place in the front door all that time, so nothing new came in behind
-   * it. First in line, it is asked in nearly every sitting and clears in
-   * about a day.
-   *
-   * Only past `KEEN_DAY`, because for somebody who sits down once a day the
-   * reviews passed over are not reached later that day: in the pace
-   * simulation their words learnt in two months fell from about a dozen to
-   * none. Below the line the order is exactly what it was. A card the
-   * learner asked for still comes ahead of all of it.
-   */
-  const keen = (perDay || 0) > KEEN_DAY;
-  const first = (c: { urgent: boolean; climbing: boolean }) => c.urgent || (keen && c.climbing);
-  candidates = unrested
-    .filter((c) => waitingNow(c) && first(c))
-    .concat(
-      unrested.filter((c) => waitingNow(c) && !first(c)),
-      ahead.filter((c) => !justPractised(c.lastSeen)),
-      ahead.filter((c) => justPractised(c.lastSeen)),
-      candidates.filter((c) => c.resting)
-    );
-
-  /*
-   * Being due decides the order, not whether you may practise at all.
-   *
-   * It used to be both, and the second job was the one that hurt. A
-   * learner partway through a course met the app's own pacing as silence:
-   * ten cards learnt in four minutes, then seven minutes with nothing on
-   * offer while they came back round, four times over, and then a wall
-   * for the rest of the day. Somebody up to date got the same silence for
-   * a different reason. And nothing on the screen could explain either,
-   * because "nothing is due" is not a sentence a person accepts from an
-   * app they opened on purpose.
-   *
-   * Practising early is cheap. An empty screen is not: it costs the
-   * learner who was willing, which is the only kind there is. So the list
-   * is no longer cut at the due line — it is simply *sorted* by it, which
-   * it already was a few lines above, and a session takes the front of it
-   * whether that is forty overdue cards or the nearest thing to due.
-   *
-   * What makes this safe rather than merely generous is in the scheduler:
-   * a gap grows from the time actually waited, so a card answered minutes
-   * after its last review is counted, welcomed and left exactly where it
-   * was. Twenty answers in an evening cannot push anything out of reach.
-   *
-   * The limits on *new* cards are a different rule with a different
-   * reason, and they still apply on every path below. More practice means
-   * more of what the learner already holds, never more than they can take
-   * on at once.
-   */
-  // A hand-picked session takes everything chosen, and sets its own limits.
-  if (!practice && !includeAll) {
-    /*
-     * Room for what is new — the only thing that rations it.
-     *
-     * Three rules used to sit here and none of them knew about the others:
-     * three a session, nothing while ten cards were mid-learning, nothing
-     * at all while forty were still settling, and a scan of every exercise
-     * on every card to stop new ones arriving while a pile was going
-     * badly. Between them they made the real rate about one new word every
-     * four days, measured — and the first of them meant ten short sittings
-     * in an evening were thirty new words where one long sitting was
-     * three, for the same work.
-     *
-     * One rule now: a word is earned by learning one. The struggling case
-     * the backlog scan existed for falls out of it, because a learner who
-     * keeps forgetting has words that never reach a four-day gap — those
-     * words hold their place and nothing new arrives, which is the same
-     * protection without a rule of its own to keep in step.
-     */
-    const room = roomForNew(
-      handCounts(newWithin ? items.filter(inDeck) : items, settings, numbers),
-      inHandFor(perDay),
-      frontDoorFor(perDay),
-    );
-    /* Which ones, mixed by kind against what is already in the front door
-       — see byVariety. Picked in the order they will be reached, so a
-       session with room for only some of them still takes a mix. */
-    /*
-     * And a figure comes in with its word: ٣ the session تلاتة is first
-     * met, or any session after. It is not offered a place of its own, so
-     * the ten figures neither wait their turn behind the words — a learner
-     * reading تلاتة with ٣ still "not started" — nor take ten of a
-     * beginner's places from them. A figure whose box the teacher has not
-     * filled has no word to wait for, and comes in as any card does.
-     */
-    const rides = (c: { it: Item }) => isNumeralCard(c.it) && wordsOfDigit(c.it, items).length > 0;
-    const picked = byVariety(
-      candidates.filter((c) => c.isNew && !c.urgent && !rides(c)),
-      room,
-      candidates.filter((c) => c.climbing),
-      (c) => varietyOf(c.it, settings)
-    );
-    /* Each right behind its word, so a session with room for only some of
-       them never takes a figure and leaves its word out; and one whose
-       word is already under way first, since that word is in hand. */
-    const riders = candidates.filter((c) => c.isNew && !c.urgent && rides(c));
-    const behindWord = (word: Item) => riders.filter((d) => wordsOfDigit(d.it, items).includes(word));
-    const admitted = riders
-      .filter((d) => wordsOfDigit(d.it, items).some((w) => wordMet(w, settings)))
-      .concat(picked.flatMap((c) => [c, ...behindWord(c.it)]))
-      .filter((c, i, all) => all.indexOf(c) === i);
-    candidates = candidates.filter(
-      /* Except one the learner asked for by name. Both rules above are the
-         app protecting somebody from more new words than they can hold,
-         and neither is worth telling a learner who has just pointed at a
-         card that they cannot have it. It is one card, chosen on purpose,
-         and the way to stop it is the way it started. */
-      (c) => !c.isNew || c.urgent
-    );
-    /*
-     * And a place admitted is a place kept.
-     *
-     * Everything already due ranks together, so the new cards the rule
-     * above just let in were left to take their chance in the shuffle
-     * with every card waiting for review — and the shortlist below is
-     * only as long as the session has room for, so on any day with a
-     * queue behind it they fell off the end. Three new cards a session
-     * then meant three on the days nothing else was waiting, which is not
-     * what it says.
-     *
-     * They go to the front instead, behind the cards the learner asked
-     * for, which are the only thing that outranks them. The order they are
-     * asked in is still the warm-up's: this decides only that they are in
-     * the session at all.
-     */
-    candidates = candidates
-      .filter((c) => c.urgent)
-      .concat(
-        admitted,
-        candidates.filter((c) => !c.urgent && !c.isNew)
-      );
+  /* The mode's own pool, narrowed from the cards chosen. */
+  const units = (it: Item) => drillableUnits(it, settings);
+  const pool = drillable.filter((it) =>
+    mode === "mistakes"
+      ? units(it).some(({ unit }) => hasRecentMistake(unit, settings))
+      : mode === "unseen"
+      ? units(it).some(({ unit }) => notSeenLately(unit, settings))
+      : mode === "weak"
+      ? isWeak(it, settings)
+      : true
+  );
+  if (!pool.length) {
+    return {
+      exercises: [],
+      reason: mode === "weak" ? "nothing-weak" : mode === "mistakes" ? "no-mistakes" : mode === "unseen" ? "no-unseen" : "none-drillable",
+    };
   }
 
-  if (!candidates.length) return { exercises: [], reason: "nothing-due" };
+  /* And the mode's own questions: recognition alone for Get started, what
+     went wrong for Weak skills, worst first. */
+  const allowed = (t: string, unit: Form) =>
+    mode !== "started" || (EASY_TYPES.includes(typeOf(t)) && typeAllowedNow(t, unit));
+  const typesOf = (unit: Form): string[] => {
+    const open = askableTypes(unit, settings).filter((t) => allowed(t, unit));
+    if (mode !== "weak") return open;
+    return inOrder(open.filter((t) => weakness(stateOf(unit, t)) > 0), (t) => -weakness(stateOf(unit, t)));
+  };
 
-  /*
-   * Which cards, and how many: as many as it takes to fill the session.
-   *
-   * Taken straight off the front of the due list — the most overdue first,
-   * and chance between everything the due list calls equal — one card at a
-   * time until the questions they bring reach the budget. A card brings as
-   * many forms as it lays out, capped, and each form is asked PER_UNIT ways
-   * where it has that many open.
-   *
-   * This used to work out a number of cards up front, from the budget and
-   * the average card, and take that many. A card with fewer questions open
-   * than the average — a word on its first level, a skill with one
-   * exercise climbed — left the session short, two or three questions in
-   * every twenty, and nothing went back for more. Counting what each card
-   * actually brings is the same order and the same cards, until the
-   * session is full.
-   *
-   * It used to reach three to six times further down that list and then
-   * pick, out of the reach, whatever was most like the cards already
-   * chosen. A session of near-identical words is a session that feels like
-   * one word, and the card the reach passed over was one actually due.
-   */
-  const askedFor = candidates.filter((c) => c.urgent).length;
+  /* Numbers and nothing else — see gridCompany. */
+  const onlyNumbers = pool.every((it) => isFromSystem(it));
 
-  /* --- rules 2 and 6: every unit gets several exercise types, and a
-         family's sub-items come along in the same session --- */
+  /* Ultimate has no length of its own: every card the mix lets in, asked
+     every question it has. Any other session is the length it was given,
+     or SESSION_SIZE. */
+  const everyCard = mode === "ultimate" && !budgetIn;
+  const budget = everyCard ? Number.POSITIVE_INFINITY : Math.max(4, budgetIn || SESSION_SIZE);
+
+  /* Every card of the pool, where it stands. Chance first, between cards
+     the due list calls equal, so which new cards come in and which of the
+     overdue ones a session reaches differ from one sitting to the next. */
+  const rows = inOrder(mixCardsOf(pool, items, settings, typesOf), (c) => (c.askedFor ? -1 : dueRank(c.due)));
+  if (!rows.length) return { exercises: [], reason: "nothing-due" };
+
+  /* Which cards: the session mix (session-mix.ts). */
+  const everything = !!(practice || includeAll);
+  const mix = everything
+    ? null
+    : mixSession(rows, {
+        places: everyCard ? rows.length : budget / PER_UNIT,
+        at: now(),
+        dayCards: (perDay || 0) / PER_UNIT,
+      });
+  const cards = mix ? mix.cards : rows;
+  if (!cards.length) return { exercises: [], reason: "nothing-due" };
+
+  /* --- how much of each card: a form is asked two ways, and a card takes
+         at most two of its forms (a scene two of its lines) --- */
+  type Card = (typeof cards)[number];
   type Plan = { id: string; subId: string | null; unit: Form; types: string[]; more: string[]; range: boolean };
-  const planOf = (c: (typeof candidates)[number]): Plan[] => {
+  const planOf = (c: Card): Plan[] => {
+    const { it } = c.card;
     // Parent first, then whichever sub-items are most overdue.
-    const parent = c.units.filter((u) => !u.isSub);
+    const parent = c.card.units.filter((u) => !u.isSub);
     const subs = inOrder(
-      c.units.filter((u) => u.isSub),
-      (u) =>
-        dueRank(Math.min(...openTypes(u.unit, settings).map((t) => stateOf(u.unit, t).due || 0)))
+      c.card.units.filter((u) => u.isSub),
+      (u) => dueRank(Math.min(...typesOf(u.unit).map((t) => stateOf(u.unit, t).due || 0)))
     );
     /* A scene offers a line or two and not all of itself. Six lines would
        otherwise take a session over between them, and a conversation met
        two lines at a time across three evenings is learnt better than one
        swallowed whole in one. The whole-scene exercises come along beside
        them, which is what the card's own unit is. */
-    const take = isDialog(c.it)
+    const take = isDialog(it)
       ? parent.concat(subs.slice(0, MAX_DIALOG_LINES))
       : parent.concat(subs).slice(0, MAX_UNITS_PER_FAMILY);
     return take.map(({ unit, isSub }) => {
-      const ordered = pickableTypes(unit, settings).filter((t) => !onlyNumbers || !borrowsPhrase(t));
-      const picked = ordered.slice(0, Math.min(PER_UNIT, ordered.length));
+      const own = typesOf(unit);
+      const ordered = (mode === "weak" ? own : pickableTypes(unit, settings).filter((t) => own.includes(t)))
+        .filter((t) => !onlyNumbers || !borrowsPhrase(t));
+      const picked = mode === "ultimate" ? ordered.slice() : ordered.slice(0, Math.min(PER_UNIT, ordered.length));
       /* Asked in the table's own order, which runs from recognition to
          production: which exercises a unit gets is a matter of chance,
-         the order they come in is not. */
-      picked.sort((x, y) => TYPES.indexOf(typeOf(x)) - TYPES.indexOf(typeOf(y)));
+         the order they come in is not. What went wrong is asked worst
+         first instead. */
+      if (mode !== "weak") picked.sort((x, y) => TYPES.indexOf(typeOf(x)) - TYPES.indexOf(typeOf(y)));
       return {
-        id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked,
-        /* What else is open, for a session the cards in it cannot fill —
-           see the filling below. */
+        id: it.id, subId: isSub ? unit.id : null, unit, types: picked,
+        /* What else is open, for a session the cards in it cannot fill. */
         more: ordered.filter((t) => !picked.includes(t)),
-        range: !!c.it.range,
+        range: !!it.range,
       };
     });
   };
-  const planned = new Map<string, Plan[]>();
-  const plansOfCard = (c: (typeof candidates)[number]) => {
-    if (!planned.has(c.it.id)) planned.set(c.it.id, planOf(c));
-    return planned.get(c.it.id) as Plan[];
-  };
-  const asks = (list: Plan[]) => list.reduce((n, p) => n + p.types.length, 0);
 
   /* --- interleave, so a unit recurs with a gap rather than back to back --- */
-  const deal = (plans: Plan[]) => {
-    const out = [];
+  const deal = (plans: Plan[]): Question[] => {
+    const out: Question[] = [];
     const depth = Math.max(0, ...plans.map((p) => p.types.length));
     for (let round = 0; round < depth; round++) {
       for (const p of plans) {
@@ -4962,147 +4471,80 @@ export function buildSession({
     return out;
   };
 
-  /* Card by card until the questions reach the target — and never fewer
-     cards than the learner asked for. The cards they marked already rank
-     ahead of everything else, so taking at least as many as there are of
-     them is the whole of it: the session grows to hold what was asked for
-     rather than turning the rest away. */
-  let taken = 0;
-  let count = 0;
-  /* Easiest first, and cards of the same difficulty in no particular
-     order — which is most of them, since a card nobody has been wrong
-     about yet is unrated. A card the learner asked for opens the session
-     ahead of all of it: they went and marked it, and a warm-up that buried
-     it behind eight other words would be the app quietly declining. */
-  const ordered = (n: number) =>
-    inOrder(candidates.slice(0, n), (c) => (c.urgent ? -1 : DIFF_RANK[itemDifficulty(c.it, settings)]));
-  let warmed = ordered(0);
-  let plans: Plan[] = [];
-  let exercises: ReturnType<typeof deal> = [];
-  /* Filled to `target` questions, carrying on from wherever the last call
-     left off, so a session found short after its grids are dealt can be
-     filled further without being started again. */
-  const fill = (target: number) => {
-    while (taken < candidates.length && (taken < Math.max(1, askedFor) || count < target)) {
-      count += asks(plansOfCard(candidates[taken]));
-      taken += 1;
-    }
-    warmed = ordered(taken);
-    plans = warmed.flatMap(plansOfCard);
-    exercises = deal(plans);
-    /* A question can still fall out as it is dealt — a number nobody can
-       be asked yet — so a session short of its target takes the next card
-       while there is one. */
-    while (exercises.length < target && taken < candidates.length) {
-      count += asks(plansOfCard(candidates[taken]));
-      taken += 1;
-      warmed = ordered(taken);
-      plans = warmed.flatMap(plansOfCard);
-      exercises = deal(plans);
-    }
-    /*
-     * And when every card it may take is taken and it is still short — a
-     * beginner, whose new words come ten at a time — each word is asked
-     * more: first whatever else it has open, then the same questions
-     * again, up to MAX_ASKS_PER_UNIT, a round at a time so a word asked
-     * twice has the session between the two. Two right answers running is
-     * what opens a word's next level, so the second asking is not idle. A
-     * skill is never asked the same exercise twice: its number is drawn
-     * once, and the second asking would be the same number.
-     */
-    let grown = true;
-    while (exercises.length < target && grown) {
-      grown = false;
-      for (const p of plans) {
-        if (p.types.length >= MAX_ASKS_PER_UNIT) continue;
-        const next = p.more.length
-          ? (p.more.shift() as string)
-          : p.range
-          ? null
-          : p.types[p.types.length % Math.max(1, Math.min(p.types.length, PER_UNIT))] || null;
-        if (!next) continue;
-        p.types.push(next);
-        grown = true;
-      }
-      exercises = deal(plans);
-    }
-  };
-
-  /* The grids, dealt: every word the plans mean to ask as a pair is put in
-     one, and a word whose grid could not be filled is asked its next
-     exercise instead. */
-  const gridded = () =>
+  /* The grids, dealt — their partners drawn from the pool — and the order
+     put: see varyTypes. A word whose grid could not be filled is asked
+     its next exercise instead. */
+  const byId = byIdOf(items);
+  const finish = (dealt: Question[]) =>
     varyTypes(
-      withGrids(exercises, gridCompany(exercises, items), settings, (unit, queued) =>
+      withGrids(dealt, gridCompany(dealt, pool), settings, (unit, queued) =>
         pickableTypes(unit, settings).find(
-          (t) => !isGrid(t) && !queued.has(t) && (!onlyNumbers || !borrowsPhrase(t))
+          (t) => !isGrid(t) && !queued.has(t) && typesOf(unit).includes(t) && (!onlyNumbers || !borrowsPhrase(t))
         ) || null
-      )
+      ),
+      null,
+      (q) => orderKindOf(byId.get(q.id), settings)
     );
-  /*
-   * The length is in screens: a session of twenty is twenty things on
-   * screen, the way its counter reads, and a grid is one of them however
-   * many words are in it. A grid takes several questions into one screen,
-   * so a session filled to its length in questions comes out short in
-   * screens; it is filled further by what the grids took, until the
-   * screens reach the length or there is nothing more to add.
-   */
-  let target = budget;
-  fill(target);
-  let varied = gridded();
-  for (let round = 0; round < 8 && varied.length < budget; round += 1) {
-    const had = exercises.length;
-    target = had + (budget - varied.length);
-    fill(target);
-    if (exercises.length === had) break;
-    varied = gridded();
-  }
-  /* Rule 1, judged on the material: a session is refused for want of
-     variety when the cards in it support only one exercise between them,
-     not when the ladder has opened only one so far. A deck of new scenes
-     is asked to read each through and nothing harder, and that is a
-     session — a short one, until the reading is mastered. */
-  const offered = new Set(plans.flatMap((p) => enabledTypes(p.unit, settings)));
-  if (offered.size < 2) return { exercises: [], reason: "no-variety" };
+
+  /* --- the layout: card by card to the length, easiest first --- */
+  const askedFor = cards.filter((c) => c.askedFor).length;
+  const { taken, plans, questions } = fillSession({
+    cards,
+    budget,
+    askedFor,
+    plansOf: planOf,
+    /* Easiest first, and cards of the same difficulty in no particular
+       order — which is most of them, and what mixes the three shares. A
+       card the learner asked for opens the session ahead of all of it. */
+    rankOf: (c) => (c.askedFor ? -1 : DIFF_RANK[itemDifficulty(c.card.it, settings)]),
+    deal,
+    finish,
+    topUp: !everyCard,
+  });
+
+  /* At least two kinds of question, judged on the material: a session is
+     refused for want of variety when the cards in it support only one
+     exercise between them, not when the ladder has opened only one so far.
+     Get started draws on two gentle types, one of which needs a recording,
+     so it takes a card on one; and Weak skills is the one session where one
+     exercise repeated is exactly what is wanted. */
+  const minTypes = mode === "weak" ? 0 : mode === "started" ? 1 : 2;
+  const offered = new Set(plans.flatMap((p) => enabledTypes(p.unit, settings).filter((t) => allowed(t, p.unit))));
+  if (offered.size < minTypes) return { exercises: [], reason: "no-variety" };
 
   /* Counted over the cards the session actually took, not over the whole
      collection: this is a fact about the session on screen. A card the
      learner asked for counts as waiting, because they said so. */
-  const dealt = new Set(plans.map((p) => p.id));
-  const due = [...dealt].filter((id) => {
-    const it = pool.find((x) => x.id === id);
+  const dealtIds = new Set(plans.map((p) => p.id));
+  const due = [...dealtIds].filter((id) => {
+    const it = byId.get(id);
     if (!it) return false;
     if (isUrgent(it, settings)) return true;
     return drillableUnits(it, settings).some(({ unit }) =>
-      askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
+      typesOf(unit).some((t) => stateReady(stateOf(unit, t)))
     );
   }).length;
 
   /*
-   * Where the session ends.
-   *
-   * The budget, ordinarily — and far enough to reach the last card the
-   * learner asked for, where that is further. The second half of the same
-   * fault as the count above: admitting a marked card and then cutting the
-   * queue before its first question is the same as never admitting it, and
-   * it is what a learner who marks more cards than a session holds would
-   * have seen. Questions are dealt a round at a time, so every card is
-   * asked once before any card is asked twice and the reach is a handful
-   * of questions rather than a session of a different size.
+   * Where the session ends: the length, and far enough to reach the last
+   * card the learner asked for, where that is further. Questions are dealt
+   * a round at a time, so every card is asked once before any card is
+   * asked twice and the reach is a handful of questions rather than a
+   * session of a different size.
    */
-  let cut = cutAtLength(varied, budget);
-  const askedIds = new Set(warmed.filter((c) => c.urgent).map((c) => c.it.id));
-  for (const id of askedIds) {
-    const at = varied.findIndex((e) => e.id === id);
+  let cut = cutAtLength(questions, budget);
+  for (const c of taken.filter((x) => x.askedFor)) {
+    const at = questions.findIndex((e) => e.id === c.id);
     if (at >= 0) cut = Math.max(cut, at + 1);
   }
 
   return {
-    exercises: withReadThroughs(varied.slice(0, cut), items, settings),
+    exercises: withReadThroughs(questions.slice(0, cut), items, settings),
     reason: null,
-    items: dealt.size,
+    items: dealtIds.size,
     units: plans.length,
     due,
+    ...(mix && mix.behind ? { catchingUp: true } : null),
   };
 }
 
@@ -5297,14 +4739,6 @@ function pickableTypes(unit: Form, settings: Settings) {
   });
 }
 
-/* Every exercise type this form supports is already mature — and for a
-   cell that is asked one exercise a level, every one of those: a form is
-   finished when nothing it is being asked is left, not when exercises
-   nobody is putting to it are still new. */
-function unitFullyLearnt(unit: Form, settings: Settings) {
-  const types = easedTo(unit, supportedTypes(unit, settings));
-  return types.length > 0 && types.every((t) => maturity(stateOf(unit, t)) === "mature");
-}
 
 /* Exercise types follow from the mode, so there is nothing to choose. */
 function typesForMode(mode: string) {
@@ -5319,15 +4753,12 @@ function typesForMode(mode: string) {
   return mode === "started" ? enabled.filter((t) => EASY_TYPES.includes(typeOf(t))) : enabled;
 }
 
-/* Ultimate drills every type on every card; the rest take a sample. */
-function everyTypeMode(mode: string) {
-  return mode === "ultimate";
-}
 
 /*
- * A session assembled by hand. Fully learnt forms are left out — there is
- * nothing to gain from drilling them — and the caller is told which cards
- * were skipped for that reason so it can say so.
+ * A session assembled by hand on the Build screen: the cards picked are
+ * the pool, the mode narrows it, and the session mix does the rest — the
+ * same rule as every other session. Its length is the one chosen, or six
+ * questions a minute when it is timed.
  */
 export function buildManualSession({ items, settings, ids, mode, count, minutes, perDay, systems }: {
   items: Item[];
@@ -5336,214 +4767,15 @@ export function buildManualSession({ items, settings, ids, mode, count, minutes,
   mode: string;
   count?: number;
   minutes?: number;
-  /** As buildSession takes them — Regular is dealt by it. */
   perDay?: number;
   systems?: SystemSet[];
 }) {
   const chosen = new Set(ids);
-  /*
-   * Regular is the everyday session over the cards picked: the same
-   * dealing the home screen and a prep do, narrowed to these cards the way
-   * a prep narrows it to its decks. What is due first, the words still
-   * climbing ahead of the rest, and new words let in only as fast as the
-   * learner clears them. It used to take every card picked, shuffled, with
-   * none of that — so the same decks gave a far wider and far less useful
-   * spread here than on the home screen. The other modes are for
-   * deliberately stepping outside the schedule, and keep their own rules.
-   */
-  if (mode === "regular") {
-    const budget = count && count < 999 ? count : minutes ? minutes * TIMED_PER_MINUTE : SESSION_SIZE;
-    const built = buildSession({
-      items, settings, inDeck: (it) => chosen.has(it.id), budget, perDay, systems, newWithin: true,
-    });
-    return { ...built, manual: true, mode, learnt: [] as Item[] };
-  }
-  const allowed = new Set(typesForMode(mode));
-  /* Two types is the rule everywhere else, and it is what keeps a session
-     from being one exercise repeated. Get started draws on the two gentle
-     types alone, one of which needs a recording, so holding it to two would
-     quietly turn the beginners' mode into one that only accepts cards with
-     audio. It takes a card on one. */
-  const minTypes = mode === "started" ? 1 : 2;
-  if (allowed.size < minTypes) return { exercises: [], reason: "no-variety" };
-
-  /* A value is not one of them, however it was chosen. "Raphael" is in the
-     deck to fill somebody else's sentence, and "what does Raphael mean" is
-     not a question — which a dealt session has always honoured, through
-     isDrillable, and this one never did: picking the deck a frame lives in
-     drilled its names as cards in their own right. */
-  const sets = systems || [];
-  const pool = items.filter(
-    (i) => chosen.has(i.id) && i.drill !== false && (!isRangeSkill(i) || systemFor(i, sets)),
-  );
-  const plans: Question[] = [];
-  const learnt = [];
-  /* What the mode allows of what the form supports, and of that, the
-     levels the form has reached: a session built by hand climbs the same
-     ladder a dealt one does. A form qualifies on the first — it is the
-     material that has to offer two exercises — and is asked from the
-     second. Read in the card's own language, like every other reader. */
-  /* `allowed` is the mode's own list and knows nothing of whose card this
-     is, so the per-form gate is applied here: a session built by hand must
-     no more ask for a recording this device does not hold than a dealt one
-     does. */
-  const supportedFor = (unit: Form) =>
-    easedTo(
-      unit,
-      supportedTypes(unit, settings).filter((t) => allowed.has(t) && typeAllowedNow(t, unit)),
-    );
-  const usableFor = (unit: Form) =>
-    openTypesOf(
-      supportedFor(unit).flatMap((t) => keysFor(unit, t)),
-      (k) => statesOf(unit)[k],
-    )
-      /* And, as a dealt session does, only the ones whose holes can be
-         filled with something the learner has met — see fillableAt. A
-         frame is chosen by hand the same way it is dealt. */
-      .filter((k) => fillableAt(unit, k, settings));
-  /* Every exercise the chosen forms support between them, for the
-     variety rule below. */
-  const offered: Set<string> = new Set();
-  /* What each form was asked and what else it has open, for a session the
-     forms cannot fill at PER_UNIT apiece — see the filling below. */
-  const asked: { id: string; subId: string | null; unit: Form; taken: string[]; more: string[]; skill: boolean }[] = [];
-
-  for (const it of pool) {
-    let anyUsable = false;
-    let anyLearnt = false;
-
-    /* The same gates a dealt session applies — a form the teacher keeps
-       without asking about, a cell of a row nobody has reached — and not
-       the two-exercise minimum, which this mode sets for itself below. */
-    for (const { unit, isSub } of askedUnits(it)) {
-      const supported = supportedFor(unit);
-      if (supported.length < minTypes) continue;
-      if (unitFullyLearnt(unit, settings)) {
-        anyLearnt = true;
-        continue;
-      }
-      if (mode === "mistakes" && !hasRecentMistake(unit, settings)) continue;
-      if (mode === "unseen" && !notSeenLately(unit, settings)) continue;
-      const usable = usableFor(unit);
-      if (!usable.length) continue;
-      anyUsable = true;
-      for (const t of supported) offered.add(t);
-
-      const take = everyTypeMode(mode)
-        ? usable
-        : shuffle(usable).slice(0, Math.min(PER_UNIT, usable.length));
-      for (const t of take) {
-        const ctx = pickContext(unit, t);
-        plans.push({ id: it.id, subId: isSub ? unit.id : null, type: t, ...(ctx ? { ctx: ctx.id } : null) });
-      }
-      asked.push({
-        id: it.id, subId: isSub ? unit.id : null, unit, taken: take.slice(),
-        more: usable.filter((t) => !take.includes(t)), skill: isRangeSkill(it),
-      });
-    }
-
-    if (!anyUsable && anyLearnt) learnt.push(it);
-  }
-
-  if (!plans.length) {
-    return {
-      exercises: [],
-      reason: learnt.length
-        ? "all-learnt"
-        : mode === "mistakes"
-        ? "no-mistakes"
-        : mode === "unseen"
-        ? "no-unseen"
-        : "none-drillable",
-      learnt,
-    };
-  }
-
-  /*
-   * A session with a length that the forms chosen cannot fill at PER_UNIT
-   * apiece: each is asked more — first whatever else it has open, then the
-   * same again — a round at a time, up to MAX_ASKS_PER_UNIT. The same rule
-   * a dealt session follows (see buildSession), so twenty questions on
-   * five words is twenty questions, not ten. Added after the rest and
-   * shuffled among themselves, so a word's second asking comes in the
-   * later part of the session rather than beside its first. A skill is
-   * never asked the same exercise twice.
-   */
-  const length = count && count < 999 && !everyTypeMode(mode) ? count : 0;
-  const extra: Question[] = [];
-  /* Asked more, until the questions reach `target`, carrying on from where
-     the last call left off. */
-  const growTo = (target: number) => {
-    let grown = true;
-    while (plans.length + extra.length < target && grown) {
-      grown = false;
-      for (const a of asked) {
-        if (a.taken.length >= MAX_ASKS_PER_UNIT || plans.length + extra.length >= target) continue;
-        const t = a.more.length
-          ? (a.more.shift() as string)
-          : a.skill
-          ? null
-          : a.taken[a.taken.length % Math.min(a.taken.length, PER_UNIT)];
-        if (!t) continue;
-        a.taken.push(t);
-        const ctx = pickContext(a.unit, t);
-        extra.push({ id: a.id, subId: a.subId, type: t, ...(ctx ? { ctx: ctx.id } : null) });
-        grown = true;
-      }
-    }
-  };
-  if (length) growTo(length);
-
-  /* Shuffle first, so the queue doesn't track the order of your card list,
-     then space the types out. Ultimate ignores the length: it runs until
-     everything has gone right at least once. The extra askings go after
-     the rest, shuffled among themselves. */
-  const keptFirst = keptToNumbers(plans);
-  const numbersOnly = keptFirst !== plans;
-  const queue = () => {
-    const keptMore = numbersOnly ? keptToNumbers(extra) : extra;
-    const kept = keptFirst.concat(keptMore);
-    return varyTypes(
-      drawRanges(
-        withGrids(shuffle(keptFirst).concat(shuffle(keptMore)), gridCompany(kept, items), settings, (unit, queued) =>
-          shuffle(usableFor(unit)).find(
-            (t) => !isGrid(t) && !queued.has(t) && !(numbersOnly && borrowsPhrase(t))
-          ) || null
-        ),
-        items,
-        sets,
-        settings,
-      )
-    );
-  };
-  let ordered = queue();
-  /* The length is in screens, and a grid is one screen for several
-     questions — see cutAtLength — so what the grids took is asked again
-     until the screens reach the length or nothing more can be added. */
-  for (let round = 0; length && round < 8 && ordered.length < length; round += 1) {
-    const had = extra.length;
-    growTo(plans.length + extra.length + (length - ordered.length));
-    if (extra.length === had) break;
-    ordered = queue();
-  }
-  const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, cutAtLength(ordered, Math.max(4, count || 0)));
-
-  /* The same minimum again, and the one easily missed: when every card chosen
-     supports a single gentle type the whole session is that one type, so
-     relaxing only the per-card check above would still refuse to build.
-     Judged on what the cards support, as above: a session the ladder has
-     narrowed to one exercise is still a session. */
-  if (offered.size < minTypes) return { exercises: [], reason: "no-variety", learnt };
-
-  return {
-    exercises: withReadThroughs(exercises, items, settings),
-    reason: null,
-    manual: true,
-    mode,
-    learnt,
-    items: new Set(exercises.map((e) => e.id)).size,
-    units: plans.length + extra.length,
-  };
+  const budget = count && count < 999 ? count : minutes ? minutes * TIMED_PER_MINUTE : mode === "ultimate" ? undefined : SESSION_SIZE;
+  const built = buildSession({
+    items, settings, inDeck: (it) => chosen.has(it.id), budget, perDay, systems, mode: mode as SessionMode,
+  });
+  return { ...built, manual: true, mode, learnt: [] as Item[] };
 }
 
 /* ------------------------------------------------------------------
@@ -6016,8 +5248,9 @@ export function gradingFor(exercise: Question, settings: Settings) {
    the rules restated: what a card still needs (`workloadOf`), the calendar
    floor on learning a card (`LEARN_DAYS`), and how much of a session moves
    cards forward (`PROGRESS_SHARE`). A change to the ladder, to how a pass is
-   made, to the ten-word front door or to what a session deals can make any
-   of them wrong, and nothing will fail to say so.
+   made, to the session mix (session-mix.ts) or to what a session deals can
+   make any of them wrong, and nothing will fail to say so — NEW_PER_DAY
+   below is the mix restated.
    ------------------------------------------------------------------ */
 
 /*
@@ -6045,6 +5278,17 @@ export const CLEAR_DAYS = 2;
  * retired; it turns questions needed into sessions needed.
  */
 export const PROGRESS_SHARE = 0.5;
+
+/*
+ * How many cards never met the session mix brings in a day, at the most.
+ * New cards only fill the learning share of a session, and somebody who
+ * comes back within three hours gets a gap for them — so the fastest they
+ * arrive is set by the most practice anybody does. Measured with the pace
+ * simulation's learner at fifteen sittings a day, never wrong: about
+ * thirty (see tests/pace.test.mjs, which holds this to the measurement).
+ * The fastest, because this is the floor: the fewest days it could take.
+ */
+export const NEW_PER_DAY = 30;
 
 /* How far ahead an answer is worth giving before it says "more than two years". */
 export const FORECAST_MAX_DAYS = 730;
@@ -6079,10 +5323,8 @@ export interface Workload {
  * The fewest days: every card not yet learnt takes LEARN_DAYS, except a
  * cleared one, which waits only for its passes — the next when its review
  * comes round, and a couple of days for each after. And cards never met
- * come in at most FRONT_DOOR_CAP at a time, each group about a day behind
- * the last. Ten even for a keen learner, whose door is wider (see
- * frontDoorFor): a wider door clears each word more slowly, and measured,
- * a hundred cards were all met at about the same day either way.
+ * come in about NEW_PER_DAY a day, which is the session mix's pace — new
+ * cards only fill the learning share.
  *
  * With Cleared as the target (a prep can aim there — see PrepTarget), a
  * cleared card needs nothing, the passes are left out of the questions, and
@@ -6138,7 +5380,7 @@ export function workloadOf(cards: Item[], settings: Settings, at: Millis = now()
       floor = Math.max(floor, LEARN_DAYS);
     }
   }
-  if (unseen) floor = Math.max(floor, Math.ceil(unseen / FRONT_DOOR_CAP) - 1 + (toClear ? CLEAR_DAYS : LEARN_DAYS));
+  if (unseen) floor = Math.max(floor, Math.ceil(unseen / NEW_PER_DAY) - 1 + (toClear ? CLEAR_DAYS : LEARN_DAYS));
   return {
     left,
     questions,
@@ -6220,136 +5462,19 @@ export function isWeak(it: Item, settings: Settings): boolean {
   );
 }
 
-export function buildWeakSession({ items, settings, inDeck, budget: budgetIn, systems }: {
+/* A sitting of what is going wrong: Weak skills, under the session mix
+   like every other session — see SessionMode. */
+export function buildWeakSession({ items, settings, inDeck, budget, systems, perDay }: {
   items: Item[];
   settings: Settings;
   inDeck: (it: Item) => boolean;
   budget?: number;
-  /** As buildSession takes them: a range is asked about a number drawn here. */
   systems?: SystemSet[];
+  perDay?: number;
 }) {
-  const sets = systems || [];
-  const pool = items.filter(
-    (it) => inDeck(it) && isDrillable(it, settings) && (!isRangeSkill(it) || systemFor(it, sets)),
-  );
-  if (!pool.length) return { exercises: [], reason: "none-drillable" };
-
-  const budget = Math.max(4, budgetIn || SESSION_SIZE);
-
-  /* One entry per form with something going wrong on it, carrying the
-     failing exercises worst first. */
-  const failing: {
-    id: string;
-    subId: string | null;
-    unit: Form;
-    keys: string[];
-    worst: number;
-  }[] = [];
-  for (const it of pool) {
-    const here = [];
-    for (const { unit, isSub } of drillableUnits(it, settings)) {
-      const weak = askableTypes(unit, settings).filter((t) => weakness(stateOf(unit, t)) > 0);
-      if (!weak.length) continue;
-      here.push({
-        id: it.id,
-        subId: isSub ? unit.id : null,
-        unit,
-        keys: inOrder(weak, (t) => -weakness(stateOf(unit, t))),
-        worst: Math.max(...weak.map((t) => weakness(stateOf(unit, t)))),
-      });
-    }
-    /* The same cap a dealt session puts on how much of one card a sitting
-       may be about: a verb lays out twenty cells and a scene six lines,
-       and a session spent entirely on one word is the complaint the cap
-       exists for. The worst-going forms are the ones it keeps. */
-    const cap = isDialog(it) ? MAX_DIALOG_LINES : MAX_UNITS_PER_FAMILY;
-    for (const u of inOrder(here, (u) => -u.worst).slice(0, cap)) failing.push(u);
-  }
-  if (!failing.length) return { exercises: [], reason: "nothing-weak" };
-
-  /* Worst first, chance between the ones that are going equally badly. */
-  const order = inOrder(failing, (u) => -u.worst);
-
-  /* Dealt a round at a time, so every form with something wrong on it is
-     asked once before any of them is asked twice. A learner with one card
-     failing in four ways gets all four; a learner with twenty cards
-     failing gets one question each and the worst of them first. */
-  const plans: Question[] = [];
-  const depth = Math.max(...order.map((u) => u.keys.length));
-  /* And past the last failing question, round again — up to
-     MAX_ASKS_PER_UNIT a form — while the session is short of its length:
-     the same thing a dealt session does with a beginner's ten words. A
-     skill is not asked the same exercise twice, since its number is drawn
-     once and the second asking would be the same number. */
-  const isSkill = new Set(pool.filter((it) => isRangeSkill(it)).map((it) => it.id));
-  const rounds = Math.max(depth, MAX_ASKS_PER_UNIT);
-  let round = 0;
-  /* Round by round until the questions reach `target`, carrying on from
-     the last round dealt. */
-  const dealTo = (target: number) => {
-    for (; round < rounds && plans.length < target; round++) {
-      for (const u of order) {
-        const type = round < u.keys.length ? u.keys[round] : isSkill.has(u.id) ? undefined : u.keys[round % u.keys.length];
-        if (!type) continue;
-        const ctx = pickContext(u.unit, type);
-        plans.push({ id: u.id, subId: u.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
-      }
-    }
-  };
-  dealTo(budget);
-
-  /* The grids, dealt, and the same card kept from being asked twice
-     running — both exactly as a dealt session does them. */
-  const queue = () => {
-    const kept = keptToNumbers(plans);
-    return varyTypes(
-      drawRanges(
-        withGrids(kept, gridCompany(kept, items), settings, (unit, queued) =>
-          pickableTypes(unit, settings).find(
-            (t) => !isGrid(t) && !queued.has(t) && !(kept !== plans && borrowsPhrase(t))
-          ) || null
-        ),
-        items,
-        sets,
-        settings,
-      )
-    );
-  };
-  let varied = queue();
-  /* The length is in screens, and a grid is one screen for several
-     questions — see cutAtLength — so a session the grids left short goes
-     round again while there is a round left. */
-  while (varied.length < budget && round < rounds) {
-    dealTo(plans.length + (budget - varied.length));
-    varied = queue();
-  }
-  const exercises = withReadThroughs(varied.slice(0, cutAtLength(varied, budget)), items, settings);
-  const dealt = new Set(exercises.map((e) => e.id));
-
-  /* How many of them were actually waiting, for the line at the end. A
-     missed question comes back within the hour, so most of these are due
-     — but a word missed twice a fortnight ago and not seen since is not,
-     and the summary says so rather than claiming a schedule moved. */
-  const due = [...dealt].filter((id) => {
-    const it = pool.find((x) => x.id === id);
-    if (!it) return false;
-    return drillableUnits(it, settings).some(({ unit }) =>
-      askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
-    );
-  }).length;
-
-  return {
-    exercises,
-    reason: null,
-    /* Not a dealt session: the screen at the end reads this to know that
-       "Keep going" would be a change of subject rather than more of the
-       same. */
-    manual: true,
-    mode: "weak",
-    items: dealt.size,
-    units: failing.length,
-    due,
-  };
+  /* Not a dealt session: the screen at the end reads `manual` to know that
+     "Keep going" would be a change of subject rather than more of the same. */
+  return { ...buildSession({ items, settings, inDeck, budget, systems, perDay, mode: "weak" }), manual: true, mode: "weak" };
 }
 
 /* Resolve an exercise back to the item and the specific form it drills. */
@@ -10671,14 +9796,25 @@ export default function ArabicTrainer() {
             return includeNew ? stateReady(st) : st.phase !== "new" && stateReady(st);
           })
         );
-      /* Everything genuinely due, which is the honest half of the number. */
-      const met = pool.filter((it) => waiting(it, false)).length;
-      /* Plus as many never-seen cards as the app would let in today, read
-         over everything this learner holds rather than the deck in front
-         of them — the same reckoning buildSession does, so the two cannot
-         come to disagree. */
-      const fresh = pool.filter((it) => !waiting(it, false) && waiting(it, true)).length;
-      return met + Math.min(fresh, roomForNew(handCounts(items, settings, numbers), inHandFor(perDay), frontDoorFor(perDay)));
+      /* Met at all: anything on it ever answered. A level that has just
+         opened on a card already met is that card waiting, as the session
+         mix reads it — not a new card. */
+      const everMet = (it: Item) =>
+        drillableUnits(it, settings).some(({ unit }) =>
+          openTypes(unit, settings).some((t) => stateOf(unit, t).phase !== "new")
+        );
+      /* Everything genuinely waiting, which is the honest half of the number. */
+      const met = pool.filter((it) => (everMet(it) ? waiting(it, true) : waiting(it, false))).length;
+      /* Plus as many never-met cards as the session mix has room for in
+         this pool — the same reckoning buildSession does, so the two cannot
+         come to disagree. None while the learner is catching up. */
+      const fresh = pool.filter((it) => !everMet(it) && !waiting(it, false) && waiting(it, true)).length;
+      const room = roomForNewIn(mixCardsOf(pool, items, settings), {
+        at: now(),
+        places: SESSION_SIZE / PER_UNIT,
+        dayCards: (perDay || 0) / PER_UNIT,
+      });
+      return met + Math.min(fresh, room);
     },
     [settings, items, perDay, systems]
   );
@@ -10905,6 +10041,7 @@ export default function ArabicTrainer() {
       );
       return;
     }
+    catchingUpNote(built);
     warmSession(built);
     setSession({
       ...built,
@@ -11174,7 +10311,7 @@ export default function ArabicTrainer() {
    * in a language you have switched off is not what you came to fix.
    */
   function beginWeak() {
-    const built = buildWeakSession({ items: shown, settings, inDeck, systems });
+    const built = buildWeakSession({ items: shown, settings, inDeck, systems, perDay });
     if (!built.exercises.length) {
       flash(
         built.reason === "nothing-weak"
@@ -11190,6 +10327,13 @@ export default function ArabicTrainer() {
     setMoved([]);
     resetExercise();
     setTab("home");
+  }
+
+  /* New cards wait while overdue reviews are piled past three days'
+     practice — see isBehind in session-mix.ts — and the learner is told
+     why, rather than left to wonder where the new cards went. */
+  function catchingUpNote(built: { catchingUp?: boolean }) {
+    if (built.catchingUp) flash("Catching up first — new cards wait until your reviews are back in hand");
   }
 
   function begin(practice?: boolean, only?: (it: Item) => boolean) {
@@ -11223,6 +10367,7 @@ export default function ArabicTrainer() {
       );
       return;
     }
+    catchingUpNote(built);
     warmSession(built);
     setSession({ ...built, practice });
     setQi(0);
@@ -16201,8 +15346,9 @@ function ManualSessionSheet({ items, allTags, settings, editing, onStart, onSave
       return next;
     });
 
-  /* Ultimate is the one mode with no length to choose — it asks everything
-     about everything — but the last step is still there for it, because
+  /* Ultimate is the one mode with no length to choose — it asks every
+     question of every card the session mix lets in — but the last step is
+     still there for it, because
      keeping the session is offered from the same place. Three steps
      whatever the mode also means the count stops changing under somebody
      halfway through it. */
