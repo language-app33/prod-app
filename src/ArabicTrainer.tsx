@@ -1893,8 +1893,8 @@ export function easedUnits(items: Item[], settings: Settings): Set<string> {
 
 /*
  * Whether a stretch of the number line is open: every stretch under it is
- * through — its own questions cleared, or every word it is built from
- * cleared, whichever comes first.
+ * through — its own questions cleared, or most of the words it is built
+ * from known, whichever comes first (see wordsCleared for "most").
  *
  * The own questions were the only way through until 0.368, and a stretch
  * is asked about one question in thirty of a numbers session, because it
@@ -1928,20 +1928,43 @@ function stretchCleared(stretch: Item, lang: Lang): boolean {
   return cleared(plain, (t) => statesOf(unit)[t]);
 }
 
+/*
+ * The share of a stretch's words that lets the stretch above through:
+ * eight of ten for 0 to 9. Rounded up, so a stretch of three or fewer
+ * words still wants every one.
+ *
+ * Until 0.416 it was every word, at every exercise, in every face, and
+ * read afresh — so a learner who knew nine of the ten digits had nothing
+ * above them to practise, and one slip on one digit shut everything over
+ * it again. Nothing is asked early for this: a number is only ever asked
+ * once each word in it is cleared (see askingsKnown), so 47 still waits
+ * on *seven* however open 20 to 99 is.
+ */
+const STRETCH_SHARE = 0.8;
+
+/* An exercise the learner has been through once: cleared now, or out of
+   its first learning and into review at some point, which a slip back to
+   relearning does not undo. That is what keeps one slip from shutting the
+   stretch above again; the slipped word itself still waits to be cleared
+   before any number is built on it. */
+const throughOnce = (s: ExerciseState | null | undefined): boolean =>
+  !!s && (solid(s) || (s.phase !== "new" && s.phase !== "learning"));
+
 function wordsCleared(stretch: Item, items: Item[], lang: Lang): boolean {
   if (!stretch.parts || !stretch.parts.length) return false;
   const byId = byIdOf(items);
-  return stretch.parts.every((id) => {
-    const card = byId.get(id);
-    if (!card || card.drill === false) return true;
-    return unitsOf(card).every(({ unit }) => {
+  const words = stretch.parts.map((id) => byId.get(id)).filter((card): card is Item => !!card && card.drill !== false);
+  if (!words.length) return true;
+  const known = words.filter((card) =>
+    unitsOf(card).every(({ unit }) => {
       /* Nor a face that counts things, which is asked with a noun and
          waits on one: counting never holds the next stretch back. */
       if (!isAsked(unit) || unit.countedAt) return true;
       const types = availableTypes(unit, lang);
-      return !types.length || cleared(types, (t) => statesOf(unit)[t]);
-    });
-  });
+      return !types.length || types.every((t) => throughOnce(statesOf(unit)[t]));
+    }),
+  ).length;
+  return known >= Math.ceil(words.length * STRETCH_SHARE - 1e-9);
 }
 
 /*
@@ -2009,8 +2032,8 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
      * A stretch of the number line that waits on the one below it.
      *
      * 10 to 19 is said out of the words 0 to 9 teaches, so it is not
-     * asked until 0 to 9 is cleared — the ladder's own word, read off the
-     * same keys. Quiet rather than missing, so it keeps its place in the
+     * asked until 0 to 9 is through — most of its words known, or its own
+     * questions cleared; see stretchOpen. Quiet rather than missing, so it keeps its place in the
      * collection and opens the moment the stretch below clears; and read
      * afresh, so a stretch that slips back off cleared shuts the one above
      * until it is recovered, the way a missed level shuts the levels over

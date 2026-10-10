@@ -266,11 +266,15 @@ const four = componentId(SYS.id, "unit.4");
 
 test("a slip below a stretch keeps what the numbers above it had earned", () => {
   /* Everything learnt, then the word for four and 0 to 9's own questions
-     both missed twice running: neither way through is open, so every
-     stretch above 0 to 9 waits again. Their words are still learnt, and the
-     percentage says so rather than counting them as nothing. */
+     both missed twice running, and the words for 0 to 9 short of most.
+     Neither way through is open, so every stretch above 0 to 9 waits
+     again. Their words are still learnt, and the percentage says so rather
+     than counting them as nothing. (Since 0.416 a word that slips back still
+     counts towards most, so the shortfall here is words never learnt.) */
   const zeroToNine = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:0-9"), "0 to 9");
-  const items = allLearntBut([four, zeroToNine.id]).map((/** @type {any} */ it) =>
+  const unlearnt = (zeroToNine.parts || []).filter((/** @type {string} */ id) => id !== four)
+    .slice(0, (zeroToNine.parts || []).length - Math.ceil((zeroToNine.parts || []).length * 0.8) + 1);
+  const items = allLearntBut([four, zeroToNine.id, ...unlearnt]).map((/** @type {any} */ it) =>
     (it.id === four || it.id === zeroToNine.id ? slipped(it) : it));
   installIndexes(items, settings);
   const tens = must(items.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:20-99"), "20 to 99");
@@ -286,7 +290,7 @@ test("a slip below a stretch keeps what the numbers above it had earned", () => 
   });
   assert.equal(climb.learnt, filed.length - short.length);
   for (const it of short) {
-    assert.ok(it.id === four || it.id === zeroToNine.id || (it.range && (it.parts || []).includes(four)), `${it.id} is short of learnt`);
+    assert.ok(it.id === four || it.id === zeroToNine.id || unlearnt.includes(it.id) || (it.range && (it.parts || []).some((/** @type {string} */ p) => p === four || unlearnt.includes(p))), `${it.id} is short of learnt`);
   }
 });
 
@@ -308,12 +312,22 @@ test("a stretch opens once the words below it are cleared, before the stretch be
   const asked = cardStandings(must(items.find((/** @type {any} */ it) => it.id === tenToNineteen.id), "10 to 19"), settings, items);
   assert.ok(asked.length > 0, "10 to 19 is still waiting on 0 to 9's own questions");
 
-  /* And one word short of that, it waits. */
-  const [one] = [...below];
-  const short = items.map((/** @type {any} */ it) => (it.id === one ? filed.find((/** @type {any} */ f) => f.id === one) : it));
+  /* Since 0.416, most of them is enough: a word or two short, it opens. */
+  const need = Math.ceil(below.size * 0.8);
+  const missing = (/** @type {number} */ n) => {
+    const out = new Set([...below].slice(0, n));
+    return items.map((/** @type {any} */ it) => (out.has(it.id) ? filed.find((/** @type {any} */ f) => f.id === it.id) : it));
+  };
+  const nearly = missing(below.size - need);
+  installIndexes(nearly, settings);
+  assert.ok(cardStandings(must(nearly.find((/** @type {any} */ it) => it.id === tenToNineteen.id), "10 to 19"), settings, nearly).length > 0,
+    `10 to 19 still waits with ${need} of ${below.size} words for 0 to 9 cleared`);
+
+  /* And one word short of most, it waits. */
+  const short = missing(below.size - need + 1);
   installIndexes(short, settings);
   assert.deepEqual(cardStandings(must(short.find((/** @type {any} */ it) => it.id === tenToNineteen.id), "10 to 19"), settings, short), [],
-    "10 to 19 opened with a word for 0 to 9 not yet cleared");
+    "10 to 19 opened with too few words for 0 to 9 cleared");
 });
 
 test("and the stretch below's own questions still open it, whatever its words say", () => {
@@ -332,4 +346,16 @@ test("a slip on the stretch's own questions no longer shuts the stretch above wh
   installIndexes(items, settings);
   const tens = must(items.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:20-99"), "20 to 99");
   assert.ok(cardStandings(tens, settings, items).length > 0, "20 to 99 shut by a slip on 0 to 9's own questions");
+});
+
+test("one word slipping back does not shut the stretch above again", () => {
+  /* Everything learnt, then the word for four and 0 to 9's own questions
+     both missed twice running. Until 0.416 that shut every stretch above
+     0 to 9; now four still counts towards most, having been learnt once. */
+  const zeroToNine = must(filed.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:0-9"), "0 to 9");
+  const items = allLearntBut([four, zeroToNine.id]).map((/** @type {any} */ it) =>
+    (it.id === four || it.id === zeroToNine.id ? slipped(it) : it));
+  installIndexes(items, settings);
+  const tens = must(items.find((/** @type {any} */ it) => it.range && it.range.id === "numbers:20-99"), "20 to 99");
+  assert.ok(cardStandings(tens, settings, items).length > 0, "20 to 99 shut by one word for 0 to 9 slipping back");
 });
