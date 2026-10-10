@@ -5867,3 +5867,71 @@ that waits to one that answers itself. Made-up numbers pass that need on
 a number system's own cards, except in a grid, where every word is a card
 somebody is marked on. A made-up number on the script side is kept only
 when said in as many words as the right one.
+
+## The session mix
+
+**10 October 2026** · `src/session-mix.ts`, `src/session-layout.ts`,
+`buildSession` and `mixCardsOf` in `src/ArabicTrainer.tsx`,
+`tests/session-mix.test.mjs`, `tests/pace.test.mjs`
+
+The owner replaced every rule about which cards a session practises with
+one, worked out over a long conversation and measured on the forgetting
+learner first (see the entry above). **One rule for every session**: a
+pool (all cards, a prep's decks, the cards picked); three shares of 40%
+cards in learning, 30% Cleared due, 30% Learnt due; empty places to
+overdue Cleared, overdue Learnt, learning, then not yet due; cards
+practised in the last three hours sit out unless overdue; new cards only
+to fill the learning share's gap, never past 20 in learning in the pool,
+none while overdue reviews pass three days' practice; asked-for cards on
+top; a digit card rides with its word.
+
+**What it replaced.** The front door (10, widening to 20 with practice),
+the hand (60, growing to 400), `KEEN_DAY` ordering, `KEEN_POOL`,
+`byVariety`, the half-hour and two-hour rests, `throughDoor`, and
+`newWithin` — counting a custom session in its pool is now what every
+session does. The Build screen's modes and Weak skills are the same rule
+over a narrower pool or set of questions. Sessions went from 18 questions
+to 20, so the shares divide ten cards exactly.
+
+**Why two files.** The mix (which cards) is the part a future learning
+mode would swap, so it holds nothing but that and reads nothing of the
+app: the caller says where each card stands. The layout (length, how much
+of each card, order) is everything else about a session's shape. Building
+a question — the phrase, the number, a grid's partners — stays in the app.
+The pace simulation runs the very rule the app does.
+
+**Decisions inside it, and why.**
+- *A question never asked on a card already met reads as due now*, not as
+  never due: it is a level that has just opened. Read as never due, a
+  learner's due cards sorted behind ones a week off.
+- *Recent cards come last, not never*, so a pool with nothing else is still
+  a session — the reason "being due" stopped refusing sessions.
+- *Ultimate keeps no length*: the Build screen asks none, so it asks every
+  question of every card the mix lets in, rather than 20.
+- *The home screen's count reads a met card with a newly opened level as
+  waiting*, not new: a learner with 88 number cards at the top of their
+  ladder was shown nothing ready under the 20-in-learning limit.
+- *`NEW_PER_DAY` for the prep forecast is 30*, measured at fifteen sittings
+  a day never wrong (29–31), because the forecast's floor is the fastest.
+- *Weak skills no longer leads with the worst-going card*: the universal
+  order is easiest first. Within a card, what went worst is still asked
+  first.
+
+**Measured** (forgetting learner, mixed 400-card course, 90 days, two runs):
+
+| | met (was) | known a month on (was) |
+|---|---|---|
+| 1 a day | 25–28 (32) | 23–24 (22) |
+| 3 a day | 74–80 (95) | 67–75 (79) |
+| 15 a day | 387–392 (400) | 376–378 (389) |
+| 3 a day, struggling | 42–51 (64) | 22–36 (24) |
+
+The prototype that chose the numbers predicted the struggling learner
+keeping about a third more; the real rule varies too much between runs to
+say that yet. The figures move because the session builder shuffles with
+real chance; the pace file reads them as directions.
+
+**Revisit if** keen learners find sessions repetitive (each card about three
+times a day at fifteen sittings), or the struggling figure settles below
+the old one over more runs.
+

@@ -46,7 +46,7 @@ await build({
   },
 });
 
-const { buildSession, installIndexes, setOfflineNow, setAudibleClips, laddered, inHandFor, frontDoorFor } = await import(
+const { buildSession, installIndexes, setOfflineNow, setAudibleClips, laddered, mixCardsOf, NEW_PER_DAY } = await import(
   path.join(out, "trainer.js")
 );
 const { gradeInto } = await import(path.join(root, "src", "grade.ts"));
@@ -59,12 +59,9 @@ const {
   typicalDay,
   MASTERED_DAYS,
   PASSES_TO_LEARN,
-  FRONT_DOOR_CAP,
-  FRONT_DOOR_MAX,
-  IN_HAND_CAP,
-  IN_HAND_MAX,
 } = await import(path.join(root, "src", "scheduler.ts"));
-const { handCounts } = await import(path.join(out, "trainer.js"));
+const { MAX_IN_LEARNING, inLearningOf } = await import(path.join(root, "src", "session-mix.ts"));
+const { SESSION_SIZE } = await import(path.join(root, "src", "session-layout.ts"));
 
 const DAY = 86400000;
 const START = Date.UTC(2026, 0, 1, 9, 0, 0);
@@ -311,7 +308,7 @@ function sitDown(
  *
  * @param {{ cards: any[], days: number, budget?: number, sessionsPerDay?: number, learner?: ReturnType<typeof forgetter> | null }} how
  */
-function live({ cards, days, budget = 18, sessionsPerDay = 1, learner = null }) {
+function live({ cards, days, budget = SESSION_SIZE, sessionsPerDay = 1, learner = null }) {
   let items = cards;
   let asked = 0;
   /** @type {Record<string, number>} */
@@ -414,35 +411,21 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1, learner = null }) 
   };
 }
 
-/** The same life, watching how full the two pools ever get. */
+/** The same life, watching how many cards are ever in learning at once. */
 function liveKeeping(/** @type {{ cards: any[], days: number, budget?: number, sessionsPerDay?: number }} */ how) {
   let items = how.cards;
-  let peakFront = 0;
-  let peakInHand = 0;
-  /* How far past the pool the learner's own practice allowed at the time
-     they sat down — nought or less, always. */
-  let peakOver = -Infinity;
-  /* And the same for the front door, which also widens with practice:
-     how far a sitting took it past what practice allowed. Past, not
-     merely over — a door that narrows on a quieter day, or at midnight,
-     sends nobody away, it only lets nobody else in. */
-  let peakDoorOver = -Infinity;
+  let peakLearning = 0;
   /** @type {Record<string, number>} */
   const log = {};
   for (let d = 0; d < how.days; d += 1) {
     for (let s2 = 0; s2 < (how.sessionsPerDay || 1); s2 += 1) {
       const at = START + d * DAY + s2 * 3600000;
-      const before = handCounts(items, settings).front;
-      const ran = sitDown(items, at, how.budget || 18, log);
+      const ran = sitDown(items, at, how.budget || SESSION_SIZE, log);
       items = ran.cards;
-      const counts = handCounts(items, settings);
-      peakFront = Math.max(peakFront, counts.front);
-      peakInHand = Math.max(peakInHand, counts.inHand);
-      peakOver = Math.max(peakOver, counts.inHand - inHandFor(ran.perDay));
-      peakDoorOver = Math.max(peakDoorOver, counts.front - Math.max(before, frontDoorFor(ran.perDay)));
+      peakLearning = Math.max(peakLearning, inLearningOf(mixCardsOf(items, items, settings)));
     }
   }
-  return { peakFront, peakInHand, peakOver, peakDoorOver };
+  return { peakLearning };
 }
 
 /* ------------------------------------------------------------------
@@ -478,48 +461,39 @@ test("a diligent learner's first ninety days, as the app stands", () => {
  * about the shape of a sitting does.
  */
 
-test("no quota is counted in sessions: one sitting can fill the front door", () => {
+test("no quota is counted in sessions: one sitting can open a session's worth", () => {
   /* Under the old rule this was three, whatever the learner's state. */
   const day = live({ cards: courseOf(300), days: 1, sessionsPerDay: 1, budget: 20 });
   console.log(`    one twenty-question sitting met ${day.met} words`);
   assert.ok(day.met > 3, `still rationed per session: ${day.met}`);
 });
 
-test("and the front door bounds a day however many sittings it holds", () => {
-  /* Ten sittings in an evening is the case that started this. Intake is
-     bounded by what the learner has standing, not multiplied by ten. */
+test("and twenty in learning bounds a day however many sittings it holds", () => {
+  /* Ten sittings in an evening is the case that started this. Coming back
+     within three hours does bring new cards in — that is how somebody who
+     practises often has more on the go — but never past twenty in learning,
+     plus whatever was cleared that day and so left room behind it. */
   const once = live({ cards: courseOf(300), days: 1, sessionsPerDay: 1 });
   const often = live({ cards: courseOf(300), days: 1, sessionsPerDay: 10 });
   console.log(`    in one day: one sitting met ${once.met}, ten sittings met ${often.met}`);
-  /* Plus whatever was cleared that day: since 0.272 a word cleared leaves
-     the front door at once and lets the next one in, so a keen first day
-     can meet an eleventh. What may never happen is more than the front
-     door's worth being learnt at once — see the test after this one. The
-     door is the widest it gets, since 0.303: ten sittings is a keen day. */
   assert.ok(
-    often.met <= FRONT_DOOR_MAX + often.cleared,
-    `ten sittings met ${often.met} words, past a front door of ${FRONT_DOOR_MAX} ` +
-      `and the ${often.cleared} cleared`,
+    often.met <= MAX_IN_LEARNING + often.cleared,
+    `ten sittings met ${often.met} words, past ${MAX_IN_LEARNING} in learning and the ${often.cleared} cleared`,
   );
 });
 
-test("neither pool is ever exceeded, however hard the learner goes", () => {
-  const items = courseOf(300);
-  const lived = liveKeeping({ cards: items, days: 60, sessionsPerDay: 3 });
-  assert.ok(
-    lived.peakFront <= FRONT_DOOR_CAP,
-    `front door reached ${lived.peakFront}, past ${FRONT_DOOR_CAP}`,
-  );
-  assert.ok(
-    lived.peakInHand <= IN_HAND_CAP,
-    `words in hand reached ${lived.peakInHand}, past ${IN_HAND_CAP}`,
-  );
+test("twenty in learning is never exceeded, however hard the learner goes", () => {
+  for (const sessionsPerDay of [1, 3, 30]) {
+    const lived = liveKeeping({ cards: courseOf(300), days: sessionsPerDay === 30 ? 10 : 60, sessionsPerDay });
+    assert.ok(lived.peakLearning <= MAX_IN_LEARNING,
+      `${sessionsPerDay} a day: ${lived.peakLearning} in learning, past ${MAX_IN_LEARNING}`);
+  }
 });
 
 test("a course arrives gradually rather than all at once", () => {
   const first = live({ cards: courseOf(300), days: 1, sessionsPerDay: 10, budget: 20 });
   /* A cleared word lets the next in the same day; see the test above. */
-  assert.ok(first.met <= FRONT_DOOR_MAX + first.cleared,
+  assert.ok(first.met <= MAX_IN_LEARNING + first.cleared,
     `${first.met} words on the first day, ${first.cleared} of them cleared`);
   assert.ok(first.met >= 5, `only ${first.met} words on a whole first day`);
 });
@@ -559,30 +533,22 @@ test("practising all day never stops a learner meeting new words", () => {
       `${hard.asked} questions`,
   );
   assert.ok(
-    hard.met > FRONT_DOOR_CAP,
-    `stuck at ${hard.met} words: the front door never emptied, so no new word was released`,
+    hard.met > MAX_IN_LEARNING,
+    `stuck at ${hard.met} words: nothing in learning ever cleared, so no new word came in`,
   );
   assert.ok(hard.mastered > 0, "nothing reached the top of its ladder");
 });
 
 test("and doing too much never beats doing the right amount", () => {
-  /* The other side of it, and the property the caps exist for: the keen
-     learner may meet more words — they have genuinely graduated more — but
-     the standing pools still bound what they carry, so practice cannot buy
-     its way past the pacing. */
+  /* The other side of it, and the property the limit exists for: the keen
+     learner may meet more words — they have genuinely cleared more — but
+     never holds more than twenty in learning, so practice cannot buy its
+     way past the pacing. */
   const steady = live({ cards: courseOf(60), days: 10, sessionsPerDay: 1 });
   const keen = live({ cards: courseOf(60), days: 10, sessionsPerDay: 30 });
   assert.ok(keen.met >= steady.met, `${keen.met} against ${steady.met}`);
   const peaks = liveKeeping({ cards: courseOf(60), days: 10, sessionsPerDay: 30 });
-  /* The keen learner's door is wider than ten too, for the same reason,
-     and bound the same way: never past what their practice allowed. */
-  assert.ok(peaks.peakDoorOver <= 0, `front door went ${peaks.peakDoorOver} past what practice allowed`);
-  assert.ok(peaks.peakFront <= FRONT_DOOR_MAX, `front door reached ${peaks.peakFront}`);
-  /* The keen learner's pool is larger than sixty — it is sized to what
-     their day reaches — but it is still a pool: never past what their own
-     practice allowed when they sat down, and never past the ceiling. */
-  assert.ok(peaks.peakOver <= 0, `words in hand went ${peaks.peakOver} past what practice allowed`);
-  assert.ok(peaks.peakInHand <= IN_HAND_MAX, `words in hand reached ${peaks.peakInHand}`);
+  assert.ok(peaks.peakLearning <= MAX_IN_LEARNING, `${peaks.peakLearning} in learning`);
 });
 
 /* ------------------------------------------------------------------
@@ -708,16 +674,16 @@ test("and a once-a-day learner's reviews are never crowded out by the climbers",
   assert.ok(got.learnt >= 12, `a once-a-day learner learnt ${got.learnt} words in sixty days`);
 });
 
-test("and the pool only grows for somebody who practises a lot", () => {
-  /* Up to about three sittings a day the pool is the fixed sixty it
-     always was — two words for each of the nine a sitting reaches is
-     eighteen a sitting. */
-  assert.equal(inHandFor(18), IN_HAND_CAP);
-  assert.equal(inHandFor(54), IN_HAND_CAP);
-  assert.equal(inHandFor(0), IN_HAND_CAP);
-  assert.equal(inHandFor(undefined), IN_HAND_CAP);
-  assert.equal(inHandFor(270), 270, "fifteen sittings of eighteen: two words for each of 135");
-  assert.equal(inHandFor(100000), IN_HAND_MAX, "and a runaway day stops at the ceiling");
+test("new cards arrive as fast as the prep forecast's floor assumes, and no faster", () => {
+  /* The forecast says the soonest a prep could be ready, and reads new
+     cards as arriving NEW_PER_DAY a day at most. Measured here on the
+     learner who practises most and never gets anything wrong, and held to
+     it: a change to the mix that moves this moves the forecast too. */
+  const fast = live({ cards: courseOf(300), days: 10, sessionsPerDay: 15 });
+  const perDay = Math.max(...[...Array(10).keys()].map((d) => [...fast.firstSeen.values()].filter((x) => x === d).length));
+  console.log(`    fifteen sittings a day, never wrong: at most ${perDay} new cards in a day`);
+  assert.ok(Math.abs(perDay - NEW_PER_DAY) <= NEW_PER_DAY / 5,
+    `${perDay} new cards in a day against the forecast's ${NEW_PER_DAY}: measure it again and set it`);
 });
 
 /* ------------------------------------------------------------------

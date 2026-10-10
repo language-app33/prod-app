@@ -136,53 +136,58 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   and not a readout: the home screen answers "how far have I got" in a
   picture, and the counts behind it live a tab away.
 - **The shape of a session is the app's to decide, not the learner's.**
-  Eighteen questions; each form asked two ways where its data allows; at
-  most two forms of any one card; easiest first; and never two questions
-  running about the same card or of the same exercise. That order is
-  planned as a whole, by a search that keeps to easiest-first wherever it
-  can — a greedy pass left a card with more questions than the rest piled
-  at the end, beside itself — and bends, card rule last, only where the
-  material allows no clean order. `varyTypes` and `mayFollow`; a grid
-  counts as a question about every word in it, and the retry and the
-  mid-session swap in `requeueMissed` and `requeueUnaskable` keep the same
-  two rules. Cards are taken in the order they fell due, with chance between
-  everything the due list calls equal, and nothing gathers similar words
-  together.
+  Two files say it, and they are written to be read top to bottom.
 
-  **Being due settles that order and nothing else.** There is always a
-  session: a learner who is up to date, or who is holding as many new
-  words as the rule below allows, is dealt the cards nearest to coming
-  round rather than an empty screen. What makes that safe is in the
-  scheduler — **an answer given before a card is due is counted and moves
-  nothing**, so the card comes back exactly when it was always going to
-  and grows its gap then. Practising more can neither push a card out of
-  reach nor hold one short of the bar. Getting it *wrong* early still
-  pulls it back, because forgetting is news whenever it arrives. The
-  limits on *new* cards are a different rule and still apply: more
-  practice is more of what the learner holds, never more than they can
-  take on at once.
+  **The session mix (`src/session-mix.ts`) decides which cards.** One rule
+  for every session, wherever it is started. The *pool* is the cards a
+  session may draw from: every card for a regular session, the prep's decks
+  for a prep, the cards picked for a custom session, narrowed by its mode.
+  Each session is split into three shares — **40% cards in learning, 30%
+  Cleared cards due for review, 30% Learnt cards due for review** — the
+  same three stages the learner sees on a card. A share that cannot be
+  filled passes its places on, in order, to overdue Cleared cards, overdue
+  Learnt cards, cards in learning, then cards not yet due. Cards practised
+  in the last three hours are left out for now, unless a review on them was
+  already overdue; they come last rather than never, so a pool of nothing
+  else is still a session. **New cards come in only to fill a gap in the
+  learning share** — never more than twenty cards in learning in the pool,
+  and none while overdue reviews add up to more than three days' practice,
+  when the app says "catching up first". So somebody who comes back within
+  three hours has a gap for new cards and somebody who practises once a day
+  works through what they have; nothing is counted in sessions or in days.
+  A card the learner asks for always gets in, on top of the shares, and a
+  digit card comes in with its word and shares its place. The numbers were
+  measured with a learner who forgets (`tests/pace.test.mjs`); see
+  DECISIONS.md, "The session mix".
 
-  **And past the due line, what was just practised gives way.** Once
-  nothing is waiting, the order is still nearest-to-due — but a card
-  answered in the last couple of hours sorts behind one that was not, so a
-  run of sittings works through the collection instead of circling the
-  same nine cards. `JUST_PRACTISED` in `src/scheduler.ts`. It touches only
-  the reach past the due line: anything genuinely due, and anything the
-  learner marked, still comes first.
+  **The session layout (`src/session-layout.ts`) decides the rest.** Twenty
+  questions, or six a minute when timed, a matching grid counting as one
+  screen; a short session asks each card again, up to four times; each
+  form asked two ways, at most two forms of a card and two lines of a
+  conversation; at least two kinds of question. The order is easiest first,
+  the shares mixed within each step, never one card twice running nor one
+  exercise twice running, no more than two cards of one kind (word,
+  sentence, number) running where that can be kept, and a missed question
+  back later rather than straight after. The order is planned as a whole,
+  by a search that keeps to easiest-first wherever it can and bends, the
+  kind rule first and the card rule last, only where the material allows
+  no clean order — `varyTypes`, `mayFollow`, `requeueMissed`. A grid's
+  partner cards come from the pool, most overdue first.
 
-  **And a card asked in the last half hour rests, even when it is
-  waiting.** A card being learnt is nearly always waiting — a retest a
-  minute or ten after its last answer, or a level that answer opened — so
-  the rule above never reached the cards a learner was actually holding.
-  One that was only made waiting by its last asking now goes behind
-  everything else, and is still dealt when there is nothing else. Backlog
-  never rests: a question that was due before the card was last touched
-  keeps its place. `JUST_ASKED` and `restingNow` in `src/scheduler.ts`.
+  **Being due settles priority, not whether there is a session.** A learner
+  who is up to date is dealt the cards nearest to coming round rather than
+  an empty screen, and what makes that safe is in the scheduler: **an
+  answer given before a card is due is counted and moves nothing**, so the
+  card comes back exactly when it was always going to. Getting it *wrong*
+  early still pulls it back, because forgetting is news whenever it
+  arrives.
 
-  The numbers are `SESSION_SIZE`, `PER_UNIT` and `MAX_UNITS_PER_FAMILY` in
-  `src/ArabicTrainer.tsx`, beside `buildSession` which is the only thing
-  that reads them. How many *new* words a session may open is not among
-  them and is not the session's business — see below.
+  The custom modes on the Build screen are the same rule over a narrower
+  pool or a narrower set of questions: Fix mistakes and Not seen lately
+  narrow the pool, Weak skills narrows it to what is going wrong and asks
+  the questions that went wrong, Get started asks recognition alone, and
+  Ultimate asks every question each card has — every card the mix lets in,
+  since it has no length of its own.
 
   They were six sliders under an Advanced disclosure, under a sentence
   saying the defaults were sensible — and two of the defaults were why the
@@ -198,9 +203,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
 
 - **What keeps going wrong can be practised on its own.** *Weak skills*,
   under Start session on the home screen, deals nothing but the exercises
-  that have been missed — wrong twice running first, because that is the
-  app's own definition of a gap rather than a slip and what shuts a level
-  (`missedTwice`), then anything missed once in its last two outings. It
+  that have been missed — wrong twice running, which is the app's own
+  definition of a gap rather than a slip and what shuts a level
+  (`missedTwice`), and anything missed once in its last two outings, worst
+  first on each card. Since 0.414 the session mix picks among those cards
+  as it does in any session, so which card leads is the usual easiest-first
+  order rather than the worst-going one. It
   picks per *exercise* and not per card, which is the whole of what the
   name means: a word that keeps failing when it has to be written from its
   meaning is drilled on that and not on the reading it has always got
@@ -237,77 +245,6 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   another device while it keeps its stamp — see `priorityAt` in
   `src/types.ts`.
 
-- **A new word is earned by learning one.** Two pools decide it and
-  nothing else: at most ten words the learner is still getting to know,
-  and at most sixty in hand altogether. A word leaves the first as soon
-  as it is cleared *or* its first level has held at a four-day gap,
-  whichever comes first (`throughDoor`), and goes on climbing against the
-  second without blocking a newcomer behind it. Cleared is what a keen
-  evening reaches — clear three words and three new ones may come in —
-  and the gap is what a once-a-day learner reaches first, because two
-  questions a card a sitting take longer than four days to climb a whole
-  ladder. Either alone was slower for somebody; both together are slower
-  for nobody.
-
-  Nothing is counted in sessions or in days, so ten short sittings in an
-  evening and one long one meet the same words. That was the fault of what
-  stood here before: three a session made the same work worth ten times as
-  much new material depending on how the learner broke up their time, and
-  the two ceilings behind it both counted a word as being learnt whenever
-  any exercise on it was unfinished — so a word held its place for its
-  whole climb and the pool never drained. The measured rate was about one
-  new word every four days.
-
-  **The second pool grows with how much the learner practises.** Sixty
-  suits somebody who sits down once a day, whose day reaches about nine
-  words; somebody sitting down fifteen times reaches well over a hundred,
-  and out of a fixed sixty that was every word two or three times a day
-  and then a fortnight with nothing new while the first ones matured. So
-  the pool is one word for every word a typical day reaches — questions a
-  day, averaged over the last week off the activity log, over the two
-  ways a form is asked — never under sixty and never over two hundred.
-  `inHandCap` and `typicalDay` in `src/scheduler.ts`, `inHandFor` in
-  `src/ArabicTrainer.tsx`. Since 0.281 it is *two* words for every word a
-  day reaches, which changes nothing under about three sittings a day.
-
-  **For the same learner, the words still climbing come first.** Everything
-  waiting used to rank together and be shuffled, so the ten words in the
-  front door drew lots for a session's nine places with every review that
-  had come due: a new word was dealt in a third of a keen learner's
-  sittings and took six days to clear, holding its place the whole time.
-  Past `KEEN_DAY` — more than two sittings' worth of questions on a
-  typical day — the waiting cards that are still climbing go first, and a
-  word clears in about a day. Not below it: a once-a-day learner's reviews
-  passed over are not reached later that day, and in the pace simulation
-  they learnt nothing in two months with the rule applied to them.
-  `KEEN_DAY` and `KEEN_POOL` in `src/ArabicTrainer.tsx`.
-
-  **And the front door widens for them too, up to twenty.** With the words
-  climbing first, a door of ten filled nearly every sitting of somebody
-  practising fifteen times a day: the same word thirteen or fourteen times
-  in a day, and a course of three hundred cards looked no different from
-  one of a hundred, because what was waiting behind the door was never
-  dealt. So the door holds one word for every `DOOR_OUTINGS` a typical day
-  reaches — ten, as before, up to about five sittings a day, and twenty
-  from about ten. Measured, at fifteen sittings: the busiest word down to
-  about ten showings a day, and a word clearing in a day and a half
-  rather than under one. It is a modest gain, and the larger cause is
-  plainer — a day of fifteen sittings asks for more cards than a ladder
-  that is climbed by effort and kept by time will give it — but it is
-  the part the door can do. `FRONT_DOOR_MAX`, `DOOR_OUTINGS` and
-  `frontDoorCap` in `src/scheduler.ts`, `frontDoorFor` in the app.
-
-  **What comes through the door is mixed.** Each place goes to a card of
-  whichever kind is least represented among the words already in the
-  door and those let in before it — a noun, a verb, any other kind of word
-  by what the teacher says it is; a phrase, a sentence, a conversation, a
-  text, a number skill. Within a kind, the due order decides, chance and
-  all. Left to the due order alone, a door's worth of strangers was a draw
-  from whatever the material held most of, so a deck of nouns with a few
-  sentences opened with nouns. The cost is that a kind with only a few
-  cards in it comes in early. `byVariety` in `src/scheduler.ts`,
-  `varietyOf` in the app.
-
 - **A learner can prepare for a date.** Prep mode, under Progress, takes
   a name ("Start of class"), a day and the decks to have learnt by then,
   and keeps the one prep in the settings (`prep`, read through `prepOf`),
@@ -339,17 +276,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   of a session that moves cards forward. The earliest is a calendar floor
   — `LEARN_DAYS` for a card not yet learnt, the wait for its passes for a
   cleared one, `CLEAR_DAYS` more for a sentence whose words are not
-  cleared yet, and never-met cards coming in `FRONT_DOOR_CAP` at a time.
+  cleared yet, and never-met cards coming in `NEW_PER_DAY` a day at most.
   It is instant, and approximate. **It restates the rules rather than
-  running them, so a change to the ladder, the passes, the front door or
+  running them, so a change to the ladder, the passes, the session mix or
   what a session deals has to be carried into it by hand** — nothing will
   fail if it is not. It replaced, in 0.287, a forecast that played the
   app's own rules forward and took most of a minute on a phone.
-
-  The numbers are `FRONT_DOOR_CAP`, `IN_HAND_CAP` and `IN_HAND_MAX` in
-  `src/scheduler.ts`, and they were measured rather than chosen:
-  `tests/pace.test.mjs` plays out a simulated learner and reports what a
-  course costs in days. Change one and run it.
 
   A card's phase is still read over the levels it has reached, and the
   Progress screen shows it: *New* is never met, *Learning* is met and not
