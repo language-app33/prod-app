@@ -129,6 +129,7 @@ const ICONS: Record<string, string> = {
   key:
     "M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z",
   download: "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z",
+  upload: "M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z",
   verify:
     "M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z",
   play: "M8 5v14l11-7z",
@@ -1470,6 +1471,8 @@ export interface CardRow {
   cells: Record<string, Node>;
   open?: () => void;
   actions?: Node;
+  /** Drawn first on a line, before the word — a card's status. */
+  lead?: Node;
 }
 export interface CardViews<T> {
   /** Which list this is, for remembering the view it was left at. */
@@ -1613,6 +1616,7 @@ function CardLines<T>({ view, views, page, itemKey, selecting, picked, toggle, h
               )}
               <div className={`at-cardline${on ? " picked" : ""}`} role="button" data-card={id} {...pressable(id, row)}>
                 {tick(on)}
+                {row.lead ? <span className="at-cardline-lead">{row.lead}</span> : null}
                 <span className="at-cardline-word">{row.word}</span>
                 <span className="at-cardline-meaning">{row.meaning}</span>
                 {row.actions && !selecting ? (
@@ -3439,10 +3443,15 @@ export function useScrollTop(key: unknown) {
  *   which says it is a step to the side of what is underneath rather than
  *   somewhere new.
  */
-export function Screen({ title, onBack, action, children, footer, backLabel = "Back", rise, className = "" }: {
+export function Screen({ title, onBack, action, actionBelow, children, footer, backLabel = "Back", rise, className = "" }: {
   title?: Node;
   onBack?: () => void;
   action?: Node;
+  /** Put the action on a line of its own under the title, where there is
+      more than one button and a long title — a card's screen, whose title
+      is the card's words. Beside the title, three buttons squeezed it to a
+      word a line on a phone. */
+  actionBelow?: boolean;
   children?: Node;
   footer?: Node;
   backLabel?: string;
@@ -3515,7 +3524,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
      inside it escapes the space's layer while staying in the theme. */
   const view = (
     <div className={`at-screen over${rise ? " rise" : ""}${className ? " " + className : ""}`} ref={elRef} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
-      <div className="at-screenhead">
+      <div className={`at-screenhead${actionBelow ? " below" : ""}`}>
         {onBack ? (
           <button className="at-back" onClick={onBack} aria-label={backLabel}>
             <Icon name="back" />

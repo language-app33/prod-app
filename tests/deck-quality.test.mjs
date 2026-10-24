@@ -10,8 +10,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deckQuality, formsToMeet, qualityTone, unknownFinder, wantsSentences } from "../src/deck-quality.ts";
+import { deckQuality, formIn, formsToMeet, qualityTone, unknownFinder, wantsSentences } from "../src/deck-quality.ts";
 import { LANGUAGES } from "../src/languages.ts";
+import { ALT_SEP } from "../src/answers.ts";
+import { must } from "./helpers.mjs";
 
 const ar = LANGUAGES["ar-PS"];
 const vi = LANGUAGES["vi-Hue"];
@@ -107,9 +109,10 @@ test("a confirmed link counts, for the form the sentence holds; an unconfirmed o
   const confirm = q.fixes.find((f) => f.key === "confirm");
   assert.ok(confirm, "the link nobody has confirmed is offered");
   assert.match(confirm.text, /1 link between a word and a sentence in this deck is waiting/);
-  /* Confirming it takes the card from 0.75 to 1: a quarter of 55, scaled. */
-  const total = q.checks.filter((c) => c.applies).reduce((t, c) => t + c.weight, 0);
-  assert.ok(Math.abs(confirm.gain - (55 * 0.25 * 100) / total) < 1e-9);
+  /* Confirming it takes the card from 0.75 to 1: a quarter of 55, scaled
+     to the 95 points the checks besides the conversation share. */
+  const total = q.checks.filter((c) => c.applies && c.key !== "scene").reduce((t, c) => t + c.weight, 0);
+  assert.ok(Math.abs(confirm.gain - (55 * 0.25 * 95) / total) < 1e-9);
 
   const elsewhere = deckQuality([book], { lang: ar, pool });
   assert.equal(rowOf(elsewhere, "book").share, 0, "a sentence in another deck does not count");
@@ -261,4 +264,286 @@ test("looking a word up by its key answers what the matcher answers", () => {
       }
     }
   }
+});
+
+/* ---- which form a linked sentence holds ---- */
+
+/** @param {string} id @param {string[]} forms @param {string} [category] */
+const wordCard = (id, forms, category = "adjective") => ({
+  id, lang: "ar-PS", category, forms: forms.map((w, i) => ({ id: i ? `${id}-${i}` : id, ar: w, en: `${id} ${i}` })),
+});
+/** @param {string} id @param {string | string[]} said @param {string[]} uses */
+const sentenceCard = (id, said, uses) => ({
+  id, lang: "ar-PS", uses,
+  forms: (Array.isArray(said) ? said : [said]).map((w, i) => ({ id: i ? `${id}-${i}` : id, ar: w, en: id })),
+});
+/** @param {any} q @param {string} id */
+const metOf = (q, id) => Object.fromEntries(rowOf(q, id).forms.map((/** @type {any} */ f) => [f.ar, f.met]));
+
+test("a feminine made with ة credits the feminine, not the masculine inside it", () => {
+  const understand = wordCard("understand", ["فاهم", "فاهمة"]);
+  const sorry = sentenceCard("s1", "آسفة، مش فاهمة.", ["understand"]);
+  const deck = [understand, sorry];
+  assert.deepEqual(metOf(deckQuality(deck, { lang: ar, pool: deck }), "understand"), { "فاهم": 0, "فاهمة": 1 });
+
+  const plain = sentenceCard("s2", "مش فاهم", ["understand"]);
+  const deck2 = [understand, plain];
+  assert.deepEqual(metOf(deckQuality(deck2, { lang: ar, pool: deck2 }), "understand"), { "فاهم": 1, "فاهمة": 0 });
+});
+
+test("each of a masculine and feminine pair is credited from its own sentence", () => {
+  const tired = wordCard("tired", ["تعبان", "تعبانة"]);
+  const she = sentenceCard("she", "هي تعبانة", ["tired"]);
+  const he = sentenceCard("he", "هو تعبان", ["tired"]);
+  const deck = [tired, she, he];
+  assert.deepEqual(metOf(deckQuality(deck, { lang: ar, pool: deck }), "tired"), { "تعبان": 1, "تعبانة": 1 });
+});
+
+test("a card with only the masculine is still credited from a sentence with the feminine", () => {
+  const tired = wordCard("tired", ["تعبان"]);
+  const she = sentenceCard("she", "هي تعبانة", ["tired"]);
+  const deck = [tired, she];
+  assert.deepEqual(metOf(deckQuality(deck, { lang: ar, pool: deck }), "tired"), { "تعبان": 1 });
+});
+
+test("a word with a possessive or a prefix glued to it still credits the plain form", () => {
+  const book = wordCard("book", ["كتاب", "كتب"], "noun");
+  const job = wordCard("job", ["وظيفة", "وظائف"], "noun");
+  const want = wordCard("want", ["بدي", "بدك", "بده"], "verb");
+  const yours = sentenceCard("s1", "وين كتابك؟", ["book"]);
+  const hers = sentenceCard("s2", "أخذت كتابها معها", ["book"]);
+  const theJob = sentenceCard("s3", "الوظيفة صعبة", ["job"]);
+  const andYou = sentenceCard("s4", "وبدك قهوة؟", ["want"]);
+  const deck = [book, job, want, yours, hers, theJob, andYou];
+  const q = deckQuality(deck, { lang: ar, pool: deck });
+  assert.deepEqual(metOf(q, "book"), { "كتاب": 2, "كتب": 0 });
+  assert.deepEqual(metOf(q, "job"), { "وظيفة": 1, "وظائف": 0 });
+  assert.deepEqual(metOf(q, "want"), { "بدي": 0, "بدك": 1, "بده": 0 });
+});
+
+test("the word a blank took is matched to the form spelt like it, marks aside", () => {
+  const forms = [{ ar: "فاهم" }, { ar: "فاهمة" }];
+  assert.equal(formIn("فاهمَة", forms, ar), forms[1]);
+  assert.equal(formIn("فاهِم", forms, ar), forms[0]);
+});
+
+/* ---- a form with several accepted answers ---- */
+
+test("a sentence with two accepted answers is read answer by answer, as one sentence", () => {
+  const fine = wordCard("fine", ["تمام"], "adjective");
+  const all = { id: "all", lang: "ar-PS", category: "pronoun", forms: [{ ar: "كلشي", en: "everything" }] };
+  const it = { id: "it", lang: "ar-PS", category: "pronoun", forms: [{ ar: "كله", en: "all of it" }] };
+  const both = sentenceCard("s", ["كلشي تمام", "كله تمام"].join(ALT_SEP), ["fine"]);
+  const known = [fine, all, it, both];
+  const q = deckQuality([fine, both], { lang: ar, pool: known, known });
+  assert.equal(checkOf(q, "sentences").share, 1, "no untaught word, and linked");
+  assert.ok(!q.fixes.some((f) => f.key === "unknown" || f.key === "both"), JSON.stringify(q.fixes));
+  assert.deepEqual(metOf(q, "fine"), { "تمام": 1 }, "found in both answers, and counted once");
+});
+
+test("each answer of a word teaches a word for other sentences", () => {
+  const howAreYou = { id: "how", lang: "ar-PS", category: "expression",
+    forms: [{ ar: ["كيف حالَك؟", "كيفَك؟"].join(ALT_SEP), en: "how are you" }] };
+  const find = unknownFinder([howAreYou], ar);
+  assert.deepEqual(find("كيفك"), []);
+  assert.deepEqual(find("كيف حالك"), []);
+});
+
+test("a word form with several answers is met by a sentence holding any one of them", () => {
+  const howAreYou = { id: "how", lang: "ar-PS", category: "expression",
+    forms: [{ ar: ["كيف حالَك؟", "كيفَك؟"].join(ALT_SEP), en: "how are you" }] };
+  const hi = sentenceCard("s", "مرحبا، كيفك اليوم؟", ["how"]);
+  const deck = [howAreYou, hi];
+  const q = deckQuality(deck, { lang: ar, pool: deck });
+  assert.equal(rowOf(q, "how").forms[0].met, 1);
+});
+
+test("a card is too long when any of its answers is", () => {
+  const short = "سكّر الباب";
+  const long = Array(14).fill("باب").join(" ");
+  const door = wordCard("door", ["باب"], "noun");
+  const card = sentenceCard("s", [short, long].join(ALT_SEP), ["door"]);
+  const q = deckQuality([door, card], { lang: ar, pool: [door, card] });
+  assert.equal(checkOf(q, "long").share, 0, "one sentence, and it is too long");
+  assert.match(must(q.fixes.find((f) => f.key === "long"), "the long fix").text, /^1 sentence is longer/);
+});
+
+/* ---- every version of a sentence card ---- */
+
+test("every version of a sentence card is read, and one card is still one sentence", () => {
+  const want = wordCard("want", ["بدي", "بدك", "بده"], "verb");
+  const book = wordCard("book", ["كتاب"], "noun");
+  const card = sentenceCard("s", ["بدي كتاب", "بدك كتاب؟"], ["want", "book"]);
+  const deck = [want, book, card];
+  const q = deckQuality(deck, { lang: ar, pool: deck });
+  assert.deepEqual(metOf(q, "want"), { "بدي": 1, "بدك": 1, "بده": 0 }, "the second version credits بدك");
+  assert.deepEqual(metOf(q, "book"), { "كتاب": 1 }, "كتاب in both versions is in one sentence");
+});
+
+test("a card is flawed, unrecorded or unspelt when any of its versions is", () => {
+  const want = wordCard("want", ["بدي"], "verb");
+  const book = wordCard("book", ["كتاب"], "noun");
+  const card = { id: "s", lang: "ar-PS", uses: ["want"], forms: [
+    { id: "s", ar: "بدي كتاب", en: "I want a book", lat: "biddi ktaab", clips: ["c"] },
+    { id: "s-1", ar: "بدي كتاب جديد", en: "I want a new book" },
+  ] };
+  const known = [want, book, card];
+  const q = deckQuality([want, book, card], { lang: ar, pool: known, known });
+  assert.equal(checkOf(q, "sentences").share, 0, "جديد is in the second version, and nothing teaches it");
+  assert.match(must(q.fixes.find((f) => f.key === "unknown"), "the unknown fix").text, /\(جديد\)/);
+  /* Units: the two word forms and the one sentence. */
+  near(checkOf(q, "recordings").share, 0, "the words have none, and the sentence's second version none");
+  const recorded = { ...card, forms: card.forms.map((f) => ({ ...f, clips: ["c"], lat: "x" })) };
+  const q2 = deckQuality([want, book, recorded], { lang: ar, pool: known, known });
+  near(checkOf(q2, "recordings").share, 1 / 3);
+  near(checkOf(q2, "pronunciation").share, 1 / 3);
+});
+
+/* ---- each fix worth what it alone would add ---- */
+
+test("sentences with two flaws are a fix of their own, and neither single fix claims them", () => {
+  const vw = (/** @type {string} */ id, /** @type {string} */ w, extra = {}) =>
+    ({ id, lang: "vi-Hue", category: "noun", forms: [{ id, ar: w, en: id, clips: ["c"], images: ["i"], ...extra }] });
+  const coffee = vw("w1", "cà phê");
+  const vs = (/** @type {string} */ id, /** @type {string} */ w, /** @type {string[]} */ uses) =>
+    ({ id, lang: "vi-Hue", uses, forms: [{ id, ar: w, en: id, clips: ["c"] }] });
+  const good = [vs("s1", "tôi uống cà phê", ["w1"]), vs("s2", "tôi thích cà phê", ["w1"])];
+  const bad = [vs("b1", "tôi ăn phở", []), vs("b2", "tôi ăn cơm", [])];
+  const scene = { id: "sc", lang: "vi-Hue", speakers: ["A", "B"],
+    lines: [{ ar: "tôi uống cà phê", en: "I drink coffee", who: 0, uses: ["w1"], clips: ["c"] }] };
+  const taught = [vw("k1", "tôi"), vw("k2", "uống"), vw("k3", "thích")];
+  const deck = [coffee, ...good, ...bad, scene];
+  const score = (/** @type {any[]} */ cards, /** @type {any[]} */ more = []) => {
+    const known = [...cards, ...taught, ...more];
+    return deckQuality(cards, { lang: vi, pool: known, known });
+  };
+  const q = score(deck);
+  assert.ok(!q.fixes.some((f) => f.key === "unlinked"), "linking alone mends nothing");
+  assert.ok(!q.fixes.some((f) => f.key === "unknown"), "teaching the words alone mends nothing");
+  const both = must(q.fixes.find((f) => f.key === "both"), "the fix for both");
+  assert.match(both.text, /^2 sentences need both a link to a word card and their words taught \(ăn, phở, cơm\)/);
+
+  const linked = deck.map((c) => (c.id === "b1" || c.id === "b2" ? { ...c, uses: ["w1"] } : c));
+  assert.equal(score(linked).score, q.score, "linking them alone leaves the score where it was");
+  const words = ["ăn", "phở", "cơm"].map((w, i) => vw(`t${i}`, w));
+  assert.equal(score(deck, words).score, q.score, "and so does teaching their words alone");
+  const mended = score(linked, words);
+  assert.equal(mended.score, 100);
+  /* The raw gain: 2 of 5 sentences' share of the 10, scaled to 95 of 85. */
+  near(both.gain, (10 * 2 / 5) * 95 / 85);
+});
+
+/* ---- a line picked from a sentence of the deck ---- */
+
+test("a line picked from a sentence card of the deck is not a second sentence", () => {
+  const book = wordCard("book", ["كتاب"], "noun");
+  const have = sentenceCard("have", "عندي كتاب", ["book"]);
+  const scene = { id: "sc", lang: "ar-PS", speakers: ["A", "B"],
+    lines: [{ ar: "عندي كتاب", en: "have", who: 0, from: "have", uses: ["book"] }, { ar: "تمام", en: "fine", who: 1 }] };
+  const deck = [book, have, scene];
+  const q = deckQuality(deck, { lang: ar, pool: deck });
+  assert.deepEqual(metOf(q, "book"), { "كتاب": 1 }, "still 1 of the 2 it wants");
+  assert.equal(checkOf(q, "scene").share, 1, "and the conversation still counts as one");
+
+  const alone = deckQuality([book, scene], { lang: ar, pool: deck });
+  assert.deepEqual(metOf(alone, "book"), { "كتاب": 1 }, "without the card in the deck, the line is the sentence");
+});
+
+/* ---- a conversation switched off ----
+   A safeguard: the editor cannot switch a conversation off, so only a
+   hand-made import or a card from before 0.179 could arrive like this.
+   See docs/AUDIT-what-teachers-can-make.md. */
+
+test("a conversation switched off is no sentences and no conversation", () => {
+  const book = wordCard("book", ["كتاب"], "noun");
+  const have = sentenceCard("have", "عندي كتاب", ["book"]);
+  const scene = { id: "sc", lang: "ar-PS", speakers: ["A", "B"],
+    lines: [{ ar: "وين الكتاب؟", en: "where is the book", who: 0, uses: ["book"] }] };
+  const on = deckQuality([book, have, scene], { lang: ar, pool: [book, have, scene] });
+  const off = deckQuality([book, have, { ...scene, drill: false }], { lang: ar, pool: [book, have, scene] });
+  assert.deepEqual(metOf(on, "book"), { "كتاب": 2 });
+  assert.deepEqual(metOf(off, "book"), { "كتاب": 1 });
+  assert.equal(checkOf(on, "scene").share, 1);
+  assert.equal(checkOf(off, "scene").share, 0);
+  assert.ok(must(off.score, "a score") < must(on.score, "a score"));
+});
+
+/* ---- a line with no words ---- */
+
+test("a line or card with no letters in it is not a sentence", () => {
+  const book = wordCard("book", ["كتاب"], "noun");
+  const lines = [{ ar: "عندي كتاب", en: "I have a book", who: 0, uses: ["book"] }];
+  const scene = { id: "sc", lang: "ar-PS", speakers: ["A", "B"], lines };
+  const dotted = { ...scene, lines: [...lines, { ar: ".", en: ".", who: 1 }] };
+  const dot = sentenceCard("dot", "…", []);
+  const plain = deckQuality([book, scene], { lang: ar, pool: [book, scene] });
+  const withDot = deckQuality([book, dotted, dot], { lang: ar, pool: [book, dotted, dot] });
+  assert.equal(withDot.score, plain.score);
+  assert.deepEqual(withDot.checks, plain.checks);
+  assert.deepEqual(withDot.fixes, plain.fixes);
+});
+
+/* ---- the conversation's own 5 points ---- */
+
+test("where every check applies, the score is the points earned, as it always was", () => {
+  const frame = speaking(null, null);
+  const book = { id: "book", lang: "ar-PS", category: "noun",
+    forms: [{ id: "book", ar: "كتاب", en: "book", lat: "ktaab", clips: ["c"], images: ["i"] }] };
+  const have = { id: "have", lang: "ar-PS", uses: ["book"],
+    forms: [{ id: "have", ar: "عندي كتاب", en: "I have a book", lat: "3indi ktaab" }] };
+  const scene = { id: "sc", lang: "ar-PS", speakers: ["A", "B"],
+    lines: [{ ar: "وين الكتاب؟", en: "where", who: 0, uses: ["book"], clips: ["c"], lat: "ween" }] };
+  const deck = [speak, book, frame, have, scene];
+  const pool = [...pronouns, ...deck];
+  const q = deckQuality(deck, { lang: ar, pool });
+  assert.ok(q.checks.every((/** @type {any} */ c) => c.applies), JSON.stringify(q.checks));
+  const earned = q.checks.reduce((/** @type {number} */ t, /** @type {any} */ c) => t + c.weight * c.share, 0);
+  assert.equal(q.score, Math.round(earned));
+});
+
+test("a conversation is worth 5 points whatever else applies", () => {
+  const here = { id: "here", lang: "ar-PS", category: "adverb", forms: [{ ar: "هون", en: "here" }] };
+  /* One sentence with a blank, reviewed and approved, linked through its
+     blank, and every word in it taught. */
+  const frame = { id: "f", lang: "ar-PS", sentence: true, review: { ok: ["k"] },
+    forms: [{ id: "f", ar: "{{name}} هون", en: "{{name}} is here" }] };
+  const partsOf = () => [{ id: "f", combos: 1, cut: false, list: [{ key: "k", ar: "سارة هون", en: "Sarah is here", lat: "", took: {} }] }];
+  const known = [here, frame];
+  const q = deckQuality([frame], { lang: ar, pool: known, known, partsOf });
+  /* Sentences, review and length apply, and share the 95: all earned. */
+  assert.equal(q.score, 95, "it was 80, the conversation's points being a fifth of what applied");
+  assert.equal(must(q.fixes.find((f) => f.key === "scene"), "the conversation fix").gain, 5);
+
+  const scene = { id: "sc", lang: "ar-PS", speakers: ["A", "B"],
+    lines: [{ ar: "هون", en: "here", who: 0, uses: ["here"], clips: ["c"], lat: "hoon" }] };
+  const withScene = deckQuality([frame, scene], { lang: ar, pool: [...known, scene], known, partsOf });
+  assert.equal(withScene.score, 100);
+});
+
+/* ---- a form with two answers, recorded and spelt answer by answer ---- */
+
+test("a form with two answers is recorded and spelt only when each answer is", () => {
+  /** @param {any[]} answers @returns {any} */
+  const fineWith = (answers) => ({ id: "fine", lang: "ar-PS", category: "adjective", forms: [{
+    id: "fine", en: "fine", images: ["i"],
+    ar: answers.map((a) => a.text).join(ALT_SEP),
+    lat: answers.map((a) => a.lat).join(ALT_SEP),
+    clips: [...new Set(answers.flatMap((a) => a.clips || []))],
+    answers,
+  }] });
+  const half = fineWith([{ text: "تمام", lat: "tamaam", clips: ["c1"] }, { text: "منيح", lat: "" }]);
+  const q = deckQuality([half], { lang: ar, pool: [half] });
+  assert.equal(checkOf(q, "recordings").share, 0, "the second answer has no voice");
+  assert.equal(checkOf(q, "pronunciation").share, 0, "and no pronunciation");
+
+  const whole = fineWith([{ text: "تمام", lat: "tamaam", clips: ["c1"] }, { text: "منيح", lat: "mniih", clips: ["c2"] }]);
+  const q2 = deckQuality([whole], { lang: ar, pool: [whole] });
+  assert.equal(checkOf(q2, "recordings").share, 1);
+  assert.equal(checkOf(q2, "pronunciation").share, 1);
+
+  /* A card from before answers had recordings of their own shares the
+     form's among them, and reads as it always did. */
+  const old = { id: "old", lang: "ar-PS", category: "adjective", forms: [{
+    id: "old", en: "fine", ar: ["تمام", "منيح"].join(ALT_SEP), lat: ["tamaam", "mniih"].join(ALT_SEP), clips: ["c1"] }] };
+  assert.equal(checkOf(deckQuality([old], { lang: ar, pool: [old] }), "recordings").share, 1);
 });

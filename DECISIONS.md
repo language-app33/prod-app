@@ -6661,3 +6661,267 @@ can be (`keyed` on the context, tested to agree with the matcher), so it is
 a lookup. The sentences a blank makes were already worked out for review,
 and are now worked out once for both.
 
+**The conversation is always worth 5 (0.463).** The owner's rule. Sharing a
+missing check's points among every check that applied included the
+conversation, so in a small deck a missing conversation cost up to 20
+points: one well-made, reviewed sentence and nothing else scored 80. Now
+the conversation or text is worth exactly 5 of the 100, and a check with
+nothing to measure shares its points only among the other checks that
+apply, which together are always worth 95. A deck where every check
+applies scores as before. "Add a conversation or a text" always offers 5.
+
+**How a sentence is read (0.463).** What the score counts now follows what
+a student is asked:
+
+- A link credits the form the sentence holds, not the first form the
+  matcher finds. The Arabic matcher reads a feminine made with ة as the
+  masculine plus an ending, so فاهم was credited for every فاهمة. Where
+  several forms are found at one place, the one spelt as the sentence
+  spells it wins, then one with nothing glued to its end; a possessive or
+  prefix glued on (كتابك, الوظيفة, وبدك) still credits the plain form. The
+  gap-fill (`context-index.ts`, one form per phrase) took the first form
+  found too, and asked فاهم in "مش ___ة"; since 0.466 both ask the same
+  rule, `bestWordIn` in `languages.ts`, and "Words this teaches" names
+  the form it picks.
+- A form's accepted answers are read one by one, with `splitForms`, the
+  splitter the drills use. Read whole, the separator glued itself to the
+  last word (تمام was "unknown") and two one-word answers read as a phrase.
+  A sentence card with several answers is one sentence, flawed or too long
+  if any answer is; a word form teaches each of its answers and is met by
+  any of them.
+- Every asked version of a sentence card is read (masculine and feminine,
+  old `subs`), still as one sentence: a word in two versions earns 1.
+- A line picked from a sentence card of the same deck is not a second
+  sentence. Text with no letter in it ("." or "…") is no sentence and no
+  word.
+- The fixes for a sentence's two flaws each claim only the sentences that
+  fix alone would mend; sentences with both flaws are a fix of their own,
+  since linking them alone, or teaching their words alone, adds nothing.
+
+## Words with several answers, in sentences (0.468)
+
+**24 October 2026** · `answerWords`, `phraseAnswers` and `wordsOffered` in `src/context-index.ts`, `castContext` and `pickContext` in `src/ArabicTrainer.tsx`, `src/context-links.ts`, `src/sentence-words.ts`, `contextCoverage` in `src/languages.ts`, `heard` and `spelt` in `src/deck-quality.ts`
+
+Found by the audit in `docs/AUDIT-what-teachers-can-make.md` (findings 4
+to 6), and settled by the owner question by question.
+
+**Each accepted answer is a word to find.** A form's answers are one text
+with a separator between them, and everything that looked for a word
+inside a sentence read that text whole, so it found it nowhere. The
+gap-fill, "Words this teaches", the In context tab, a deck's In context
+section, the editor's sentence check and the learner's own links all read
+each answer on its own now, through `splitForms` or `answersOf`. A phrase
+with two answers is read as each of them too, and shown as the one that
+holds the word, with that answer's own recordings. The score had read
+answers one by one since 0.463, so for a while it credited sentences that
+students never got. The two agree again.
+
+**In a sentence, only the sentence's answer is right.** The owner's
+choice, over accepting any of the word's answers: the sentence was written
+and recorded with one of them. The index notes which answer a sentence
+holds (`answer` on a context). `castContext` narrows the question to it
+before `castAnswer` takes one by its count, so it holds for the typed gap,
+the heard one and the choice. A choice is scheduled per answer, so
+`pickContext` takes a sentence holding the answer being scheduled where
+there is one. Where there isn't, any sentence is used and the question is
+about that sentence's answer, which the second answer's schedule is then
+credited with. That is accepted: the other way leaves such an answer with
+no sentence question at all.
+
+**The word type before the spaces.** `wordsOffered`, `sentenceWords` and
+`contextCoverage` guessed word-or-phrase from the text, which `kindOf` had
+stopped doing for the rest of the app because it turns a Vietnamese word
+of two syllables into a phrase. They ask `kindOf` now. A card with no word
+type is still guessed from its whole text; whether to guess from its first
+answer instead is a question the owner has not answered yet.
+
+**Each answer's recordings.** A form's recordings are the union of its
+answers' (`packAnswers`), so the score called a form recorded as soon as
+one answer was. It now asks every answer of a form with more than one; a
+card from before answers had recordings of their own shares the form's,
+and reads as it did.
+
+**The switched-off conversation.** The rule added in 0.463 stays as a
+safeguard for an imported or very old card. The notes that described it
+to teachers are gone, because no teacher can make one.
+
+## A teacher's export is a backup file (0.462)
+
+**23 October 2026** · `export-plan` and `export-chunk` in `server/api/courses.js`, `buildExport` and `ExportScreen` in `src/spaces.tsx`
+
+The owner asked for a card, ticked cards, a deck or ticked decks to be
+exportable from Teaching, and settled its questions before it was built:
+the file should both restore and be something to hand an AI for advice
+on what to make next; recordings and pictures are a tick box, on to
+start; a deck is exported with its cards, and offered from its own page
+and the Decks list's bulk bar.
+
+**One format, the backup's.** A second, readable format would have been
+a second thing to keep in step with the cards. The backup's records
+are already the cards as stored, and JSON with the recordings left out is
+as readable to an AI as any summary written for it. An `about` line in
+the manifest says what the records are. The admin's Restore takes the
+file as it is, because the file says which parts it holds (`includes`)
+and its counts are what it holds.
+
+**The server says what may go in.** `export-plan` reads the my-cards and
+my-decks rule: the teacher's own cards, decks they own or teach, and
+every card in those decks. Anything else is counted as `refused` and left
+out. `export-chunk` checks every key again rather than trusting the
+plan, and gives out only deck, card, clip and image records. A clip or
+image is named by its hash, so it is reachable only from a card already in
+the export, and the clip endpoint already serves any hash to anyone
+signed in. The chunks are fetched and written to the file by the same
+code as a backup (`writeFile`), so the two files cannot drift apart.
+
+**A restore adds to a person's card list instead of replacing it.** For a
+restored card to show up, its owner's `mycards:` list has to name it, so
+the export carries that list with only the exported ids in it. Written
+over the stored list, that would have taken every other card off it.
+`admin-restore-chunk` now merges `mycards:` the way it already merged
+`index:`. That matches what a restore already promised, that anything
+made since the backup is left alone, and it changes nothing for a
+whole-site file.
+
+**What it costs.** Restoring still needs an administrator; a teacher has
+no import of their own. A restored deck's record is the deck as it was
+exported, but deleting a deck took it out of its courses, and the export
+holds no courses, so a deleted deck put back has to be added to them
+again. Numbers and the clock stay with the whole-site backup, because they
+belong to the teacher rather than to a deck. Each chunk re-reads every
+deck and course to check access, which is cheap on a teaching site.
+
+## A teacher's import (0.464)
+
+**23 October 2026** · `src/imports.ts`, `ImportScreen` and `importFrom` in `src/spaces.tsx`
+
+The other end of 0.462's export. The owner settled its questions before
+it was built. "Already exists" means the same card (the same id, among the
+cards the teacher can see) or the same word in the same language. A same
+card is listed unticked and replaced if ticked. A same word is listed
+unticked and imported beside if ticked. A deck the teacher has is added
+to. A new deck goes in no course. What is imported becomes the importing
+teacher's own. A whole-site backup is accepted too. Afterwards the owner
+asked that every imported card be Ready for review.
+
+**The same word is the deck score's rule, minus the meaning.** The score
+counts a word as repeated when the script word and its English agree. An
+import asks whether you already have the word at all, and one word can
+have two meanings, so it compares the script word (`wordOf`) in the same
+language alone, and shows your card's meaning beside the file's. A card
+with no word, a conversation or a text, is compared by its name. A
+deck is the same if its id is, or failing that its name in its language.
+
+**Written with the calls the editor already makes.** Decks are made with
+create-deck. Recordings and pictures go up with put-clip and put-image,
+which keep one copy of each. Each card goes through save-card, with
+an id to replace and none to make one new, so ownership, a locked deck's
+refusal, number parts and everything else save-card enforces hold for an
+import too. A server endpoint of its own would have been a second way in
+for cards, needing every one of those rules repeated.
+
+**Links follow the cards.** A phrase names its words by id, and an
+imported copy gets a new one. Every mention of an id from the file is
+moved to where that card now is (`remapIds`). A word left out because the
+teacher has it maps to the teacher's card. Cards that name a card made in
+the same import are saved a second time once its id is known.
+
+**Ready for review.** The import sends `status: "review"` with each save
+(`IMPORTED_STATUS`). Since 0.465 the server keeps it: a new card is made
+Ready for review, and a replaced card that students have keeps their
+version while the import waits as its changes, Ready for review.
+
+**What it costs.** A card left as it is still joins the imported deck it is
+in, which is what importing a deck means but is a change to a card nobody
+ticked. An ID already taken in the teacher's cards is dropped instead
+of refusing the card. An import cut short (a lost connection) leaves what
+it had written: the error is shown on the screen, and importing the file
+again finds those cards already there.
+
+
+## A card's status, without the one-screen card editor (0.465)
+
+**23 October 2026** · `card-status`, `save-card`, `teacherView`,
+`studentView` in `server/api/courses.js`; `StatusMenu`, `touchedBy` in
+`src/spaces.tsx`
+
+**What was wanted.** The statuses from 0.431 — Draft, Ready for review,
+Published — back on beta on their own. 0.431 came off beta the day it went
+up, carrying the statuses and a redesign of the card screen together (one
+screen with locked sections, each saved on its own). The owner asked for
+the statuses only.
+
+**What changed.** The server half of 0.431 is back nearly as it was: a
+card's status, a published card's unpublished changes in `pending`, the
+`card-status` action, and only published cards reaching a student. The
+card screen is today's: the read-out, with the status menu beside Edit,
+and the editor, whose Save sends the whole card with `into: "changes"` (a
+new card with `status: "draft"`). Lists have the badge and the table its
+Status column.
+
+**Choices the owner made.** Changes to a published card wait until they
+are published or discarded, and Unpublish keeps the teacher's work as a
+draft. A card's decks, ID and tags are not part of those changes and
+apply at once, because other cards find a card through them. No question
+when two teachers saved the same part of a card: that came with saving a
+section at a time, so `baseRev`, `force`, `edits` and `changed-elsewhere`
+are not brought back, and the later save wins as it always did.
+
+**What it costs, and what was kept.** Saves from other screens (tagging a
+selection, adding to a deck, the Pronouns screen, splitting meanings)
+write what students have, as they always did, naming the fields they
+changed (`touchedBy`), so that a teacher's copy of a card with changes
+waiting — which *is* the changes — is never sent up whole and published
+by accident. A rename or a tag taken off the collection reaches other
+cards as a `walk`, which the server applies to both versions of each. A
+save kept on the device while offline keeps what it said about itself and
+goes up as sent.
+
+
+## A subjunctive example is written as a sentence (0.469)
+
+**24 October 2026** · `readExample`, `sentenceOf`, `othersOf` in
+`src/examples.ts`; `ExampleFields`, `ExampleDraft` in `src/card-editor.tsx`;
+`storedExamples` in `server/api/courses.js`
+
+**What was wrong.** Since 0.441 a teacher wrote a verb's subjunctive
+example as its pattern: the words round the verb, a chip for the gap in
+the Arabic and again in the transliteration, the English built from three
+chips (person, verb, to + verb), and "Whose wish is it?" asked apart
+where the English said to + verb. Five paragraphs explained it, and the
+owner, who writes these, still could not follow it.
+
+**What changed.** The teacher writes the example as it is said, for one
+person, with one of the forms above in it, and `readExample` makes the
+pattern out of that: the form, found word by word in the Arabic (marks
+left off, nothing glued on peeled away, so بتاكل is not تاكل), is the
+gap; the English is read in one of three shapes, tried in this order —
+*I want her to eat* (whom + to + verb: `{{verb-to}}`, wished by the
+subject before it, `someone` where there is none), *she wants to eat*
+(to + verb: `{{verb-to}}`, her own wish), *she must eat* (who … verb:
+`{{verb-who}}` … `{{verb-plain}}`). To + verb comes first because in *she
+wants to eat* she is the one who wants, and بدها stays put. The person
+settles a form two persons spell alike (تاكل: *you* or *she*); with no
+pronoun, a to + verb sentence is taken as the third person, since a name
+is somebody else. What is read is stored as an example always was, plus
+`as`, who it was written for, so it reads back the same; everything that
+asks one is untouched. The screen holds a stored example as such
+(`kept`) until it is changed, shown filled from the forms as they stand,
+so editing a form above does not break an example nobody touched.
+
+**Choices the owner made.** Of: writing a sentence the app reads; picking
+from a ready-made list; keeping the chips with a shorter explanation —
+the first (1a). A verb with subjunctive forms still needs an example to
+be saved (2a). Sentence cards keep their chips for now (3a): every blank
+there is a chip already, and reading a whole sentence card's English is a
+much bigger job.
+
+**What it costs.** The app has to find the verb: the Arabic must use a
+form as the table spells it, and the English must say who and use the
+verb as in its name. *Before she eats* and *let him eat* cannot be said,
+which was true of the chips too. *I have to eat* is read as somebody's
+wish (*I have her to eat*), and *you want …* takes the first you as the
+one who wants; the two lines under each example are there to catch those.
+And an example reopened shows its English as a student meets it — *You
+(f) must eat* for *you must eat* — because the pattern, not the typing, is
+what is kept.

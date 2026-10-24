@@ -20,7 +20,7 @@
  */
 
 import type { Form, Item, Lang } from "./types.ts";
-import { contextTokens, guessKind, supportsContext } from "./languages.ts";
+import { contextTokens, kindOf, splitForms, supportsContext } from "./languages.ts";
 import { unitsOf } from "./scheduler.ts";
 import { wordOf } from "./cards.ts";
 import { isDialog } from "./dialogs.ts";
@@ -57,18 +57,23 @@ export function sentenceWords(text: string, cards: Item[], lang: Lang, selfId: s
   const hits: WordHit[] = [];
   for (const card of cards || []) {
     if (!card || !card.id || card.id === selfId || isDialog(card)) continue;
+    /* A word is what the teacher said is one — see kindOf. Guessed from
+       its spaces, every Vietnamese word of two syllables, and every word
+       with two accepted answers, was a phrase and taught nothing here. */
     const lead = wordOf(card).ar;
-    if (!lead || guessKind(lead, lang) !== "word") continue;
+    if (!lead || kindOf(card, lang) !== "word") continue;
     let found: WordHit | null = null;
     for (const { unit } of unitsOf(card)) {
-      if (!unit.ar) continue;
-      const len = Math.min(contextTokens(unit.ar, lang).length, MAX_WORD_TOKENS);
-      if (!len || len > tokens.length) continue;
-      for (let i = 0; i + len <= tokens.length; i++) {
-        const window = len === 1 ? tokens[i] : tokens.slice(i, i + len).join(" ");
-        if (!lang.context.matches(window, unit.ar)) continue;
-        for (let k = i; k < i + len; k++) covered[k] = true;
-        if (!found) found = { card, form: unit, at: i, len };
+      /* Each answer the form accepts is a word a sentence may hold. */
+      for (const word of splitForms(String(unit.ar || ""))) {
+        const len = Math.min(contextTokens(word, lang).length, MAX_WORD_TOKENS);
+        if (!len || len > tokens.length) continue;
+        for (let i = 0; i + len <= tokens.length; i++) {
+          const window = len === 1 ? tokens[i] : tokens.slice(i, i + len).join(" ");
+          if (!lang.context.matches(window, word)) continue;
+          for (let k = i; k < i + len; k++) covered[k] = true;
+          if (!found) found = { card, form: unit, at: i, len };
+        }
       }
     }
     if (found) hits.push(found);

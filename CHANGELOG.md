@@ -8,6 +8,268 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.472 — 24 October 2026
+
+**Save without closing a card, and a card's status where you look for it.**
+
+- The card editor has two buttons: Save, which saves and keeps the card
+  open to go on with it, and Save and exit, which saves and closes it.
+- On a phone, the editor's two buttons, and Export, the status and Edit
+  on a card's screen, sit on a line under the screen's title. On a wide
+  screen they are back on the title's line, at the right.
+- The status beside Edit is the app's own menu button now, the same
+  height as Export and Edit, and it opens the app's own menu rather than
+  the phone's list of choices.
+- In list view, a draft, or a card with changes waiting, shows its status
+  in a small pill before its word. In table view, Status is the first
+  column. A card students simply have shows nothing there.
+
+To check by hand: Save on a new card, then Save again — the second save
+changes the same card rather than making another. And a card's screen
+on a wide window and on a phone.
+
+## 0.471 — 24 October 2026
+
+**The subjunctive's examples say what they are for.**
+
+- On a verb card, the heading over the subjunctive's examples now reads
+  "How subjunctive is practised" instead of "How these forms are
+  practised".
+
+To check by hand: open a Palestinian Arabic verb card and look under the
+subjunctive.
+
+## 0.470 — 24 October 2026
+
+**A text's sentences ask for the transliteration before the English.**
+
+- Writing a sentence of a text, or a line of a conversation, the boxes now
+  run Arabic, transliteration, English, the order they are shown in
+  everywhere else in the app. The English used to come second.
+
+To check by hand: open a text card's editor and see the three boxes in
+that order.
+
+
+## 0.469 — 24 October 2026
+
+**A subjunctive example is written as a sentence you would say.**
+
+- On a Palestinian Arabic verb card, the examples under the subjunctive
+  are now three plain boxes. You write one ordinary sentence for any one
+  person, with one of the forms above in it: لازم تاكلي, laazim taakli,
+  "you must eat". There are no chips to tap and no gap to drop in, and
+  "Whose wish is it?" is gone: "I want her to eat" already says whose it is.
+- The app finds the verb and the person, and shows underneath how the
+  example comes out for two other persons ("لازم آكل — I must eat"), so
+  you can see it was understood before saving. Students are asked exactly
+  as before.
+- When the app can't understand an example, one line under it says
+  what's missing, for example "The English says “I”, but تاكل is
+  “she”." The verb can't be saved until it is fixed. As before, a verb
+  with subjunctive forms needs at least one example.
+- Examples written before keep working, and now show as a sentence.
+- Trade-off: the Arabic has to use a form exactly as it is spelt in the
+  table (harakat aside), and the English has to say who (I, she, her…) and
+  use the verb as in its name ("eat" or "to eat"). English like "before
+  she eats" or "let him eat" still can't be written, as before. An example
+  you reopen shows its English the way students see it, so "you must eat"
+  comes back as "You (f) must eat".
+- Sentence cards are unchanged: a blank that takes the subjunctive still
+  uses the person, verb and to + verb chips in its English.
+
+To check by hand: on a verb card, fill in the subjunctive forms, write
+"لازم تاكلي" and "you must eat", and check the two lines under it; then
+change the English to "I must eat" and check the line saying what's wrong.
+
+## 0.468 — 24 October 2026
+
+**Words with more than one accepted answer are practised in sentences.**
+
+- A word card that accepts more than one answer, such as تمام or منيح, or
+  كيف حالَك؟ or كيفَك؟, was never put into a sentence for students to fill
+  in, even when the teacher had linked the sentence to it. Now it is.
+- In a sentence, the right answer is the one the sentence says. In "أنا
+  تمام" the student is asked for تمام, and منيح is marked wrong there.
+  Questions that aren't asked inside a sentence still accept every answer.
+- A sentence card with two accepted answers is shown to students as the
+  one that holds the word, rather than both run together.
+- For teachers, "Words this teaches" in the card editor now offers these
+  words, and the check under a sentence no longer says nothing teaches
+  them. The In context tab and a deck's In context section find them too.
+- Those same screens now go by the word type the teacher picked. A
+  Vietnamese word of two syllables, such as cà phê, was treated there as a
+  phrase, so it was never offered or counted.
+- Deck quality: a word with two answers counts as recorded only once each
+  answer has its own recording, and the same goes for pronunciation.
+- The notes for 0.463 no longer mention switched-off conversations.
+  Teachers can't switch a conversation off, so there was nothing to count.
+- Trade-off: students meet more sentences. A sentence can wait a little
+  longer before it comes up, until the student knows these words, as it
+  already does for every other word. Some deck scores drop where a second
+  answer has no recording.
+- To check by hand: practise a word with two answers that has a linked
+  sentence, and see that the gap asks for the answer the sentence says.
+
+
+## 0.467 — 23 October 2026
+
+**A card's buttons sit under its title.**
+
+- On a card's screen in Teaching, Export, the status and Edit are now on
+  a line of their own under the card's title. Beside it, on a phone, they
+  squeezed a long title down to one word a line.
+
+To check by hand: a card with a long title, on a phone.
+
+## 0.466 — 23 October 2026
+
+**A sentence with a feminine word asks the feminine.**
+
+- In the exercise where a student fills a word into a sentence, a sentence
+  like "آسفة، مش فاهمة." linked to فاهم / فاهمة used to ask for فاهم, with
+  the ة left showing after the gap: "آسفة، مش ____ة.". It now asks for
+  فاهمة, the word the sentence actually has. The same goes for every pair
+  made with ة (تعبان / تعبانة, آسف / آسفة).
+- A word with something glued on, such as كتابك or الوظيفة, is still asked
+  as the plain word, as before.
+- "Words this teaches" in the card editor names the same form the exercise
+  will ask, as the deck quality score already does since 0.463.
+- To check by hand: practise a deck with a feminine sentence linked to a
+  masculine/feminine card, and see the gap asks the feminine.
+
+## 0.465 — 23 October 2026
+
+**A card is a draft until you publish it.**
+
+- Every card is now Draft, Ready for review or Published, and only
+  published cards reach students. A card you make starts as a draft.
+- A card's screen in Teaching has a status menu beside Edit, where you
+  mark a card ready for review or publish it.
+- Changing a published card doesn't change what students have. Your
+  changes wait, as a draft or ready for review, until you choose Publish
+  changes, or Discard changes to drop them. Unpublish takes a card away
+  from students and keeps it as a draft; their progress on it comes back
+  if you publish it again.
+- A card's decks, its ID and its tags are not part of the changes that
+  wait: changing them applies straight away, for students too, because
+  other cards find a card through them.
+- Card lists show a badge on drafts and on cards with changes waiting,
+  and the table view has a Status column.
+- Every existing card is Published, so students lose nothing. Cards made
+  by the Pronouns screen or by splitting a card's meanings are published
+  straight away, as before, and so are changes made from the lists
+  (tagging cards, adding them to decks).
+- Cards brought in by Import are Ready for review, so nothing a file
+  brings reaches students until someone publishes it. Importing over
+  a card students already have keeps their version, and the import
+  waits as its changes, Ready for review.
+- If two teachers change the same card at once, the later save wins, as
+  before.
+
+To check by hand: the status menu beside Edit on a phone, where the
+screen's header is narrow.
+
+## 0.464 — 23 October 2026
+
+**Teachers can import cards and decks.**
+
+- In Teaching, the Cards tab and the Decks tab each have an Import button
+  beside the search. It takes a file made with Export, by you or by another
+  teacher, or a backup of the whole site, from which only the cards and
+  decks are read.
+- Before anything is changed, every card in the file is checked against
+  yours and listed under one of three headings:
+  - **New**: ticked, and imported.
+  - **Already in your cards**: the same card, exported from here. Not
+    ticked; tick one to replace yours with the file's version.
+  - **Same word as a card you have**: a different card with a word you
+    already have in that language, with your card's meaning beside it.
+    Not ticked; tick one to import it as a card of its own.
+- A deck you already have, with the same name in the same language or the
+  very same deck, is added to, and nothing in it is taken out. Any other
+  deck is made, in no course until you add it to one.
+- Imported cards become yours, free to edit. Their recordings and pictures
+  come with them when the file has them. A phrase linked to a word in the
+  file stays linked to that word. If the word was left out because you
+  already have it, the phrase links to your card instead.
+- Every imported card is sent as "Ready for review". Card statuses are being
+  built separately, and until they arrive nothing is stored. Once they
+  arrive, imported cards wait for a teacher before reaching students.
+- Trade-off: a card you already have is still added to an imported deck it
+  is in, even when you leave the card itself as it is. A card whose ID is
+  one a card of yours already answers to comes in without the ID, and the
+  message says how many did.
+- To check by hand: import a deck another teacher exported, and see that
+  the three headings sort its cards the way you would.
+
+## 0.463 — 23 October 2026
+
+**A deck's quality score reads sentences the way students meet them
+(teachers only).**
+
+- A sentence with a feminine word now counts for the feminine. "آسفة، مش
+  فاهمة." linked to فاهم / فاهمة used to count for فاهم and leave فاهمة at 0
+  sentences; the same happened to every pair made with ة (تعبان / تعبانة,
+  آسف / آسفة). A word with something glued on, such as كتابك or الوظيفة,
+  still counts for the plain word.
+- A card with more than one accepted answer is read answer by answer. A
+  sentence written as "كلشي تمام" or "كله تمام" no longer says it uses a
+  word no deck teaches, and a word card accepting كيف حالَك؟ or كيفَك؟ now
+  teaches كيفك to the other sentences. It is still one sentence; it is too
+  long, or uses an untaught word, if any of its answers does.
+- Every version of a sentence card is read, not just the first, so a
+  masculine and a feminine version both count for their words. One card is
+  still one sentence: a word in both versions counts once.
+- A conversation line picked from a sentence card in the same deck no
+  longer counts as a second sentence. A line with no words in it, such as
+  ".", is not counted as a sentence needing a link, a recording and a
+  pronunciation.
+- The suggestions are honest about sentences with two problems. "Link it"
+  and "teach the word" each claim only what doing that alone would add;
+  sentences that are both unlinked and use an untaught word get their own
+  suggestion, "N sentences need both a link and their words taught".
+- New rule: a conversation or text is always worth 5 of the 100 points.
+  Before, a small deck with no conversation could lose up to 20 for it: one
+  well-made, reviewed sentence on its own scored 80, and now scores 95. A
+  deck where every check applies scores as before.
+- The In context tab offers links for cards saved since 0.138 again, and
+  the "already in N phrases" count after saving a card is right. Both
+  were reading cards the way they were stored before, and found nothing.
+- Trade-off: most decks with feminine pairs or cards with several answers
+  score higher; a deck that leant on a picked line can score lower.
+- To check by hand: open a deck with a feminine pair and a card with two
+  answers and see its score and suggestions; open In context on a recently
+  edited collection and see links offered.
+
+## 0.462 — 23 October 2026
+
+**Teachers can export a card, several cards, or whole decks.**
+
+- In Teaching, a card now has an Export button beside Edit. Ticked cards
+  have Export in the bar along the bottom, in the Cards tab and inside a
+  deck. A deck has Export on its tile in the Decks tab and at the top of
+  its own page, and ticked decks have it in the bar too.
+- Each one opens a short Export screen with one choice: whether to include
+  the recordings and pictures. They are ticked to start with. Download
+  saves a single file named after the card or deck and the time.
+- A deck comes with every card in it. Only your own cards and the decks you
+  own or teach go in; anything else that was ticked is left out, and the
+  message says so.
+- The file is the same kind an administrator's Back up makes, so Admin ›
+  App › Restore a backup accepts it and puts those cards and decks back.
+  Putting it back no longer takes away your other cards: it adds to your
+  list of cards instead of replacing it. A deck that was deleted and then
+  put back has to be added to its courses again.
+- With the recordings left out the file is small and easy to read, so you
+  can give it to an AI and ask what cards to make next. It starts with a
+  short note saying what is in it.
+- Trade-off: a teacher can't bring a file back in themselves; restoring
+  still takes an administrator. Numbers and the clock are not part of a
+  deck's export. They still come only with the whole-site backup.
+- To check by hand: export a real deck with its recordings, and open the
+  file in Restore to see that it says "Checked".
+
 ## 0.461 — 22 October 2026
 
 **Every deck has a quality score (teachers only).**

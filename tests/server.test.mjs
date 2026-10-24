@@ -452,7 +452,7 @@ test("a verb comes back with its subjunctive examples, and a sentence with whose
             { ar: " لازم {{verb}} ", lat: "laazim {{verb}}", en: "{{verb-who}} must {{verb-plain}}" },
             { ar: "", lat: "", en: "" },
             { ar: "بدي {{verb}}", en: "I want {{verb-to}}", wish: "I-F!" },
-            { ar: "رح {{verb}}", en: "{{verb-who}} will {{verb-plain}}" },
+            { ar: "رح {{verb}}", en: "{{verb-who}} will {{verb-plain}}", as: "You-F" },
             { ar: "ممكن {{verb}}", en: "{{verb-who}} can {{verb-plain}}" },
           ],
         },
@@ -464,8 +464,8 @@ test("a verb comes back with its subjunctive examples, and a sentence with whose
   assert.deepEqual(verb.json.card.examples, [
     { ar: "لازم {{verb}}", lat: "laazim {{verb}}", en: "{{verb-who}} must {{verb-plain}}" },
     { ar: "بدي {{verb}}", en: "I want {{verb-to}}", wish: "i-f" },
-    { ar: "رح {{verb}}", en: "{{verb-who}} will {{verb-plain}}" },
-  ], "trimmed, the blank one dropped, whose wish narrowed like an id, three at most");
+    { ar: "رح {{verb}}", en: "{{verb-who}} will {{verb-plain}}", as: "you-f" },
+  ], "trimmed, the blank one dropped, whose wish and who it was written for narrowed like an id, three at most");
   /* Taken off when the teacher takes them all off. */
   const bare = await api("/api/courses?action=save-card", {
     method: "POST", key,
@@ -4480,4 +4480,77 @@ test("a locked deck gains and loses no cards, and cannot be deleted until unlock
   assert.deepEqual(back.json.card.decks, [locked]);
   const bye = await api("/api/courses?action=delete-deck", { method: "POST", key, body: { deckId: locked } });
   assert.equal(bye.status, 200, bye.text);
+});
+
+/*
+ * A teacher's export: a deck goes with its cards, a card goes with its
+ * recordings unless they are left out, and nothing that is not this
+ * teacher's comes along — asked for in the plan or slipped into a chunk.
+ * And putting the file back adds its cards to their owner's list rather
+ * than writing that list over, which would take every other card off it.
+ */
+test("a teacher exports a deck or a card, and only their own", async () => {
+  const t = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rana" } });
+  const key = t.json.key;
+  const other = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Ziad" } });
+
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Kitchen", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+  const save = async (/** @type {string} */ k, /** @type {any} */ form, /** @type {string[]} */ decks) =>
+    (await api("/api/courses?action=save-card", {
+      method: "POST", key: k, body: { card: carded(form), decks },
+    })).json.card;
+  const pot = await save(key, { ar: "طنجرة", en: "pot", lat: "tanjara", clips: [clipId(41)] }, [deckId]);
+  const cup = await save(key, { ar: "كاسة", en: "cup", lat: "kase" }, []);
+  const theirs = await save(other.json.key, { ar: "باب", en: "door", lat: "baab" }, []);
+
+  const plan = await api("/api/courses?action=export-plan", {
+    method: "POST", key, body: { deckIds: [deckId], cardIds: [theirs.id], media: true },
+  });
+  assert.equal(plan.status, 200, plan.text);
+  const keys = plan.json.manifest.plan.flatMap((/** @type {any} */ c) => c.keys);
+  assert.ok(keys.includes(`deck:${deckId}`), "the deck");
+  assert.ok(keys.includes(`card:${pot.id}`), "with the card in it");
+  assert.ok(keys.includes(`clip:${clipId(41)}`), "and its recording");
+  assert.ok(!keys.includes(`card:${cup.id}`), "not a card outside it");
+  assert.ok(!keys.includes(`card:${theirs.id}`), "nor somebody else's card");
+  assert.equal(plan.json.refused, 1, "which is said");
+  assert.deepEqual(plan.json.lists[`mycards:${t.json.user.handle}`], [pot.id]);
+
+  const bare = await api("/api/courses?action=export-plan", {
+    method: "POST", key, body: { cardIds: [pot.id], deckIds: [], media: false },
+  });
+  const bareKeys = bare.json.manifest.plan.flatMap((/** @type {any} */ c) => c.keys);
+  assert.deepEqual(bareKeys, [`card:${pot.id}`], "one card, and no recording when they are left out");
+
+  const chunk = await api("/api/courses?action=export-chunk", {
+    method: "POST", key, body: { keys: [`card:${pot.id}`, `deck:${deckId}`] },
+  });
+  assert.equal(chunk.status, 200, chunk.text);
+  assert.equal(chunk.json.records[`card:${pot.id}`].forms[0].en, "pot");
+  assert.deepEqual(chunk.json.records[`deck:${deckId}`].cardIds, [pot.id]);
+
+  const sneaked = await api("/api/courses?action=export-chunk", {
+    method: "POST", key, body: { keys: [`card:${theirs.id}`] },
+  });
+  assert.equal(sneaked.status, 403, "a chunk is checked, not trusted");
+  const people = await api("/api/courses?action=export-chunk", {
+    method: "POST", key, body: { keys: [`user:${other.json.user.handle}`] },
+  });
+  assert.equal(people.status, 403, "and holds cards and decks only");
+
+  /* Put back by an administrator: the list gains the card and keeps cup. */
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Huda" } });
+  await api("/api/courses?action=claim-admin", { method: "POST", key: admin.json.key, body: { adminKey: ADMIN_KEY } });
+  await api("/api/courses?action=delete-cards", { method: "POST", key, body: { cardIds: [pot.id] } });
+  const put = await api("/api/courses?action=admin-restore-chunk", {
+    method: "POST", key: admin.json.key,
+    body: { records: { [`card:${pot.id}`]: chunk.json.records[`card:${pot.id}`], ...plan.json.lists } },
+  });
+  assert.equal(put.status, 200, put.text);
+  const mineNow = (await api("/api/courses?action=my-cards", { key })).json.cards.map((/** @type {any} */ c) => c.id);
+  assert.ok(mineNow.includes(pot.id), "the card is back");
+  assert.ok(mineNow.includes(cup.id), "and the one not in the file is still there");
 });

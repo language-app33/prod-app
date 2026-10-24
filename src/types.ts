@@ -955,8 +955,14 @@ export interface VerbExample {
   en: string;
   /** Whose wish it is, where the English reads `{{verb-to}}` — a column
       of the verb table. See CardForm.wish, which is the same answer for a
-      sentence card's blank. */
+      sentence card's blank. `someone` where the one who wants is nobody
+      in the table: *Mum wants me to eat*. */
   wish?: string;
+  /** The column it was written for: a teacher writes an example as one
+      sentence, said for one person, and reads it back the same way. See
+      readExample. Absent on one written before, which reads back in the
+      first person written. */
+  as?: string;
 }
 
 /**
@@ -1138,12 +1144,35 @@ export type Card = {
   /** A text, where the scene is one; absent (or, on its way to the server,
       "conversation") on a conversation. See sceneKindOf in dialogs.ts. */
   sceneKind?: "text" | "conversation";
+  /**
+   * Whether students get it: a draft, ready for review, or published.
+   * Absent on the server is published — every card saved before there
+   * were statuses — and a teacher's copy always says. See "A card's
+   * status" in server/api/courses.js.
+   */
+  status?: CardStatus;
+  /**
+   * The status of a published card's unpublished changes, on a teacher's
+   * copy, where it has any. The copy itself is the changes: students have
+   * the card as it was until they are published.
+   */
+  changes?: "draft" | "review";
+  /** When those changes were last saved. */
+  changed?: Millis;
+  /**
+   * On the server only: the changes themselves, which a teacher's copy has
+   * already laid over the card and a student's never carries.
+   */
+  pending?: { status?: "draft" | "review"; card: Record<string, unknown>; updated?: Millis; by?: string };
   rev?: number;
   created?: Millis;
   updated?: Millis;
   inDecks?: string[];
   decks?: string[];
 } & Record<string, unknown>;
+
+/** Whether a card reaches students. See Card.status. */
+export type CardStatus = "draft" | "review" | "published";
 
 /** Where a deck sits in a course, and since when. */
 export interface DeckLink {

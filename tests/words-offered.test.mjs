@@ -94,3 +94,38 @@ test("a phrase with a blank carries its card, to be filled before it is shown", 
   assert.equal(framed.word, "بتعلّم");
   assert.equal(must(found.find((c) => c.id === "Q"), "the plain phrase").frame, undefined);
 });
+
+/* ---- a feminine made with ة ---- */
+
+const understand = card("U", "فاهم", "understanding", [{ ar: "فاهمة", en: "understanding (f)" }]);
+const sorry = { id: "S", lang: "ar-PS", tags: [], created: 2, uses: ["U"],
+  forms: [{ id: "S", ar: "آسفة، مش فاهمة.", en: "sorry, I don't understand", lat: "", s: {} }] };
+
+test("the gap-fill asks the feminine a sentence holds, not the masculine inside it", () => {
+  const index = buildContextIndex([understand, sorry], ar);
+  assert.equal((index.get("U") || []).length, 0, "فاهم is not asked in it");
+  const found = must((index.get("U-0") || [])[0], "the sentence, for فاهمة");
+  assert.equal(found.slot, 2);
+  assert.equal(found.word, "فاهمة");
+});
+
+test("the masculine is still asked where the sentence holds it", () => {
+  const plain = { ...sorry, id: "P", forms: [{ ...sorry.forms[0], id: "P", ar: "مش فاهم" }] };
+  const index = buildContextIndex([understand, plain], ar);
+  assert.equal((index.get("U") || []).length, 1);
+  assert.equal((index.get("U-0") || []).length, 0);
+});
+
+test("a word with a possessive or prefix glued on is still the plain word", () => {
+  const job = card("J", "وظيفة", "job", [{ ar: "وظائف", en: "jobs" }]);
+  const yours = { id: "Y", lang: "ar-PS", tags: [], created: 2, uses: ["N", "J"],
+    forms: [{ id: "Y", ar: "وين كتابك؟ الوظيفة صعبة", en: "where is your book? the job is hard", lat: "", s: {} }] };
+  const index = buildContextIndex([book, job, yours], ar);
+  assert.equal((index.get("N") || []).length, 1, "كتابك is the book");
+  assert.equal((index.get("J") || []).length, 1, "الوظيفة is the job");
+});
+
+test("Words this teaches names the form the gap-fill will blank", () => {
+  const offered = must(wordsOffered("آسفة، مش فاهمة.", [understand], ar)[0], "offered");
+  assert.equal(offered.form.ar, "فاهمة");
+});

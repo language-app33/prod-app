@@ -17,7 +17,8 @@ import {
   fillForm, foldReadings, personEnglish, slotTrouble, slotsOf, verbBlankOf, verbPlain, verbReading,
 } from "../src/variables.ts";
 import {
-  MAX_EXAMPLES, exampleCells, exampleTrouble, examplesRowOf, filledExample, inExamplesRow, verbExamplesOf, wishOf,
+  MAX_EXAMPLES, SOMEONE_WISHES, exampleCells, exampleTrouble, examplesRowOf, filledExample, inExamplesRow, othersOf,
+  readExample, sentenceOf, verbExamplesOf, wishOf,
 } from "../src/examples.ts";
 import { buildContextIndex } from "../src/context-index.ts";
 import { canAsk, EXAMPLE_TYPES } from "../src/offers.ts";
@@ -183,4 +184,87 @@ test("a subjunctive form is asked inside its examples and nowhere else", () => {
   const phrase = [{ id: "p", ar: "هاد كتاب", en: "this is a book", recs: [], slot: 1, span: 1 }];
   assert.ok(!canAsk({ unit: word, scene: null, contexts: phrase, mates: 8 }, "ex2en", ar));
   assert.ok(canAsk({ unit: word, scene: null, contexts: phrase, mates: 8 }, "ctx2ar", ar));
+});
+
+/* ---- written as a sentence ----
+
+   A teacher writes an example as they would say it, for one person, and
+   the app reads the gap and the three words out of it. What it reads is
+   stored the way an example always was, so everything that asks one is
+   unchanged; these hold the reading to the cases the owner was shown. */
+
+const forms = exampleCells({
+  forms: [
+    {},
+    subj("i", "آكل", "aakul"),
+    subj("you-m", "تاكل", "taakul"),
+    subj("you-f", "تاكلي", "taakli"),
+    subj("she", "تاكل", "taakul"),
+    subj("we", "ناكل", "naakul"),
+  ],
+}, spec);
+const read = (/** @type {string} */ arText, /** @type {string} */ en, lat = "") =>
+  readExample({ ar: arText, lat, en }, forms, "to eat", spec);
+const kept = (/** @type {ReturnType<typeof read>} */ r) => must(r.ok, r.trouble || "not read");
+
+test("a sentence said for one person is read as the example it is", () => {
+  assert.deepEqual(kept(read("لازم تاكلي", "you must eat", "laazim taakli")), {
+    ar: "لازم {{verb}}", lat: "laazim {{verb}}", en: "{{verb-who}} must {{verb-plain}}", as: "you-f",
+  });
+  /* Somebody else's wish: whoever says it wants, and the rest are told. */
+  assert.deepEqual(kept(read("بدي تاكل", "I want her to eat")),
+    { ar: "بدي {{verb}}", en: "I want {{verb-to}}", wish: "i", as: "she" });
+  assert.deepEqual(kept(read("بدها آكل", "She wants me to eat")),
+    { ar: "بدها {{verb}}", en: "She wants {{verb-to}}", wish: "she", as: "i" });
+  /* Their own: the one who wants is the one who eats, and بدها stays. */
+  assert.deepEqual(kept(read("بدي آكل", "I want to eat")),
+    { ar: "بدي {{verb}}", en: "I want {{verb-to}}", wish: "i", as: "i" });
+  assert.equal(kept(read("بدك تاكل؟", "Do you want to eat?")).as, "you-m", "“you” settles تاكل");
+  assert.equal(kept(read("بدها تاكل", "Layla wants to eat")).as, "she", "a name is somebody else");
+  /* Somebody nobody in the table is: every person is told. */
+  assert.equal(kept(read("إمي بدها آكل", "Mum wants me to eat")).wish, SOMEONE_WISHES);
+  assert.deepEqual(kept(read("ممكن آكل؟", "Can I eat?")),
+    { ar: "ممكن {{verb}}؟", en: "Can {{verb-who}} {{verb-plain}}?", as: "i" });
+  /* Harakat and a different hamza are the same form. */
+  assert.equal(kept(read("لازم تَاكُلي", "you (f) must eat")).as, "you-f");
+  /* What it reads is an example as one has always been. */
+  for (const r of [read("لازم تاكلي", "you must eat", "laazim taakli"), read("بدي تاكل", "I want her to eat")]) {
+    assert.equal(exampleTrouble(kept(r)), "");
+  }
+});
+
+test("a sentence the app cannot read says what it is missing, in the teacher's words", () => {
+  assert.equal(read("", "").trouble, "", "a blank example is not there");
+  assert.match(read("", "she must eat").trouble, /in Arabic/);
+  assert.match(readExample({ ar: "لازم تاكل", en: "she must eat" }, [], "to eat", spec).trouble, /forms above first/);
+  /* بتاكل is the present: nothing glued on is peeled off. */
+  assert.match(read("لازم بتاكل", "she must eat").trouble, /one of the forms above/);
+  assert.match(read("تاكل ولا ناكل", "she eats").trouble, /once/);
+  assert.match(read("لازم تاكل", "").trouble, /means in English/);
+  assert.equal(read("لازم تاكل", "I must eat").trouble, "The English says “I”, but تاكل is “you (m)” or “she”.");
+  assert.match(read("بدي آكل", "I want her to eat").trouble, /says “her”, but آكل is “I”/);
+  assert.match(read("لازم تاكل", "Must eat").trouble, /Say who/);
+  assert.equal(read("لازم تاكل", "she must leave").trouble, "Write the verb in the English as “eat” or “to eat”.");
+  assert.match(read("لازم تاكل", "she must eat", "laazim takul").trouble, /transliteration as it is above: taakul/);
+  assert.match(readExample({ ar: "لازم تاكل", en: "she must eat" }, forms, "", spec).trouble, /name/);
+});
+
+test("an example reads back as it was written, and for the others as they will be asked", () => {
+  const mine = kept(read("بدي تاكل", "I want her to eat"));
+  assert.deepEqual(sentenceOf(mine, forms, "to eat", spec), { ar: "بدي تاكل", en: "I want her to eat", lat: "" });
+  /* Two others, never the one it was written for nor its twin by letters. */
+  assert.deepEqual(othersOf(mine, forms, "to eat", spec).map((o) => `${o.ar} — ${o.en}`),
+    ["بدي آكل — I want to eat", "بدي تاكلي — I want you (f) to eat"]);
+  /* And read again, it is the same example: editing one changes nothing
+     it was not asked to. */
+  for (const r of [read("لازم تاكلي", "you must eat", "laazim taakli"), read("بدها آكل", "She wants me to eat"),
+    read("إمي بدها آكل", "Mum wants me to eat"), read("بدي آكل", "I want to eat")]) {
+    const once = kept(r);
+    assert.deepEqual(kept(readExample(sentenceOf(once, forms, "to eat", spec), forms, "to eat", spec)), once);
+  }
+  /* One from before it was kept who it was for reads in the first person
+     written, and one with no form to put in it keeps its gap as "…". */
+  assert.equal(sentenceOf(eat.examples[0], forms, "to eat", spec).en, "I must eat");
+  assert.deepEqual(sentenceOf(eat.examples[0], [], "to eat", spec), { ar: "لازم …", lat: "laazim …", en: "… must …" });
+  assert.equal(verbExamplesOf({ examples: [{ ...mine }] })[0].as, "she", "and who it was for is kept on the card");
 });

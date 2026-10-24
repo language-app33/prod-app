@@ -4359,6 +4359,29 @@ const setPriority = async (/** @type {string[]} */ ids, /** @type {boolean} */ o
   check("a teacher's card still says which decks it lives in",
     !!teachRead && /Where it lives/i.test(teachRead.textContent || ""),
     teachRead ? (teachRead.textContent || "").replace(/\s+/g, " ").slice(0, 120) : "(no readout)");
+  /* And where it stands with students, beside Edit: the app's own menu
+     button, the height of the buttons beside it, opening the app's own
+     menu of what can be done from here. A card saved before there were
+     statuses is published, and says so. */
+  const statusBtn = /** @type {HTMLButtonElement | null} */ ([...document.querySelectorAll(".at-statusmenu .at-statusbtn")].pop() || null);
+  check("a teacher's card says where it stands with students, beside Edit",
+    !!statusBtn && /Published/.test(statusBtn.textContent || "") && statusBtn.classList.contains("at-btn") &&
+      statusBtn.classList.contains("sm") && !document.querySelector(".at-statusmenu select"),
+    statusBtn ? `${statusBtn.className}: ${statusBtn.textContent}` : "(no status button)");
+  if (statusBtn) click(statusBtn);
+  await sleep(100);
+  const statusLines = [...document.querySelectorAll(".at-statusmenu .at-pickmenu .at-pickline")].map((b) => (b.textContent || "").trim());
+  check("and it opens the app's menu of what can be done from there",
+    statusLines.join(" | ") === "Published | Unpublish…", statusLines.join(" | ") || "(no menu)");
+  if (statusBtn) click(statusBtn);
+  await sleep(100);
+  /* On a line of its own under the title: beside it, Export, the status
+     and Edit squeezed a sentence's title to a word a line on a phone. */
+  const cardHead = statusBtn && statusBtn.closest(".at-screenhead");
+  check("and its buttons sit on a line under the card's title",
+    !!cardHead && cardHead.classList.contains("below") &&
+      !!cardHead.querySelector(".at-screenaction .at-statusmenu"),
+    cardHead ? cardHead.className : "(no header)");
 
   const tries = () => /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll(".at-try")]);
   check("a card in the teaching space lists the exercises it could be asked",
@@ -4448,6 +4471,33 @@ const setPriority = async (/** @type {string[]} */ ids, /** @type {boolean} */ o
   check("and adds nothing to the day's count",
     JSON.stringify(after.log) === JSON.stringify(before.log),
     `${JSON.stringify(after.log)} vs ${JSON.stringify(before.log)}`);
+
+  /* ---- Save, and Save and exit ----
+     Save keeps the card open to go on with it; Save and exit closes it.
+     Both save this card, under its own id. */
+  const cardId = (phraseTile && phraseTile.getAttribute("data-card")) || "";
+  clickNamed(/^Edit$/);
+  await sleep(400);
+  const editorOpen = () => !!document.querySelector(".at-screen.cardform");
+  check("Edit opens the card editor, with Save and Save and exit under its title",
+    editorOpen() && !!buttonNamed(/^Save$/) && !!buttonNamed(/^Save and exit$/) &&
+      !!(/** @type {Element} */ (buttonNamed(/^Save and exit$/))).closest(".at-screenhead.below"),
+    editorOpen() ? [...document.querySelectorAll(".at-screen.cardform .at-screenhead button")].map((b) => (b.textContent || "").trim()).join(" | ") : "(no editor)");
+  takeSaves = true;
+  const savesBefore = savedCards.length;
+  clickNamed(/^Save$/);
+  await sleep(500);
+  check("Save saves the card and keeps it open",
+    savedCards.length === savesBefore + 1 && editorOpen(),
+    `${savedCards.length - savesBefore} saved · ${editorOpen() ? "open" : "closed"}`);
+  clickNamed(/^Save and exit$/);
+  await sleep(500);
+  const both = savedCards.slice(savesBefore);
+  check("and Save and exit saves the same card again and closes it",
+    both.length === 2 && !!both[0].id && both[0].id === both[1].id && !editorOpen() &&
+      (!cardId || both[0].id === cardId),
+    `${both.map((c) => c.id).join(", ")} · ${editorOpen() ? "open" : "closed"}`);
+  takeSaves = false;
 }
 
 /* ---- one meaning is one question ----
@@ -6851,64 +6901,47 @@ const openPronounTables = async () => {
     check("a subjunctive form with no example to be asked in is refused",
       !!saveBtn() && saveBtn().disabled && unmetLines().some((t) => /at least one example/.test(t)),
       `${saveBtn() && saveBtn().disabled ? "refused" : "offered"} · ${unmetLines().join(" · ")}`);
-    /* The example's boxes are a sentence's: the gap goes in from a chip
-       under the box, and the English's three ways of reading the verb
-       are chips too, named in words rather than stored names. */
-    const boxNamed = (/** @type {string} */ label) => /** @type {any} */ (
-      document.querySelector(`[role="textbox"][aria-label="${label}"]`));
-    const chipsUnder = (/** @type {string} */ label) => {
-      const box = boxNamed(label);
-      const field = box && box.closest(".at-field");
-      return field ? [...field.querySelectorAll(".at-blankput")].map((b) => (b.textContent || "").trim()) : [];
-    };
-    check("an example's Arabic takes its gap from a chip, as a sentence's does",
-      !!boxNamed("Arabic for example 1") && JSON.stringify(chipsUnder("Arabic for example 1")) === JSON.stringify(["verb"]),
-      JSON.stringify(chipsUnder("Arabic for example 1")));
-    check("and its English offers the verb as person, verb and to + verb, and no new blank",
-      JSON.stringify(chipsUnder("English for example 1")) === JSON.stringify(["person", "verb", "to + verb"]) &&
-        !(boxNamed("English for example 1").closest(".at-field").querySelector(".at-blankadd")),
-      JSON.stringify(chipsUnder("English for example 1")));
+    /* The example's boxes are plain boxes, written in as a sentence is
+       said: no chip for a gap, and none for the English. Until 0.469 they
+       were a sentence card's, with the gap and three ways of reading the
+       verb put in from chips, and the owner could not follow it. */
+    const chipsIn = () => (examplesSection() ? examplesSection().querySelectorAll(".at-blankput, .at-blankadd").length : -1);
+    check("an example is written in plain boxes, with no chips for a gap",
+      !!cellNamed("Arabic for example 1") && !!cellNamed("Transliteration for example 1") &&
+        !!cellNamed("English for example 1") && chipsIn() === 0,
+      `${chipsIn()} chips · ${["Arabic", "Transliteration", "English"].map((f) => `${f}: ${cellNamed(`${f} for example 1`) ? "box" : "none"}`).join(", ")}`);
     check("and the examples sit inside the subjunctive's own section, each a panel under the explanation",
       !!examplesSection() && examplesSection().classList.contains("at-part") &&
         /subjunctive/i.test(((examplesSection().closest(".at-formblock") || {}).querySelector(".at-formnum") || {}).textContent || "") &&
-        /How these forms are practised/.test(((examplesSection().querySelector(".at-groupline")) || {}).textContent || "") &&
+        /How subjunctive is practised/.test(((examplesSection().querySelector(".at-groupline")) || {}).textContent || "") &&
         !!examplesSection().querySelector('.at-part[data-el="editor-verb-example"] .at-groupline'),
       examplesSection() ? (examplesSection().textContent || "").slice(0, 120) : "no section");
-    typeInto(boxNamed("Arabic for example 1"), "لازم ");
-    await sleep(100);
-    click([...boxNamed("Arabic for example 1").closest(".at-field").querySelectorAll(".at-blankput")][0]);
-    await sleep(150);
-    check("tapping the chip puts the gap in, drawn as a pill named verb",
-      !!boxNamed("Arabic for example 1").querySelector('[data-slot="verb"]') &&
-        /verb/.test((boxNamed("Arabic for example 1").querySelector(".at-blankpillname") || {}).textContent || ""),
-      boxNamed("Arabic for example 1").innerHTML.slice(0, 160));
-    typeInto(boxNamed("English for example 1"), "I must eat");
+    check("and the explanation shows one, said with a form written above",
+      /for example, لازم تاكل — She must eat/.test((examplesSection().textContent || "").replace(/\s+/g, " ")),
+      (examplesSection().textContent || "").replace(/\s+/g, " ").slice(0, 240));
+    typeInto(cellNamed("Arabic for example 1"), "لازم تاكل");
+    typeInto(cellNamed("English for example 1"), "I must eat");
     await sleep(250);
-    check("an example whose English could not change with the person is refused, and says so",
-      !!saveBtn() && saveBtn().disabled && unmetLines().some((t) => /changes with the person/.test(t)),
+    check("an example whose English names somebody its form is not is refused, and says so",
+      !!saveBtn() && saveBtn().disabled && unmetLines().some((t) => /The English says “I”, but تاكل is/.test(t)),
       `${saveBtn() && saveBtn().disabled ? "refused" : "offered"} · ${unmetLines().join(" · ")}`);
-    typeInto(boxNamed("English for example 1"), "{{verb-who}} must {{verb-plain}}");
+    typeInto(cellNamed("English for example 1"), "she must eat");
     await sleep(250);
-    check("one that changes with the person saves the verb on its subjunctive alone",
+    check("one said for her saves the verb on its subjunctive alone",
       !!saveBtn() && !saveBtn().disabled,
       `${saveBtn() && saveBtn().disabled ? "refused" : "offered"} · ${unmetLines().join(" · ")}`);
     const previewText = () => ((document.querySelector('[data-el="editor-verb-example-preview"]') || {}).textContent || "").replace(/\s+/g, " ");
-    check("and under it is what two of its persons will read as",
-      /لازم آكل — I must eat/.test(previewText()) && /لازم تاكل — She must eat/.test(previewText()),
+    check("and under it is what another person will read it as",
+      /لازم آكل — I must eat/.test(previewText()) && !/She must eat/.test(previewText()),
       previewText() || "(no preview)");
-    /* "Whose wish" is asked only where the English says {{verb-to}}. */
-    check("nobody is asked whose wish it is where nobody wants",
-      !document.querySelector('select[aria-label="Whose wish is it, in example 1"]'), "asked anyway");
-    typeInto(boxNamed("English for example 1"), "I want {{verb-to}}");
-    await sleep(100);
-    check("and in the English the pill says to + verb, not its stored name",
-      /to \+ verb/.test((boxNamed("English for example 1").querySelector(".at-blankpillname") || {}).textContent || ""),
-      boxNamed("English for example 1").innerHTML.slice(0, 160));
+    check("nobody is asked whose wish it is: the sentence says",
+      !document.querySelector('select[aria-label^="Whose wish is it"]'), "asked anyway");
+    typeInto(cellNamed("Arabic for example 1"), "بدي تاكل");
+    typeInto(cellNamed("English for example 1"), "I want her to eat");
     await sleep(250);
-    check("and where somebody does, it is asked, and the English follows it",
-      !!document.querySelector('select[aria-label="Whose wish is it, in example 1"]') &&
-        /I want to eat/.test(previewText()) && /I want her to eat/.test(previewText()),
-      previewText() || "(no preview)");
+    check("and somebody else's wish is read out of the sentence too",
+      /بدي آكل — I want to eat/.test(previewText()) && !!saveBtn() && !saveBtn().disabled,
+      `${previewText() || "(no preview)"} · ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
     const addExample = () => /** @type {any} */ ([...document.querySelectorAll("button")]
       .find((b) => /^Add an example$/.test((b.textContent || "").trim())) || null);
     click(addExample());
@@ -8494,7 +8527,7 @@ const openPronounTables = async () => {
   await sleep(150);
   const heads = [...document.querySelectorAll(".at-cardtable thead th")].map((th) => (th.textContent || "").trim()).filter(Boolean);
   check("the table view has a column for everything the teacher compares",
-    heads.join(" | ") === "Word | Transliteration | Meaning | Kind | Subtype | Decks | Recording | Review | Created | Modified",
+    heads.join(" | ") === "Status | Word | Transliteration | Meaning | Kind | Subtype | Decks | Recording | Review | Created | Modified",
     heads.join(" | ") || "(no table)");
   check("and a row per card", document.querySelectorAll(".at-cardtable tbody tr[data-card]").length > 0,
     String(document.querySelectorAll(".at-cardtable tbody tr").length));

@@ -232,3 +232,43 @@ test("a scene is never itself a word waiting for somewhere to be used", () => {
   assert.deepEqual(bare, []);
   assert.equal((coverage || { words: -1 }).words, 0);
 });
+
+/* ---- cards in the shape they are saved in ---- */
+
+/* Since 0.138 a card keeps its text in its forms and nothing at the top.
+   The same deck as above, saved that way. */
+const stored = () => [
+  { id: "w-door", lang: "ar-PS", category: "noun", uses: [], forms: [{ id: "w-door", ar: "باب", en: "door" }] },
+  { id: "w-book", lang: "ar-PS", category: "noun", uses: [], forms: [{ id: "w-book", ar: "كتاب", en: "book" }] },
+  { id: "p-shut", lang: "ar-PS", uses: ["w-door"], forms: [{ id: "p-shut", ar: "سكّر الباب من فضلك", en: "close the door please" }] },
+  { id: "p-took", lang: "ar-PS", uses: [], forms: [{ id: "p-took", ar: "أخذت كتابها معها", en: "she took her book with her" }] },
+];
+
+test("cards saved with their text in their forms are read, words and phrases alike", () => {
+  const { toConfirm, confirmed, bare } = linkReport(stored(), ar);
+  assert.deepEqual(toConfirm.map((p) => [p.container.id, p.word.id]), [["p-took", "w-book"]]);
+  assert.deepEqual(confirmed.map((p) => [p.container.id, p.word.id]), [["p-shut", "w-door"]]);
+  assert.equal(toConfirm[0].word.en, "book", "the word is named by its own meaning");
+  assert.equal(toConfirm[0].container.en, "she took her book with her");
+  assert.deepEqual(bare, [], "both words are in a phrase");
+});
+
+test("words nobody has a card for are found in phrases saved in their forms", () => {
+  const found = unknownWords(stored(), ar).map((m) => m.text);
+  assert.ok(found.includes("أخذت"), found.join(", "));
+  assert.ok(!found.includes("كتابها"), "the book has a card");
+});
+
+test("the count shown after saving a card finds it in phrases saved in their forms", () => {
+  /* What the editor counts once a card is saved: its links nobody has
+     confirmed yet. */
+  const saved = { id: "w-hand", lang: "ar-PS", category: "noun", uses: [], forms: [{ id: "w-hand", ar: "إيد", en: "hand" }] };
+  const phrases = [
+    { id: "p1", lang: "ar-PS", uses: [], forms: [{ id: "p1", ar: "غسلت إيدي بالمي", en: "I washed my hand with water" }] },
+    { id: "p2", lang: "ar-PS", uses: [], forms: [{ id: "p2", ar: "الإيد بتوجعني كثير", en: "the hand hurts me a lot" }] },
+    { id: "p3", lang: "ar-PS", uses: [], forms: [{ id: "p3", ar: "سكّر الباب من فضلك", en: "close the door please" }] },
+  ];
+  const waiting = pairsIn(phrases.concat([saved]), ar).filter((p) => !p.confirmed && p.word.id === saved.id);
+  assert.deepEqual(waiting.map((p) => p.container.id), ["p2"],
+    "إيدي is the hand with my glued on, which the matcher does not peel; الإيد is the hand");
+});

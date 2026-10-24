@@ -18,7 +18,8 @@
  */
 
 import type { Form, Item, Lang } from "./types.ts";
-import { contextTokens, findWordSpan, guessKind, supportsContext, tensedOf } from "./languages.ts";
+import { answerFields, bestWordIn, contextTokens, findWordSpan, guessKind, kindOf, splitForms, supportsContext, tensedOf } from "./languages.ts";
+import { answersOf, withAnswer } from "./answers.ts";
 import { exampleCells, filledExample, verbExamplesOf } from "./examples.ts";
 import { unitsOf } from "./scheduler.ts";
 import { leadOf, wordOf } from "./cards.ts";
@@ -51,8 +52,15 @@ export interface Context {
   example?: number;
   lat?: string;
   /** The word as the phrase spells it, for finding it again once the
-      phrase's blanks are filled — a value longer than one token moves it. */
+      phrase's blanks are filled — a value longer than one token moves it.
+      One accepted answer, the one the phrase holds, never the form's whole
+      list of them. */
   word?: string;
+  /** Which of the form's accepted answers the phrase holds, by where it
+      stands among them — see answerAt. Only on a form that accepts more
+      than one: the question asked in this phrase is about this answer,
+      and only this answer is right in it. */
+  answer?: number;
   /** Where the phrase is a card with blanks in it — "I'm learning
       {{language}}" — the card, so whoever shows the phrase can fill them
       the way the card's own questions do. Never shown as written. */
@@ -72,6 +80,33 @@ type Source = {
   lang?: string;
   frame?: Item;
 };
+
+/*
+ * Each answer a form accepts, on its own, with where it stands among them.
+ *
+ * A form accepting تمام or منيح keeps both in one text with a separator
+ * between them (see answers.ts). Looked for whole, that text is one long
+ * "word" with the separator in it and is found in no sentence, so a word
+ * with two accepted answers was never practised in one. Each answer is a
+ * word a sentence may hold.
+ */
+export const answerWords = (form: Record<string, any> | null | undefined): { text: string; at: number }[] =>
+  answersOf(form, answerFields()).map((a, at) => ({ text: a.text, at }));
+
+/*
+ * Each way a phrase is written, as a phrase of its own: one of its
+ * accepted answers, with that answer's own recordings where it has them.
+ * A phrase with one answer is itself.
+ */
+export function phraseAnswers<T extends Record<string, any>>(phrase: T): T[] {
+  const list = answersOf(phrase, answerFields());
+  return list.length > 1 ? list.map((a) => withAnswer(phrase, a)) : [phrase];
+}
+
+/* The words a card's forms are looked for as: every accepted answer of
+   every form, the form named beside it. */
+const wordsOfCard = (card: Item) =>
+  unitsOf(card).flatMap(({ unit }) => answerWords(unit).map((answer) => ({ item: { unit, answer }, word: answer.text })));
 
 export function buildContextIndex(items: Item[], lang: Lang): Map<string, Context[]> {
   const index = new Map<string, Context[]>();
@@ -95,33 +130,39 @@ export function buildContextIndex(items: Item[], lang: Lang): Map<string, Contex
   for (const phrase of sources) {
     const uses = phrase.uses || [];
     if (!uses.length || !phrase.ar) continue;
+    /* A phrase with two accepted answers is shown as one of them, the
+       first that holds the word: both run together are not a sentence. */
+    const written = phraseAnswers(phrase);
     for (const targetId of uses) {
       const target = byId.get(targetId);
       if (!target) continue;
-      for (const { unit } of unitsOf(target)) {
-        if (!unit.ar) continue;
-        const span = findWordSpan(phrase.ar, unit.ar, lang);
-        if (!span) continue;
+      /* One form per phrase: if a phrase contained both the singular and
+         the plural it would be a context for each, but only one is the
+         word the teacher meant — the one the phrase holds. The feminine
+         فاهمة is found by the masculine فاهم too, and taking the first form
+         found asked فاهم in "مش ___ة"; see bestWordIn. Each accepted answer
+         of each form is looked for on its own — see answerWords. */
+      const words = wordsOfCard(target);
+      const hit = written.map((said) => ({ said, found: bestWordIn(said.ar, words, lang) })).find((h) => h.found);
+      if (hit && hit.found) {
+        const { said, found: { item: { unit, answer }, span } } = hit;
         const list = index.get(unit.id) || [];
         list.push({
           id: phrase.id,
-          ar: phrase.ar,
-          en: phrase.en,
-          recs: phrase.recs || [],
+          ar: said.ar,
+          en: said.en,
+          recs: said.recs || [],
           slot: span.at,
           /* How many tokens the word takes up. One in Arabic, two for a
              Vietnamese compound — and the gap has to cover all of them,
              because blanking one syllable of a two-syllable word leaves
              the answer half written on the screen. */
           span: span.len,
-          word: unit.ar,
-          ...(phrase.frame && /\{\{/.test(`${phrase.ar} ${phrase.en || ""}`) ? { frame: phrase.frame } : {}),
+          word: answer.text,
+          ...(answerWords(unit).length > 1 ? { answer: answer.at } : {}),
+          ...(phrase.frame && /\{\{/.test(`${said.ar} ${said.en || ""}`) ? { frame: phrase.frame } : {}),
         });
         index.set(unit.id, list);
-        /* One form per phrase: if a phrase contained both the singular and
-           the plural it would be a context for each, but the first match
-           is the one the teacher meant. */
-        break;
       }
     }
   }
@@ -180,9 +221,14 @@ function gapIn(written: string, filled: string, word: string, lang: Lang): { at:
  *
  * Every form, not only the word on the front — a verb's conjugations, a
  * noun's plural — because a sentence saying "she wrote" teaches the card
- * for "he wrote" as surely as one saying "he wrote". The forms are tried
- * in the order buildContextIndex tries them, front word first, so the form
- * named here is the one the practice side will blank.
+ * for "he wrote" as surely as one saying "he wrote". The form is picked
+ * the way buildContextIndex picks it (see bestWordIn), so the form named
+ * here is the one the practice side will blank. Each of a form's accepted
+ * answers is looked for, and each of the text's.
+ *
+ * Which cards are words is the teacher's answer where they gave one — see
+ * kindOf. Guessed from the spaces in it, every Vietnamese word of two
+ * syllables read as a phrase and was never offered here.
  */
 export function wordsOffered(
   text: string,
@@ -191,15 +237,17 @@ export function wordsOffered(
   selfId: string = "",
   most: number = 24,
 ): { card: Item; form: Form }[] {
-  if (!supportsContext(lang) || !String(text || "").trim() || guessKind(text, lang) === "word") return [];
+  const texts = splitForms(String(text || ""));
+  if (!supportsContext(lang) || !texts.length || guessKind(texts[0], lang) === "word") return [];
   const out: { card: Item; form: Form }[] = [];
   for (const card of cards || []) {
     if (out.length >= most) break;
     if (!card || !card.id || card.id === selfId) continue;
     const lead = wordOf(card).ar;
-    if (!lead || guessKind(lead, lang) !== "word") continue;
-    const hit = unitsOf(card).find(({ unit }) => unit.ar && findWordSpan(text, unit.ar, lang));
-    if (hit) out.push({ card, form: hit.unit });
+    if (!lead || kindOf(card, lang) !== "word") continue;
+    const words = wordsOfCard(card);
+    const hit = texts.map((t) => bestWordIn(t, words, lang)).find(Boolean);
+    if (hit) out.push({ card, form: hit.item.unit });
   }
   return out;
 }

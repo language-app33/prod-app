@@ -32,8 +32,9 @@
  */
 
 import type { Lang } from "./types.ts";
-import { contextTokens, findWordSpan, isFunctionWord, supportsContext } from "./languages.ts";
+import { contextTokens, findWordSpan, isFunctionWord, splitForms, supportsContext } from "./languages.ts";
 import { isDialog, linesOf, speakerName } from "./dialogs.ts";
+import { wordOf } from "./cards.ts";
 
 /*
  * Where a word stops and a phrase begins, in tokens.
@@ -61,14 +62,44 @@ export const EXAMPLES_SHOWN = 3;
    teacher's copy and the learner's differ in everything but these. */
 type Card = Record<string, any>;
 
-const textOf = (card: Card) => String((card && card.ar) || "").trim();
+/* A card's own word and meaning, wherever it keeps them. A card saved
+   since 0.138 holds its text in its forms and nothing at the top, so
+   reading `card.ar` found nothing on it: the In context tab offered no
+   link for any such word or phrase. Read as 0.459 read them for a deck's
+   own report. */
+const textOf = (card: Card) => String((card && wordOf(card).ar) || "").trim();
+const meaningOf = (card: Card) => String((card && wordOf(card).en) || "");
 
-const lengthOf = (card: Card, lang: Lang) => contextTokens(textOf(card), lang).length;
+/* Each answer a card or a turn accepts, read on its own. Several are kept
+   in one text with a separator between them (see answers.ts), and read
+   whole that text is one long word found nowhere: a card accepting تمام or
+   منيح was offered in no phrase and listed as in none. */
+const answersIn = (text: string): string[] => splitForms(text);
+
+/* How long a card is, in tokens: its shortest answer, since any one of
+   them is the word a phrase may hold. */
+const lengthOf = (card: Card, lang: Lang) =>
+  Math.min(...answersIn(textOf(card)).map((w) => contextTokens(w, lang).length), Infinity);
+
+/* Where a card turns up in a phrase: the first of the phrase's answers
+   that holds one of the card's, and where. Only a card shorter than the
+   phrase answer it is found in — see pairsIn. */
+function foundIn(phrase: string, card: Card, lang: Lang): { at: number; len: number } | null {
+  for (const text of answersIn(phrase)) {
+    const long = contextTokens(text, lang).length;
+    for (const word of answersIn(textOf(card))) {
+      if (contextTokens(word, lang).length >= long) continue;
+      const span = findWordSpan(text, word, lang);
+      if (span) return span;
+    }
+  }
+  return null;
+}
 
 /* What a card is called in a list, keeping it to the fields every shape of
    card has — the teacher's and the learner's copies differ in everything
    else. */
-const named = (card: Card) => ({ id: card.id, ar: textOf(card), en: card.en || "" });
+const named = (card: Card) => ({ id: card.id, ar: textOf(card), en: meaningOf(card) });
 
 /*
  * Everywhere a word could turn up: the teacher's phrases, and the turns of
@@ -131,7 +162,7 @@ export function containersIn(cards: Card[]): Container[] {
       cardId: card.id,
       line: null,
       ar: textOf(card),
-      en: card.en || "",
+      en: meaningOf(card),
       who: "",
       uses: card.uses || [],
     });
@@ -157,11 +188,9 @@ export function pairsIn(cards: Card[], lang: Lang) {
   const usable = (cards || []).filter((c) => c && c.id && textOf(c));
   const pairs = [];
   for (const container of containersIn(cards)) {
-    const long = contextTokens(container.ar, lang).length;
     for (const word of usable) {
       if (word.id === container.cardId) continue;
-      if (lengthOf(word, lang) >= long) continue;
-      const span = findWordSpan(container.ar, textOf(word), lang);
+      const span = foundIn(container.ar, word, lang);
       if (!span) continue;
       pairs.push({
         container,
@@ -204,8 +233,12 @@ export function unknownWords(cards: Card[], lang: Lang): Missing[] {
      keeps using and nothing teaches is exactly the gap one a sentence keeps
      using is. */
   for (const container of containersIn(cards)) {
-    const tokens = contextTokens(container.ar, lang);
-    if (tokens.length < MINE_FROM_TOKENS) continue;
+    /* Each of a phrase's answers, the words of all of them together. */
+    const tokens = answersIn(container.ar)
+      .map((text) => contextTokens(text, lang))
+      .filter((list) => list.length >= MINE_FROM_TOKENS)
+      .flat();
+    if (!tokens.length) continue;
     /* One container counts once towards a word, however many times it says
        it: a sentence that repeats a word is one example of it, not two. */
     const seenHere = new Set();
@@ -215,8 +248,8 @@ export function unknownWords(cards: Card[], lang: Lang): Missing[] {
       if (isFunctionWord(token, lang)) continue;
       /* A token any card already covers is not missing — including a card
          longer than one token, so a compound already taught is not
-         suggested again syllable by syllable. */
-      if (usable.some((c) => findWordSpan(token, textOf(c), lang))) continue;
+         suggested again syllable by syllable. Any of a card's answers. */
+      if (usable.some((c) => answersIn(textOf(c)).some((w) => findWordSpan(token, w, lang)))) continue;
 
       const group = groups.find((g) => g.forms.some((f) => sameWord(f, token, lang)));
       if (group) {

@@ -18,17 +18,23 @@
  *     overly long sentence, and a conversation or text in the deck.
  *
  * What counts as a sentence: a phrase or sentence card, or one line of a
- * conversation or text. What counts as a word being in one: a link the
- * teacher confirmed (`uses`), a blank the word fills — exactly the forms
+ * conversation or text. A card is one sentence however
+ * many versions and accepted answers it has, and every one of them is
+ * read; a line picked from a sentence card of the deck is that sentence
+ * again, and text with no letter in it is no sentence. What counts as a
+ * word being in one: a link the teacher confirmed (`uses`), credited to
+ * the form the sentence holds; a blank the word fills — exactly the forms
  * the blank can take, in the sentences the teacher has let through review
  * — or one of a verb's own examples. Names, and cards that only fill
  * blanks, are not asked to be in sentences; forms switched off are not
  * either. The sentence has to be in the same deck, because a deck can be
  * practised on its own and then it has only its own sentences.
  *
- * A check with nothing to measure — pronunciation in a language written
- * in Latin letters, review on a deck with no blanks — is left out and its
- * points shared among the rest. A deck with words and no sentences is not
+ * The conversation or text is always worth its 5 points (0.463, the
+ * owner's rule). A check with nothing to measure — pronunciation in a
+ * language written in Latin letters, review on a deck with no blanks — is
+ * left out and its points shared among the other checks that apply, which
+ * together are always worth 95. A deck with words and no sentences is not
  * spared that way: it cannot earn the first two parts, and says so.
  *
  * Pure and read-only, like context-links.ts: it is handed the teacher's
@@ -37,8 +43,11 @@
 
 import type { Lang } from "./types.ts";
 import { formsOf, wordOf } from "./cards.ts";
+import { answersOf } from "./answers.ts";
 import { isDialog, linesOf, pickedFrom } from "./dialogs.ts";
-import { contextTokens, findWordSpan, isFunctionWord, kindOf, supportsContext, tensedOf } from "./languages.ts";
+import {
+  answerFields, bestWordIn, contextTokens, findWordSpan, isFunctionWord, kindOf, splitForms, supportsContext, tensedOf,
+} from "./languages.ts";
 import { exampleCells, verbExamplesOf } from "./examples.ts";
 import { isAsked } from "./scheduler.ts";
 import { hasSlots, isSentence } from "./variables.ts";
@@ -54,6 +63,8 @@ type Held = Record<string, any>;
 export const WORDS_POINTS = 55;
 export const SENTENCES_POINTS = 10;
 export const CHECK_POINTS = 5;
+/** What a conversation or text is worth, whichever other checks apply. */
+export const SCENE_POINTS = 5;
 /** Sentences the word itself wants, and each of its other forms. */
 export const SENTENCES_FOR_WORD = 2;
 export const SENTENCES_FOR_FORM = 1;
@@ -121,12 +132,26 @@ export interface QualityOptions {
 
 const trim = (x: unknown) => String(x || "").trim();
 
+/*
+ * The answers a text holds, each on its own.
+ *
+ * A form with several accepted answers keeps them in one string with the
+ * app's separator between them (see answers.ts), and read whole that is
+ * one long text with a separator inside it: "كلشي تمام" and "كله تمام" a
+ * sentence of four words, the last glued to a mark nobody wrote. Each
+ * answer is read as the student meets it. One with no letter in it — a
+ * line that is only "." — says nothing and is not read at all.
+ */
+export const answersIn = (text: unknown): string[] =>
+  splitForms(String(text || "")).filter((t) => /\p{L}/u.test(t));
+
 /** Whether a card is a word that wants sentences. */
 export function wantsSentences(card: Held, lang: Lang | null | undefined): boolean {
   if (!card || isDialog(card) || isSentence(card)) return false;
   if (card.drill === false || card.derived) return false;
   if (NAME_KINDS.includes(trim(card.category))) return false;
-  if (!trim(wordOf(card).ar)) return false;
+  /* A card with no letter in it — "…" — is no word to put in a sentence. */
+  if (!answersIn(wordOf(card).ar).length) return false;
   return kindOf(card, lang) === "word";
 }
 
@@ -147,37 +172,89 @@ export function formsToMeet(card: Held): { ar: string; need: number }[] {
   return out;
 }
 
-/* One sentence of the deck: a phrase or sentence card, or a line. */
+/*
+ * One sentence of the deck: a phrase or sentence card, or a line.
+ *
+ * A card is one sentence however many ways it is written. Its versions —
+ * a masculine and a feminine, the `subs` of an old card — and each
+ * accepted answer of each are all read, because a student is asked every
+ * one of them; but a word in two of them is in one sentence, not two.
+ */
 interface Said {
   key: string;
   card: Held;
-  ar: string;
+  /* Every way it is written: each asked version, each answer of it. */
+  texts: string[];
   uses: string[];
+  /* Whether any version has blanks, which teach the words they take. */
   holed: boolean;
-  /* The form or line itself, for its recordings and pronunciation. */
-  unit: Held;
+  /* The versions without blanks, for their recordings and pronunciation. */
+  units: Held[];
 }
+
+/* Whether a conversation or text is practised. A safeguard, and nothing a
+   teacher meets: the editor cannot switch a conversation off (it marks a
+   card practised whenever any part of it is asked, and a conversation's
+   part always is), so only a hand-made import or a card from before
+   0.179 could arrive like this. If one does, it is never put in front of
+   a student, so its lines are no sentences of the deck. See
+   docs/AUDIT-what-teachers-can-make.md. */
+const practised = (card: Held) => card.drill !== false;
 
 function saidIn(cards: Held[], lang: Lang | null | undefined): Said[] {
   const out: Said[] = [];
+  const said = (key: string, card: Held, versions: Held[], uses: string[]) => {
+    const read = versions.map((v) => ({ v, texts: answersIn(v.ar) })).filter((r) => r.texts.length);
+    if (!read.length) return;
+    out.push({
+      key, card, uses,
+      texts: read.flatMap((r) => r.texts),
+      holed: read.some((r) => hasSlots(r.v)),
+      units: read.filter((r) => !hasSlots(r.v)).map((r) => r.v),
+    });
+  };
   for (const card of cards) {
-    if (isDialog(card)) {
-      linesOf(card as never).forEach((line: Held, at: number) => {
-        const ar = trim(line && line.ar);
-        if (!ar) return;
-        out.push({ key: `${card.id}#${at}`, card, ar, uses: line.uses || [], holed: hasSlots(line), unit: line });
-      });
-      continue;
-    }
+    if (isDialog(card)) continue;
     if (card.drill === false || card.derived) continue;
     if (!isSentence(card) && kindOf(card, lang) === "word") continue;
-    const lead = wordOf(card) as Held;
-    const ar = trim(lead.ar);
-    if (!ar) continue;
-    out.push({ key: String(card.id), card, ar, uses: card.uses || [], holed: hasSlots(lead), unit: lead });
+    said(String(card.id), card, (formsOf(card) as Held[]).filter((f) => isAsked(f as never)), card.uses || []);
+  }
+  /* A line picked from a sentence card of this deck is that sentence said
+     again: it is already counted, and counting it twice would let one
+     sentence fill a word's two. */
+  const counted = new Set(out.map((s) => s.key));
+  for (const card of cards) {
+    if (!isDialog(card) || !practised(card)) continue;
+    linesOf(card as never).forEach((line: Held, at: number) => {
+      if (!line || counted.has(pickedFrom(line as never))) return;
+      said(`${card.id}#${at}`, card, [line], line.uses || []);
+    });
   }
   return out;
 }
+
+/*
+ * Whether a word, form or sentence has its recordings and its
+ * pronunciation: every accepted answer of it, where it accepts several.
+ *
+ * A recording belongs to the answer it is of (see answers.ts), and a
+ * question about the second answer plays the second answer's voice, so a
+ * form with one of its two answers recorded is short of one. A form keeps
+ * every answer's recordings together as well, and read that way it looked
+ * recorded as soon as either was. A card written before answers had
+ * recordings of their own shares the form's among them, and reads as it
+ * always did.
+ */
+const heard = (unit: Held) => {
+  const answers = answersOf(unit, answerFields());
+  return answers.length > 1
+    ? answers.every((a) => (a.clips || []).length > 0 || (a.slowClips || []).length > 0)
+    : recorded(unit);
+};
+const spelt = (unit: Held) => {
+  const answers = answersOf(unit, answerFields());
+  return answers.length > 1 ? answers.every((a) => !!trim(a.lat)) : !!trim(unit.lat);
+};
 
 const recorded = (unit: Held) =>
   ["clips", "slowClips", "recs"].some((f) => Array.isArray(unit && unit[f]) && unit[f].length > 0);
@@ -197,16 +274,18 @@ export function unknownFinder(known: Held[], lang: Lang | null | undefined) {
   for (const card of known || []) {
     if (!card || isDialog(card) || isSentence(card) || kindOf(card, lang) !== "word") continue;
     for (const form of formsOf(card) as Held[]) {
-      const ar = trim(form.ar);
-      if (!ar || hasSlots(form)) continue;
-      const len = contextTokens(ar, lang).length;
-      if (!len || len > MAX) continue;
-      const bucket = byLength.get(len) || { keys: new Set<string>(), words: [] };
-      if (keyed) {
-        const k = keyed.word(ar);
-        if (k) bucket.keys.add(k);
-      } else bucket.words.push(ar);
-      byLength.set(len, bucket);
+      if (hasSlots(form)) continue;
+      /* Each answer a form accepts is a word it teaches. */
+      for (const ar of answersIn(form.ar)) {
+        const len = contextTokens(ar, lang).length;
+        if (!len || len > MAX) continue;
+        const bucket = byLength.get(len) || { keys: new Set<string>(), words: [] };
+        if (keyed) {
+          const k = keyed.word(ar);
+          if (k) bucket.keys.add(k);
+        } else bucket.words.push(ar);
+        byLength.set(len, bucket);
+      }
     }
   }
   const lengths = [...byLength.keys()];
@@ -245,6 +324,16 @@ export function unknownFinder(known: Held[], lang: Lang | null | undefined) {
   };
 }
 
+/* ---- which form a sentence holds ---- */
+
+/* The form of a word a text holds, where it holds one, trying each answer
+   of each form — see bestWordIn, which the gap-fill asks too. */
+export function formIn<T extends { ar: string }>(text: string, forms: T[], lang: Lang): T | undefined {
+  const words = forms.flatMap((form) => answersIn(form.ar).map((word) => ({ item: form, word })));
+  const found = bestWordIn(text, words, lang);
+  return found ? found.item : undefined;
+}
+
 /* ---- the score ---- */
 
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -258,7 +347,7 @@ export function deckQuality(cards: Held[], options: QualityOptions): Quality {
 
   const words = deck.filter((c) => wantsSentences(c, lang));
   const said = saidIn(deck, lang);
-  const scenes = deck.filter((c) => isDialog(c));
+  const scenes = deck.filter((c) => isDialog(c) && practised(c));
 
   /* Every sentence a form is met in, by card and by spelling. */
   const met: Map<string, Map<string, Set<string>>> = new Map();
@@ -272,23 +361,25 @@ export function deckQuality(cards: Held[], options: QualityOptions): Quality {
     const into = met.get(cardId);
     if (!forms || !into) return;
     const w = trim(word);
-    const form = forms.find((f) => f.ar === w)
-      || (supportsContext(lang) ? forms.find((f) => lang.context.matches(w, f.ar)) : undefined);
+    const form = forms.find((f) => f.ar === w || answersIn(f.ar).includes(w))
+      || (supportsContext(lang) ? formIn(w, forms, lang) : undefined);
     if (!form) return;
     const set = into.get(form.ar) || new Set<string>();
     set.add(key);
     into.set(form.ar, set);
   };
 
-  /* A link the teacher confirmed: the first form of the word the sentence
-     holds, which is the one the gap-fill asks — see context-index.ts. */
+  /* A link the teacher confirmed: the form of the word the sentence holds,
+     in any of the ways it is written. */
   if (supportsContext(lang)) {
     for (const s of said) {
       for (const id of s.uses) {
         const forms = toMeet.get(String(id));
         if (!forms) continue;
-        const found = forms.find((f) => findWordSpan(s.ar, f.ar, lang));
-        if (found) credit(String(id), found.ar, s.key);
+        for (const text of s.texts) {
+          const found = formIn(text, forms, lang);
+          if (found) credit(String(id), found.ar, s.key);
+        }
       }
     }
   }
@@ -296,6 +387,7 @@ export function deckQuality(cards: Held[], options: QualityOptions): Quality {
   /* A blank: every form it can take, in the sentences review lets through. */
   const parts: Map<string, PartSentences[]> = new Map();
   for (const card of deck) {
+    if (isDialog(card) && !practised(card)) continue;
     const holed = holedParts(card);
     if (!holed.length) continue;
     const lists = partsOf(card);
@@ -317,7 +409,7 @@ export function deckQuality(cards: Held[], options: QualityOptions): Quality {
         /* A verb's own sentence holds the verb in a place of its own. */
         if (own && toMeet.has(String(card.id)) && supportsContext(lang)) {
           for (const f of toMeet.get(String(card.id)) || []) {
-            if (findWordSpan(s.ar, f.ar, lang)) credit(String(card.id), f.ar, key);
+            if (answersIn(f.ar).some((w) => findWordSpan(s.ar, w, lang))) credit(String(card.id), f.ar, key);
           }
         }
       }
@@ -354,34 +446,48 @@ export function deckQuality(cards: Held[], options: QualityOptions): Quality {
 
   /* ---- 2. sentences well made ---- */
   const unknownIn = unknownFinder(options.known || pool || [], lang);
+  const unknownOf = (s: Said) => [...new Set(s.texts.flatMap((t) => unknownIn(t)))];
   const unlinked = said.filter((s) => !s.uses.length && !s.holed);
-  const strange = said.filter((s) => unknownIn(s.ar).length > 0);
+  const strange = said.filter((s) => unknownOf(s).length > 0);
   const flawed = said.filter((s) => unlinked.includes(s) || strange.includes(s));
+  /* A sentence earns its share only once it has neither flaw, so each fix
+     is offered for the sentences it alone would mend, and those with both
+     flaws are a fix of their own. */
+  const both = unlinked.filter((s) => strange.includes(s));
+  const onlyUnlinked = unlinked.filter((s) => !both.includes(s));
+  const onlyStrange = strange.filter((s) => !both.includes(s));
 
   /* ---- the smaller checks ---- */
-  const units: Held[] = [];
+  /* A word form is a unit; so is a sentence, all of its versions together,
+     which is short of something where any version is. */
+  const units: Held[][] = [];
   for (const card of words) {
     for (const form of formsOf(card) as Held[]) {
-      if (trim(form.ar) && isAsked(form as never) && !hasSlots(form)) units.push(form);
+      if (trim(form.ar) && isAsked(form as never) && !hasSlots(form)) units.push([form]);
     }
   }
-  for (const s of said) if (!s.holed) units.push(s.unit);
-  const unrecorded = units.filter((u) => !recorded(u));
+  for (const s of said) if (s.units.length) units.push(s.units);
+  const unrecorded = units.filter((u) => u.some((v) => !heard(v)));
   const unpictured = words.filter((c) =>
     !(formsOf(c) as Held[]).some((f) => Array.isArray(f.images) && f.images.length > 0));
   const writesApart = !!(lang && lang.script);
-  const unspelt = units.filter((u) => !trim(u.lat));
+  const unspelt = units.filter((u) => u.some((v) => !spelt(v)));
   const reviewing = deck.filter((c) => parts.has(String(c.id)));
   const unreviewed = reviewing.filter((c) => toReview(stateFrom(c, parts.get(String(c.id)) || [])));
-  const seenWords: Map<string, number> = new Map();
+  /* A card is a repeat when an earlier one shares an answer and a meaning
+     with it — any of each, where a card accepts several. */
+  const seenWords: Set<string> = new Set();
+  let repeats = 0;
   for (const c of words) {
     const w = wordOf(c);
-    const at = `${trim(w.ar)}|${trim(w.en).toLowerCase()}`;
-    seenWords.set(at, (seenWords.get(at) || 0) + 1);
+    const keys = answersIn(w.ar).flatMap((a) =>
+      splitForms(String(w.en || "")).map((e) => `${a}|${e.toLowerCase()}`));
+    if (!keys.length) keys.push(`${trim(w.ar)}|${trim(w.en).toLowerCase()}`);
+    if (keys.some((k) => seenWords.has(k))) repeats++;
+    for (const k of keys) seenWords.add(k);
   }
-  const repeats = [...seenWords.values()].reduce((t, n) => t + n - 1, 0);
   const longest = lang ? longSentenceOf(lang) : 12;
-  const long = said.filter((s) => lang && wordCount(s.ar, lang) > longest);
+  const long = said.filter((s) => lang && s.texts.some((t) => wordCount(t, lang) > longest));
 
   const share = (bad: number, all: number) => (all ? 1 - bad / all : 0);
   const checks: Check[] = [
@@ -393,19 +499,23 @@ export function deckQuality(cards: Held[], options: QualityOptions): Quality {
     { key: "reviewed", weight: CHECK_POINTS, share: share(unreviewed.length, reviewing.length), applies: reviewing.length > 0 },
     { key: "repeats", weight: CHECK_POINTS, share: share(repeats, words.length), applies: words.length > 0 },
     { key: "long", weight: CHECK_POINTS, share: share(long.length, said.length), applies: said.length > 0 },
-    { key: "scene", weight: CHECK_POINTS, share: scenes.length ? 1 : 0, applies: true },
+    { key: "scene", weight: SCENE_POINTS, share: scenes.length ? 1 : 0, applies: true },
   ];
 
   const empty = { score: null, checks, fixes: [], words: wordRows };
   if (!words.length && !said.length) return empty;
 
-  const total = checks.filter((c) => c.applies).reduce((t, c) => t + c.weight, 0);
-  const scale = total ? 100 / total : 0;
-  const earned = checks.filter((c) => c.applies).reduce((t, c) => t + c.weight * c.share, 0);
+  /* The conversation is worth its 5 whatever else applies; the points of a
+     check with nothing to measure go to the other checks that apply. */
+  const rest = checks.filter((c) => c.applies && c.key !== "scene");
+  const total = rest.reduce((t, c) => t + c.weight, 0);
+  const scale = total ? (100 - SCENE_POINTS) / total : 0;
   const worth = (key: CheckKey) => {
+    if (key === "scene") return SCENE_POINTS;
     const c = checks.find((x) => x.key === key);
     return c && c.applies ? c.weight * scale : 0;
   };
+  const earned = checks.reduce((t, c) => t + worth(c.key) * c.share, 0);
 
   /* ---- what would raise it ---- */
   const fixes: Fix[] = [];
@@ -430,11 +540,11 @@ export function deckQuality(cards: Held[], options: QualityOptions): Quality {
       for (const card of words) {
         const id = String(card.id);
         if (s.uses.includes(id) || s.card.id === card.id) continue;
-        const found = (toMeet.get(id) || []).find((f) => findWordSpan(s.ar, f.ar, lang));
-        if (!found) continue;
+        const found = s.texts.map((t) => formIn(t, toMeet.get(id) || [], lang)).filter((f) => !!f);
+        if (!found.length) continue;
         n++;
         const into = more.get(id) || new Map();
-        into.set(found.ar, (into.get(found.ar) || new Set()).add(s.key));
+        for (const f of found) into.set(f.ar, (into.get(f.ar) || new Set()).add(s.key));
         more.set(id, into);
       }
     }
@@ -444,14 +554,21 @@ export function deckQuality(cards: Held[], options: QualityOptions): Quality {
     }
   }
   if (said.length) {
-    if (unlinked.length) {
-      add("unlinked", worth("sentences") * (unlinked.length / said.length),
-        `${count(unlinked.length, "sentence")} ${verb(unlinked.length, "isn't", "aren't")} linked to any word card. Say which words ${verb(unlinked.length, "it teaches", "they teach")}.`);
+    const sampleOf = (list: Said[]) => [...new Set(list.flatMap(unknownOf))].slice(0, 3).join(", ");
+    if (onlyUnlinked.length) {
+      const n = onlyUnlinked.length;
+      add("unlinked", worth("sentences") * (n / said.length),
+        `${count(n, "sentence")} ${verb(n, "isn't", "aren't")} linked to any word card. Say which words ${verb(n, "it teaches", "they teach")}.`);
     }
-    if (strange.length) {
-      const sample = [...new Set(strange.flatMap((s) => unknownIn(s.ar)))].slice(0, 3);
-      add("unknown", worth("sentences") * (strange.length / said.length),
-        `${count(strange.length, "sentence")} ${verb(strange.length, "uses", "use")} a word no deck in the course teaches (${sample.join(", ")}).`);
+    if (onlyStrange.length) {
+      const n = onlyStrange.length;
+      add("unknown", worth("sentences") * (n / said.length),
+        `${count(n, "sentence")} ${verb(n, "uses", "use")} a word no deck in the course teaches (${sampleOf(onlyStrange)}).`);
+    }
+    if (both.length) {
+      const n = both.length;
+      add("both", worth("sentences") * (n / said.length),
+        `${count(n, "sentence")} ${verb(n, "needs", "need")} both a link to a word card and ${verb(n, "its", "their")} words taught (${sampleOf(both)}).`);
     }
   } else if (words.length) {
     add("sentences", worth("sentences"), "Add sentences: none of this deck's words can be practised inside one yet.");
@@ -471,7 +588,7 @@ export function deckQuality(cards: Held[], options: QualityOptions): Quality {
   add("scene", worth("scene") * (scenes.length ? 0 : 1), "Add a conversation or a text.");
   fixes.sort((a, b) => b.gain - a.gain);
 
-  return { score: Math.round(earned * scale), checks, fixes, words: wordRows };
+  return { score: Math.round(earned), checks, fixes, words: wordRows };
 }
 
 /** Which colour a score is shown in. */

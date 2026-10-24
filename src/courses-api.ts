@@ -190,7 +190,28 @@ export const setDeckParts = (deckId: string, parts: string[]) =>
 export const myCards = () => call("my-cards");
 /* The server calls this field "decks"; sending anything else means the
    card saves but never lands in a deck. */
-export const saveCard = (card: Partial<Card>, decks: string[]) => call("save-card", { body: { card, decks } });
+/**
+ * How a save is made, beside the card — see save-card. `touched` names the
+ * fields that changed, and only those are written; `into: "changes"` sends
+ * the card editor's saves to a published card's unpublished changes;
+ * `walk` is a rename or a tag taken off the collection, applied by the
+ * server to both of a card's versions; `status` is the one the save asks
+ * for — Draft for a card made on the card screen, Ready for review for an
+ * import — on the card, or on a published card's changes.
+ */
+export type SaveExtra = {
+  touched?: string[];
+  into?: "changes";
+  walk?: { renames?: { from: string; to: string }[]; drops?: string[] };
+  status?: "draft" | "review";
+};
+export const saveCard = (card: Partial<Card>, decks: string[], extra: SaveExtra = {}) =>
+  call("save-card", { body: { card, decks, ...extra } });
+/* A card's status, or its unpublished changes' — see card-status. */
+export const cardStatus = (
+  cardId: string,
+  to: "draft" | "review" | "published" | "discard" | "unpublish",
+): Promise<{ ok: true; card: Card }> => call("card-status", { body: { cardId, to } });
 /* A teacher's say on the sentences a card makes: fingerprints approved,
    struck, or forgotten — see review.ts and review-card on the server. */
 export const reviewCard = (
@@ -238,6 +259,12 @@ export const getImage = (hash: string): Promise<{ ok: true; hash: string; data: 
   call("image", { params: { hash } });
 
 export const deleteAccount = () => call("delete-account", { body: {} });
+
+/* A teacher's export: the plan for what they asked for, then its records
+   chunk by chunk, the way a backup is fetched. */
+export const exportPlan = (cardIds: string[], deckIds: string[], media: boolean) =>
+  call("export-plan", { body: { cardIds, deckIds, media } });
+export const exportChunk = (keys: string[]) => call("export-chunk", { body: { keys } });
 
 /* ---- admin ---- */
 export const adminOverview = () => call("admin-overview");

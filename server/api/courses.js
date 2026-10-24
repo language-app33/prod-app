@@ -10,7 +10,7 @@ import { createHash, randomBytes } from "node:crypto";
    that adding an axis to a language does not silently drop it here. */
 import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
-import { cardRef, fillNames, fillsOf, isSentence, MAX_FILLS, slotName, slotsOf } from "../../src/variables.ts";
+import { cardRef, droppedIn, fillNames, fillsOf, isSentence, MAX_FILLS, renamedIn, slotName, slotsOf } from "../../src/variables.ts";
 import { isDialog, isText, linesOf, pickedFrom, pickedLine, TEXT } from "../../src/dialogs.ts";
 /* Which member of a scene's cast each blank of a turn plays — see cast.ts. */
 import { cleanRoles, memberName } from "../../src/cast.ts";
@@ -147,7 +147,7 @@ function makeHandle(displayName, taken) {
  * One answer, read by both.
  */
 /** @param {Record<string, any>} card */
-const clipsOfCard = (card) => [
+const clipsOfOne = (card) => [
   ...formsOf(card).flatMap((/** @type {Record<string, any>} */ f) => [
     ...(f.clips || []),
     ...(f.slowClips || []),
@@ -166,6 +166,15 @@ const clipsOfCard = (card) => [
     ...(ln.clips || []),
     ...(ln.slowClips || []),
   ]),
+];
+/* And the ones its unpublished changes hold, which are as much the card's
+   as the published version's: a recording made while editing a published
+   card is uploaded as it is made, and a backup or a clear that read only
+   what students have would lose it, or leave it on the disk. */
+/** @param {Record<string, any>} card */
+const clipsOfCard = (card) => [
+  ...clipsOfOne(card),
+  ...(card && card.pending ? clipsOfOne(withVersion(card, card.pending.card)) : []),
 ];
 
 /*
@@ -204,7 +213,9 @@ const imageList = (list) => [
 /** Every image a card points at — what backup, restore and clearing read. */
 /** @param {Record<string, any>} card */
 const imagesOfCard = (card) =>
-  formsOf(card).flatMap((/** @type {Record<string, any>} */ f) => (Array.isArray(f.images) ? f.images : []));
+  [card, ...(card && card.pending ? [withVersion(card, card.pending.card)] : [])].flatMap((one) =>
+    formsOf(one).flatMap((/** @type {Record<string, any>} */ f) => (Array.isArray(f.images) ? f.images : [])),
+  );
 
 const RETIRED_CARD_FIELDS = Object.fromEntries(
   [
@@ -215,6 +226,116 @@ const RETIRED_CARD_FIELDS = Object.fromEntries(
     ...grammarFields(),
   ].map((field) => [field, undefined]),
 );
+
+/* ------------------------------------------------------------------
+   A card's status, and its two versions
+
+   A card is a Draft, Ready for review, or Published, and only a published
+   card reaches a student. A card saved before statuses existed carries
+   none and is published, which is what it was.
+
+   Changing a published card does not change what students have. What the
+   card screen saves goes into `pending` — the card's unpublished changes,
+   with a status of their own (Draft or Ready for review) — and students
+   keep the published card until somebody publishes the changes. A card
+   that has never been published has no second version: the card is the
+   draft.
+
+   What a version holds is what a teacher writes about the word itself:
+   its words, forms, tables, blanks, recordings, examples, note and turns.
+   What it does not hold is its decks, its ID and its tags, which other
+   cards depend on, so they are one answer for both versions and apply at
+   once. See DECISIONS.md.
+   ------------------------------------------------------------------ */
+
+/** The fields a version holds. Everything else on a card is shared. */
+const VERSIONED_KEYS = [
+  "name", "category", "person", "enIs", "enAsk", "clue", "examples", "capitals",
+  "splitFrom", "together", "note", "sentence", "drill", "forms", "uses",
+  "speakers", "you", "sceneKind", "lines",
+];
+/** The header: shared by both versions, applied at once. Decks are the
+    third, and live in the decks rather than on the card. */
+const HEADER_KEYS = ["fills", "ref"];
+const CARD_STATUSES = ["draft", "review", "published"];
+
+/** Whether students get this card. No status is published: every card
+    saved before there were statuses. */
+/** @param {Record<string, any> | null | undefined} card */
+function isPublished(card) {
+  return !!card && (!card.status || card.status === "published");
+}
+
+/** A card's version, as a record of exactly the versioned fields, null
+    standing for absent so that applying it takes a field away too. */
+/** @param {Record<string, any>} card */
+function versionOf(card) {
+  /** @type {Record<string, any>} */
+  const out = {};
+  for (const k of VERSIONED_KEYS) out[k] = card[k] === undefined ? null : card[k];
+  return out;
+}
+
+/** The card with a version laid over it. */
+/**
+ * @param {Record<string, any>} card
+ * @param {Record<string, any>} version
+ */
+function withVersion(card, version) {
+  /** @type {Record<string, any>} */
+  const out = { ...card };
+  for (const k of VERSIONED_KEYS) {
+    if (!(k in version)) continue;
+    const v = version[k];
+    if (v === null || v === undefined) delete out[k];
+    else out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * @param {Record<string, any>} a
+ * @param {Record<string, any>} b
+ */
+function sameVersion(a, b) {
+  return JSON.stringify(versionOf(a)) === JSON.stringify(versionOf(b));
+}
+
+/** The version a teacher works on: the unpublished changes where there
+    are any, and otherwise the card. Without `pending`, which is the
+    stored shape of what this has already applied. */
+/** @param {Record<string, any>} card */
+function workingOf(card) {
+  const { pending, ...rest } = card;
+  return pending ? withVersion(rest, pending.card || {}) : rest;
+}
+
+/** A card as a teacher's screens see it: the version they work on, its
+    status, and the status of its changes where it has any. */
+/** @param {Record<string, any>} card */
+function teacherView(card) {
+  const { pending } = card;
+  return {
+    ...workingOf(card),
+    status: isPublished(card) ? "published" : card.status,
+    ...(pending ? { changes: pending.status || "draft", changed: pending.updated || 0 } : {}),
+  };
+}
+
+/** A card as it goes to a student: what is published, and nothing about
+    what is not. */
+/** @param {Record<string, any>} card */
+function studentView(card) {
+  const { pending: _pending, ...rest } = card;
+  return rest;
+}
+
+/** What a student's device compares to know whether a card changed. */
+/** @param {Record<string, any>} card */
+function seenByStudents(card) {
+  if (!isPublished(card)) return "";
+  return JSON.stringify([versionOf(card), HEADER_KEYS.map((k) => card[k] === undefined ? null : card[k])]);
+}
 
 /* Left to infer rather than declared as a record of string-makers: the
    keys here are fixed and known, and saying otherwise made `K.course`
@@ -1400,21 +1521,90 @@ export default async (req) => {
       const cards = cardRows.concat(extra).filter(Boolean)
         .map((c) => liftSubtypeTagsIn(c, c.lang) || c)
         .map((c) => tickCapitals(c) || c);
-      return json({ ok: true, cards: cards.map((c) => ({ ...c, decks: holding[c.id] || [] })) });
+      /* As a teacher's screens see a card: the version they work on, with
+         its status — see teacherView. */
+      return json({ ok: true, cards: cards.map((c) => ({ ...teacherView(c), decks: holding[c.id] || [] })) });
     }
 
     if (action === "save-card") {
-      const card = body.card || {};
-      const id = String(card.id || "").replace(/[^A-Za-z0-9_-]/g, "");
-      /* Which blanks this card says it fills, through the one answer to
-         that — see fillNames, which narrows each name to the shape a slot
-         can have, lowers it, and caps how many one card may carry. */
-      const filling = fillNames(card);
-      /* And the ID the teacher gave it, which is the other name a blank
-         can ask for — one card rather than a group of them. Read through
-         the same answer the app reads it through, so what the editor
-         checked for uniqueness and what is stored here are the same
-         string. */
+      const sent = body.card || {};
+      const id = String(sent.id || "").replace(/[^A-Za-z0-9_-]/g, "");
+
+      /** @type {Record<string, any>} */
+      let saved;
+      /** @type {string[]} */
+      let current = [];
+      /* Whether this card was a value before this save, so that turning one
+         back into an ordinary card reaches the devices holding it too. */
+      let wasFilling = false;
+      /** @type {Card | null} */
+      let existing = null;
+      if (id) {
+        existing = await loadCard(id);
+        if (!existing) return json({ error: "no-card" }, 404);
+        wasFilling = fillsOf(existing).length > 0;
+        current = await decksHolding(existing);
+        if (existing.owner !== mine && !me.admin) {
+          /* A card in a deck I teach is mine to correct — a deck it is
+             actually in, not one the request happens to name. */
+          let allowed = false;
+          for (const did of current) {
+            const d = await readDeck(store, did);
+            if (await canEditDeck(store, d, mine, me.admin)) {
+              allowed = true;
+              break;
+            }
+          }
+          if (!allowed) return json({ error: "not-yours" }, 403);
+        }
+      }
+
+      /*
+       * Which parts of the card this save is about, and where it goes.
+       *
+       * `touched` names the fields that changed — a tag on a card picked
+       * from a list, a blank narrowed — and everything else is kept as it
+       * stands now rather than as the sender last read it. Without it a
+       * whole card goes up, and a teacher's copy of a published card with
+       * changes waiting *is* the changes: tagging it would publish them. A
+       * sender that names nothing (the card screen, an older build) sends
+       * the whole card, as it always did.
+       *
+       * `into: "changes"` is the card screen, and any save asking for a
+       * status (an import): on a published card, what it
+       * saves goes into the card's unpublished changes. Every other save —
+       * the Pronouns screen, tagging a selection, an older build — writes
+       * the published card as it always did, and the same fields are put
+       * into the changes where there are any, so that publishing them
+       * later does not take back what was saved.
+       *
+       * `walk` is a rename or a tag taken off the collection, reaching this
+       * card from another one: it rewrites both versions here, because a
+       * blank has to find the name in what students have as well as in
+       * the draft.
+       */
+      const touched = Array.isArray(body.touched) && existing
+        ? [...new Set(body.touched.map((/** @type {unknown} */ k) => String(k)))]
+        : null;
+      /* The status a save asks for: Draft (a card made on the card
+         screen) or Ready for review (an import). Asked of an existing
+         card, it is the status of what this save writes — the card, where
+         it has never been published, or else its changes. */
+      const asked = body.status === "draft" || body.status === "review" ? body.status : null;
+      const intoChanges = body.into === "changes" || !!asked;
+      const walk = body.walk && typeof body.walk === "object" && existing ? body.walk : null;
+      /** The working version, which a save naming its fields is laid over. */
+      const base = existing ? workingOf(existing) : null;
+      /** @param {Record<string, any>} from */
+      const pick = (from) =>
+        Object.fromEntries((touched || []).filter((k) => k in from).map((k) => [k, from[k]]));
+      /* The card this save describes: the whole of what was sent, or what
+         it touched laid over the card as it stands. */
+      const card = touched && base ? { ...base, ...pick(sent) } : sent;
+      /* The ID the teacher gave it, which is the other name a blank can
+         ask for — one card rather than a group of them. Read through the
+         same answer the app reads it through, so what the editor checked
+         for uniqueness and what is stored here are the same string. */
       const answersTo = cardRef(card);
       /* Whether anything on this card leaves a hole. Asked of the forms
          because that is where a card's words live, and asked at all
@@ -1424,287 +1614,299 @@ export default async (req) => {
       function holed(c) {
         return formsOf(c).some((/** @type {any} */ f) => slotsOf(f).length > 0);
       }
-      const fields = {
-        /* What to call the card in a list, where its own words do not name
-           it — a verb saved as the form a dictionary lists. Stored as given
-           and capped like every other line of text here: the server does
-           not know one language from another, and a name is the teacher's
-           words rather than anything it can check. */
-        name: String(card.name || "").slice(0, 120),
-        /* What the teacher says the word is — a noun, a verb, a name.
-           Narrowed to the shape an id can take, like every other id on
-           this document: which categories exist is the language pack's
-           business, and the server does not know one language from
-           another. Stored as "" where nobody has said, which is what
-           every card written before the question existed carries. */
-        category: idish(card.category),
-        /* Which column of the verb table a pronoun is — see the Pronouns
-           screen. An id like the category, and absent rather than empty
-           on every other card; undefined rather than left out, because
-           this object is spread over the card as it stood. */
-        person: idish(card.person) || undefined,
-        /* And what a pronoun reads as in English with *to be* — "I am" —
-           and as a question — "am I". The teacher's words, capped like
-           every other line of text; absent where none was written, which
-           reads as the reading the app makes of the pronoun's English. */
-        enIs: String(card.enIs || "").trim().slice(0, 120) || undefined,
-        enAsk: String(card.enAsk || "").trim().slice(0, 120) || undefined,
-        /* Which meaning this card is, for a question another card shares
-           its prompt with — "the plant" on صَبِر = cactus. The teacher's
-           words, capped like every other line of text; absent where none
-           was written, which reads as the other card's answer ruled out.
-           See clueFor in src/meanings.ts. */
-        clue: String(card.clue || "").trim().slice(0, 80) || undefined,
-        /* The examples a verb's subjunctive is practised in — see
-           VerbExample. At most three, each the teacher's words capped like
-           every other line of text, and whose wish it is narrowed like an
-           id. Absent where there are none, and undefined rather than left
-           out, because this object is spread over the card as it stood
-           and a verb whose examples were all taken away must lose them. */
-        examples: storedExamples(card.examples),
-        /* Whether its English keeps the capitals it was typed with — the
-           teacher's tick. Kept as false as well as true, because an
-           answer of no is what stops the one-time tick (see capitals.ts)
-           putting it back; absent where nobody has answered, which is
-           every card the editor does not ask. */
-        capitals: typeof card.capitals === "boolean" ? card.capitals : undefined,
-        /* Which card this one was split out of, where it was — see
-           splitByMeaning. Written once, by the save that makes the card,
-           and kept through every later save, which does not send it: so
-           only ever set here, never cleared by saying nothing. */
-        ...(idish(card.splitFrom) ? { splitFrom: idish(card.splitFrom) } : {}),
-        /* And the teacher's answer that its meanings are learnt together,
-           where they gave one. Kept the same way: an editor that does not
-           ask the question does not undo the answer. */
-        ...(typeof card.together === "boolean" ? { together: card.together } : {}),
-        /* No `value` here, and none taken from a save.
-           It was what made a card one of the parts a number was built out
-           of, and there are no parts any more: a language's numbers are
-           one document now, and the cards under it are written by the app
-           out of that. So a value that arrives is dropped, like any other
-           field nobody writes. A value already *stored* is kept — it comes
-           through the spread of the card as it stood — because it is the
-           one record of which box an old card fills and it is what the
-           lift reads. Stripping it on the next save would be pulling the
-           mapping out from under the migration. Kept the way a retired
-           grammar axis is kept, and read in `seedSystems`. */
-        note: String(card.note || "").slice(0, 500),
-        lang: String(card.lang || "").slice(0, 12),
-        /* Which blanks this card fills, where it is a value rather than
-           something to learn. A list since a word may stand in more than
-           one kind of hole; a card written when it was one name arrives as
-           a string and is stored as the list of one it always meant.
-           Absent where it fills none rather than stored empty, which is
-           what `fills` has always been on an ordinary card and what every
-           reader of it still tests for — and undefined rather than left
-           out, because this object is spread over the card as it stood and
-           a missing key would keep whatever it used to fill. JSON drops
-           the undefined on the way to disk. */
-        fills: filling.length ? filling : undefined,
-        /* The ID the teacher gave this card, so another card's blank can
-           ask for this one by name. Absent where it has none — a card
-           written before the ID was asked for — rather than stored empty,
-           and undefined rather than left out, because this object is
-           spread over the card as it stood and a missing key would keep
-           whatever it used to answer to. JSON drops the undefined on the
-           way to disk. */
-        ref: answersTo || undefined,
-        /* Whether this card is a sentence — a frame other cards are
-           dropped into — which is the teacher's answer rather than
-           something read off the braces. Stored as a boolean either way
-           rather than only when true, for the reason `drill` is: a card
-           turned from a sentence back into a word must come back as a
-           word, and an absent field would leave every reader falling back
-           to the old reading of its braces for ever. A card written before
-           this carries nothing and is read that old way, which is exactly
-           what it meant — see isSentence, which is the reading this goes
-           through rather than a fourth copy of it.
+      /* The card as it is stored: what a save may write, narrowed and
+         capped. A function, because a save that writes the published card
+         and the changes beside it narrows each of them. */
+      /** @param {Record<string, any>} card */
+      const fieldsFor = (card) => {
+        /* Which blanks this card says it fills, through the one answer to
+           that — see fillNames, which narrows each name to the shape a
+           slot can have, lowers it, and caps how many one card may carry. */
+        const filling = fillNames(card);
+        const ownRef = cardRef(card);
+        return {
+          /* What to call the card in a list, where its own words do not name
+             it — a verb saved as the form a dictionary lists. Stored as given
+             and capped like every other line of text here: the server does
+             not know one language from another, and a name is the teacher's
+             words rather than anything it can check. */
+          name: String(card.name || "").slice(0, 120),
+          /* What the teacher says the word is — a noun, a verb, a name.
+             Narrowed to the shape an id can take, like every other id on
+             this document: which categories exist is the language pack's
+             business, and the server does not know one language from
+             another. Stored as "" where nobody has said, which is what
+             every card written before the question existed carries. */
+          category: idish(card.category),
+          /* Which column of the verb table a pronoun is — see the Pronouns
+             screen. An id like the category, and absent rather than empty
+             on every other card; undefined rather than left out, because
+             this object is spread over the card as it stood. */
+          person: idish(card.person) || undefined,
+          /* And what a pronoun reads as in English with *to be* — "I am" —
+             and as a question — "am I". The teacher's words, capped like
+             every other line of text; absent where none was written, which
+             reads as the reading the app makes of the pronoun's English. */
+          enIs: String(card.enIs || "").trim().slice(0, 120) || undefined,
+          enAsk: String(card.enAsk || "").trim().slice(0, 120) || undefined,
+          /* Which meaning this card is, for a question another card shares
+             its prompt with — "the plant" on صَبِر = cactus. The teacher's
+             words, capped like every other line of text; absent where none
+             was written, which reads as the other card's answer ruled out.
+             See clueFor in src/meanings.ts. */
+          clue: String(card.clue || "").trim().slice(0, 80) || undefined,
+          /* The examples a verb's subjunctive is practised in — see
+             VerbExample. At most three, each the teacher's words capped like
+             every other line of text, and whose wish it is narrowed like an
+             id. Absent where there are none, and undefined rather than left
+             out, because this object is spread over the card as it stood
+             and a verb whose examples were all taken away must lose them. */
+          examples: storedExamples(card.examples),
+          /* Whether its English keeps the capitals it was typed with — the
+             teacher's tick. Kept as false as well as true, because an
+             answer of no is what stops the one-time tick (see capitals.ts)
+             putting it back; absent where nobody has answered, which is
+             every card the editor does not ask. */
+          capitals: typeof card.capitals === "boolean" ? card.capitals : undefined,
+          /* Which card this one was split out of, where it was — see
+             splitByMeaning. Written once, by the save that makes the card,
+             and kept through every later save, which does not send it: so
+             only ever set here, never cleared by saying nothing. */
+          ...(idish(card.splitFrom) ? { splitFrom: idish(card.splitFrom) } : {}),
+          /* And the teacher's answer that its meanings are learnt together,
+             where they gave one. Kept the same way: an editor that does not
+             ask the question does not undo the answer. */
+          ...(typeof card.together === "boolean" ? { together: card.together } : {}),
+          /* No `value` here, and none taken from a save.
+             It was what made a card one of the parts a number was built out
+             of, and there are no parts any more: a language's numbers are
+             one document now, and the cards under it are written by the app
+             out of that. So a value that arrives is dropped, like any other
+             field nobody writes. A value already *stored* is kept — it comes
+             through the spread of the card as it stood — because it is the
+             one record of which box an old card fills and it is what the
+             lift reads. Stripping it on the next save would be pulling the
+             mapping out from under the migration. Kept the way a retired
+             grammar axis is kept, and read in `seedSystems`. */
+          note: String(card.note || "").slice(0, 500),
+          lang: String(card.lang || "").slice(0, 12),
+          /* Which blanks this card fills, where it is a value rather than
+             something to learn. A list since a word may stand in more than
+             one kind of hole; a card written when it was one name arrives as
+             a string and is stored as the list of one it always meant.
+             Absent where it fills none rather than stored empty, which is
+             what `fills` has always been on an ordinary card and what every
+             reader of it still tests for — and undefined rather than left
+             out, because this object is spread over the card as it stood and
+             a missing key would keep whatever it used to fill. JSON drops
+             the undefined on the way to disk. */
+          fills: filling.length ? filling : undefined,
+          /* The ID the teacher gave this card, so another card's blank can
+             ask for this one by name. Absent where it has none — a card
+             written before the ID was asked for — rather than stored empty,
+             and undefined rather than left out, because this object is
+             spread over the card as it stood and a missing key would keep
+             whatever it used to answer to. JSON drops the undefined on the
+             way to disk. */
+          ref: ownRef || undefined,
+          /* Whether this card is a sentence — a frame other cards are
+             dropped into — which is the teacher's answer rather than
+             something read off the braces. Stored as a boolean either way
+             rather than only when true, for the reason `drill` is: a card
+             turned from a sentence back into a word must come back as a
+             word, and an absent field would leave every reader falling back
+             to the old reading of its braces for ever. A card written before
+             this carries nothing and is read that old way, which is exactly
+             what it meant — see isSentence, which is the reading this goes
+             through rather than a fourth copy of it.
 
-           Saying nothing is not the same as saying no. Reading an absent
-           answer as `false` pinned every card an older build sent — and a
-           build from before 0.176 says nothing about this by definition —
-           so a sentence saved from a stale tab, or pasted in, came back a
-           word with its own braces in it: lent into other cards' holes,
-           drawn as a word, and refused by the editor on every later save
-           until somebody deleted the braces.
+             Saying nothing is not the same as saying no. Reading an absent
+             answer as `false` pinned every card an older build sent — and a
+             build from before 0.176 says nothing about this by definition —
+             so a sentence saved from a stale tab, or pasted in, came back a
+             word with its own braces in it: lent into other cards' holes,
+             drawn as a word, and refused by the editor on every later save
+             until somebody deleted the braces.
 
-           And a card with a hole in it is a sentence whoever says
-           otherwise. That is the invariant the rest of this rests on —
-           only a sentence may have a blank — and it is worth more than any
-           one client's answer, so it is settled by reading rather than by
-           refusing: an old client goes on saving its cards, and what it
-           saves is true. A conversation is left alone, being neither. */
-        sentence: !isDialog(card) && (isSentence(card) || holed(card)),
-        /* Whether it is practised in its own right. Stored as a boolean
-           either way rather than only when false: a card that has been
-           turned off and on again must come back as on, and an absent field
-           would leave the client reading the last value it synced. */
-        drill: card.drill !== false,
-        /*
-         * The card's own word first, then every other form of it.
-         *
-         * One list, and one description of what a form may carry — which
-         * is the whole of what the shape bought. The card's word used to be
-         * written out here as fields of the card and its other forms again
-         * inside `subs`, so a field that belonged to a form was described
-         * twice and the two drifted: a sub-form had no id for three
-         * releases, and a form switched off needed its own separate answer
-         * for the card's word.
-         *
-         * The cap is a guard against a runaway client rather than a limit
-         * anybody should meet: eight persons across three tenses is
-         * twenty-four boxes before a teacher has added a plural.
-         */
-        forms: formsOf(card)
-          .slice(0, 65)
-          .map((/** @type {Record<string, any>} */ f) => ({
-            /* What this form is called, for as long as anything points at
-               it — a cell of the table it carries, and a student's
-               schedule for it. Stored where the client sends one and
-               absent where it does not, so a card saved by an older build
-               is unchanged by passing through here. Narrowed to the shape
-               an id can take, like every other id on this document. */
-            ...(idish(f.id) ? { id: idish(f.id) } : {}),
-            ar: String(f.ar || "").slice(0, 400),
-            en: String(f.en || "").slice(0, 400),
-            lat: String(f.lat || "").slice(0, 400),
-            /* Whatever grammatical values the form carries. The server does
-               not know which language uses which; it stores what it is
-               given, so a card is never stripped by passing through here. */
-            ...Object.fromEntries(
-              grammarFields().map((g) => [g, String(f[g] || "").slice(0, 40)])
-            ),
-            /* Which tenses this form's blanks ask their verbs for, where
-               it is a sentence that has narrowed one. A map from the
-               blank's name to the rows it admits — the names narrowed the
-               way every name that goes between braces is, and the rows to
-               the shape an id can take, because which rows a language has
-               is the language's business and the server does not know one
-               language from another. Absent where nothing is narrowed,
-               which is every card written before the teacher was asked
-               and every frame that wants any tense. */
-            ...slotTenses(f),
-            /* And which blank each of its blanks agrees with, where the
-               teacher linked any — see slotLinks in src/verbs.ts, which
-               this is read through. Absent where nothing is linked. */
-            ...slotAgrees(f),
-            /* And whose wish each verb blank's `{{verb-to}}` reads
-               against, where the teacher chose — see CardForm.wish. A
-               blank's name and a column, each narrowed to the shape a
-               name or an id can take. Absent where nobody chose. */
-            ...slotWish(f),
-            /* Where this form sits in the card's verb table, when it is a
-               cell of one. Stored as given, like the grammar values above
-               and for the same reason: which rows and columns a language
-               has is the language's business, and the server does not
-               know one language from another. Narrowed to the shape an
-               id can take so what comes back is what a pack can name. */
-            ...cellAt(f),
-            /* Whether this form is asked about. Stored only where it is
-               off, because the whole list is rewritten on every save —
-               there is no older value here to be left standing, and a
-               card saved by a build that knows nothing of this passes
-               through unchanged. */
-            ...(f.ask === false ? { ask: false } : {}),
-            /* And whether it may be lent to a card with a blank in it,
-               which is the other half of the same question and since
-               0.179 a separate answer — see `lend` in src/types.ts.
-               Stored only where the client has an answer to store: absent
-               means whatever `ask` says, which is what every card written
-               before this meant. */
-            ...(typeof f.lend === "boolean" ? { lend: f.lend } : {}),
-            answers: storedAnswers(f),
-            clips: clipList(f.clips),
-            slowClips: clipList(f.slowClips),
-            /* The pictures on this form — see imageList. Absent rather than
-               empty on a form with none, which is every form written before
-               a card could carry one. */
-            ...(imageList(f.images).length ? { images: imageList(f.images) } : {}),
-          })),
-        /* Which word cards this one teaches by containing them. A phrase
-           the teacher recorded is a context for the words inside it, and
-           this is the teacher's confirmation of which those are — never the
-           app's guess, which is only ever a suggestion in the editor.
+             And a card with a hole in it is a sentence whoever says
+             otherwise. That is the invariant the rest of this rests on —
+             only a sentence may have a blank — and it is worth more than any
+             one client's answer, so it is settled by reading rather than by
+             refusing: an old client goes on saving its cards, and what it
+             saves is true. A conversation is left alone, being neither. */
+          sentence: !isDialog(card) && (isSentence(card) || holed(card)),
+          /* Whether it is practised in its own right. Stored as a boolean
+             either way rather than only when false: a card that has been
+             turned off and on again must come back as on, and an absent field
+             would leave the client reading the last value it synced. */
+          drill: card.drill !== false,
+          /*
+           * The card's own word first, then every other form of it.
+           *
+           * One list, and one description of what a form may carry — which
+           * is the whole of what the shape bought. The card's word used to be
+           * written out here as fields of the card and its other forms again
+           * inside `subs`, so a field that belonged to a form was described
+           * twice and the two drifted: a sub-form had no id for three
+           * releases, and a form switched off needed its own separate answer
+           * for the card's word.
+           *
+           * The cap is a guard against a runaway client rather than a limit
+           * anybody should meet: eight persons across three tenses is
+           * twenty-four boxes before a teacher has added a plural.
+           */
+          forms: formsOf(card)
+            .slice(0, 65)
+            .map((/** @type {Record<string, any>} */ f) => ({
+              /* What this form is called, for as long as anything points at
+                 it — a cell of the table it carries, and a student's
+                 schedule for it. Stored where the client sends one and
+                 absent where it does not, so a card saved by an older build
+                 is unchanged by passing through here. Narrowed to the shape
+                 an id can take, like every other id on this document. */
+              ...(idish(f.id) ? { id: idish(f.id) } : {}),
+              ar: String(f.ar || "").slice(0, 400),
+              en: String(f.en || "").slice(0, 400),
+              lat: String(f.lat || "").slice(0, 400),
+              /* Whatever grammatical values the form carries. The server does
+                 not know which language uses which; it stores what it is
+                 given, so a card is never stripped by passing through here. */
+              ...Object.fromEntries(
+                grammarFields().map((g) => [g, String(f[g] || "").slice(0, 40)])
+              ),
+              /* Which tenses this form's blanks ask their verbs for, where
+                 it is a sentence that has narrowed one. A map from the
+                 blank's name to the rows it admits — the names narrowed the
+                 way every name that goes between braces is, and the rows to
+                 the shape an id can take, because which rows a language has
+                 is the language's business and the server does not know one
+                 language from another. Absent where nothing is narrowed,
+                 which is every card written before the teacher was asked
+                 and every frame that wants any tense. */
+              ...slotTenses(f),
+              /* And which blank each of its blanks agrees with, where the
+                 teacher linked any — see slotLinks in src/verbs.ts, which
+                 this is read through. Absent where nothing is linked. */
+              ...slotAgrees(f),
+              /* And whose wish each verb blank's `{{verb-to}}` reads
+                 against, where the teacher chose — see CardForm.wish. A
+                 blank's name and a column, each narrowed to the shape a
+                 name or an id can take. Absent where nobody chose. */
+              ...slotWish(f),
+              /* Where this form sits in the card's verb table, when it is a
+                 cell of one. Stored as given, like the grammar values above
+                 and for the same reason: which rows and columns a language
+                 has is the language's business, and the server does not
+                 know one language from another. Narrowed to the shape an
+                 id can take so what comes back is what a pack can name. */
+              ...cellAt(f),
+              /* Whether this form is asked about. Stored only where it is
+                 off, because the whole list is rewritten on every save —
+                 there is no older value here to be left standing, and a
+                 card saved by a build that knows nothing of this passes
+                 through unchanged. */
+              ...(f.ask === false ? { ask: false } : {}),
+              /* And whether it may be lent to a card with a blank in it,
+                 which is the other half of the same question and since
+                 0.179 a separate answer — see `lend` in src/types.ts.
+                 Stored only where the client has an answer to store: absent
+                 means whatever `ask` says, which is what every card written
+                 before this meant. */
+              ...(typeof f.lend === "boolean" ? { lend: f.lend } : {}),
+              answers: storedAnswers(f),
+              clips: clipList(f.clips),
+              slowClips: clipList(f.slowClips),
+              /* The pictures on this form — see imageList. Absent rather than
+                 empty on a form with none, which is every form written before
+                 a card could carry one. */
+              ...(imageList(f.images).length ? { images: imageList(f.images) } : {}),
+            })),
+          /* Which word cards this one teaches by containing them. A phrase
+             the teacher recorded is a context for the words inside it, and
+             this is the teacher's confirmation of which those are — never the
+             app's guess, which is only ever a suggestion in the editor.
 
-           Ids, cleaned the same way a card id is: they are written straight
-           into a document and read back as identity. */
-        uses: Array.isArray(card.uses)
-          ? [...new Set(card.uses.map((/** @type {unknown} */ x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "")))]
-              .filter(Boolean)
-              .slice(0, 24)
-          : [],
-        /* A conversation, where the card is one: who is in it, which part
-           the learner takes, and the turns in order. A line is a form with
-           a speaker on it, so it is stored the way a form is — and, like a
-           form, it may name the word cards it contains.
+             Ids, cleaned the same way a card id is: they are written straight
+             into a document and read back as identity. */
+          uses: Array.isArray(card.uses)
+            ? [...new Set(card.uses.map((/** @type {unknown} */ x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "")))]
+                .filter(Boolean)
+                .slice(0, 24)
+            : [],
+          /* A conversation, where the card is one: who is in it, which part
+             the learner takes, and the turns in order. A line is a form with
+             a speaker on it, so it is stored the way a form is — and, like a
+             form, it may name the word cards it contains.
 
-           Capped at a dozen turns and four speakers for the same reason
-           everything above is capped: this is written into a document that
-           is handed to every student in the course. A card with no lines
-           stores none, so an ordinary word is unchanged by passing
-           through here. */
-        speakers: Array.isArray(card.speakers) && !isText(card)
-          ? card.speakers.slice(0, 4).map((/** @type {unknown} */ n) => String(n || "").slice(0, 40))
-          : [],
-        /* Which part the learner takes, or null where the teacher left it
-           open — most conversations are worth holding up from either end,
-           and the question picks a side when the card names none. Stored
-           as null rather than 0 because 0 is a real answer: "the one who
-           speaks first", which is the opposite of no answer at all. */
-        you:
-          card.you === null || card.you === undefined || card.you === "" || isText(card)
-            ? null
-            : Math.max(0, Math.min(3, Math.round(Number(card.you) || 0))),
-        /* Which kind of scene it is, where it is one: a text, or — saying
-           nothing — the conversation every scene was before texts. Absent
-           rather than "conversation", so a conversation saved here is
-           byte for byte what it was. Undefined rather than left out,
-           because this object is spread over the card as it stood and a
-           text turned back into a conversation must stop being a text. */
-        sceneKind: isDialog(card) && isText(card) ? TEXT : undefined,
-        lines: Array.isArray(card.lines)
-          ? card.lines.slice(0, 12).map((/** @type {Record<string, any>} */ ln) => ({
-              /* What this turn is called, for as long as anything points
-                 at it. A turn is drilled in its own right, with its own
-                 recordings and its own progress, and it was the one kind
-                 of form in the app with nothing to name it — so on a
-                 student's device it was known by its position, and a
-                 teacher removing a turn from the middle of a scene handed
-                 every turn below it the progress of the one above. Forms
-                 were named for that reason in 0.131 and table cells in
-                 0.145; this is the third and last of them. */
-              ...(idish(ln.id) ? { id: idish(ln.id) } : {}),
-              /* Nobody says a line of a text, so every one is the first
-                 speaker's, which is what a scene with no speakers reads. */
-              who: isText(card) ? 0 : Math.max(0, Math.min(3, Math.round(Number(ln.who) || 0))),
-              /* The sentence card this turn was picked from, where it was
-                 picked rather than typed — an id, cleaned the way every card
-                 id is. Its words are the sentence's, refreshed below and
-                 again on the way to every student. */
-              ...(cardIdish(ln.from) ? { from: cardIdish(ln.from) } : {}),
-              /* Which member of the scene's cast each of its blanks plays,
-                 where one plays somebody other than the member named after
-                 it. Each name narrowed here; which of them the turn keeps
-                 is settled once its words are final — see below — because
-                 a picked turn's blanks are its sentence's, not the copy's. */
-              ...rolesOf(ln),
-              /* And which forms its blanks take — a tense, or a pronoun on
-                 the end — the narrowing a sentence's form carries, read the
-                 same way. A picked turn brings its sentence's. */
-              ...slotTenses(ln),
-              ar: String(ln.ar || "").slice(0, 400),
-              en: String(ln.en || "").slice(0, 400),
-              lat: String(ln.lat || "").slice(0, 400),
-              clips: clipList(ln.clips),
-              slowClips: clipList(ln.slowClips),
-              uses: Array.isArray(ln.uses)
-                ? [...new Set(ln.uses.map((/** @type {unknown} */ x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "")))]
-                    .filter(Boolean)
-                    .slice(0, 24)
-                : [],
-            }))
-          : [],
+             Capped at a dozen turns and four speakers for the same reason
+             everything above is capped: this is written into a document that
+             is handed to every student in the course. A card with no lines
+             stores none, so an ordinary word is unchanged by passing
+             through here. */
+          speakers: Array.isArray(card.speakers) && !isText(card)
+            ? card.speakers.slice(0, 4).map((/** @type {unknown} */ n) => String(n || "").slice(0, 40))
+            : [],
+          /* Which part the learner takes, or null where the teacher left it
+             open — most conversations are worth holding up from either end,
+             and the question picks a side when the card names none. Stored
+             as null rather than 0 because 0 is a real answer: "the one who
+             speaks first", which is the opposite of no answer at all. */
+          you:
+            card.you === null || card.you === undefined || card.you === "" || isText(card)
+              ? null
+              : Math.max(0, Math.min(3, Math.round(Number(card.you) || 0))),
+          /* Which kind of scene it is, where it is one: a text, or — saying
+             nothing — the conversation every scene was before texts. Absent
+             rather than "conversation", so a conversation saved here is
+             byte for byte what it was. Undefined rather than left out,
+             because this object is spread over the card as it stood and a
+             text turned back into a conversation must stop being a text. */
+          sceneKind: isDialog(card) && isText(card) ? TEXT : undefined,
+          lines: Array.isArray(card.lines)
+            ? card.lines.slice(0, 12).map((/** @type {Record<string, any>} */ ln) => ({
+                /* What this turn is called, for as long as anything points
+                   at it. A turn is drilled in its own right, with its own
+                   recordings and its own progress, and it was the one kind
+                   of form in the app with nothing to name it — so on a
+                   student's device it was known by its position, and a
+                   teacher removing a turn from the middle of a scene handed
+                   every turn below it the progress of the one above. Forms
+                   were named for that reason in 0.131 and table cells in
+                   0.145; this is the third and last of them. */
+                ...(idish(ln.id) ? { id: idish(ln.id) } : {}),
+                /* Nobody says a line of a text, so every one is the first
+                   speaker's, which is what a scene with no speakers reads. */
+                who: isText(card) ? 0 : Math.max(0, Math.min(3, Math.round(Number(ln.who) || 0))),
+                /* The sentence card this turn was picked from, where it was
+                   picked rather than typed — an id, cleaned the way every card
+                   id is. Its words are the sentence's, refreshed below and
+                   again on the way to every student. */
+                ...(cardIdish(ln.from) ? { from: cardIdish(ln.from) } : {}),
+                /* Which member of the scene's cast each of its blanks plays,
+                   where one plays somebody other than the member named after
+                   it. Each name narrowed here; which of them the turn keeps
+                   is settled once its words are final — see below — because
+                   a picked turn's blanks are its sentence's, not the copy's. */
+                ...rolesOf(ln),
+                /* And which forms its blanks take — a tense, or a pronoun on
+                   the end — the narrowing a sentence's form carries, read the
+                   same way. A picked turn brings its sentence's. */
+                ...slotTenses(ln),
+                ar: String(ln.ar || "").slice(0, 400),
+                en: String(ln.en || "").slice(0, 400),
+                lat: String(ln.lat || "").slice(0, 400),
+                clips: clipList(ln.clips),
+                slowClips: clipList(ln.slowClips),
+                uses: Array.isArray(ln.uses)
+                  ? [...new Set(ln.uses.map((/** @type {unknown} */ x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "")))]
+                      .filter(Boolean)
+                      .slice(0, 24)
+                  : [],
+              }))
+            : [],
+        };
       };
+      const fields = fieldsFor(card);
 
       /*
        * What the whitelist above cut, in the teacher's own terms.
@@ -1893,7 +2095,8 @@ export default async (req) => {
           const en = String(ex.en || "").trim().slice(0, 400);
           if (!ar && !lat && !en) continue;
           const wish = idish(ex.wish);
-          out.push({ ar, ...(lat ? { lat } : {}), en, ...(wish ? { wish } : {}) });
+          const as = idish(ex.as);
+          out.push({ ar, ...(lat ? { lat } : {}), en, ...(wish ? { wish } : {}), ...(as ? { as } : {}) });
           if (out.length >= 3) break;
         }
         return out.length ? out : undefined;
@@ -2002,34 +2205,6 @@ export default async (req) => {
           .slice(0, 24);
       }
 
-      let saved;
-      /** @type {string[]} */
-      let current = [];
-      /* Whether this card was a value before this save, so that turning one
-         back into an ordinary card reaches the devices holding it too. */
-      let wasFilling = false;
-      /** @type {Card | null} */
-      let existing = null;
-      if (id) {
-        existing = await loadCard(id);
-        if (!existing) return json({ error: "no-card" }, 404);
-        wasFilling = fillsOf(existing).length > 0;
-        current = await decksHolding(existing);
-        if (existing.owner !== mine && !me.admin) {
-          /* A card in a deck I teach is mine to correct — a deck it is
-             actually in, not one the request happens to name. */
-          let allowed = false;
-          for (const did of current) {
-            const d = await readDeck(store, did);
-            if (await canEditDeck(store, d, mine, me.admin)) {
-              allowed = true;
-              break;
-            }
-          }
-          if (!allowed) return json({ error: "not-yours" }, 403);
-        }
-      }
-
       /*
        * An ID is the one name that reaches one card, so no two cards may
        * answer to it.
@@ -2072,18 +2247,90 @@ export default async (req) => {
            what 0.138 set out to remove, and a reader that picks the wrong
            half is not a hypothetical: the card editor read the word off
            the card until this release. JSON drops an undefined. */
+        /** @param {Record<string, any>} on @param {Record<string, any>} f */
+        const written = (on, f) => ({ ...on, ...RETIRED_CARD_FIELDS, ...f, ...keptKind(on, f) });
+        /** A rename or a tag taken off the collection, on one version. */
+        /** @param {Record<string, any>} one */
+        const walked = (one) => {
+          let out = one;
+          for (const r of Array.isArray(walk && walk.renames) ? walk.renames : []) {
+            out = renamedIn(out, String((r && r.from) || ""), String((r && r.to) || "")) || out;
+          }
+          for (const name of Array.isArray(walk && walk.drops) ? walk.drops : []) {
+            out = droppedIn(out, String(name || "")) || out;
+          }
+          return out;
+        };
+        const { pending: was, ...live } = existing;
+        /** What students will have after this save. */
+        /** @type {Record<string, any>} */
+        let nextLive;
+        /** And the unpublished changes, where the card keeps any. */
+        /** @type {Record<string, any> | null} */
+        let nextWork = null;
+        if (walk) {
+          nextLive = walked(live);
+          nextWork = was ? walked(withVersion(live, was.card || {})) : null;
+        } else if (!isPublished(existing)) {
+          /* Never published: the card is its own draft, and is written as
+             any card always was. */
+          nextLive = written(live, fields);
+          if (asked) nextLive.status = asked;
+        } else if (intoChanges) {
+          /* The card screen, on a published card. The header is the one
+             part of it that is not a version — see VERSIONED_KEYS — so it
+             goes to the card itself; the rest waits in the changes. */
+          nextLive = { ...live, fills: fields.fills, ref: fields.ref };
+          nextWork = written(base || live, fields);
+        } else {
+          /* Anything else writes what students have, as it always did. */
+          nextLive = written(live, touched ? fieldsFor({ ...live, ...pick(sent) }) : fields);
+          if (was) {
+            /* And the same change into the changes, so that publishing
+               them later does not undo it. Where the sender named what it
+               changed, that is laid over the changes; where it sent the
+               whole card, whatever moved on the published card moves in
+               the changes too. */
+            const after = versionOf(nextLive);
+            const before = versionOf(live);
+            const moved = VERSIONED_KEYS.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+            nextWork = touched
+              ? written(base || live, fields)
+              : withVersion(base || live, Object.fromEntries(moved.map((k) => [k, after[k]])));
+          }
+        }
         saved = {
-          ...existing,
-          ...RETIRED_CARD_FIELDS,
-          ...fields,
-          ...keptKind(existing, fields),
+          ...nextLive,
+          /* Undefined where the changes come to nothing — the teacher put
+             back what students have — so a card with nothing waiting says
+             so. JSON drops it. */
+          pending: nextWork && !sameVersion(nextLive, nextWork)
+            ? {
+                status: asked || (was && was.status) || "draft",
+                card: versionOf(nextWork),
+                updated: Date.now(),
+                by: mine,
+              }
+            : undefined,
           rev: (existing.rev || 1) + 1,
           updated: Date.now(),
         };
       } else {
         const newId = `k${randomBytes(6).toString("hex")}`;
         const now = Date.now();
-        saved = { id: newId, owner: mine, ...fields, rev: 1, created: now, updated: now };
+        saved = {
+          id: newId,
+          owner: mine,
+          ...fields,
+          /* The card screen makes every card a draft, and an import makes
+             it Ready for review: nobody sees it until it is published. A
+             card made anywhere else — the Pronouns screen, a split, an
+             older build — is published as it always was. */
+          ...(asked ? { status: asked } : {}),
+          rev: 1,
+          created: now,
+          updated: now,
+        };
         /* Added to whatever the list holds when the write lands. Read and
            written whole, two cards made at once cost one of them its place
            in it — and a card missing from here is a card that is on disk
@@ -2103,13 +2350,19 @@ export default async (req) => {
       /* Only the decks that gain or lose the card are read and written. A
          deck that keeps it is still bumped when the card's content changed,
          so the version a student's device compares against moves too. */
-      const wanted = wantedDecks ? new Set(wantedDecks) : new Set(current);
-      const touched = new Set([...current, ...wanted]);
+      const wanted = wantedDecks && !(touched && !touched.includes("decks")) && !walk
+        ? new Set(wantedDecks)
+        : new Set(current);
+      /* Whether what students have of this card moved, which is what makes
+         their devices fetch it again. A change to a draft, or to a
+         published card's unpublished changes, moves nothing of theirs. */
+      const liveMoved = seenByStudents(existing || { status: "draft" }) !== seenByStudents(saved);
+      const reached = new Set([...current, ...wanted]);
       const final = [];
       const deckRecords = [];
       /** @type {{ id: string, title: string }[]} */
       const refusedLocked = [];
-      for (const did of touched) {
+      for (const did of reached) {
         const d = await readDeck(store, did);
         if (!d) continue;
         const has = current.includes(did);
@@ -2136,7 +2389,7 @@ export default async (req) => {
           : ids.filter((x) => x !== saved.id);
         if (want) final.push(did);
         const changedMembership = next.length !== ids.length;
-        if (!changedMembership && !id) continue;
+        if (!changedMembership && !(id && liveMoved)) continue;
         /*
          * This one card in or out of whatever the deck holds when the
          * write lands, rather than a whole list worked out beforehand.
@@ -2175,34 +2428,57 @@ export default async (req) => {
        * the turn as the words it last had, typed into the scene — which is
        * what it now is — and reviewed with the scene's own turns.
        */
-      if (linesOf(saved).some((l) => pickedFrom(l))) {
-        const ids = [...new Set(linesOf(saved).map((l) => pickedFrom(l)).filter(Boolean))];
-        const rows = await readManyJson(store, ids.map((x) => K.card(x)), EVENTUAL);
-        /** @type {Map<string, any>} */
-        const sources = new Map();
-        ids.forEach((x, i) => {
-          const c = rows[i];
-          if (c && !isDialog(c) && isSentence(c)) sources.set(x, c);
-        });
-        saved.lines = linesOf(saved).map((l) => {
-          const from = pickedFrom(l);
-          if (!from) return l;
-          const source = sources.get(from);
-          if (!source) {
-            const { from: _gone, ...typed } = l;
-            return typed;
-          }
-          return pickedLine(l, source);
-        });
-      }
-      /* And the cast kept only for blanks each turn actually has, now that
-         its words are final. */
-      if (linesOf(saved).some((l) => l.roles)) {
-        saved.lines = linesOf(saved).map((l) => {
-          const { roles: _was, ...rest } = /** @type {any} */ (l);
-          const roles = cleanRoles(l);
-          return roles ? { ...rest, roles } : rest;
-        });
+      /* Each version from the sentence's own version: what students have
+         from what students have of it, and the changes from what the
+         teacher sees of it. A sentence nobody has published yet is left
+         where it was on the published scene rather than cut loose from it
+         — it is coming, and the turn should follow it when it does. */
+      /**
+       * @param {Record<string, any>} one
+       * @param {boolean} published
+       */
+      const refreshLines = async (one, published) => {
+        let lines = linesOf(one);
+        if (lines.some((l) => pickedFrom(l))) {
+          const ids = [...new Set(lines.map((l) => pickedFrom(l)).filter(Boolean))];
+          const rows = await readManyJson(store, ids.map((x) => K.card(x)), EVENTUAL);
+          /** @type {Map<string, any>} */
+          const sources = new Map();
+          /** @type {Set<string>} */
+          const coming = new Set();
+          ids.forEach((x, i) => {
+            const row = rows[i];
+            const c = row && (published ? row : workingOf(row));
+            if (!c || isDialog(c) || !isSentence(c)) return;
+            if (published && !isPublished(row)) coming.add(x);
+            else sources.set(x, c);
+          });
+          lines = lines.map((l) => {
+            const from = pickedFrom(l);
+            if (!from || coming.has(from)) return l;
+            const source = sources.get(from);
+            if (!source) {
+              const { from: _gone, ...typed } = l;
+              return typed;
+            }
+            return pickedLine(l, source);
+          });
+        }
+        /* And the cast kept only for blanks each turn actually has, now
+           that its words are final. */
+        if (lines.some((l) => l.roles)) {
+          lines = lines.map((l) => {
+            const { roles: _was, ...rest } = /** @type {any} */ (l);
+            const roles = cleanRoles(l);
+            return roles ? { ...rest, roles } : rest;
+          });
+        }
+        return lines;
+      };
+      if (linesOf(saved).length) saved.lines = await refreshLines(saved, isPublished(saved));
+      if (saved.pending && Array.isArray(saved.pending.card.lines) && saved.pending.card.lines.length) {
+        const lines = await refreshLines(withVersion(saved, saved.pending.card), false);
+        saved.pending = { ...saved.pending, card: { ...saved.pending.card, lines } };
       }
 
       /*
@@ -2221,10 +2497,14 @@ export default async (req) => {
        * to a review that exists — the changed sentences are simply not on
        * it. A card that makes no sentences is left without one.
        */
-      if (!reviewOf(saved) && holedParts(saved).length) {
+      /* Asked of the version the teacher works on: the review is one list
+         for both versions — an approval is of the words shown, whichever
+         version shows them — and the changes are where new sentences are
+         written. */
+      if (!reviewOf(saved) && holedParts(workingOf(saved)).length) {
         const framed = (/** @type {any} */ c) =>
           JSON.stringify(holedParts(c).map((f) => [f.ar, f.lat, f.en, f.tenses || null, f.row || "", f.agrees || null]));
-        if (!existing || framed(existing) !== framed(saved)) {
+        if (!existing || framed(workingOf(existing)) !== framed(workingOf(saved))) {
           saved.review = { ok: [], no: [], at: Date.now(), by: mine };
         }
       }
@@ -2236,13 +2516,13 @@ export default async (req) => {
          the scene's decks are not this card's, and it is this teacher's
          revision that tells their students' devices to fetch the scene's
          lines again. */
-      if (fillsOf(saved).length || wasFilling || isSentence(saved)) await bumpFills(saved.owner || "");
+      if (liveMoved && (fillsOf(saved).length || wasFilling || isSentence(saved))) await bumpFills(saved.owner || "");
       await taught();
       /* `trimmed` only where something was — an ordinary save says nothing,
          and the client has nothing to report. */
       return json({
         ok: true,
-        card: { ...saved, decks: final },
+        card: { ...teacherView(saved), decks: final },
         /* The screen folds these over the decks it holds, so they say
            which courses hold them the way my-decks does. */
         decks: await withLinks(store, deckRecords),
@@ -2335,7 +2615,70 @@ export default async (req) => {
          revision moves, as it does when the sentence is saved. */
       if (isSentence(next || card)) await bumpFills((next || card).owner || "");
       await taught();
-      return json({ ok: true, card: { ...(next || card), decks: holding } });
+      return json({ ok: true, card: { ...teacherView(next || card), decks: holding } });
+    }
+
+    /*
+     * A card's status: Draft, Ready for review, or Published — and, on a
+     * published card, the status of its unpublished changes.
+     *
+     * `to` is one of:
+     *   draft, review   the card's status, or its changes' where it is
+     *                   published and has some
+     *   published       publish the card, or publish its changes over
+     *                   what students have
+     *   discard         throw the changes away; students' card stands
+     *   unpublish       take the card away from students. What the
+     *                   teacher was working on is kept, as a draft —
+     *                   their changes where there were any — and every
+     *                   student's progress on it is set aside on their
+     *                   device the way a withdrawn card's is, and comes
+     *                   back if it is published again.
+     *
+     * Whoever may change the card may do any of these, including publish
+     * their own changes: "Ready for review" changes nothing yet but what
+     * the card says about itself.
+     */
+    if (action === "card-status") {
+      const id = String(body.cardId || "").replace(/[^A-Za-z0-9_-]/g, "");
+      const to = String(body.to || "");
+      const card = id ? await loadCard(id) : null;
+      if (!card) return json({ error: "no-card" }, 404);
+      if (!(await mayEditCard(card))) return json({ error: "not-yours" }, 403);
+      if (![...CARD_STATUSES, "discard", "unpublish"].includes(to)) return json({ error: "bad-status" }, 400);
+      /** @type {Record<string, any>} */
+      let next;
+      const { pending, ...live } = card;
+      if (!isPublished(card)) {
+        if (to === "discard" || to === "unpublish") return json({ error: "not-published" }, 400);
+        next = to === "published" ? { ...live, status: undefined } : { ...live, status: to };
+      } else if (to === "unpublish") {
+        next = { ...workingOf(card), status: pending && pending.status === "review" ? "review" : "draft" };
+      } else if (!pending) {
+        if (to !== "published") return json({ error: "no-changes" }, 400);
+        next = card;
+      } else if (to === "discard") {
+        next = live;
+      } else if (to === "published") {
+        next = withVersion(live, pending.card || {});
+      } else {
+        next = { ...card, pending: { ...pending, status: to } };
+      }
+      next = { ...next, rev: (card.rev || 1) + 1, updated: Date.now() };
+      await writeJson(store, K.card(id), next);
+      const holding = await decksHolding(card);
+      if (seenByStudents(card) !== seenByStudents(next)) {
+        for (const did of holding) {
+          await updateJson(store, K.deck(did), (/** @type {any} */ d) =>
+            d ? { ...d, version: (d.version || 1) + 1, updated: Date.now() } : null,
+          );
+        }
+        if (fillsOf(card).length || fillsOf(next).length || isSentence(card) || isSentence(next)) {
+          await bumpFills(next.owner || "");
+        }
+      }
+      await taught();
+      return json({ ok: true, card: { ...teacherView(next), decks: holding } });
     }
 
     /*
@@ -3017,7 +3360,13 @@ export default async (req) => {
       const allCardIds = [...new Set(decks.flatMap((d) => d.cardIds))];
       const cardRows = await readManyJson(store, allCardIds.map((id) => K.card(id)), EVENTUAL);
       const cardById = new Map();
-      allCardIds.forEach((id, i) => cardRows[i] && cardById.set(id, cardRows[i]));
+      /* Only what is published, and only the version that is: a draft, and
+         a published card's unpublished changes, are the teacher's until
+         they publish them. See isPublished. */
+      allCardIds.forEach((id, i) => {
+        const c = cardRows[i];
+        if (c && isPublished(c)) cardById.set(id, studentView(c));
+      });
       /*
        * The values a deck's phrases need, sent with it.
        *
@@ -3054,7 +3403,10 @@ export default async (req) => {
         /** @type {string[]} */
         const ids = (await readJson(store, K.myCards(owner), EVENTUAL)) || [];
         const rows = await readManyJson(store, ids.map((id) => K.card(id)), EVENTUAL);
-        const out = rows.filter(Boolean).map((/** @type {any} */ c) => ({ card: c, fills: fillsOf(c) }));
+        const out = rows
+          .filter((/** @type {any} */ c) => c && isPublished(c))
+          .map((/** @type {any} */ c) => studentView(c))
+          .map((/** @type {any} */ c) => ({ card: c, fills: fillsOf(c) }));
         libraries.set(owner, out);
         return out;
       }
@@ -3082,7 +3434,8 @@ export default async (req) => {
       /** @type {Map<string, any>} */
       const sentenceById = new Map();
       for (const x of pickedIds) {
-        const c = cardById.get(x) || extraRows[missing.indexOf(x)];
+        const row = cardById.get(x) || extraRows[missing.indexOf(x)];
+        const c = row && isPublished(row) ? studentView(row) : null;
         if (c && !isDialog(c) && isSentence(c)) sentenceById.set(x, c);
       }
       /** @param {any} c */
@@ -3206,8 +3559,122 @@ export default async (req) => {
 
       const cards = (
         await readManyJson(store, (deck.cardIds || []).map((id) => K.card(id)))
-      ).filter(Boolean);
+      )
+        .filter((/** @type {any} */ c) => c && isPublished(c))
+        .map((/** @type {any} */ c) => studentView(c));
       return json({ ok: true, version: deck.version, cards });
+    }
+
+    /* ================= a teacher's export =================
+
+       A card, a few, a deck or several, as a file in the backup's own
+       format: what the administrator's Restore reads, and plain enough to
+       hand to anybody else who wants to read the cards. Fetched in chunks
+       the way a backup is, because recordings are what make it large.
+
+       Only what this teacher may already work on: their own cards, the
+       decks they own or teach, and the cards in those decks — my-cards'
+       and my-decks' rule. Clips and images are named by the hash of their
+       bytes, which only a card already in the export can tell anyone. */
+
+    /** What this teacher may put in an export. */
+    async function exportable() {
+      /** @type {string[]} */
+      const own = (await readJson(store, K.myCards(mine))) || [];
+      const courses = await everyCourse(store);
+      const teaching = new Set(courses.filter((c) => isTeacher(c, mine)).flatMap((c) => c.decks || []));
+      const deckRows = (await readManyJson(store, (await readIndex(store, "decks")).map((id) => K.deck(id))))
+        .filter(Boolean);
+      /* An administrator may take anything, as a backup would. */
+      const admin = !!(me && me.admin);
+      const decks = deckRows.filter((d) => admin || d.owner === mine || teaching.has(d.id));
+      const cards = new Set(own.concat(decks.flatMap((d) => d.cardIds || [])));
+      return { decks: new Map(decks.map((d) => [d.id, d])), cards, admin };
+    }
+
+    if (action === "export-plan") {
+      const may = await exportable();
+      /** @type {string[]} */
+      const askedDecks = (Array.isArray(body.deckIds) ? body.deckIds : []).map(String);
+      /** @type {string[]} */
+      const askedCards = (Array.isArray(body.cardIds) ? body.cardIds : []).map(String);
+      const deckIds = [...new Set(askedDecks)].filter((id) => may.decks.has(id));
+      /* A deck goes with every card in it: a deck put back without them
+         would be an empty deck that says it holds cards. */
+      const wanted = new Set(askedCards.concat(deckIds.flatMap((id) => may.decks.get(id).cardIds || [])));
+      const ids = [...wanted].filter((id) => may.admin || may.cards.has(id));
+      const cards = (await readManyJson(store, ids.map((id) => K.card(id)))).filter(Boolean);
+      const withMedia = body.media !== false;
+      const clips = withMedia ? [...new Set(cards.flatMap(clipsOfCard))] : [];
+      const images = withMedia ? [...new Set(cards.flatMap(imagesOfCard))] : [];
+
+      /* Who each card belongs to, so a restore lists it among its owner's
+         cards again. Only these ids: the restore adds them to the list
+         that is there rather than writing it over. */
+      /** @type {Record<string, string[]>} */
+      const lists = {};
+      for (const c of cards) if (c.owner) (lists[K.myCards(c.owner)] = lists[K.myCards(c.owner)] || []).push(c.id);
+
+      /** @type {{ id: string, kind: string, keys: string[] }[]} */
+      const chunks = [];
+      /** @type {(kind: string, keys: string[], size: number) => void} */
+      const batch = (kind, keys, size) => {
+        for (let i = 0; i < keys.length; i += size) {
+          chunks.push({ id: `${kind}-${chunks.length}`, kind, keys: keys.slice(i, i + size) });
+        }
+      };
+      batch("deck", deckIds.map(K.deck), 40);
+      batch("card", cards.map((c) => K.card(c.id)), 25);
+      batch("clip", clips.map(K.clip), 3);
+      batch("image", images.map(K.image), 2);
+
+      return json({
+        ok: true,
+        manifest: {
+          version: 1,
+          takenAt: Date.now(),
+          by: mine,
+          counts: {
+            users: 0, courses: 0, decks: deckIds.length, cards: cards.length,
+            systems: 0, flags: 0, clips: clips.length, images: images.length, keys: 0,
+          },
+          indexes: { decks: deckIds },
+          chunks: chunks.map((c) => ({ id: c.id, kind: c.kind, keys: c.keys.length })),
+          plan: chunks,
+        },
+        lists,
+        /* What was asked for and is not this teacher's to take. */
+        refused:
+          askedCards.filter((id) => !may.admin && !may.cards.has(id)).length +
+          askedDecks.filter((id) => !may.decks.has(id)).length,
+      });
+    }
+
+    if (action === "export-chunk") {
+      /** @type {string[]} */
+      const keys = (Array.isArray(body.keys) ? body.keys.slice(0, 200) : []).map(String);
+      if (!keys.length) return json({ error: "no-keys" }, 400);
+      const may = await exportable();
+      /* Checked again here rather than trusted from the plan: a chunk is
+         just a list of keys, and anybody can write one. */
+      const allowed = (/** @type {string} */ k) =>
+        k.startsWith("deck:") ? may.decks.has(k.slice(5))
+        : k.startsWith("card:") ? may.admin || may.cards.has(k.slice(5))
+        : /^(clip|image):[a-f0-9]{64}$/.test(k);
+      if (!keys.every(allowed)) return json({ error: "no-access" }, 403);
+      const values = await Promise.all(
+        keys.map((k) =>
+          k.startsWith("clip:") || k.startsWith("image:")
+            ? store.get(k, { type: "text" }).catch(() => null)
+            : readJson(store, k)
+        )
+      );
+      /** @type {Record<string, any>} */
+      const records = {};
+      keys.forEach((k, i) => {
+        if (values[i] !== null && values[i] !== undefined) records[k] = values[i];
+      });
+      return json({ ok: true, records, digest: sha(JSON.stringify(records)), found: Object.keys(records).length });
     }
 
     /* ================= clips ================= */
@@ -3539,7 +4006,10 @@ export default async (req) => {
           /* An index is the union of what the file says and what is here,
              so restoring an old backup cannot hide accounts, courses or
              decks made since it was taken. */
-          if (k.startsWith("index:") && Array.isArray(v)) {
+          /* And so is a person's list of their cards. A teacher's export
+             carries only the ids of the cards in it, and written over the
+             list it would take every other card of theirs off it. */
+          if ((k.startsWith("index:") || k.startsWith("mycards:")) && Array.isArray(v)) {
             const have = (await readJson(store, k)) || [];
             v = [...new Set(have.concat(v))];
           }
@@ -3842,7 +4312,8 @@ export default async (req) => {
         const card = await readCard(store, cardIdOf(url.searchParams.get("card")));
         if (!card) return json({ error: "no-card" }, 404);
         /* Named `decks` because that is what CardReadout reads it as. */
-        return json({ ok: true, card: { ...card, decks: await decksHolding(card) } });
+        /* As students have it: a report is about what they were asked. */
+        return json({ ok: true, card: { ...studentView(card), decks: await decksHolding(card) } });
       }
 
       /* Dealt with, or not worth keeping. There is no state on a flag

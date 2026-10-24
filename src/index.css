@@ -1521,6 +1521,7 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
   font-size:13px; font-weight:600; color: var(--muted); }
 .at-cardline-meaning .at-lat { font-weight:500; font-style:italic; }
 .at-cardline-acts { display:flex; gap:6px; flex:none; }
+.at-cardline-lead { flex:none; display:flex; }
 
 /* And as a table: everything the list knows about each card, side by side.
    It scrolls sideways inside its own frame where it is wider than the
@@ -1722,7 +1723,18 @@ span.at-picture { display:flex; align-items:center; justify-content:center; colo
    reserved for it would just be a band of empty space. */
 .at-screen.over .at-screenhead { padding-top:14px; }
 .at-screenhead h2 { margin:0; font-size:19px; font-weight:800; }
-.at-screenaction { margin-left:auto; display:inline-flex; align-items:center; flex:0 0 auto; }
+.at-screenaction { margin-left:auto; display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; }
+/* The action on a line of its own, under the title rather than beside it:
+   the title keeps the width, and the buttons start where it starts. */
+.at-screenhead.below { flex-wrap:wrap; row-gap:10px; }
+.at-screenhead.below h2 { flex:1 1 0; min-width:0; }
+.at-screenhead.below .at-screenaction { flex:1 0 calc(100% - 50px); margin-left:50px; flex-wrap:wrap; }
+/* Where there is room, back on the title's line at the right, as every
+   other screen has it: the line of their own is for a phone. */
+@media (min-width: 720px) {
+  .at-screenhead.below { flex-wrap:nowrap; }
+  .at-screenhead.below .at-screenaction { flex:0 0 auto; margin-left:auto; flex-wrap:nowrap; }
+}
 .at-back { width:38px; height:38px; flex-shrink:0; border-radius:999px; cursor:pointer;
   background:none; border:2px solid var(--line); color: var(--text); font-size:22px; line-height:1; }
 .at-screenbody { flex:1; overflow-y:auto; padding:18px 16px 40px; }
@@ -3986,3 +3998,25 @@ body.at-screening .at-chromebar { display:none; }
    in the Cards tab are, rather than stretching to a share of the row. */
 .at-screenfoot > .at-icon { flex:0 0 auto; width:52px; height:52px; min-height:52px;
   padding:0; box-sizing:border-box; }
+/* And beside a screen's own action, as the card's Export sits beside its
+   Edit: square, and as tall as the button next to it. */
+.at-screenaction > .at-icon { flex:0 0 auto; width:40px; height:40px; padding:0; box-sizing:border-box; }
+
+/* A card's status, beside Edit on its screen: the app's menu button (see
+   .at-menubtn) and its menu (see .at-pickmenu), hung from the button's
+   left edge, since the button sits at the start of its line. Edged in
+   where the card stands. See StatusMenu. */
+.at-statusmenu { position:relative; display:inline-flex; }
+.at-statusbtn.published { border-color: var(--jade); }
+.at-statusbtn.draft, .at-statusbtn.review, .at-statusbtn.changed { border-color: var(--brass); }
+.at-statuspick { left:0; right:auto; top:calc(100% + 6px); }
+/* At the start of a line or a table row: the badge's words, smaller, and
+   on two lines rather than one long one. */
+.at-statuspill { display:inline-block; max-width:112px; padding:2px 7px; border-radius:8px;
+  border:1px solid var(--brass); color: var(--brass); font-family: var(--ui); font-size:11px;
+  font-weight:700; line-height:1.25; text-align:center; white-space:normal; }
+.at-cardtable .at-cardtable-status { width:1%; }
+/* And in a list: a card students do not have, or have an older copy of. */
+.at-statusbadge { display:inline-block; margin-inline-end:6px; padding:0 6px; border-radius:999px;
+  border:1px solid var(--brass); color: var(--brass); font-family: var(--ui); font-size:11px;
+  font-weight:800; letter-spacing:.04em; text-transform:uppercase; line-height:1.6; }
